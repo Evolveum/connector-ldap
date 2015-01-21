@@ -74,11 +74,17 @@
 
     <dependencies>
     
-    <dependency>
-	    <groupId>org.apache.directory.api</groupId>
-	    <artifactId>api-all</artifactId>
-	    <version>1.0.0-M27</version>
-	</dependency>
+	    <dependency>
+		    <groupId>org.apache.directory.api</groupId>
+		    <artifactId>api-all</artifactId>
+		    <version>1.0.0-M27</version>
+		</dependency>
+		
+		<dependency>
+		    <groupId>com.evolveum.polygon</groupId>
+		    <artifactId>connector-common</artifactId>
+			<version>1.4.1.0-SNAPSHOT</version>
+		</dependency>
 
     </dependencies>
 </project>
