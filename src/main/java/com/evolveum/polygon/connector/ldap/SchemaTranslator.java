@@ -65,7 +65,9 @@ public class SchemaTranslator {
 
 	public Schema translateSchema() {
 		SchemaBuilder schemaBuilder = new SchemaBuilder(LdapConnector.class);
+		LOG.ok("Translating LDAP schema from {0}", schemaManager);
 		for (org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass: schemaManager.getObjectClassRegistry()) {
+			LOG.ok("Found LDAP schema object class {0}", ldapObjectClass.getName());
 			ObjectClassInfoBuilder ocib = new ObjectClassInfoBuilder();
 			ocib.setType(ldapObjectClass.getName());
 			addAttributeTypes(ocib, ldapObjectClass.getMustAttributeTypes(), true);

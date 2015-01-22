@@ -23,8 +23,13 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.directory.api.ldap.model.exception.LdapException;
+import org.apache.directory.api.ldap.model.exception.LdapInvalidDnException;
 import org.apache.directory.api.ldap.model.filter.ExprNode;
+import org.apache.directory.api.ldap.model.message.BindRequest;
+import org.apache.directory.api.ldap.model.message.BindRequestImpl;
+import org.apache.directory.api.ldap.model.message.BindResponse;
 import org.apache.directory.api.ldap.model.message.SearchScope;
+import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.ldap.model.schema.AttributeType;
 import org.apache.directory.api.ldap.model.schema.LdapSyntax;
 import org.apache.directory.api.ldap.model.schema.SchemaManager;
@@ -32,6 +37,7 @@ import org.apache.directory.ldap.client.api.LdapConnectionConfig;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.common.security.GuardedString;
+import org.identityconnectors.framework.common.exceptions.ConfigurationException;
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
 import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
 import org.identityconnectors.framework.common.objects.AttributeInfoBuilder;
@@ -53,6 +59,7 @@ import org.identityconnectors.framework.spi.operations.SchemaOp;
 import org.identityconnectors.framework.spi.operations.SearchOp;
 import org.identityconnectors.framework.spi.operations.TestOp;
 
+import com.evolveum.polygon.common.GuardedStringAccessor;
 import com.evolveum.polygon.common.SchemaUtil;
 import com.evolveum.polygon.connector.ldap.search.SearchStrategy;
 import com.evolveum.polygon.connector.ldap.search.SimpleSearchStrategy;
@@ -76,6 +83,7 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
     @Override
     public void init(Configuration configuration) {
         this.configuration = (LdapConfiguration)configuration;
+        LOG.info("Connector init");
         connect();
     }
     
@@ -88,11 +96,20 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
     private SchemaManager getSchemaManager() {
     	if (schemaManager == null) {
     		try {
+    			LOG.info("Loading schema");
     			connection.loadSchema();
     		} catch (LdapException e) {
     			throw new ConnectorIOException(e.getMessage(), e);
     		}
     		schemaManager = connection.getSchemaManager();
+    		try {
+				LOG.ok("Schema loaded, {0} schemas, {1} object classes, loader {2}",
+						schemaManager.getLoader().getAllSchemas(),
+						schemaManager.getObjectClassRegistry().size(),
+						schemaManager.getLoader());
+			} catch (Exception e) {
+				throw new RuntimeException(e.getMessage(),e);
+			}
     	}
     	return schemaManager;
     }
@@ -231,28 +248,49 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
     	final LdapConnectionConfig connectionConfig = new LdapConnectionConfig();
     	connectionConfig.setLdapHost(configuration.getHost());
     	connectionConfig.setLdapPort(configuration.getPort());
-    	connectionConfig.setName(configuration.getBindDn());
     	
-    	GuardedString bindPassword = configuration.getBindPassword();
-    	if (bindPassword != null) {
-    		// I hate this GuardedString!
-    		bindPassword.access(new GuardedString.Accessor() {
-				@Override
-				public void access(char[] chars) {
-					connectionConfig.setCredentials(new String(chars));
-				}
-			});
-    	}
-    	
+    	LOG.ok("Creating connection object");
 		connection = new LdapNetworkConnection(connectionConfig);
 		try {
+			LOG.info("Connecting to {0}:{1} as {2}", configuration.getHost(), configuration.getPort(), configuration.getBindDn());
 			boolean connected = connection.connect();
+			LOG.ok("Connected ({0})", connected);
 			if (!connected) {
 				throw new ConnectorIOException("Unable to connect to LDAP server "+configuration.getHost()+":"+configuration.getPort()+" due to unknown reasons");
 			}
 		} catch (LdapException e) {
 			throw new ConnectorIOException("Unable to connect to LDAP server "+configuration.getHost()+":"+configuration.getPort()+": "+e.getMessage(), e);
 		}
+		
+//		LOG.ok("Fetching root DSE");
+//		connection.getRootDse();
+
+		final BindRequest bindRequest = new BindRequestImpl();
+		String bindDn = configuration.getBindDn();
+		try {
+			bindRequest.setDn(new Dn(bindDn));
+		} catch (LdapInvalidDnException e) {
+			throw new ConfigurationException("bindDn is not in DN format: "+e.getMessage(), e);
+		}
+		
+		GuardedString bindPassword = configuration.getBindPassword();
+    	if (bindPassword != null) {
+    		// I hate this GuardedString!
+    		bindPassword.access(new GuardedStringAccessor() {
+				@Override
+				public void access(char[] chars) {
+					bindRequest.setCredentials(new String(chars));
+				}
+			});
+    	}
+		
+    	BindResponse bindResponse;
+		try {
+			bindResponse = connection.bind(bindRequest);
+		} catch (LdapException e) {
+			throw new ConnectorIOException("Unable to bind to LDAP server "+configuration.getHost()+":"+configuration.getPort()+" as "+bindDn+": "+e.getMessage(), e);
+		}
+		LOG.info("Bound to {0}", bindDn);
     }
     
     @Override
