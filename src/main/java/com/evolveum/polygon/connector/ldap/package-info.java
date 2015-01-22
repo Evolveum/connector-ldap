@@ -14,4 +14,4 @@
  * limitations under the License.
  */
 
-package com.evolveum.polygon;
+package com.evolveum.polygon.connector.ldap;

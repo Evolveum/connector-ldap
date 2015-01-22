@@ -13,13 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.evolveum.polygon;
+package com.evolveum.polygon.connector.ldap;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.entry.StringValue;
 import org.apache.directory.api.ldap.model.entry.Value;
 import org.apache.directory.api.ldap.model.exception.LdapException;
@@ -29,8 +31,12 @@ import org.apache.directory.api.ldap.model.schema.LdapSyntax;
 import org.apache.directory.api.ldap.model.schema.SchemaManager;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
+import org.identityconnectors.framework.common.objects.Attribute;
+import org.identityconnectors.framework.common.objects.AttributeBuilder;
 import org.identityconnectors.framework.common.objects.AttributeInfo;
 import org.identityconnectors.framework.common.objects.AttributeInfoBuilder;
+import org.identityconnectors.framework.common.objects.ConnectorObject;
+import org.identityconnectors.framework.common.objects.ConnectorObjectBuilder;
 import org.identityconnectors.framework.common.objects.Name;
 import org.identityconnectors.framework.common.objects.ObjectClass;
 import org.identityconnectors.framework.common.objects.ObjectClassInfoBuilder;
@@ -71,7 +77,7 @@ public class SchemaTranslator {
 
 	private void addAttributeTypes(ObjectClassInfoBuilder ocib, List<AttributeType> attributeTypes, boolean isRequired) {
 		for (AttributeType ldapAttribute: attributeTypes) {
-			AttributeInfoBuilder aib = new AttributeInfoBuilder(ldapAttribute.getName());
+			AttributeInfoBuilder aib = new AttributeInfoBuilder(toIcfAttributeName(ldapAttribute.getName()));
 			aib.setRequired(isRequired);
 			aib.setType(toIcfType(ldapAttribute.getSyntax()));
 			if (ldapAttribute.isOperational()) {
@@ -90,6 +96,10 @@ public class SchemaTranslator {
 		}
 	}
 	
+	private String toIcfAttributeName(String ldapAttibuteName) {
+		return ldapAttibuteName;
+	}
+
 	public org.apache.directory.api.ldap.model.schema.ObjectClass toLdapObjectClass(ObjectClass icfObjectClass) {
 		String ldapObjectClassName;
 		if (icfObjectClass.is(ObjectClass.ACCOUNT_NAME)) {
@@ -170,6 +180,66 @@ public class SchemaTranslator {
 			throw new IllegalArgumentException("More than one value specified for LDAP attribute "+ldapAttributeType.getName());
 		}
 		return toLdapValue(ldapAttributeType, icfAttributeValues.get(0));
+	}
+	
+	private Object toIcfValue(Value<?> ldapValue) {
+		if (ldapValue == null) {
+			return null;
+		}
+		AttributeType ldapAttributeType = ldapValue.getAttributeType();
+		String syntaxOid = ldapAttributeType.getSyntaxOid();
+		if (SYNTAX_GENERALIZED_TIME_OID.equals(syntaxOid)) {
+			// TODO: convert time
+			return null;
+		} else {
+			return ldapValue.getString();
+		}
+	}
+
+
+	public ConnectorObject toIcfObject(Entry entry) {
+		ConnectorObjectBuilder cob = new ConnectorObjectBuilder();
+		String dn = entry.getDn().getName();
+		cob.setName(dn);
+		String uidAttributeName = configuration.getUidAttribute();
+		String uid;
+		if (LdapConfiguration.PSEUDO_ATTRIBUTE_DN_NAME.equals(uidAttributeName)) {
+			uid = dn;
+		} else {
+			org.apache.directory.api.ldap.model.entry.Attribute uidAttribute = entry.get(uidAttributeName);
+			if (uidAttribute == null) {
+				throw new IllegalArgumentException("LDAP entry "+dn+" does not have UID attribute "+uidAttributeName);
+			}
+			if (uidAttribute.size() > 1) {
+				throw new IllegalArgumentException("LDAP entry "+dn+" has more than one value for UID attribute "+uidAttributeName);
+			}
+			try {
+				uid = uidAttribute.getString();
+			} catch (LdapInvalidAttributeValueException e) {
+				throw new IllegalArgumentException("LDAP entry "+dn+" has non-string value for UID attribute "+uidAttributeName, e);
+			}
+		}
+		cob.setUid(uid);
+		
+		Iterator<org.apache.directory.api.ldap.model.entry.Attribute> iterator = entry.iterator();
+		while (iterator.hasNext()) {
+			org.apache.directory.api.ldap.model.entry.Attribute ldapAttribute = iterator.next();
+			cob.addAttribute(toIcfAttribute(ldapAttribute));
+		}
+		
+		return cob.build();
+	}
+	
+	private Attribute toIcfAttribute(org.apache.directory.api.ldap.model.entry.Attribute ldapAttribute) {
+		AttributeBuilder ab = new AttributeBuilder();
+		AttributeType ldapAttributeType = ldapAttribute.getAttributeType();
+		ab.setName(toIcfAttributeName(ldapAttributeType.getName()));
+		Iterator<Value<?>> iterator = ldapAttribute.iterator();
+		while (iterator.hasNext()) {
+			Value<?> ldapValue = iterator.next();
+			ab.addValue(toIcfValue(ldapValue));
+		}
+		return ab.build();
 	}
 
 	static {

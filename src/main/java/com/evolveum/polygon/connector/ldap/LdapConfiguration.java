@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.evolveum.polygon;
+package com.evolveum.polygon.connector.ldap;
 
 import static org.identityconnectors.common.StringUtil.isBlank;
 
@@ -36,6 +36,11 @@ public class LdapConfiguration extends AbstractConfiguration {
     
     public static final int DEFAULT_PORT = 389;
 
+	public static final String SCOPE_SUB = "sub";
+	public static final String SCOPE_ONE = "one";
+	public static final String SCOPE_BASE = "base";
+
+	public static final String PSEUDO_ATTRIBUTE_DN_NAME = "dn";
     /**
      * The LDAP server hostname.
      */
@@ -80,7 +85,11 @@ public class LdapConfiguration extends AbstractConfiguration {
      * Possible values: "follow", "ignore" or "throw".
      * Default value: "follow"
      */
-    private String referralStrategy = "follow";
+    private String referralStrategy = REFERRAL_STRATEGY_FOLLOW;
+    
+    public static final String REFERRAL_STRATEGY_FOLLOW = "follow";
+    public static final String REFERRAL_STRATEGY_IGNORE = "ignore";
+    public static final String REFERRAL_STRATEGY_THROW = "throw";
     
     /**
      * The name of the attribute which contains the password.
