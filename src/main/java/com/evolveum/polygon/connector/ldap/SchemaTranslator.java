@@ -30,6 +30,7 @@ import org.apache.directory.api.ldap.model.schema.AttributeType;
 import org.apache.directory.api.ldap.model.schema.LdapSyntax;
 import org.apache.directory.api.ldap.model.schema.SchemaManager;
 import org.identityconnectors.common.logging.Log;
+import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
 import org.identityconnectors.framework.common.objects.Attribute;
 import org.identityconnectors.framework.common.objects.AttributeBuilder;
@@ -70,18 +71,35 @@ public class SchemaTranslator {
 			LOG.ok("Found LDAP schema object class {0}", ldapObjectClass.getName());
 			ObjectClassInfoBuilder ocib = new ObjectClassInfoBuilder();
 			ocib.setType(ldapObjectClass.getName());
-			addAttributeTypes(ocib, ldapObjectClass.getMustAttributeTypes(), true);
-			addAttributeTypes(ocib, ldapObjectClass.getMayAttributeTypes(), false);
+			List<AttributeInfo> attrInfoList = new ArrayList<AttributeInfo>();
+			addAttributeTypes(attrInfoList, ldapObjectClass);
+			ocib.addAllAttributeInfo(attrInfoList);
 			schemaBuilder.defineObjectClass(ocib.build());
 		}
 		return schemaBuilder.build();
 	}
+	
+	private void addAttributeTypes(List<AttributeInfo> attrInfoList, org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
+		addAttributeTypes(attrInfoList, ldapObjectClass.getMustAttributeTypes(), true);
+		addAttributeTypes(attrInfoList, ldapObjectClass.getMayAttributeTypes(), false);
+		
+		List<org.apache.directory.api.ldap.model.schema.ObjectClass> superiors = ldapObjectClass.getSuperiors();
+		if (superiors != null) {
+			for (org.apache.directory.api.ldap.model.schema.ObjectClass superior: superiors) {
+				addAttributeTypes(attrInfoList, superior);
+			}
+		}
+	}
 
-	private void addAttributeTypes(ObjectClassInfoBuilder ocib, List<AttributeType> attributeTypes, boolean isRequired) {
+	private void addAttributeTypes(List<AttributeInfo> attrInfoList, List<AttributeType> attributeTypes, boolean isRequired) {
 		for (AttributeType ldapAttribute: attributeTypes) {
-			AttributeInfoBuilder aib = new AttributeInfoBuilder(toIcfAttributeName(ldapAttribute.getName()));
+			String icfAttributeName = toIcfAttributeName(ldapAttribute.getName());
+			if (containsAttribute(attrInfoList, icfAttributeName)) {
+				continue;
+			}
+			AttributeInfoBuilder aib = new AttributeInfoBuilder(icfAttributeName);
 			aib.setRequired(isRequired);
-			aib.setType(toIcfType(ldapAttribute.getSyntax()));
+			aib.setType(toIcfType(ldapAttribute.getSyntax(), icfAttributeName));
 			if (ldapAttribute.isOperational()) {
 				aib.setReturnedByDefault(false);
 			}
@@ -94,12 +112,24 @@ public class SchemaTranslator {
 				aib.setCreateable(false);
 				aib.setUpdateable(false);
 			}
-			ocib.addAttributeInfo(aib.build());
+			attrInfoList.add(aib.build());
 		}
 	}
 	
-	private String toIcfAttributeName(String ldapAttibuteName) {
-		return ldapAttibuteName;
+	private boolean containsAttribute(List<AttributeInfo> attrInfoList, String icfAttributeName) {
+		for (AttributeInfo attrInfo: attrInfoList) {
+			if (icfAttributeName.equals(attrInfo.getName())) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private String toIcfAttributeName(String ldapAttributeName) {
+		if (ldapAttributeName.equals(configuration.getPasswordAttribute())) {
+			return OperationalAttributeInfos.PASSWORD.getName();
+		}
+		return ldapAttributeName;
 	}
 
 	public org.apache.directory.api.ldap.model.schema.ObjectClass toLdapObjectClass(ObjectClass icfObjectClass) {
@@ -138,7 +168,10 @@ public class SchemaTranslator {
 		}
 	}
 
-	public Class<?> toIcfType(LdapSyntax syntax) {
+	public Class<?> toIcfType(LdapSyntax syntax, String icfAttributeName) {
+		if (OperationalAttributeInfos.PASSWORD.is(icfAttributeName)) {
+			return GuardedString.class;
+		}
     	Class<?> type = SYNTAX_MAP.get(syntax.getName());
     	if (type == null) {
     		LOG.warn("No type mapping for syntax {0}, using string", syntax.getName());

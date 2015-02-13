@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.apache.directory.api.ldap.model.exception.LdapException;
 import org.apache.directory.api.ldap.model.exception.LdapInvalidDnException;
@@ -33,6 +34,7 @@ import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.ldap.model.schema.AttributeType;
 import org.apache.directory.api.ldap.model.schema.LdapSyntax;
 import org.apache.directory.api.ldap.model.schema.SchemaManager;
+import org.apache.directory.ldap.client.api.DefaultSchemaLoader;
 import org.apache.directory.ldap.client.api.LdapConnectionConfig;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
 import org.identityconnectors.common.logging.Log;
@@ -40,6 +42,7 @@ import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.common.exceptions.ConfigurationException;
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
 import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
+import org.identityconnectors.framework.common.objects.Attribute;
 import org.identityconnectors.framework.common.objects.AttributeInfoBuilder;
 import org.identityconnectors.framework.common.objects.Name;
 import org.identityconnectors.framework.common.objects.ObjectClass;
@@ -49,15 +52,22 @@ import org.identityconnectors.framework.common.objects.QualifiedUid;
 import org.identityconnectors.framework.common.objects.ResultsHandler;
 import org.identityconnectors.framework.common.objects.Schema;
 import org.identityconnectors.framework.common.objects.SchemaBuilder;
+import org.identityconnectors.framework.common.objects.SyncResultsHandler;
+import org.identityconnectors.framework.common.objects.SyncToken;
+import org.identityconnectors.framework.common.objects.Uid;
 import org.identityconnectors.framework.common.objects.filter.EqualsFilter;
 import org.identityconnectors.framework.common.objects.filter.Filter;
 import org.identityconnectors.framework.common.objects.filter.FilterTranslator;
 import org.identityconnectors.framework.spi.Configuration;
 import org.identityconnectors.framework.spi.ConnectorClass;
 import org.identityconnectors.framework.spi.PoolableConnector;
+import org.identityconnectors.framework.spi.operations.CreateOp;
+import org.identityconnectors.framework.spi.operations.DeleteOp;
 import org.identityconnectors.framework.spi.operations.SchemaOp;
 import org.identityconnectors.framework.spi.operations.SearchOp;
+import org.identityconnectors.framework.spi.operations.SyncOp;
 import org.identityconnectors.framework.spi.operations.TestOp;
+import org.identityconnectors.framework.spi.operations.UpdateAttributeValuesOp;
 
 import com.evolveum.polygon.common.GuardedStringAccessor;
 import com.evolveum.polygon.common.SchemaUtil;
@@ -65,7 +75,8 @@ import com.evolveum.polygon.connector.ldap.search.SearchStrategy;
 import com.evolveum.polygon.connector.ldap.search.SimpleSearchStrategy;
 
 @ConnectorClass(displayNameKey = "ldap.connector.display", configurationClass = LdapConfiguration.class)
-public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, SearchOp<Filter> {
+public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, SearchOp<Filter>, CreateOp, DeleteOp, 
+		UpdateAttributeValuesOp, SyncOp{
 
     private static final Log LOG = Log.getLog(LdapConnector.class);
     
@@ -96,8 +107,10 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
     private SchemaManager getSchemaManager() {
     	if (schemaManager == null) {
     		try {
-    			LOG.info("Loading schema");
-    			connection.loadSchema();
+    			boolean schemaQuirksMode = configuration.isSchemaQuirksMode();
+    			LOG.info("Loading schema (quirksMode={0})", schemaQuirksMode);
+    			DefaultSchemaLoader schemaLoader = new DefaultSchemaLoader(connection, schemaQuirksMode);
+    			connection.loadSchema(schemaLoader);
     		} catch (LdapException e) {
     			throw new ConnectorIOException(e.getMessage(), e);
     		}
@@ -238,11 +251,72 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 		return new SimpleSearchStrategy(connection, configuration, getShcemaTranslator(), handler);
 	}
 	
-	// TODO: methods
-    
-    
-    
+	
+    @Override
+	public Uid update(ObjectClass objectClass, Uid uid, Set<Attribute> replaceAttributes,
+			OperationOptions options) {
+		// TODO Auto-generated method stub
+		throw new UnsupportedOperationException("TODO");
+	}
 
+	@Override
+	public void sync(ObjectClass objectClass, SyncToken token, SyncResultsHandler handler,
+			OperationOptions options) {
+		// TODO Auto-generated method stub
+		throw new UnsupportedOperationException("TODO");
+	}
+
+	@Override
+	public SyncToken getLatestSyncToken(ObjectClass objectClass) {
+		// TODO Auto-generated method stub
+		throw new UnsupportedOperationException("TODO");
+	}
+
+	@Override
+	public Uid addAttributeValues(ObjectClass objclass, Uid uid, Set<Attribute> valuesToAdd,
+			OperationOptions options) {
+		// TODO Auto-generated method stub
+		throw new UnsupportedOperationException("TODO");
+	}
+
+	@Override
+	public Uid removeAttributeValues(ObjectClass objclass, Uid uid, Set<Attribute> valuesToRemove,
+			OperationOptions options) {
+		// TODO Auto-generated method stub
+		throw new UnsupportedOperationException("TODO");
+	}
+
+	@Override
+	public void delete(ObjectClass objectClass, Uid uid, OperationOptions options) {
+		// TODO Auto-generated method stub
+		throw new UnsupportedOperationException("TODO");
+	}
+
+	@Override
+	public Uid create(ObjectClass objectClass, Set<Attribute> createAttributes, OperationOptions options) {
+		// TODO Auto-generated method stub
+		throw new UnsupportedOperationException("TODO");
+	}
+
+	@Override
+	public void checkAlive() {
+		if (!connection.isConnected()) {
+			throw new ConnectorException("Connection check failed");
+		}
+	}
+
+	@Override
+    public void dispose() {
+        configuration = null;
+        if (connection != null) {
+        	try {
+				connection.close();
+			} catch (IOException e) {
+				throw new ConnectorIOException(e.getMessage(), e);
+			}
+            connection = null;
+        }
+    }
 
 	private void connect() {
     	final LdapConnectionConfig connectionConfig = new LdapConnectionConfig();
@@ -292,26 +366,5 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 		}
 		LOG.info("Bound to {0}", bindDn);
     }
-    
-    @Override
-	public void checkAlive() {
-		if (!connection.isConnected()) {
-			throw new ConnectorException("Connection check failed");
-		}
-	}
-
-	@Override
-    public void dispose() {
-        configuration = null;
-        if (connection != null) {
-        	try {
-				connection.close();
-			} catch (IOException e) {
-				throw new ConnectorIOException(e.getMessage(), e);
-			}
-            connection = null;
-        }
-    }
-	
-	
+    	
 }

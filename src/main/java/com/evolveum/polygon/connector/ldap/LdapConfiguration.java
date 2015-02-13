@@ -139,6 +139,13 @@ public class LdapConfiguration extends AbstractConfiguration {
     private boolean readSchema = true;
     
     /**
+     * If set to false then the schema parsers will be very strict.
+     * If set to true then various "quirks" in the schema will be accepted, such as
+     * non-numeric OIDs.
+     */
+    private boolean schemaQuirksMode = true;
+    
+    /**
      * Synchronization strategy to detect changes in real time.
      * Possible values: "none", "auto", ... TODO
      * Default value: auto
@@ -311,6 +318,14 @@ public class LdapConfiguration extends AbstractConfiguration {
 
 	public void setReadSchema(boolean readSchema) {
 		this.readSchema = readSchema;
+	}
+
+	public boolean isSchemaQuirksMode() {
+		return schemaQuirksMode;
+	}
+
+	public void setSchemaQuirksMode(boolean schemaQuirksMode) {
+		this.schemaQuirksMode = schemaQuirksMode;
 	}
 
 	public String getSynchronizationStrategy() {
