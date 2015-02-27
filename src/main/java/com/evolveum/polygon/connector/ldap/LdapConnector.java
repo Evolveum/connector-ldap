@@ -22,13 +22,21 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 
+import org.apache.directory.api.ldap.model.cursor.CursorException;
+import org.apache.directory.api.ldap.model.cursor.EntryCursor;
+import org.apache.directory.api.ldap.model.entry.DefaultEntry;
+import org.apache.directory.api.ldap.model.entry.Entry;
+import org.apache.directory.api.ldap.model.entry.Value;
 import org.apache.directory.api.ldap.model.exception.LdapException;
 import org.apache.directory.api.ldap.model.exception.LdapInvalidDnException;
+import org.apache.directory.api.ldap.model.filter.EqualityNode;
 import org.apache.directory.api.ldap.model.filter.ExprNode;
 import org.apache.directory.api.ldap.model.message.BindRequest;
 import org.apache.directory.api.ldap.model.message.BindRequestImpl;
 import org.apache.directory.api.ldap.model.message.BindResponse;
+import org.apache.directory.api.ldap.model.message.Response;
 import org.apache.directory.api.ldap.model.message.SearchScope;
 import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.ldap.model.schema.AttributeType;
@@ -37,11 +45,14 @@ import org.apache.directory.api.ldap.model.schema.SchemaManager;
 import org.apache.directory.ldap.client.api.DefaultSchemaLoader;
 import org.apache.directory.ldap.client.api.LdapConnectionConfig;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
+import org.apache.directory.ldap.client.api.future.SearchFuture;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.common.exceptions.ConfigurationException;
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
 import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
+import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException;
+import org.identityconnectors.framework.common.exceptions.UnknownUidException;
 import org.identityconnectors.framework.common.objects.Attribute;
 import org.identityconnectors.framework.common.objects.AttributeInfoBuilder;
 import org.identityconnectors.framework.common.objects.Name;
@@ -79,6 +90,9 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 		UpdateAttributeValuesOp, SyncOp{
 
     private static final Log LOG = Log.getLog(LdapConnector.class);
+
+
+	private static final String SEARCH_FILTER_ALL = "(objectclass=*)";
     
 
     private LdapConfiguration configuration;
@@ -250,7 +264,90 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 	private SearchStrategy getSimpleSearchStrategy(ResultsHandler handler) {
 		return new SimpleSearchStrategy(connection, configuration, getShcemaTranslator(), handler);
 	}
-	
+
+	@Override
+	public Uid create(ObjectClass icfObjectClass, Set<Attribute> createAttributes, OperationOptions options) {
+		
+		String dn = null;
+		for (Attribute icfAttr: createAttributes) {
+			if (icfAttr.is(Name.NAME)) {
+				dn = SchemaUtil.getSingleStringNonBlankValue(icfAttr);
+			}
+		}
+		if (dn == null) {
+			throw new InvalidAttributeValueException("Missing NAME attribute");
+		}
+		
+		SchemaTranslator shcemaTranslator = getShcemaTranslator();
+		org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass = shcemaTranslator.toLdapObjectClass(icfObjectClass);
+		Entry entry;
+		try {
+			entry = new DefaultEntry(getSchemaManager(), dn);
+		} catch (LdapInvalidDnException e) {
+			throw new InvalidAttributeValueException("Wrong DN '"+dn+"': "+e.getMessage(), e);
+		}
+		entry.put("objectClass", ldapObjectClass.getName());
+		
+		for (Attribute icfAttr: createAttributes) {
+			if (icfAttr.is(Name.NAME)) {
+				continue;
+			}
+			AttributeType ldapAttrType = shcemaTranslator.toLdapAttribute(ldapObjectClass, icfAttr.getName());
+			List<Value<Object>> ldapValues = shcemaTranslator.toLdapValues(ldapAttrType, icfAttr.getValue());
+			try {
+				entry.put(ldapAttrType, ldapValues.toArray(new Value[ldapValues.size()]));
+			} catch (LdapException e) {
+				throw new InvalidAttributeValueException("Wrong value for LDAP attribute "+ldapAttrType.getName()+": "+e.getMessage(), e);
+			}
+		}
+		
+		try {
+			connection.add(entry);
+		} catch (LdapException e) {
+			throw new ConnectorIOException("Error adding LDAP entry "+dn+": "+e.getMessage(), e);
+		}
+		
+		Uid uid = null;
+		String uidAttributeName = configuration.getUidAttribute();
+		for (Attribute icfAttr: createAttributes) {
+			if (icfAttr.is(uidAttributeName)) {
+				uid = new Uid(SchemaUtil.getSingleStringNonBlankValue(icfAttr));
+			}
+		}
+		if (uid != null) {
+			return uid;
+		}
+		
+		// read the entry back and return UID
+		try {
+			EntryCursor cursor = connection.search(dn, SEARCH_FILTER_ALL, SearchScope.OBJECT, uidAttributeName);
+			if (cursor.next()) {
+				Entry entryRead = cursor.get();
+				org.apache.directory.api.ldap.model.entry.Attribute uidLdapAttribute = entryRead.get(uidAttributeName);
+				if (uidLdapAttribute == null) {
+					throw new InvalidAttributeValueException("No value for UID attribute "+uidAttributeName+" in object "+dn);
+				}
+				if (uidLdapAttribute.size() == 0) {
+					throw new InvalidAttributeValueException("No value for UID attribute "+uidAttributeName+" in object "+dn);
+				} else if (uidLdapAttribute.size() > 1) {
+					throw new InvalidAttributeValueException("More than one value ("+uidLdapAttribute.size()+") for UID attribute "+uidAttributeName+" in object "+dn);
+				}
+				Value<?> uidLdapAttributeValue = uidLdapAttribute.get();
+				uid = new Uid(uidLdapAttributeValue.getString());
+			} else {
+				// Something wrong happened, the entry was not created.
+				throw new UnknownUidException("Entry with dn "+dn+" was not found (right after it was created)");
+			}
+			cursor.close();
+		} catch (LdapException e) {
+			throw new ConnectorIOException("Error reading LDAP entry "+dn+": "+e.getMessage(), e);
+		} catch (CursorException e) {
+			throw new ConnectorIOException("Error reading LDAP entry "+dn+": "+e.getMessage(), e);
+		}
+		
+		return uid;
+	}
+
 	
     @Override
 	public Uid update(ObjectClass objectClass, Uid uid, Set<Attribute> replaceAttributes,
@@ -288,14 +385,46 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 
 	@Override
 	public void delete(ObjectClass objectClass, Uid uid, OperationOptions options) {
-		// TODO Auto-generated method stub
-		throw new UnsupportedOperationException("TODO");
-	}
-
-	@Override
-	public Uid create(ObjectClass objectClass, Set<Attribute> createAttributes, OperationOptions options) {
-		// TODO Auto-generated method stub
-		throw new UnsupportedOperationException("TODO");
+		
+		String dn;
+		String uidAttributeName = configuration.getUidAttribute();
+		if (LdapConfiguration.ATTRIBUTE_NAME_DN.equals(uidAttributeName)) {
+			dn = uid.getUidValue();
+		} else {
+			org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass = schemaTranslator.toLdapObjectClass(objectClass);
+			String baseDn = getBaseDn(options);
+			SearchScope scope = getScope(options);
+			AttributeType ldapAttributeType;
+			try {
+				String attributeOid = schemaManager.getAttributeTypeRegistry().getOidByName(uidAttributeName);
+				ldapAttributeType = schemaManager.getAttributeTypeRegistry().lookup(attributeOid);
+			} catch (LdapException e1) {
+				throw new InvalidAttributeValueException("Cannot find schema for UID attribute "+uidAttributeName);
+			}
+			Value<Object> ldapValue = schemaTranslator.toLdapValue(ldapAttributeType, uid.getUidValue());
+			ExprNode filterNode = new EqualityNode<Object>(ldapAttributeType, ldapValue);
+			try {
+				EntryCursor cursor = connection.search(baseDn, filterNode.toString(), scope, uidAttributeName);
+				if (cursor.next()) {
+					Entry entry = cursor.get();
+					dn = entry.getDn().toString();
+				} else {
+					// Something wrong happened, the entry was not created.
+					throw new UnknownUidException("Entry for UID "+uid+" was not found (therefore it cannot be deleted)");
+				}
+				cursor.close();
+			} catch (LdapException e) {
+				throw new ConnectorIOException("Error reading LDAP entry for UID "+uid+": "+e.getMessage(), e);
+			} catch (CursorException e) {
+				throw new ConnectorIOException("Error reading LDAP entry for UID "+uid+": "+e.getMessage(), e);
+			}
+		}
+		
+		try {
+			connection.delete(dn);
+		} catch (LdapException e) {
+			throw new ConnectorIOException("Failed to delete entry with DN "+dn+" (UID="+uid+"): "+e.getMessage(), e);
+		}
 	}
 
 	@Override

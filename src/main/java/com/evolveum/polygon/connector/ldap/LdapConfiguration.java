@@ -132,6 +132,8 @@ public class LdapConfiguration extends AbstractConfiguration {
      * Name of the attribute which will be used as ICF UID.
      */
     private String uidAttribute = "entryUUID";
+    
+	public static final String ATTRIBUTE_NAME_DN = "dn";
 
     /**
      * If set to false then the schema will not be retrieved from the server.

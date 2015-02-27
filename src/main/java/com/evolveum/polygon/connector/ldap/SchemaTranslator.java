@@ -44,6 +44,7 @@ import org.identityconnectors.framework.common.objects.ObjectClassInfoBuilder;
 import org.identityconnectors.framework.common.objects.OperationalAttributeInfos;
 import org.identityconnectors.framework.common.objects.Schema;
 import org.identityconnectors.framework.common.objects.SchemaBuilder;
+import org.identityconnectors.framework.common.objects.Uid;
 
 /**
  * @author semancik
@@ -155,7 +156,9 @@ public class SchemaTranslator {
 	public AttributeType toLdapAttribute(org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
 			String icfAttributeName) {
 		String ldapAttributeName;
-		if (OperationalAttributeInfos.PASSWORD.is(icfAttributeName)) {
+		if (Uid.NAME.equals(icfAttributeName)) {
+			ldapAttributeName = configuration.getUidAttribute();
+		} else if (OperationalAttributeInfos.PASSWORD.is(icfAttributeName)) {
 			ldapAttributeName = configuration.getPasswordAttribute();
 		} else {
 			ldapAttributeName = icfAttributeName;
@@ -194,6 +197,8 @@ public class SchemaTranslator {
 			return null;
 		}
 		String syntaxOid = ldapAttributeType.getSyntaxOid();
+		boolean humanReadable = ldapAttributeType.getSyntax().isHumanReadable();
+		LOG.ok("Attribute {0}, syntax {1}, humanReadable {2}: {3}",ldapAttributeType.getName(), syntaxOid, humanReadable, ldapAttributeType);
 		Object ldapValue;
 		if (SYNTAX_GENERALIZED_TIME_OID.equals(syntaxOid)) {
 			// TODO: convert time
@@ -202,7 +207,8 @@ public class SchemaTranslator {
 			try {
 				return (Value)new StringValue(ldapAttributeType, icfAttributeValue.toString());
 			} catch (LdapInvalidAttributeValueException e) {
-				throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage(), e);
+				throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
+						+"; attributeType="+ldapAttributeType, e);
 			}
 		}
 	}
