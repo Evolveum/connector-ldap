@@ -197,9 +197,6 @@ public class SchemaTranslator {
 			return null;
 		}
 		String syntaxOid = ldapAttributeType.getSyntaxOid();
-		boolean humanReadable = ldapAttributeType.getSyntax().isHumanReadable();
-		LOG.ok("Attribute {0}, syntax {1}, humanReadable {2}: {3}",ldapAttributeType.getName(), syntaxOid, humanReadable, ldapAttributeType);
-		Object ldapValue;
 		if (SYNTAX_GENERALIZED_TIME_OID.equals(syntaxOid)) {
 			// TODO: convert time
 			return null;

@@ -27,9 +27,13 @@ import java.util.concurrent.ExecutionException;
 import org.apache.directory.api.ldap.model.cursor.CursorException;
 import org.apache.directory.api.ldap.model.cursor.EntryCursor;
 import org.apache.directory.api.ldap.model.entry.DefaultEntry;
+import org.apache.directory.api.ldap.model.entry.DefaultModification;
 import org.apache.directory.api.ldap.model.entry.Entry;
+import org.apache.directory.api.ldap.model.entry.Modification;
+import org.apache.directory.api.ldap.model.entry.ModificationOperation;
 import org.apache.directory.api.ldap.model.entry.Value;
 import org.apache.directory.api.ldap.model.exception.LdapException;
+import org.apache.directory.api.ldap.model.exception.LdapInvalidAttributeValueException;
 import org.apache.directory.api.ldap.model.exception.LdapInvalidDnException;
 import org.apache.directory.api.ldap.model.filter.EqualityNode;
 import org.apache.directory.api.ldap.model.filter.ExprNode;
@@ -338,7 +342,6 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 				// Something wrong happened, the entry was not created.
 				throw new UnknownUidException("Entry with dn "+dn+" was not found (right after it was created)");
 			}
-			cursor.close();
 		} catch (LdapException e) {
 			throw new ConnectorIOException("Error reading LDAP entry "+dn+": "+e.getMessage(), e);
 		} catch (CursorException e) {
@@ -352,8 +355,10 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
     @Override
 	public Uid update(ObjectClass objectClass, Uid uid, Set<Attribute> replaceAttributes,
 			OperationOptions options) {
-		// TODO Auto-generated method stub
-		throw new UnsupportedOperationException("TODO");
+    	
+    	ldapUpdate(objectClass, uid, replaceAttributes, options, ModificationOperation.REPLACE_ATTRIBUTE);
+    	
+    	return uid;
 	}
 
 	@Override
@@ -370,22 +375,63 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 	}
 
 	@Override
-	public Uid addAttributeValues(ObjectClass objclass, Uid uid, Set<Attribute> valuesToAdd,
+	public Uid addAttributeValues(ObjectClass objectClass, Uid uid, Set<Attribute> valuesToAdd,
 			OperationOptions options) {
-		// TODO Auto-generated method stub
-		throw new UnsupportedOperationException("TODO");
+		
+		ldapUpdate(objectClass, uid, valuesToAdd, options, ModificationOperation.ADD_ATTRIBUTE);
+		
+		return uid;
+	}
+	
+	private Uid ldapUpdate(ObjectClass objectClass, Uid uid, Set<Attribute> values,
+			OperationOptions options, ModificationOperation modOp) {
+		
+		String dn = resolveDn(objectClass, uid, options);
+		
+		org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass = schemaTranslator.toLdapObjectClass(objectClass);
+		Modification[] modifications = new Modification[values.size()];
+		int i = 0;
+		for (Attribute icfAttr: values) {
+			AttributeType attributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, icfAttr.getName());
+			List<Value<Object>> ldapValues = schemaTranslator.toLdapValues(attributeType, icfAttr.getValue());
+			try {
+				modifications[i] = new DefaultModification(modOp, attributeType, ldapValues.toArray(new Value[ldapValues.size()]));
+			} catch (LdapInvalidAttributeValueException e) {
+				throw new InvalidAttributeValueException("Invalid modification value for LDAP attribute "+attributeType.getName()+": "+e.getMessage(), e);
+			}
+		}
+		
+		try {
+			connection.modify(dn, modifications);
+		} catch (LdapException e) {
+			throw new ConnectorIOException("Error modifying entry "+dn+": "+e.getMessage(), e);
+		}
+		
+		return uid;
 	}
 
 	@Override
-	public Uid removeAttributeValues(ObjectClass objclass, Uid uid, Set<Attribute> valuesToRemove,
+	public Uid removeAttributeValues(ObjectClass objectClass, Uid uid, Set<Attribute> valuesToRemove,
 			OperationOptions options) {
-		// TODO Auto-generated method stub
-		throw new UnsupportedOperationException("TODO");
+
+    	ldapUpdate(objectClass, uid, valuesToRemove, options, ModificationOperation.REMOVE_ATTRIBUTE);
+    	
+    	return uid;
 	}
 
 	@Override
 	public void delete(ObjectClass objectClass, Uid uid, OperationOptions options) {
 		
+		String dn = resolveDn(objectClass, uid, options);
+		
+		try {
+			connection.delete(dn);
+		} catch (LdapException e) {
+			throw new ConnectorIOException("Failed to delete entry with DN "+dn+" (UID="+uid+"): "+e.getMessage(), e);
+		}
+	}
+	
+	private String resolveDn(ObjectClass objectClass, Uid uid, OperationOptions options) {
 		String dn;
 		String uidAttributeName = configuration.getUidAttribute();
 		if (LdapConfiguration.ATTRIBUTE_NAME_DN.equals(uidAttributeName)) {
@@ -412,7 +458,6 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 					// Something wrong happened, the entry was not created.
 					throw new UnknownUidException("Entry for UID "+uid+" was not found (therefore it cannot be deleted)");
 				}
-				cursor.close();
 			} catch (LdapException e) {
 				throw new ConnectorIOException("Error reading LDAP entry for UID "+uid+": "+e.getMessage(), e);
 			} catch (CursorException e) {
@@ -420,13 +465,9 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 			}
 		}
 		
-		try {
-			connection.delete(dn);
-		} catch (LdapException e) {
-			throw new ConnectorIOException("Failed to delete entry with DN "+dn+" (UID="+uid+"): "+e.getMessage(), e);
-		}
+		return dn;
 	}
-
+ 
 	@Override
 	public void checkAlive() {
 		if (!connection.isConnected()) {
