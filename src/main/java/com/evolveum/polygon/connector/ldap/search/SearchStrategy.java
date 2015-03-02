@@ -27,6 +27,7 @@ import org.apache.directory.api.ldap.model.message.SearchScope;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.framework.common.exceptions.ConfigurationException;
+import org.identityconnectors.framework.common.objects.ObjectClass;
 import org.identityconnectors.framework.common.objects.ResultsHandler;
 
 import com.evolveum.polygon.connector.ldap.LdapConfiguration;
@@ -43,14 +44,16 @@ public abstract class SearchStrategy {
 	private LdapNetworkConnection connection;
 	private LdapConfiguration configuration;
 	private SchemaTranslator schemaTranslator;
+	private ObjectClass objectClass;
 	private ResultsHandler handler;
 	
 	protected SearchStrategy(LdapNetworkConnection connection, LdapConfiguration configuration,
-			SchemaTranslator schemaTranslator, ResultsHandler handler) {
+			SchemaTranslator schemaTranslator, ObjectClass objectClass, ResultsHandler handler) {
 		super();
 		this.connection = connection;
 		this.configuration = configuration;
 		this.schemaTranslator = schemaTranslator;
+		this.objectClass = objectClass;
 		this.handler = handler;
 	}
 
@@ -104,7 +107,7 @@ public abstract class SearchStrategy {
 	}
 	
 	protected void handleResult(Entry entry) {
-		handler.handle(schemaTranslator.toIcfObject(entry));
+		handler.handle(schemaTranslator.toIcfObject(objectClass, entry));
 	}
 
 }

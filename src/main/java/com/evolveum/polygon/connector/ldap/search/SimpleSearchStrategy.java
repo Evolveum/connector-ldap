@@ -32,6 +32,7 @@ import org.apache.directory.api.ldap.model.message.SearchScope;
 import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
 import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
+import org.identityconnectors.framework.common.objects.ObjectClass;
 import org.identityconnectors.framework.common.objects.ResultsHandler;
 
 import com.evolveum.polygon.connector.ldap.LdapConfiguration;
@@ -45,8 +46,8 @@ import com.evolveum.polygon.connector.ldap.SchemaTranslator;
 public class SimpleSearchStrategy extends SearchStrategy {
 
 	public SimpleSearchStrategy(LdapNetworkConnection connection, LdapConfiguration configuration,
-			SchemaTranslator schemaTranslator, ResultsHandler handler) {
-		super(connection, configuration, schemaTranslator, handler);
+			SchemaTranslator schemaTranslator, ObjectClass objectClass, ResultsHandler handler) {
+		super(connection, configuration, schemaTranslator, objectClass, handler);
 	}
 
 	/* (non-Javadoc)

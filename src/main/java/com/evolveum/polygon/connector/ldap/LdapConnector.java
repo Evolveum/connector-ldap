@@ -145,16 +145,17 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
     	return schemaManager;
     }
     
-    private SchemaTranslator getShcemaTranslator() {
+    private SchemaTranslator getSchemaTranslator() {
     	if (schemaTranslator == null) {
     		schemaTranslator = new SchemaTranslator(getSchemaManager(), configuration);
     	}
     	return schemaTranslator;
     }
-
+    
     @Override
 	public Schema schema() {
-		return getShcemaTranslator().translateSchema();
+    	// always fetch fresh schema when this method is called
+    	return getSchemaTranslator().translateSchema();
 	}
 
 	@Override
@@ -173,14 +174,14 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 
 	@Override
 	public void executeQuery(ObjectClass objectClass, Filter icfFilter, ResultsHandler handler, OperationOptions options) {
-		SchemaTranslator shcemaTranslator = getShcemaTranslator();
+		SchemaTranslator shcemaTranslator = getSchemaTranslator();
 		org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass = schemaTranslator.toLdapObjectClass(objectClass);
 		
 		if (icfFilter != null && (icfFilter instanceof EqualsFilter) && Name.NAME.equals(((EqualsFilter)icfFilter).getName())) {
 			// Search by __NAME__, which means DN. This translated to a base search.
 			String dn = SchemaUtil.getSingleStringNonBlankValue(((EqualsFilter)icfFilter).getAttribute());
 			// We know that this can return at most one object. Therefore always use simple search.
-			SearchStrategy searchStrategy = getSimpleSearchStrategy(handler);
+			SearchStrategy searchStrategy = getSimpleSearchStrategy(objectClass, handler);
 			String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
 			try {
 				searchStrategy.search(dn, null, SearchScope.OBJECT, attributesToGet);
@@ -193,10 +194,10 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 			String baseDn = getBaseDn(options);
 			ExprNode filterNode = null;
 			if (icfFilter != null) {
-				LdapFilterTranslator filterTranslator = new LdapFilterTranslator(getShcemaTranslator(), ldapObjectClass);
+				LdapFilterTranslator filterTranslator = new LdapFilterTranslator(getSchemaTranslator(), ldapObjectClass);
 				filterNode = filterTranslator.translate(icfFilter);
 			}
-			SearchStrategy searchStrategy = chooseSearchStrategy(handler, options);
+			SearchStrategy searchStrategy = chooseSearchStrategy(objectClass, handler, options);
 			SearchScope scope = getScope(options);
 			String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
 			try {
@@ -247,26 +248,30 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 
 	private String[] getAttributesToGet(org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass, OperationOptions options) {
 		if (options == null || options.getAttributesToGet() == null) {
-			return null;
+			String[] ldapAttrs = new String[2];
+			ldapAttrs[0] = "*";
+			ldapAttrs[1] = configuration.getUidAttribute();
+			return ldapAttrs;
 		}
 		String[] icfAttrs = options.getAttributesToGet();
-		String[] ldapAttrs = new String[icfAttrs.length];
+		String[] ldapAttrs = new String[icfAttrs.length + 1];
 		int i = 0;
 		for (String icfAttr: icfAttrs) {
 			AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, icfAttr);
 			ldapAttrs[i] = ldapAttributeType.getName();
 			i++;
 		}
+		ldapAttrs[i] = configuration.getUidAttribute();
 		return ldapAttrs;
 	}
 	
-	private SearchStrategy chooseSearchStrategy(ResultsHandler handler, OperationOptions options) {
+	private SearchStrategy chooseSearchStrategy(ObjectClass objectClass, ResultsHandler handler, OperationOptions options) {
 		// TODO
-		return getSimpleSearchStrategy(handler);
+		return getSimpleSearchStrategy(objectClass, handler);
 	}
 	
-	private SearchStrategy getSimpleSearchStrategy(ResultsHandler handler) {
-		return new SimpleSearchStrategy(connection, configuration, getShcemaTranslator(), handler);
+	private SearchStrategy getSimpleSearchStrategy(ObjectClass objectClass, ResultsHandler handler) {
+		return new SimpleSearchStrategy(connection, configuration, getSchemaTranslator(), objectClass, handler);
 	}
 
 	@Override
@@ -282,7 +287,7 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 			throw new InvalidAttributeValueException("Missing NAME attribute");
 		}
 		
-		SchemaTranslator shcemaTranslator = getShcemaTranslator();
+		SchemaTranslator shcemaTranslator = getSchemaTranslator();
 		org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass = shcemaTranslator.toLdapObjectClass(icfObjectClass);
 		Entry entry;
 		try {
@@ -399,6 +404,7 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 			} catch (LdapInvalidAttributeValueException e) {
 				throw new InvalidAttributeValueException("Invalid modification value for LDAP attribute "+attributeType.getName()+": "+e.getMessage(), e);
 			}
+			i++;
 		}
 		
 		try {

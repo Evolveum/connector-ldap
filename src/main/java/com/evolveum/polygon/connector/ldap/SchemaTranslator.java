@@ -29,6 +29,7 @@ import org.apache.directory.api.ldap.model.exception.LdapInvalidAttributeValueEx
 import org.apache.directory.api.ldap.model.schema.AttributeType;
 import org.apache.directory.api.ldap.model.schema.LdapSyntax;
 import org.apache.directory.api.ldap.model.schema.SchemaManager;
+import org.apache.directory.api.ldap.model.schema.UsageEnum;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
@@ -40,6 +41,7 @@ import org.identityconnectors.framework.common.objects.ConnectorObject;
 import org.identityconnectors.framework.common.objects.ConnectorObjectBuilder;
 import org.identityconnectors.framework.common.objects.Name;
 import org.identityconnectors.framework.common.objects.ObjectClass;
+import org.identityconnectors.framework.common.objects.ObjectClassInfo;
 import org.identityconnectors.framework.common.objects.ObjectClassInfoBuilder;
 import org.identityconnectors.framework.common.objects.OperationalAttributeInfos;
 import org.identityconnectors.framework.common.objects.Schema;
@@ -58,6 +60,7 @@ public class SchemaTranslator {
 	
 	private SchemaManager schemaManager;
 	private LdapConfiguration configuration;
+	private Schema icfSchema = null;
 	
 	public SchemaTranslator(SchemaManager schemaManager, LdapConfiguration configuration) {
 		super();
@@ -77,7 +80,8 @@ public class SchemaTranslator {
 			ocib.addAllAttributeInfo(attrInfoList);
 			schemaBuilder.defineObjectClass(ocib.build());
 		}
-		return schemaBuilder.build();
+		icfSchema = schemaBuilder.build();
+		return icfSchema;
 	}
 	
 	private void addAttributeTypes(List<AttributeInfo> attrInfoList, org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
@@ -235,10 +239,15 @@ public class SchemaTranslator {
 	}
 
 
-	public ConnectorObject toIcfObject(Entry entry) {
+	public ConnectorObject toIcfObject(ObjectClass icfObjectClass, Entry entry) {
 		ConnectorObjectBuilder cob = new ConnectorObjectBuilder();
 		String dn = entry.getDn().getName();
 		cob.setName(dn);
+		cob.setObjectClass(icfObjectClass);
+		ObjectClassInfo icfObjectClassInfo = null;
+		if (icfSchema != null) {
+			icfObjectClassInfo = icfSchema.findObjectClassInfo(icfObjectClass.toString());
+		}
 		String uidAttributeName = configuration.getUidAttribute();
 		String uid;
 		if (LdapConfiguration.PSEUDO_ATTRIBUTE_DN_NAME.equals(uidAttributeName)) {
@@ -262,7 +271,11 @@ public class SchemaTranslator {
 		Iterator<org.apache.directory.api.ldap.model.entry.Attribute> iterator = entry.iterator();
 		while (iterator.hasNext()) {
 			org.apache.directory.api.ldap.model.entry.Attribute ldapAttribute = iterator.next();
-			cob.addAttribute(toIcfAttribute(ldapAttribute));
+			AttributeType attributeType = ldapAttribute.getAttributeType();
+			String ldapAttributeName = attributeType.getName();
+			if (!uidAttributeName.equals(ldapAttributeName)) {
+				cob.addAttribute(toIcfAttribute(ldapAttribute));
+			}
 		}
 		
 		return cob.build();
