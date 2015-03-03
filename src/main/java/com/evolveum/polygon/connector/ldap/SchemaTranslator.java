@@ -159,6 +159,9 @@ public class SchemaTranslator {
 
 	public AttributeType toLdapAttribute(org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
 			String icfAttributeName) {
+		if (Name.NAME.equals(icfAttributeName)) {
+			return null;
+		}
 		String ldapAttributeName;
 		if (Uid.NAME.equals(icfAttributeName)) {
 			ldapAttributeName = configuration.getUidAttribute();
@@ -224,17 +227,21 @@ public class SchemaTranslator {
 		return toLdapValue(ldapAttributeType, icfAttributeValues.get(0));
 	}
 	
-	private Object toIcfValue(Value<?> ldapValue) {
+	private Object toIcfValue(String icfAttributeName, Value<?> ldapValue) {
 		if (ldapValue == null) {
 			return null;
 		}
-		AttributeType ldapAttributeType = ldapValue.getAttributeType();
-		String syntaxOid = ldapAttributeType.getSyntaxOid();
-		if (SYNTAX_GENERALIZED_TIME_OID.equals(syntaxOid)) {
-			// TODO: convert time
-			return null;
+		if (OperationalAttributeInfos.PASSWORD.is(icfAttributeName)) {
+			return new GuardedString(ldapValue.getString().toCharArray());
 		} else {
-			return ldapValue.getString();
+			AttributeType ldapAttributeType = ldapValue.getAttributeType();
+			String syntaxOid = ldapAttributeType.getSyntaxOid();
+			if (SYNTAX_GENERALIZED_TIME_OID.equals(syntaxOid)) {
+				// TODO: convert time
+				return null;
+			} else {
+				return ldapValue.getString();
+			}
 		}
 	}
 
@@ -284,11 +291,12 @@ public class SchemaTranslator {
 	private Attribute toIcfAttribute(org.apache.directory.api.ldap.model.entry.Attribute ldapAttribute) {
 		AttributeBuilder ab = new AttributeBuilder();
 		AttributeType ldapAttributeType = ldapAttribute.getAttributeType();
-		ab.setName(toIcfAttributeName(ldapAttributeType.getName()));
+		String icfAttributeName = toIcfAttributeName(ldapAttributeType.getName());
+		ab.setName(icfAttributeName);
 		Iterator<Value<?>> iterator = ldapAttribute.iterator();
 		while (iterator.hasNext()) {
 			Value<?> ldapValue = iterator.next();
-			ab.addValue(toIcfValue(ldapValue));
+			ab.addValue(toIcfValue(icfAttributeName, ldapValue));
 		}
 		return ab.build();
 	}

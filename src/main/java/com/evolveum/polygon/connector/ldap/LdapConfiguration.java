@@ -41,6 +41,9 @@ public class LdapConfiguration extends AbstractConfiguration {
 	public static final String SCOPE_BASE = "base";
 
 	public static final String PSEUDO_ATTRIBUTE_DN_NAME = "dn";
+	public static final String ATTRIBUTE_OBJECTCLASS_NAME = "objectClass";
+	
+	public static final String SEARCH_FILTER_ALL = "(objectClass=*)";
     /**
      * The LDAP server hostname.
      */
@@ -132,8 +135,6 @@ public class LdapConfiguration extends AbstractConfiguration {
      * Name of the attribute which will be used as ICF UID.
      */
     private String uidAttribute = "entryUUID";
-    
-	public static final String ATTRIBUTE_NAME_DN = "dn";
 
     /**
      * If set to false then the schema will not be retrieved from the server.

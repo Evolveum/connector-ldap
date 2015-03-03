@@ -70,10 +70,12 @@ public class SimpleSearchStrategy extends SearchStrategy {
 				Response response = searchCursor.get();
 				if (response instanceof SearchResultEntry) {
 			        Entry entry = ((SearchResultEntry)response).getEntry();
+			        logSearchResult(entry);
 			        handleResult(entry);
 			        
 			    } else if (response instanceof SearchResultDone) {
 			    	LdapResult ldapResult = ((SearchResultDone)response).getLdapResult();
+			    	logSearchResult(ldapResult);
 			    	// TODO
 			    }
 			}

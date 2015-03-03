@@ -22,6 +22,7 @@ import org.apache.directory.api.ldap.model.exception.LdapInvalidDnException;
 import org.apache.directory.api.ldap.model.exception.LdapReferralException;
 import org.apache.directory.api.ldap.model.filter.ExprNode;
 import org.apache.directory.api.ldap.model.message.AliasDerefMode;
+import org.apache.directory.api.ldap.model.message.LdapResult;
 import org.apache.directory.api.ldap.model.message.SearchRequest;
 import org.apache.directory.api.ldap.model.message.SearchScope;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
@@ -83,9 +84,15 @@ public abstract class SearchStrategy {
 	}
 	
 	protected SearchCursor executeSearch(SearchRequest req) throws LdapException {
+		if (req.getFilter() == null) {
+			req.setFilter(LdapConfiguration.SEARCH_FILTER_ALL);
+		}
+		logSearchRequest(req);
+		SearchCursor searchCursor;
 		try {
-			return connection.search(req);
+			searchCursor = connection.search(req);
 		} catch (LdapReferralException e) {
+			logSearchError(e);
 			String referralStrategy = configuration.getReferralStrategy();
 			if (referralStrategy == null) {
 				// This should not happen!
@@ -102,8 +109,33 @@ public abstract class SearchStrategy {
 				throw new ConfigurationException("Unknown value of referralStrategy configuration property: "+referralStrategy);
 			}
 		} catch (LdapException e) {
+			logSearchError(e);
 			throw e;
 		}
+		return searchCursor;
+	}
+	
+	protected void logSearchRequest(SearchRequest req) {
+		if (LOG.isOk()) {
+			LOG.ok("Search REQ base={0}, filter={1}, scope={2}, attributes={3}",
+					req.getBase(), req.getFilter(), req.getScope(), req.getAttributes());
+		}
+	}
+	
+	protected void logSearchResult(Entry entry) {
+		if (LOG.isOk()) {
+			LOG.ok("Search RES {0}", entry);
+		}
+	}
+	
+	protected void logSearchResult(LdapResult ldapResult) {
+		if (LOG.isOk()) {
+			LOG.ok("Search RES {0}", ldapResult);
+		}
+	}
+	
+	protected void logSearchError(LdapException e) {
+		LOG.error("Search ERR {0}: {1}", e.getClass().getName(), e.getMessage(), e);
 	}
 	
 	protected void handleResult(Entry entry) {

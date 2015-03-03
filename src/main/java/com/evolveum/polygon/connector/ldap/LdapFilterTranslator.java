@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
+import org.apache.directory.api.ldap.model.entry.StringValue;
 import org.apache.directory.api.ldap.model.entry.Value;
 import org.apache.directory.api.ldap.model.filter.AndNode;
 import org.apache.directory.api.ldap.model.filter.EqualityNode;
@@ -64,7 +65,34 @@ public class LdapFilterTranslator {
 		this.ldapObjectClass = ldapObjectClass;
 	}
 
+	/**
+	 * Translate filter, also add AND statement for objectClass.
+	 */
+	public ExprNode translate(Filter icfFilter, ObjectClass ldapObjectClass) {
+		ExprNode plainFilter = translate(icfFilter);
+		EqualityNode<String> objectClassEqFilter = createObjectClassEqFilter(ldapObjectClass);
+		if (plainFilter == null) {
+			return objectClassEqFilter;
+		}
+		if (plainFilter instanceof AndNode) {
+			((AndNode)plainFilter).addNode(objectClassEqFilter);
+			return plainFilter;
+		} else {
+			return new AndNode(objectClassEqFilter, plainFilter); 
+		}
+	}
+	
+	private EqualityNode<String> createObjectClassEqFilter(ObjectClass ldapObjectClass) {
+		// TODO Auto-generated method stub
+		Value<String> ldapValue = new StringValue(ldapObjectClass.getName());
+		return new EqualityNode<String>(LdapConfiguration.ATTRIBUTE_OBJECTCLASS_NAME, ldapValue);
+	}
+
 	public ExprNode translate(Filter icfFilter) {
+		if (icfFilter == null) {
+			return null;
+		}
+		
 		// Long and hairy if else if ... but the set of filters is quite stable,
 		// it is unlikely that they will appear every day. Therefore we do not need
 		// any OO magic here. And this is still quite readable.
@@ -102,7 +130,7 @@ public class LdapFilterTranslator {
 			return new EqualityNode<Object>(ldapAttributeType, ldapValue);
 
 		} else if (icfFilter instanceof ContainsAllValuesFilter) {
-			Attribute icfAttribute = ((EqualsFilter)icfFilter).getAttribute();
+			Attribute icfAttribute = ((ContainsAllValuesFilter)icfFilter).getAttribute();
 			String icfAttributeName = icfAttribute.getName();
 			List<Object> icfAttributeValue = icfAttribute.getValue();
 			if (Name.NAME.equals(icfAttributeName)) {

@@ -88,17 +88,15 @@ import com.evolveum.polygon.common.GuardedStringAccessor;
 import com.evolveum.polygon.common.SchemaUtil;
 import com.evolveum.polygon.connector.ldap.search.SearchStrategy;
 import com.evolveum.polygon.connector.ldap.search.SimpleSearchStrategy;
+import com.evolveum.polygon.connector.ldap.sync.SunChangelogSyncStrategy;
+import com.evolveum.polygon.connector.ldap.sync.SyncStrategy;
 
 @ConnectorClass(displayNameKey = "ldap.connector.display", configurationClass = LdapConfiguration.class)
 public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, SearchOp<Filter>, CreateOp, DeleteOp, 
 		UpdateAttributeValuesOp, SyncOp{
 
     private static final Log LOG = Log.getLog(LdapConnector.class);
-
-
-	private static final String SEARCH_FILTER_ALL = "(objectclass=*)";
     
-
     private LdapConfiguration configuration;
     private LdapNetworkConnection connection;
     private SchemaManager schemaManager = null;
@@ -119,7 +117,15 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
     @Override
 	public void test() {
     	checkAlive();
-		// TODO
+    	try {
+			connection.unBind();
+			bind();
+			Entry rootDse = getRootDse();
+			LOG.ok("Root DSE: {0}", rootDse);
+		} catch (LdapException e) {
+			throw new ConnectorIOException(e.getMessage(), e);
+		}
+		// TODO: better error handling
 	}
     
     private SchemaManager getSchemaManager() {
@@ -192,11 +198,8 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 			
 		} else {
 			String baseDn = getBaseDn(options);
-			ExprNode filterNode = null;
-			if (icfFilter != null) {
-				LdapFilterTranslator filterTranslator = new LdapFilterTranslator(getSchemaTranslator(), ldapObjectClass);
-				filterNode = filterTranslator.translate(icfFilter);
-			}
+			LdapFilterTranslator filterTranslator = new LdapFilterTranslator(getSchemaTranslator(), ldapObjectClass);
+			ExprNode filterNode = filterTranslator.translate(icfFilter, ldapObjectClass);
 			SearchStrategy searchStrategy = chooseSearchStrategy(objectClass, handler, options);
 			SearchScope scope = getScope(options);
 			String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
@@ -329,7 +332,7 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 		
 		// read the entry back and return UID
 		try {
-			EntryCursor cursor = connection.search(dn, SEARCH_FILTER_ALL, SearchScope.OBJECT, uidAttributeName);
+			EntryCursor cursor = connection.search(dn, LdapConfiguration.SEARCH_FILTER_ALL, SearchScope.OBJECT, uidAttributeName);
 			if (cursor.next()) {
 				Entry entryRead = cursor.get();
 				org.apache.directory.api.ldap.model.entry.Attribute uidLdapAttribute = entryRead.get(uidAttributeName);
@@ -361,31 +364,59 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 	public Uid update(ObjectClass objectClass, Uid uid, Set<Attribute> replaceAttributes,
 			OperationOptions options) {
     	
+		for (Attribute icfAttr: replaceAttributes) {
+			if (icfAttr.is(Name.NAME)) {
+				// This is rename. Which means change of DN. This is a special operation
+				String oldDn = resolveDn(objectClass, uid, options);
+				String newDn = SchemaUtil.getSingleStringNonBlankValue(icfAttr);
+				if (oldDn.equals(newDn)) {
+					// nothing to rename, just ignore
+				} else {
+					try {
+						LOG.ok("MoveAndRename REQ {0} -> {1}", oldDn, newDn);
+						connection.moveAndRename(oldDn, newDn);
+						LOG.ok("MoveAndRename RES OK {0} -> {1}", oldDn, newDn);
+					} catch (LdapException e) {
+						LOG.error("MoveAndRename ERROR {0} -> {1}: {2}", oldDn, newDn, e.getMessage(), e);
+						throw new ConnectorIOException("Rename/move of LDAP entry from "+oldDn+" to "+newDn+" failed: "+e.getMessage(), e);
+					}
+				}
+			}
+		}
+    	
     	ldapUpdate(objectClass, uid, replaceAttributes, options, ModificationOperation.REPLACE_ATTRIBUTE);
     	
     	return uid;
 	}
-
-	@Override
-	public void sync(ObjectClass objectClass, SyncToken token, SyncResultsHandler handler,
-			OperationOptions options) {
-		// TODO Auto-generated method stub
-		throw new UnsupportedOperationException("TODO");
-	}
-
-	@Override
-	public SyncToken getLatestSyncToken(ObjectClass objectClass) {
-		// TODO Auto-generated method stub
-		throw new UnsupportedOperationException("TODO");
-	}
-
-	@Override
+    
+    @Override
 	public Uid addAttributeValues(ObjectClass objectClass, Uid uid, Set<Attribute> valuesToAdd,
 			OperationOptions options) {
+		
+		for (Attribute icfAttr: valuesToAdd) {
+			if (icfAttr.is(Name.NAME)) {
+				throw new InvalidAttributeValueException("Cannot add value of attribute "+Name.NAME);
+			}
+		}
 		
 		ldapUpdate(objectClass, uid, valuesToAdd, options, ModificationOperation.ADD_ATTRIBUTE);
 		
 		return uid;
+	}
+
+	@Override
+	public Uid removeAttributeValues(ObjectClass objectClass, Uid uid, Set<Attribute> valuesToRemove,
+			OperationOptions options) {
+		
+		for (Attribute icfAttr: valuesToRemove) {
+			if (icfAttr.is(Name.NAME)) {
+				throw new InvalidAttributeValueException("Cannot remove value of attribute "+Name.NAME);
+			}
+		}
+
+    	ldapUpdate(objectClass, uid, valuesToRemove, options, ModificationOperation.REMOVE_ATTRIBUTE);
+    	
+    	return uid;
 	}
 	
 	private Uid ldapUpdate(ObjectClass objectClass, Uid uid, Set<Attribute> values,
@@ -394,35 +425,66 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 		String dn = resolveDn(objectClass, uid, options);
 		
 		org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass = schemaTranslator.toLdapObjectClass(objectClass);
-		Modification[] modifications = new Modification[values.size()];
-		int i = 0;
+		
+		List<Modification> modifications = new ArrayList<Modification>(values.size());
 		for (Attribute icfAttr: values) {
 			AttributeType attributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, icfAttr.getName());
+			if (attributeType == null) {
+				continue;
+			}
 			List<Value<Object>> ldapValues = schemaTranslator.toLdapValues(attributeType, icfAttr.getValue());
 			try {
-				modifications[i] = new DefaultModification(modOp, attributeType, ldapValues.toArray(new Value[ldapValues.size()]));
+				modifications.add(new DefaultModification(modOp, attributeType, ldapValues.toArray(new Value[ldapValues.size()])));
 			} catch (LdapInvalidAttributeValueException e) {
 				throw new InvalidAttributeValueException("Invalid modification value for LDAP attribute "+attributeType.getName()+": "+e.getMessage(), e);
 			}
-			i++;
 		}
 		
 		try {
-			connection.modify(dn, modifications);
+			if (LOG.isOk()) {
+				LOG.ok("Modify REQ {0}: {1}", dn, dumpModifications(modifications));
+			}
+			connection.modify(dn, modifications.toArray(new Modification[modifications.size()]));
+			if (LOG.isOk()) {
+				LOG.ok("Modify RES {0}: {1}", dn, dumpModifications(modifications));
+			}
 		} catch (LdapException e) {
+			LOG.error("Modify ERROR {0}: {1}: {2}", dn, dumpModifications(modifications), e.getMessage(), e);
 			throw new ConnectorIOException("Error modifying entry "+dn+": "+e.getMessage(), e);
 		}
 		
 		return uid;
 	}
 
-	@Override
-	public Uid removeAttributeValues(ObjectClass objectClass, Uid uid, Set<Attribute> valuesToRemove,
-			OperationOptions options) {
+	private String dumpModifications(List<Modification> modifications) {
+		if (modifications == null) {
+			return null;
+		}
+		StringBuilder sb = new StringBuilder("[");
+		for (Modification mod: modifications) {
+			sb.append(mod);
+			sb.append(",");
+		}
+		sb.append("]");
+		return sb.toString();
+	}
 
-    	ldapUpdate(objectClass, uid, valuesToRemove, options, ModificationOperation.REMOVE_ATTRIBUTE);
-    	
-    	return uid;
+	@Override
+	public void sync(ObjectClass objectClass, SyncToken token, SyncResultsHandler handler,
+			OperationOptions options) {
+		SyncStrategy strategy = chooseSyncStrategy(objectClass);
+		strategy.sync(objectClass, token, handler, options);
+	}
+	
+	@Override
+	public SyncToken getLatestSyncToken(ObjectClass objectClass) {
+		SyncStrategy strategy = chooseSyncStrategy(objectClass);
+		return strategy.getLatestSyncToken(objectClass);
+	}
+	
+	private SyncStrategy chooseSyncStrategy(ObjectClass objectClass) {
+		// TODO 
+		return new SunChangelogSyncStrategy(configuration, connection);
 	}
 
 	@Override
@@ -440,7 +502,7 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 	private String resolveDn(ObjectClass objectClass, Uid uid, OperationOptions options) {
 		String dn;
 		String uidAttributeName = configuration.getUidAttribute();
-		if (LdapConfiguration.ATTRIBUTE_NAME_DN.equals(uidAttributeName)) {
+		if (LdapConfiguration.PSEUDO_ATTRIBUTE_DN_NAME.equals(uidAttributeName)) {
 			dn = uid.getUidValue();
 		} else {
 			org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass = schemaTranslator.toLdapObjectClass(objectClass);
@@ -511,10 +573,11 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 		} catch (LdapException e) {
 			throw new ConnectorIOException("Unable to connect to LDAP server "+configuration.getHost()+":"+configuration.getPort()+": "+e.getMessage(), e);
 		}
-		
-//		LOG.ok("Fetching root DSE");
-//		connection.getRootDse();
 
+		bind();
+    }
+	
+	private void bind() {
 		final BindRequest bindRequest = new BindRequestImpl();
 		String bindDn = configuration.getBindDn();
 		try {
@@ -541,6 +604,10 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 			throw new ConnectorIOException("Unable to bind to LDAP server "+configuration.getHost()+":"+configuration.getPort()+" as "+bindDn+": "+e.getMessage(), e);
 		}
 		LOG.info("Bound to {0}", bindDn);
-    }
-    	
+	}
+    
+	private Entry getRootDse() throws LdapException {
+		LOG.ok("Fetching root DSE");
+		return connection.getRootDse();
+	}
 }
