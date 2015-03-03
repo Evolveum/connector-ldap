@@ -21,6 +21,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.commons.lang.ArrayUtils;
 import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.entry.StringValue;
 import org.apache.directory.api.ldap.model.entry.Value;
@@ -85,13 +86,56 @@ public class SchemaTranslator {
 	}
 	
 	private void addAttributeTypes(List<AttributeInfo> attrInfoList, org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
+		addAttributeTypesFromLdapSchema(attrInfoList, ldapObjectClass);
+		addExtraOperationalAttributes(attrInfoList, ldapObjectClass);
+	}
+	
+	private void addExtraOperationalAttributes(List<AttributeInfo> attrInfoList, org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
+		for (String operationalAttributeLdapName: configuration.getOperationalAttributes()) {
+			if (containsAttribute(attrInfoList, operationalAttributeLdapName)) {
+				continue;
+			}
+			AttributeInfoBuilder aib = new AttributeInfoBuilder(operationalAttributeLdapName);
+			aib.setRequired(false);
+			
+			AttributeType attributeType = null;
+			try {
+				String operationalAttributeLdapOid = schemaManager.getAttributeTypeRegistry().getOidByName(operationalAttributeLdapName);
+				attributeType = schemaManager.getAttributeTypeRegistry().get(operationalAttributeLdapOid);
+			} catch (LdapException e) {
+				// Ignore. We want this attribute even if it is not in the LDAP schema
+			}
+			
+			if (attributeType != null) {
+				aib.setType(toIcfType(attributeType.getSyntax(), operationalAttributeLdapName));
+				if (attributeType.isSingleValued()) {
+					aib.setMultiValued(false);
+				} else {
+					aib.setMultiValued(true);
+				}
+				if (attributeType.isReadOnly()) {
+					aib.setCreateable(false);
+					aib.setUpdateable(false);
+				}
+			} else {
+				aib.setType(String.class);
+				aib.setMultiValued(false);
+			}
+			aib.setReturnedByDefault(false);
+			
+			attrInfoList.add(aib.build());
+		}
+		
+	}
+	
+	private void addAttributeTypesFromLdapSchema(List<AttributeInfo> attrInfoList, org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
 		addAttributeTypes(attrInfoList, ldapObjectClass.getMustAttributeTypes(), true);
 		addAttributeTypes(attrInfoList, ldapObjectClass.getMayAttributeTypes(), false);
 		
 		List<org.apache.directory.api.ldap.model.schema.ObjectClass> superiors = ldapObjectClass.getSuperiors();
 		if (superiors != null) {
 			for (org.apache.directory.api.ldap.model.schema.ObjectClass superior: superiors) {
-				addAttributeTypes(attrInfoList, superior);
+				addAttributeTypesFromLdapSchema(attrInfoList, superior);
 			}
 		}
 	}
@@ -157,6 +201,10 @@ public class SchemaTranslator {
 		}
 	}
 
+	/**
+	 * Throws exception if the attribute is illegal.
+	 * Return null if the attribute is legal, but we do not have any definition for it.
+	 */
 	public AttributeType toLdapAttribute(org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
 			String icfAttributeName) {
 		if (Name.NAME.equals(icfAttributeName)) {
@@ -174,7 +222,11 @@ public class SchemaTranslator {
 			String attributeOid = schemaManager.getAttributeTypeRegistry().getOidByName(ldapAttributeName);
 			return schemaManager.getAttributeTypeRegistry().lookup(attributeOid);
 		} catch (LdapException e) {
-			throw new IllegalArgumentException("Unknown LDAP attribute "+ldapAttributeName+" (translated from ICF attribute "+icfAttributeName+")");
+			if (ArrayUtils.contains(configuration.getOperationalAttributes(), ldapAttributeName)) {
+				return null;
+			} else {
+				throw new IllegalArgumentException("Unknown LDAP attribute "+ldapAttributeName+" (translated from ICF attribute "+icfAttributeName+")");
+			}
 		}
 	}
 
@@ -202,6 +254,15 @@ public class SchemaTranslator {
 	public Value<Object> toLdapValue(AttributeType ldapAttributeType, Object icfAttributeValue) {
 		if (icfAttributeValue == null) {
 			return null;
+		}
+		if (ldapAttributeType == null) {
+			// We have no definition for this attribute. Assume string.
+			try {
+				return (Value)new StringValue(ldapAttributeType, icfAttributeValue.toString());
+			} catch (LdapInvalidAttributeValueException e) {
+				throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
+						+"; attributeType="+ldapAttributeType, e);
+			}
 		}
 		String syntaxOid = ldapAttributeType.getSyntaxOid();
 		if (SYNTAX_GENERALIZED_TIME_OID.equals(syntaxOid)) {

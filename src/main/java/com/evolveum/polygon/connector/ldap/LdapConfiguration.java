@@ -135,6 +135,11 @@ public class LdapConfiguration extends AbstractConfiguration {
      * Name of the attribute which will be used as ICF UID.
      */
     private String uidAttribute = "entryUUID";
+    
+    /**
+     * Operational attributes that apply to all object classes.
+     */
+    private String[] operationalAttributes = { };
 
     /**
      * If set to false then the schema will not be retrieved from the server.
@@ -313,6 +318,14 @@ public class LdapConfiguration extends AbstractConfiguration {
 
 	public void setUidAttribute(String uidAttribute) {
 		this.uidAttribute = uidAttribute;
+	}
+
+	public String[] getOperationalAttributes() {
+		return operationalAttributes;
+	}
+
+	public void setOperationalAttributes(String[] operationalAttributes) {
+		this.operationalAttributes = operationalAttributes;
 	}
 
 	public boolean isReadSchema() {

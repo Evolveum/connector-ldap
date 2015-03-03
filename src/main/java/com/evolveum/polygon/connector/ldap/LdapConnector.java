@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
+import org.apache.commons.lang.ArrayUtils;
 import org.apache.directory.api.ldap.model.cursor.CursorException;
 import org.apache.directory.api.ldap.model.cursor.EntryCursor;
 import org.apache.directory.api.ldap.model.entry.DefaultEntry;
@@ -428,9 +429,12 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 		
 		List<Modification> modifications = new ArrayList<Modification>(values.size());
 		for (Attribute icfAttr: values) {
-			AttributeType attributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, icfAttr.getName());
-			if (attributeType == null) {
+			if (icfAttr.is(Name.NAME)) {
 				continue;
+			}
+			AttributeType attributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, icfAttr.getName());
+			if (attributeType == null && !ArrayUtils.contains(configuration.getOperationalAttributes(), icfAttr.getName())) {
+				throw new InvalidAttributeValueException("Unknown attribute "+icfAttr.getName()+" in object class "+objectClass);
 			}
 			List<Value<Object>> ldapValues = schemaTranslator.toLdapValues(attributeType, icfAttr.getValue());
 			try {
@@ -438,6 +442,11 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 			} catch (LdapInvalidAttributeValueException e) {
 				throw new InvalidAttributeValueException("Invalid modification value for LDAP attribute "+attributeType.getName()+": "+e.getMessage(), e);
 			}
+		}
+		
+		if (modifications.isEmpty()) {
+			LOG.ok("Skipping modify({0}) operation as there are no modifications to execute", modOp);
+			return uid;
 		}
 		
 		try {
