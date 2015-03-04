@@ -33,6 +33,7 @@ import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
 import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
 import org.identityconnectors.framework.common.objects.ObjectClass;
+import org.identityconnectors.framework.common.objects.OperationOptions;
 import org.identityconnectors.framework.common.objects.ResultsHandler;
 
 import com.evolveum.polygon.connector.ldap.LdapConfiguration;
@@ -43,11 +44,13 @@ import com.evolveum.polygon.connector.ldap.SchemaTranslator;
  * 
  * @author Radovan Semancik
  */
-public class SimpleSearchStrategy extends SearchStrategy {
+public class DefaultSearchStrategy extends SearchStrategy {
 
-	public SimpleSearchStrategy(LdapNetworkConnection connection, LdapConfiguration configuration,
-			SchemaTranslator schemaTranslator, ObjectClass objectClass, ResultsHandler handler) {
-		super(connection, configuration, schemaTranslator, objectClass, handler);
+	public DefaultSearchStrategy(LdapNetworkConnection connection, LdapConfiguration configuration,
+			SchemaTranslator schemaTranslator, ObjectClass objectClass,
+			org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass, ResultsHandler handler,
+			OperationOptions options) {
+		super(connection, configuration, schemaTranslator, objectClass, ldapObjectClass, handler, options);
 	}
 
 	/* (non-Javadoc)
@@ -65,13 +68,14 @@ public class SimpleSearchStrategy extends SearchStrategy {
 		};
 		
 		SearchCursor searchCursor = executeSearch(req);
+		boolean proceed = true;
 		try {
-			while (searchCursor.next()) {
+			while (proceed && searchCursor.next()) {
 				Response response = searchCursor.get();
 				if (response instanceof SearchResultEntry) {
 			        Entry entry = ((SearchResultEntry)response).getEntry();
 			        logSearchResult(entry);
-			        handleResult(entry);
+			        proceed = handleResult(entry);
 			        
 			    } else if (response instanceof SearchResultDone) {
 			    	LdapResult ldapResult = ((SearchResultDone)response).getLdapResult();

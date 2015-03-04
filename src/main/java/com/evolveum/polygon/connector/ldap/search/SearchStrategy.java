@@ -15,6 +15,10 @@
  */
 package com.evolveum.polygon.connector.ldap.search;
 
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
 import org.apache.directory.api.ldap.model.cursor.SearchCursor;
 import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.exception.LdapException;
@@ -22,14 +26,23 @@ import org.apache.directory.api.ldap.model.exception.LdapInvalidDnException;
 import org.apache.directory.api.ldap.model.exception.LdapReferralException;
 import org.apache.directory.api.ldap.model.filter.ExprNode;
 import org.apache.directory.api.ldap.model.message.AliasDerefMode;
+import org.apache.directory.api.ldap.model.message.Control;
 import org.apache.directory.api.ldap.model.message.LdapResult;
 import org.apache.directory.api.ldap.model.message.SearchRequest;
 import org.apache.directory.api.ldap.model.message.SearchScope;
+import org.apache.directory.api.ldap.model.message.controls.PagedResults;
+import org.apache.directory.api.ldap.model.message.controls.SortRequest;
+import org.apache.directory.api.ldap.model.message.controls.SortRequestControlImpl;
+import org.apache.directory.api.ldap.model.message.controls.VirtualListViewRequest;
+import org.apache.directory.api.ldap.model.schema.AttributeType;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
+import org.identityconnectors.common.Base64;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.framework.common.exceptions.ConfigurationException;
 import org.identityconnectors.framework.common.objects.ObjectClass;
+import org.identityconnectors.framework.common.objects.OperationOptions;
 import org.identityconnectors.framework.common.objects.ResultsHandler;
+import org.identityconnectors.framework.common.objects.SortKey;
 
 import com.evolveum.polygon.connector.ldap.LdapConfiguration;
 import com.evolveum.polygon.connector.ldap.SchemaTranslator;
@@ -46,16 +59,22 @@ public abstract class SearchStrategy {
 	private LdapConfiguration configuration;
 	private SchemaTranslator schemaTranslator;
 	private ObjectClass objectClass;
+	private org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass;
 	private ResultsHandler handler;
+	private OperationOptions options;
 	
 	protected SearchStrategy(LdapNetworkConnection connection, LdapConfiguration configuration,
-			SchemaTranslator schemaTranslator, ObjectClass objectClass, ResultsHandler handler) {
+			SchemaTranslator schemaTranslator, ObjectClass objectClass,
+			org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
+			ResultsHandler handler, OperationOptions options) {
 		super();
 		this.connection = connection;
 		this.configuration = configuration;
 		this.schemaTranslator = schemaTranslator;
 		this.objectClass = objectClass;
+		this.ldapObjectClass = ldapObjectClass;
 		this.handler = handler;
+		this.options = options;
 	}
 
 	public LdapNetworkConnection getConnection() {
@@ -65,8 +84,36 @@ public abstract class SearchStrategy {
 	public LdapConfiguration getConfiguration() {
 		return configuration;
 	}
+	
+	public OperationOptions getOptions() {
+		return options;
+	}
+
+	public SchemaTranslator getSchemaTranslator() {
+		return schemaTranslator;
+	}
+	
+	public ObjectClass getObjectClass() {
+		return objectClass;
+	}
+
+	public org.apache.directory.api.ldap.model.schema.ObjectClass getLdapObjectClass() {
+		return ldapObjectClass;
+	}
 
 	public abstract void search(String baseDn, ExprNode filterNode, SearchScope scope, String[] attributes) throws LdapException;
+	
+	public int getRemainingPagedResults() {
+		return -1;
+	}
+        
+	public String getPagedResultsCookie() {
+		return null;
+	}
+	
+	protected int getDefaultPageSize() {
+		return configuration.getPagingBlockSize();
+	}
 
 	protected void applyCommonConfiguration(SearchRequest req) {
 		String referralStrategy = configuration.getReferralStrategy();
@@ -117,11 +164,74 @@ public abstract class SearchStrategy {
 	
 	protected void logSearchRequest(SearchRequest req) {
 		if (LOG.isOk()) {
-			LOG.ok("Search REQ base={0}, filter={1}, scope={2}, attributes={3}",
-					req.getBase(), req.getFilter(), req.getScope(), req.getAttributes());
+			String controls = null;
+			Map<String, Control> controlsMap = req.getControls();
+			if (controlsMap != null && !controlsMap.isEmpty()) {
+				StringBuilder sb = new StringBuilder();
+				// We want just a short list here. toString methods of control implementations are too long. Avoid them.
+				for (java.util.Map.Entry<String, Control> entry: controlsMap.entrySet()) {
+					Control control = entry.getValue();
+					if (control instanceof PagedResults) {
+						sb.append("PagedResults(size=");
+						sb.append(((PagedResults)control).getSize());
+						sb.append(", cookie=");
+						byte[] cookie = ((PagedResults)control).getCookie();
+						if (cookie == null) {
+							sb.append("null");
+						} else {
+							sb.append(Base64.encode(cookie));
+						}
+						sb.append("),");
+					} else if (control instanceof VirtualListViewRequest) {
+						sb.append("VLV(beforeCount=");
+						sb.append(((VirtualListViewRequest)control).getBeforeCount());
+						sb.append(", afterCount=");
+						sb.append(((VirtualListViewRequest)control).getAfterCount());
+						sb.append(", offset=");
+						sb.append(((VirtualListViewRequest)control).getOffset());
+						sb.append(", contentCount=");
+						sb.append(((VirtualListViewRequest)control).getContentCount());
+						sb.append(", contextID=");
+						byte[] contextId = ((VirtualListViewRequest)control).getContextId();
+						if (contextId == null) {
+							sb.append("null");
+						} else {
+							sb.append(Base64.encode(contextId));
+						}
+						sb.append("),");
+					} else if (control instanceof SortRequest) {
+						sb.append("Sort(");
+						for (org.apache.directory.api.ldap.model.message.controls.SortKey sortKey: ((SortRequest)control).getSortKeys()) {
+							sb.append(sortKey.getAttributeTypeDesc());
+							sb.append(":");
+							sb.append(sortKey.getMatchingRuleId());
+							sb.append(":");
+							if (sortKey.isReverseOrder()) {
+								sb.append("D");
+							} else {
+								sb.append("A");
+							}
+							sb.append("),");
+						}
+					} else {
+						sb.append(control.getClass().getName());
+						sb.append(",");
+					}
+				}
+				controls = sb.toString();
+			}
+			LOG.ok("Search REQ base={0}, filter={1}, scope={2}, attributes={3}, controls={4}",
+					req.getBase(), req.getFilter(), req.getScope(), req.getAttributes(), controls);
 		}
 	}
-	
+
+	protected void logSearchRequest(SearchRequest req, String extra) {
+		if (LOG.isOk()) {
+			LOG.ok("Search REQ base={0}, filter={1}, scope={2}, attributes={3}, {4}",
+					req.getBase(), req.getFilter(), req.getScope(), req.getAttributes(), extra);
+		}
+	}
+
 	protected void logSearchResult(Entry entry) {
 		if (LOG.isOk()) {
 			LOG.ok("Search RES {0}", entry);
@@ -133,13 +243,41 @@ public abstract class SearchStrategy {
 			LOG.ok("Search RES {0}", ldapResult);
 		}
 	}
-	
+
+	protected void logSearchResult(LdapResult ldapResult, String extra) {
+		if (LOG.isOk()) {
+			LOG.ok("Search RES {0}, {1}", ldapResult, extra);
+		}
+	}
+
 	protected void logSearchError(LdapException e) {
 		LOG.error("Search ERR {0}: {1}", e.getClass().getName(), e.getMessage(), e);
 	}
 	
-	protected void handleResult(Entry entry) {
-		handler.handle(schemaTranslator.toIcfObject(objectClass, entry));
+	protected boolean handleResult(Entry entry) {
+		return handler.handle(schemaTranslator.toIcfObject(objectClass, entry));
 	}
 
+	protected SortRequest createSortControl(String defaultSortLdapAttribute, String defaultSortOrderingRule) {
+		SortRequest sortReqControl = null;
+		if (getOptions() != null && getOptions().getSortKeys() != null && getOptions().getSortKeys().length > 0) {
+			sortReqControl = new SortRequestControlImpl();
+			for (SortKey icfSortKey: getOptions().getSortKeys()) {
+				AttributeType attributeType = getSchemaTranslator().toLdapAttribute(getLdapObjectClass(), icfSortKey.getField());
+				String attributeTypeDesc = attributeType.getName();
+				String matchingRuleId = null;
+				boolean reverseOrder = !icfSortKey.isAscendingOrder();
+				org.apache.directory.api.ldap.model.message.controls.SortKey ldapSortKey = 
+						new org.apache.directory.api.ldap.model.message.controls.SortKey(attributeTypeDesc, matchingRuleId, reverseOrder);
+				sortReqControl.addSortKey(ldapSortKey);
+			}
+		} else if (defaultSortLdapAttribute != null) {
+			sortReqControl = new SortRequestControlImpl();
+			org.apache.directory.api.ldap.model.message.controls.SortKey ldapSortKey = 
+					new org.apache.directory.api.ldap.model.message.controls.SortKey(defaultSortLdapAttribute, defaultSortOrderingRule, false); 
+			sortReqControl.addSortKey(ldapSortKey);
+		}
+		return sortReqControl;
+	}
+	
 }

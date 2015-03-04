@@ -24,6 +24,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
+import javax.naming.ldap.PagedResultsControl;
+
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.directory.api.ldap.model.cursor.CursorException;
 import org.apache.directory.api.ldap.model.cursor.EntryCursor;
@@ -43,6 +45,8 @@ import org.apache.directory.api.ldap.model.message.BindRequestImpl;
 import org.apache.directory.api.ldap.model.message.BindResponse;
 import org.apache.directory.api.ldap.model.message.Response;
 import org.apache.directory.api.ldap.model.message.SearchScope;
+import org.apache.directory.api.ldap.model.message.controls.PagedResults;
+import org.apache.directory.api.ldap.model.message.controls.VirtualListViewRequest;
 import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.ldap.model.schema.AttributeType;
 import org.apache.directory.api.ldap.model.schema.LdapSyntax;
@@ -87,8 +91,10 @@ import org.identityconnectors.framework.spi.operations.UpdateAttributeValuesOp;
 
 import com.evolveum.polygon.common.GuardedStringAccessor;
 import com.evolveum.polygon.common.SchemaUtil;
+import com.evolveum.polygon.connector.ldap.search.DefaultSearchStrategy;
 import com.evolveum.polygon.connector.ldap.search.SearchStrategy;
-import com.evolveum.polygon.connector.ldap.search.SimpleSearchStrategy;
+import com.evolveum.polygon.connector.ldap.search.SimplePagedResultsSearchStrategy;
+import com.evolveum.polygon.connector.ldap.search.VlvSearchStrategy;
 import com.evolveum.polygon.connector.ldap.sync.SunChangelogSyncStrategy;
 import com.evolveum.polygon.connector.ldap.sync.SyncStrategy;
 
@@ -188,7 +194,7 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 			// Search by __NAME__, which means DN. This translated to a base search.
 			String dn = SchemaUtil.getSingleStringNonBlankValue(((EqualsFilter)icfFilter).getAttribute());
 			// We know that this can return at most one object. Therefore always use simple search.
-			SearchStrategy searchStrategy = getSimpleSearchStrategy(objectClass, handler);
+			SearchStrategy searchStrategy = getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
 			String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
 			try {
 				searchStrategy.search(dn, null, SearchScope.OBJECT, attributesToGet);
@@ -208,7 +214,7 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 
 				// The filter was limited by a ICF filter clause for __NAME__
 				// so we look at exactly one object here
-				SearchStrategy searchStrategy = getSimpleSearchStrategy(objectClass, handler);
+				SearchStrategy searchStrategy = getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
 				try {
 					searchStrategy.search(scopedFilter.getBaseDn(), filterNode, SearchScope.OBJECT, attributesToGet);
 				} catch (LdapException e) {
@@ -218,7 +224,7 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 			} else {
 
 				// This is the real (usual) search
-				SearchStrategy searchStrategy = chooseSearchStrategy(objectClass, handler, options);
+				SearchStrategy searchStrategy = chooseSearchStrategy(objectClass, ldapObjectClass, handler, options);
 				SearchScope scope = getScope(options);
 				try {
 					searchStrategy.search(baseDn, filterNode, scope, attributesToGet);
@@ -286,13 +292,79 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 		return ldapAttrs;
 	}
 	
-	private SearchStrategy chooseSearchStrategy(ObjectClass objectClass, ResultsHandler handler, OperationOptions options) {
-		// TODO
-		return getSimpleSearchStrategy(objectClass, handler);
+	private SearchStrategy chooseSearchStrategy(ObjectClass objectClass, 
+			org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass, 
+			ResultsHandler handler, OperationOptions options) {
+		String pagingStrategy = configuration.getPagingStrategy();
+		if (pagingStrategy == null) {
+			pagingStrategy = LdapConfiguration.PAGING_STRATEGY_AUTO;
+		}
+		
+		if (options != null && options.getAllowPartialResults() != null && options.getAllowPartialResults() && 
+        		options.getPagedResultsOffset() == null && options.getPagedResultsCookie() == null &&
+        		options.getPageSize() == null) {
+    		// Search that allow partial results, no need for paging. Regardless of the configured strategy.
+        	return getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
+    	}
+		
+		if (LdapConfiguration.PAGING_STRATEGY_NONE.equals(pagingStrategy)) {
+        	// This may fail on a sizeLimit. But this is what has been configured so we are going to do it anyway.
+        	LOG.ok("Selecting default search strategy because strategy setting is set to {0}", pagingStrategy);
+        	return getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
+        	
+        } else if (LdapConfiguration.PAGING_STRATEGY_SPR.equals(pagingStrategy)) {
+    		if (supportsControl(PagedResults.OID)) {
+    			LOG.ok("Selecting SimplePaged search strategy because strategy setting is set to {0}", pagingStrategy);
+    			return new SimplePagedResultsSearchStrategy(connection, configuration, schemaTranslator, objectClass, ldapObjectClass, handler, options);
+    		} else {
+    			throw new ConfigurationException("Configured paging strategy "+pagingStrategy+", but the server does not support PagedResultsControl.");
+    		}
+    		
+        } else if (LdapConfiguration.PAGING_STRATEGY_VLV.equals(pagingStrategy)) {
+    		if (supportsControl(VirtualListViewRequest.OID)) {
+    			LOG.ok("Selecting VLV search strategy because strategy setting is set to {0}", pagingStrategy);
+    			return new VlvSearchStrategy(connection, configuration, getSchemaTranslator(), objectClass, ldapObjectClass, handler, options);
+    		} else {
+    			throw new ConfigurationException("Configured paging strategy "+pagingStrategy+", but the server does not support VLV.");
+    		}
+    		
+        } else if (LdapConfiguration.PAGING_STRATEGY_AUTO.equals(pagingStrategy)) {
+        	if (options.getPagedResultsOffset() != null && options.getPagedResultsOffset() > 1) {
+        		// VLV is the only practical option here
+        		if (supportsControl(VirtualListViewRequest.OID)) {
+        			LOG.ok("Selecting VLV search strategy because strategy setting is set to {0} and the request specifies an offset", pagingStrategy);
+        			return new VlvSearchStrategy(connection, configuration, getSchemaTranslator(), objectClass, ldapObjectClass, handler, options);
+        		} else {
+        			throw new UnsupportedOperationException("Requested search from offset ("+options.getPagedResultsOffset()+"), but the server does not support VLV. Unable to execute the search.");
+        		}
+        	} else {
+        		if (supportsControl(PagedResults.OID)) {
+        			// SPR is usually a better choice if no offset is specified. Less overhead on the server.
+        			LOG.ok("Selecting SimplePaged search strategy because strategy setting is set to {0} and the request does not specify an offset", pagingStrategy);
+        			return new SimplePagedResultsSearchStrategy(connection, configuration, schemaTranslator, objectClass, ldapObjectClass, handler, options);
+        		} else if (supportsControl(VirtualListViewRequest.OID)) {
+        			return new VlvSearchStrategy(connection, configuration, getSchemaTranslator(), objectClass, ldapObjectClass, handler, options);
+        		} else {
+        			throw new UnsupportedOperationException("Requested paged search, but the server does not support VLV or PagedResultsControl. Unable to execute the search.");
+        		}
+        	}
+        }
+        
+		return getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
 	}
 	
-	private SearchStrategy getSimpleSearchStrategy(ObjectClass objectClass, ResultsHandler handler) {
-		return new SimpleSearchStrategy(connection, configuration, getSchemaTranslator(), objectClass, handler);
+	private boolean supportsControl(String oid) {
+		try {
+			return connection.getSupportedControls().contains(oid);
+		} catch (LdapException e) {
+			throw new ConnectorIOException("Cannot fetch list of supported controls: "+e.getMessage(), e);
+		}
+	}
+
+	private SearchStrategy getDefaultSearchStrategy(ObjectClass objectClass, 
+			org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
+			ResultsHandler handler, OperationOptions options) {
+		return new DefaultSearchStrategy(connection, configuration, getSchemaTranslator(), objectClass, ldapObjectClass, handler, options);
 	}
 
 	@Override
