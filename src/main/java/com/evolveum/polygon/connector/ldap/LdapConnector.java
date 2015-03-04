@@ -195,21 +195,38 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 			} catch (LdapException e) {
 				handleLdapException(e);
 			}
-			return;
 			
 		} else {
+
 			String baseDn = getBaseDn(options);
 			LdapFilterTranslator filterTranslator = new LdapFilterTranslator(getSchemaTranslator(), ldapObjectClass);
-			ExprNode filterNode = filterTranslator.translate(icfFilter, ldapObjectClass);
-			SearchStrategy searchStrategy = chooseSearchStrategy(objectClass, handler, options);
-			SearchScope scope = getScope(options);
+			ScopedFilter scopedFilter = filterTranslator.translate(icfFilter, ldapObjectClass);
+			ExprNode filterNode = scopedFilter.getFilter();
 			String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
-			try {
-				searchStrategy.search(baseDn, filterNode, scope, attributesToGet);
-			} catch (LdapException e) {
-				handleLdapException(e);
+			
+			if (scopedFilter.getBaseDn() != null) {
+
+				// The filter was limited by a ICF filter clause for __NAME__
+				// so we look at exactly one object here
+				SearchStrategy searchStrategy = getSimpleSearchStrategy(objectClass, handler);
+				try {
+					searchStrategy.search(scopedFilter.getBaseDn(), filterNode, SearchScope.OBJECT, attributesToGet);
+				} catch (LdapException e) {
+					handleLdapException(e);
+				}
+			
+			} else {
+
+				// This is the real (usual) search
+				SearchStrategy searchStrategy = chooseSearchStrategy(objectClass, handler, options);
+				SearchScope scope = getScope(options);
+				try {
+					searchStrategy.search(baseDn, filterNode, scope, attributesToGet);
+				} catch (LdapException e) {
+					handleLdapException(e);
+				}
+				
 			}
-			return;
 		}
 	}
 
