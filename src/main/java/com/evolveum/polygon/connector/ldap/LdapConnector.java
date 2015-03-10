@@ -21,7 +21,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
-
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.directory.api.ldap.extras.controls.vlv.VirtualListViewRequest;
 import org.apache.directory.api.ldap.model.cursor.CursorException;
@@ -32,10 +31,30 @@ import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.entry.Modification;
 import org.apache.directory.api.ldap.model.entry.ModificationOperation;
 import org.apache.directory.api.ldap.model.entry.Value;
+import org.apache.directory.api.ldap.model.exception.LdapAdminLimitExceededException;
+import org.apache.directory.api.ldap.model.exception.LdapAffectMultipleDsaException;
+import org.apache.directory.api.ldap.model.exception.LdapAliasDereferencingException;
+import org.apache.directory.api.ldap.model.exception.LdapAliasException;
+import org.apache.directory.api.ldap.model.exception.LdapAttributeInUseException;
+import org.apache.directory.api.ldap.model.exception.LdapAuthenticationException;
+import org.apache.directory.api.ldap.model.exception.LdapAuthenticationNotSupportedException;
+import org.apache.directory.api.ldap.model.exception.LdapConfigurationException;
+import org.apache.directory.api.ldap.model.exception.LdapContextNotEmptyException;
 import org.apache.directory.api.ldap.model.exception.LdapEntryAlreadyExistsException;
 import org.apache.directory.api.ldap.model.exception.LdapException;
+import org.apache.directory.api.ldap.model.exception.LdapInvalidAttributeTypeException;
 import org.apache.directory.api.ldap.model.exception.LdapInvalidAttributeValueException;
 import org.apache.directory.api.ldap.model.exception.LdapInvalidDnException;
+import org.apache.directory.api.ldap.model.exception.LdapInvalidSearchFilterException;
+import org.apache.directory.api.ldap.model.exception.LdapLoopDetectedException;
+import org.apache.directory.api.ldap.model.exception.LdapNoPermissionException;
+import org.apache.directory.api.ldap.model.exception.LdapNoSuchAttributeException;
+import org.apache.directory.api.ldap.model.exception.LdapNoSuchObjectException;
+import org.apache.directory.api.ldap.model.exception.LdapSchemaException;
+import org.apache.directory.api.ldap.model.exception.LdapSchemaViolationException;
+import org.apache.directory.api.ldap.model.exception.LdapServiceUnavailableException;
+import org.apache.directory.api.ldap.model.exception.LdapStrongAuthenticationRequiredException;
+import org.apache.directory.api.ldap.model.exception.LdapUnwillingToPerformException;
 import org.apache.directory.api.ldap.model.filter.EqualityNode;
 import org.apache.directory.api.ldap.model.filter.ExprNode;
 import org.apache.directory.api.ldap.model.message.BindRequest;
@@ -55,7 +74,9 @@ import org.identityconnectors.framework.common.exceptions.AlreadyExistsException
 import org.identityconnectors.framework.common.exceptions.ConfigurationException;
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
 import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
+import org.identityconnectors.framework.common.exceptions.ConnectorSecurityException;
 import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException;
+import org.identityconnectors.framework.common.exceptions.PermissionDeniedException;
 import org.identityconnectors.framework.common.exceptions.UnknownUidException;
 import org.identityconnectors.framework.common.objects.Attribute;
 import org.identityconnectors.framework.common.objects.Name;
@@ -703,8 +724,57 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
     	}
 		if (ldapException instanceof LdapEntryAlreadyExistsException) {
 			throw new AlreadyExistsException(message + ldapException.getMessage(), ldapException);
+		} else if (ldapException instanceof LdapSchemaViolationException) {
+			throw new InvalidAttributeValueException(message + ldapException.getMessage(), ldapException);
+		} else if (ldapException instanceof LdapStrongAuthenticationRequiredException) {
+			throw new ConnectorSecurityException(message + ldapException.getMessage(), ldapException);
+		} else if (ldapException instanceof LdapAdminLimitExceededException) {
+			throw new ConnectorSecurityException(message + ldapException.getMessage(), ldapException);
+		} else if (ldapException instanceof LdapAffectMultipleDsaException) {
+			throw new InvalidAttributeValueException(message + ldapException.getMessage(), ldapException);
+		} else if (ldapException instanceof LdapAffectMultipleDsaException) {
+			throw new InvalidAttributeValueException(message + ldapException.getMessage(), ldapException);
+		} else if (ldapException instanceof LdapAliasDereferencingException) {
+			throw new InvalidAttributeValueException(message + ldapException.getMessage(), ldapException);
+		} else if (ldapException instanceof LdapAliasException) {
+			throw new InvalidAttributeValueException(message + ldapException.getMessage(), ldapException);
+		} else if (ldapException instanceof LdapAttributeInUseException) {
+			throw new InvalidAttributeValueException(message + ldapException.getMessage(), ldapException);
+		} else if (ldapException instanceof LdapAuthenticationException) {
+			throw new ConnectorSecurityException(message + ldapException.getMessage(), ldapException);
+		} else if (ldapException instanceof LdapAuthenticationNotSupportedException) {
+			throw new ConnectorSecurityException(message + ldapException.getMessage(), ldapException);
+		} else if (ldapException instanceof LdapConfigurationException) {
+			throw new ConfigurationException(message + ldapException.getMessage(), ldapException);
+		} else if (ldapException instanceof LdapContextNotEmptyException) {
+			throw new InvalidAttributeValueException(message + ldapException.getMessage(), ldapException);
+		} else if (ldapException instanceof LdapInvalidAttributeTypeException) {
+			throw new InvalidAttributeValueException(message + ldapException.getMessage(), ldapException);
+		} else if (ldapException instanceof LdapInvalidAttributeValueException) {
+			throw new InvalidAttributeValueException(message + ldapException.getMessage(), ldapException);
+		} else if (ldapException instanceof LdapInvalidDnException) {
+			throw new InvalidAttributeValueException(message + ldapException.getMessage(), ldapException);
+		} else if (ldapException instanceof LdapInvalidSearchFilterException) {
+			throw new InvalidAttributeValueException(message + ldapException.getMessage(), ldapException);
+		} else if (ldapException instanceof LdapInvalidSearchFilterException) {
+			throw new InvalidAttributeValueException(message + ldapException.getMessage(), ldapException);
+		} else if (ldapException instanceof LdapLoopDetectedException) {
+			throw new ConfigurationException(message + ldapException.getMessage(), ldapException);
+		} else if (ldapException instanceof LdapNoPermissionException) {
+			throw new PermissionDeniedException(message + ldapException.getMessage(), ldapException);
+		} else if (ldapException instanceof LdapNoSuchAttributeException) {
+			throw new InvalidAttributeValueException(message + ldapException.getMessage(), ldapException);
+		} else if (ldapException instanceof LdapNoSuchObjectException) {
+			throw new UnknownUidException(message + ldapException.getMessage(), ldapException);
+		} else if (ldapException instanceof LdapSchemaException) {
+			throw new ConfigurationException(message + ldapException.getMessage(), ldapException);
+		} else if (ldapException instanceof LdapSchemaViolationException) {
+			throw new InvalidAttributeValueException(message + ldapException.getMessage(), ldapException);
+		} else if (ldapException instanceof LdapUnwillingToPerformException) {
+			throw new PermissionDeniedException(message + ldapException.getMessage(), ldapException);
+		} else {
+			return new ConnectorIOException(message + ldapException.getMessage(), ldapException);
 		}
-		return new ConnectorIOException(message + ldapException.getMessage(), ldapException);
 	}
 
 }
