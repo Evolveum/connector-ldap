@@ -18,13 +18,9 @@ package com.evolveum.polygon.connector.ldap;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
 
-import javax.naming.ldap.PagedResultsControl;
 
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.directory.api.ldap.extras.controls.vlv.VirtualListViewRequest;
@@ -36,6 +32,7 @@ import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.entry.Modification;
 import org.apache.directory.api.ldap.model.entry.ModificationOperation;
 import org.apache.directory.api.ldap.model.entry.Value;
+import org.apache.directory.api.ldap.model.exception.LdapEntryAlreadyExistsException;
 import org.apache.directory.api.ldap.model.exception.LdapException;
 import org.apache.directory.api.ldap.model.exception.LdapInvalidAttributeValueException;
 import org.apache.directory.api.ldap.model.exception.LdapInvalidDnException;
@@ -44,34 +41,29 @@ import org.apache.directory.api.ldap.model.filter.ExprNode;
 import org.apache.directory.api.ldap.model.message.BindRequest;
 import org.apache.directory.api.ldap.model.message.BindRequestImpl;
 import org.apache.directory.api.ldap.model.message.BindResponse;
-import org.apache.directory.api.ldap.model.message.Response;
 import org.apache.directory.api.ldap.model.message.SearchScope;
 import org.apache.directory.api.ldap.model.message.controls.PagedResults;
 import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.ldap.model.schema.AttributeType;
-import org.apache.directory.api.ldap.model.schema.LdapSyntax;
 import org.apache.directory.api.ldap.model.schema.SchemaManager;
 import org.apache.directory.ldap.client.api.DefaultSchemaLoader;
 import org.apache.directory.ldap.client.api.LdapConnectionConfig;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
-import org.apache.directory.ldap.client.api.future.SearchFuture;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.common.security.GuardedString;
+import org.identityconnectors.framework.common.exceptions.AlreadyExistsException;
 import org.identityconnectors.framework.common.exceptions.ConfigurationException;
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
 import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
 import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException;
 import org.identityconnectors.framework.common.exceptions.UnknownUidException;
 import org.identityconnectors.framework.common.objects.Attribute;
-import org.identityconnectors.framework.common.objects.AttributeInfoBuilder;
 import org.identityconnectors.framework.common.objects.Name;
 import org.identityconnectors.framework.common.objects.ObjectClass;
-import org.identityconnectors.framework.common.objects.ObjectClassInfoBuilder;
 import org.identityconnectors.framework.common.objects.OperationOptions;
 import org.identityconnectors.framework.common.objects.QualifiedUid;
 import org.identityconnectors.framework.common.objects.ResultsHandler;
 import org.identityconnectors.framework.common.objects.Schema;
-import org.identityconnectors.framework.common.objects.SchemaBuilder;
 import org.identityconnectors.framework.common.objects.SyncResultsHandler;
 import org.identityconnectors.framework.common.objects.SyncToken;
 import org.identityconnectors.framework.common.objects.Uid;
@@ -130,7 +122,7 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 			Entry rootDse = getRootDse();
 			LOG.ok("Root DSE: {0}", rootDse);
 		} catch (LdapException e) {
-			throw new ConnectorIOException(e.getMessage(), e);
+			throw processLdapException(null, e);
 		}
 		// TODO: better error handling
 	}
@@ -199,7 +191,7 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 			try {
 				searchStrategy.search(dn, null, SearchScope.OBJECT, attributesToGet);
 			} catch (LdapException e) {
-				handleLdapException(e);
+				throw processLdapException("Error searching for "+dn, e);
 			}
 			
 		} else {
@@ -218,7 +210,7 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 				try {
 					searchStrategy.search(scopedFilter.getBaseDn(), filterNode, SearchScope.OBJECT, attributesToGet);
 				} catch (LdapException e) {
-					handleLdapException(e);
+					throw processLdapException("Error searching for "+scopedFilter.getBaseDn(), e);
 				}
 			
 			} else {
@@ -229,16 +221,11 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 				try {
 					searchStrategy.search(baseDn, filterNode, scope, attributesToGet);
 				} catch (LdapException e) {
-					handleLdapException(e);
+					throw processLdapException("Error searching in "+baseDn, e);
 				}
 				
 			}
 		}
-	}
-
-	private void handleLdapException(LdapException e) {
-		// TODO better error handling
-		throw new ConnectorIOException(e.getMessage(), e);
 	}
 
 	private String getBaseDn(OperationOptions options) {
@@ -406,7 +393,7 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 		try {
 			connection.add(entry);
 		} catch (LdapException e) {
-			throw new ConnectorIOException("Error adding LDAP entry "+dn+": "+e.getMessage(), e);
+			throw processLdapException("Error adding LDAP entry "+dn, e);
 		}
 		
 		Uid uid = null;
@@ -441,7 +428,7 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 				throw new UnknownUidException("Entry with dn "+dn+" was not found (right after it was created)");
 			}
 		} catch (LdapException e) {
-			throw new ConnectorIOException("Error reading LDAP entry "+dn+": "+e.getMessage(), e);
+			throw processLdapException("Error reading LDAP entry "+dn, e);
 		} catch (CursorException e) {
 			throw new ConnectorIOException("Error reading LDAP entry "+dn+": "+e.getMessage(), e);
 		}
@@ -449,8 +436,7 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 		return uid;
 	}
 
-	
-    @Override
+	@Override
 	public Uid update(ObjectClass objectClass, Uid uid, Set<Attribute> replaceAttributes,
 			OperationOptions options) {
     	
@@ -468,7 +454,7 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 						LOG.ok("MoveAndRename RES OK {0} -> {1}", oldDn, newDn);
 					} catch (LdapException e) {
 						LOG.error("MoveAndRename ERROR {0} -> {1}: {2}", oldDn, newDn, e.getMessage(), e);
-						throw new ConnectorIOException("Rename/move of LDAP entry from "+oldDn+" to "+newDn+" failed: "+e.getMessage(), e);
+						throw processLdapException("Rename/move of LDAP entry from "+oldDn+" to "+newDn+" failed", e);
 					}
 				}
 			}
@@ -548,7 +534,7 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 			}
 		} catch (LdapException e) {
 			LOG.error("Modify ERROR {0}: {1}: {2}", dn, dumpModifications(modifications), e.getMessage(), e);
-			throw new ConnectorIOException("Error modifying entry "+dn+": "+e.getMessage(), e);
+			throw processLdapException("Error modifying entry "+dn, e);
 		}
 		
 		return uid;
@@ -593,7 +579,7 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 		try {
 			connection.delete(dn);
 		} catch (LdapException e) {
-			throw new ConnectorIOException("Failed to delete entry with DN "+dn+" (UID="+uid+"): "+e.getMessage(), e);
+			throw processLdapException("Failed to delete entry with DN "+dn+" (UID="+uid+")", e);
 		}
 	}
 	
@@ -625,7 +611,7 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 					throw new UnknownUidException("Entry for UID "+uid+" was not found (therefore it cannot be deleted)");
 				}
 			} catch (LdapException e) {
-				throw new ConnectorIOException("Error reading LDAP entry for UID "+uid+": "+e.getMessage(), e);
+				throw processLdapException("Error reading LDAP entry for UID "+uid, e);
 			} catch (CursorException e) {
 				throw new ConnectorIOException("Error reading LDAP entry for UID "+uid+": "+e.getMessage(), e);
 			}
@@ -669,7 +655,7 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 				throw new ConnectorIOException("Unable to connect to LDAP server "+configuration.getHost()+":"+configuration.getPort()+" due to unknown reasons");
 			}
 		} catch (LdapException e) {
-			throw new ConnectorIOException("Unable to connect to LDAP server "+configuration.getHost()+":"+configuration.getPort()+": "+e.getMessage(), e);
+			throw processLdapException("Unable to connect to LDAP server "+configuration.getHost()+":"+configuration.getPort(), e);
 		}
 
 		bind();
@@ -699,7 +685,7 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 		try {
 			bindResponse = connection.bind(bindRequest);
 		} catch (LdapException e) {
-			throw new ConnectorIOException("Unable to bind to LDAP server "+configuration.getHost()+":"+configuration.getPort()+" as "+bindDn+": "+e.getMessage(), e);
+			throw processLdapException("Unable to bind to LDAP server "+configuration.getHost()+":"+configuration.getPort()+" as "+bindDn, e);
 		}
 		LOG.info("Bound to {0}", bindDn);
 	}
@@ -708,4 +694,17 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 		LOG.ok("Fetching root DSE");
 		return connection.getRootDse();
 	}
+	
+    private RuntimeException processLdapException(String message, LdapException ldapException) {
+    	if (message == null) {
+    		message = "";
+    	} else {
+    		message = message + ": ";
+    	}
+		if (ldapException instanceof LdapEntryAlreadyExistsException) {
+			throw new AlreadyExistsException(message + ldapException.getMessage(), ldapException);
+		}
+		return new ConnectorIOException(message + ldapException.getMessage(), ldapException);
+	}
+
 }
