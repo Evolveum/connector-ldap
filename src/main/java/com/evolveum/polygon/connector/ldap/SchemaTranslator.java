@@ -82,6 +82,7 @@ public class SchemaTranslator {
 			schemaBuilder.defineObjectClass(ocib.build());
 		}
 		icfSchema = schemaBuilder.build();
+		LOG.ok("Translated schema {0}", icfSchema);
 		return icfSchema;
 	}
 	

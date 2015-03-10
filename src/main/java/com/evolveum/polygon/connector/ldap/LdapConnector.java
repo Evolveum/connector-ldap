@@ -68,10 +68,12 @@ import org.apache.directory.api.ldap.model.schema.SchemaManager;
 import org.apache.directory.ldap.client.api.DefaultSchemaLoader;
 import org.apache.directory.ldap.client.api.LdapConnectionConfig;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
+import org.apache.directory.ldap.client.api.exception.InvalidConnectionException;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.common.exceptions.AlreadyExistsException;
 import org.identityconnectors.framework.common.exceptions.ConfigurationException;
+import org.identityconnectors.framework.common.exceptions.ConnectionFailedException;
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
 import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
 import org.identityconnectors.framework.common.exceptions.ConnectorSecurityException;
@@ -152,7 +154,7 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
     	if (schemaManager == null) {
     		try {
     			boolean schemaQuirksMode = configuration.isSchemaQuirksMode();
-    			LOG.info("Loading schema (quirksMode={0})", schemaQuirksMode);
+    			LOG.ok("Loading schema (quirksMode={0})", schemaQuirksMode);
     			DefaultSchemaLoader schemaLoader = new DefaultSchemaLoader(connection, schemaQuirksMode);
     			connection.loadSchema(schemaLoader);
     		} catch (LdapException e) {
@@ -180,7 +182,12 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
     
     @Override
 	public Schema schema() {
+    	if (!connection.isConnected()) {
+    		return null;
+    	}
     	// always fetch fresh schema when this method is called
+    	schemaManager = null;
+    	schemaTranslator = null;
     	return getSchemaTranslator().translateSchema();
 	}
 
@@ -644,8 +651,10 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 	@Override
 	public void checkAlive() {
 		if (!connection.isConnected()) {
+			LOG.ok("check alive: FAILED");
 			throw new ConnectorException("Connection check failed");
 		}
+		LOG.ok("check alive: OK");
 	}
 
 	@Override
@@ -665,6 +674,7 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
     	final LdapConnectionConfig connectionConfig = new LdapConnectionConfig();
     	connectionConfig.setLdapHost(configuration.getHost());
     	connectionConfig.setLdapPort(configuration.getPort());
+    	connectionConfig.setTimeout(configuration.getConnectTimeout());
     	
     	LOG.ok("Creating connection object");
 		connection = new LdapNetworkConnection(connectionConfig);
@@ -673,7 +683,7 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 			boolean connected = connection.connect();
 			LOG.ok("Connected ({0})", connected);
 			if (!connected) {
-				throw new ConnectorIOException("Unable to connect to LDAP server "+configuration.getHost()+":"+configuration.getPort()+" due to unknown reasons");
+				throw new ConnectionFailedException("Unable to connect to LDAP server "+configuration.getHost()+":"+configuration.getPort()+" due to unknown reasons");
 			}
 		} catch (LdapException e) {
 			throw processLdapException("Unable to connect to LDAP server "+configuration.getHost()+":"+configuration.getPort(), e);
@@ -746,6 +756,8 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 			throw new ConnectorSecurityException(message + ldapException.getMessage(), ldapException);
 		} else if (ldapException instanceof LdapConfigurationException) {
 			throw new ConfigurationException(message + ldapException.getMessage(), ldapException);
+		} else if (ldapException instanceof InvalidConnectionException) {
+			throw new ConnectionFailedException(message + ldapException.getMessage(), ldapException);
 		} else if (ldapException instanceof LdapContextNotEmptyException) {
 			throw new InvalidAttributeValueException(message + ldapException.getMessage(), ldapException);
 		} else if (ldapException instanceof LdapInvalidAttributeTypeException) {

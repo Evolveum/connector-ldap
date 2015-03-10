@@ -79,6 +79,11 @@ public class LdapConfiguration extends AbstractConfiguration {
     private GuardedString bindPassword;
     
     /**
+     * Timeout to connect (in milliseconds)
+     */
+    private long connectTimeout = 10000;
+    
+    /**
      * The base DN that the connector will use if the base DN is not specified explicitly.
      */
     private String baseContext;
@@ -246,6 +251,14 @@ public class LdapConfiguration extends AbstractConfiguration {
 
 	public void setBindPassword(GuardedString bindPassword) {
 		this.bindPassword = bindPassword;
+	}
+
+	public long getConnectTimeout() {
+		return connectTimeout;
+	}
+
+	public void setConnectTimeout(long connectTimeout) {
+		this.connectTimeout = connectTimeout;
 	}
 
 	public String getBaseContext() {
