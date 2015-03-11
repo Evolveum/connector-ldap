@@ -145,7 +145,7 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 			Entry rootDse = getRootDse();
 			LOG.ok("Root DSE: {0}", rootDse);
 		} catch (LdapException e) {
-			throw processLdapException(null, e);
+			throw LdapUtil.processLdapException(null, e);
 		}
 		// TODO: better error handling
 	}
@@ -190,6 +190,10 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
     	schemaTranslator = null;
     	return getSchemaTranslator().translateSchema();
 	}
+    
+    private void prepareIcfSchema() {
+    	getSchemaTranslator().prepareIcfSchema();
+    }
 
 	@Override
 	public FilterTranslator<Filter> createFilterTranslator(ObjectClass objectClass, OperationOptions options) {
@@ -207,8 +211,8 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 
 	@Override
 	public void executeQuery(ObjectClass objectClass, Filter icfFilter, ResultsHandler handler, OperationOptions options) {
-		SchemaTranslator shcemaTranslator = getSchemaTranslator();
-		org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass = schemaTranslator.toLdapObjectClass(objectClass);
+		prepareIcfSchema();
+		org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass = getSchemaTranslator().toLdapObjectClass(objectClass);
 		
 		if (icfFilter != null && (icfFilter instanceof EqualsFilter) && Name.NAME.equals(((EqualsFilter)icfFilter).getName())) {
 			// Search by __NAME__, which means DN. This translated to a base search.
@@ -219,7 +223,7 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 			try {
 				searchStrategy.search(dn, null, SearchScope.OBJECT, attributesToGet);
 			} catch (LdapException e) {
-				throw processLdapException("Error searching for "+dn, e);
+				throw LdapUtil.processLdapException("Error searching for "+dn, e);
 			}
 			
 		} else {
@@ -238,7 +242,7 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 				try {
 					searchStrategy.search(scopedFilter.getBaseDn(), filterNode, SearchScope.OBJECT, attributesToGet);
 				} catch (LdapException e) {
-					throw processLdapException("Error searching for "+scopedFilter.getBaseDn(), e);
+					throw LdapUtil.processLdapException("Error searching for "+scopedFilter.getBaseDn(), e);
 				}
 			
 			} else {
@@ -249,7 +253,7 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 				try {
 					searchStrategy.search(baseDn, filterNode, scope, attributesToGet);
 				} catch (LdapException e) {
-					throw processLdapException("Error searching in "+baseDn, e);
+					throw LdapUtil.processLdapException("Error searching in "+baseDn, e);
 				}
 				
 			}
@@ -289,22 +293,7 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 	}
 
 	private String[] getAttributesToGet(org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass, OperationOptions options) {
-		if (options == null || options.getAttributesToGet() == null) {
-			String[] ldapAttrs = new String[2];
-			ldapAttrs[0] = "*";
-			ldapAttrs[1] = configuration.getUidAttribute();
-			return ldapAttrs;
-		}
-		String[] icfAttrs = options.getAttributesToGet();
-		String[] ldapAttrs = new String[icfAttrs.length + 1];
-		int i = 0;
-		for (String icfAttr: icfAttrs) {
-			AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, icfAttr);
-			ldapAttrs[i] = ldapAttributeType.getName();
-			i++;
-		}
-		ldapAttrs[i] = configuration.getUidAttribute();
-		return ldapAttrs;
+		return LdapUtil.getAttributesToGet(ldapObjectClass, options, configuration, getSchemaTranslator());
 	}
 	
 	private SearchStrategy chooseSearchStrategy(ObjectClass objectClass, 
@@ -421,7 +410,7 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 		try {
 			connection.add(entry);
 		} catch (LdapException e) {
-			throw processLdapException("Error adding LDAP entry "+dn, e);
+			throw LdapUtil.processLdapException("Error adding LDAP entry "+dn, e);
 		}
 		
 		Uid uid = null;
@@ -456,7 +445,7 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 				throw new UnknownUidException("Entry with dn "+dn+" was not found (right after it was created)");
 			}
 		} catch (LdapException e) {
-			throw processLdapException("Error reading LDAP entry "+dn, e);
+			throw LdapUtil.processLdapException("Error reading LDAP entry "+dn, e);
 		} catch (CursorException e) {
 			throw new ConnectorIOException("Error reading LDAP entry "+dn+": "+e.getMessage(), e);
 		}
@@ -482,7 +471,7 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 						LOG.ok("MoveAndRename RES OK {0} -> {1}", oldDn, newDn);
 					} catch (LdapException e) {
 						LOG.error("MoveAndRename ERROR {0} -> {1}: {2}", oldDn, newDn, e.getMessage(), e);
-						throw processLdapException("Rename/move of LDAP entry from "+oldDn+" to "+newDn+" failed", e);
+						throw LdapUtil.processLdapException("Rename/move of LDAP entry from "+oldDn+" to "+newDn+" failed", e);
 					}
 				}
 			}
@@ -562,7 +551,7 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 			}
 		} catch (LdapException e) {
 			LOG.error("Modify ERROR {0}: {1}: {2}", dn, dumpModifications(modifications), e.getMessage(), e);
-			throw processLdapException("Error modifying entry "+dn, e);
+			throw LdapUtil.processLdapException("Error modifying entry "+dn, e);
 		}
 		
 		return uid;
@@ -584,6 +573,7 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 	@Override
 	public void sync(ObjectClass objectClass, SyncToken token, SyncResultsHandler handler,
 			OperationOptions options) {
+		prepareIcfSchema();
 		SyncStrategy strategy = chooseSyncStrategy(objectClass);
 		strategy.sync(objectClass, token, handler, options);
 	}
@@ -596,7 +586,7 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 	
 	private SyncStrategy chooseSyncStrategy(ObjectClass objectClass) {
 		// TODO 
-		return new SunChangelogSyncStrategy(configuration, connection);
+		return new SunChangelogSyncStrategy(configuration, connection, getSchemaManager(), getSchemaTranslator());
 	}
 
 	@Override
@@ -607,14 +597,14 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 		try {
 			connection.delete(dn);
 		} catch (LdapException e) {
-			throw processLdapException("Failed to delete entry with DN "+dn+" (UID="+uid+")", e);
+			throw LdapUtil.processLdapException("Failed to delete entry with DN "+dn+" (UID="+uid+")", e);
 		}
 	}
 	
 	private String resolveDn(ObjectClass objectClass, Uid uid, OperationOptions options) {
 		String dn;
 		String uidAttributeName = configuration.getUidAttribute();
-		if (LdapConfiguration.PSEUDO_ATTRIBUTE_DN_NAME.equals(uidAttributeName)) {
+		if (LdapUtil.isDnAttribute(uidAttributeName)) {
 			dn = uid.getUidValue();
 		} else {
 			org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass = schemaTranslator.toLdapObjectClass(objectClass);
@@ -639,7 +629,7 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 					throw new UnknownUidException("Entry for UID "+uid+" was not found (therefore it cannot be deleted)");
 				}
 			} catch (LdapException e) {
-				throw processLdapException("Error reading LDAP entry for UID "+uid, e);
+				throw LdapUtil.processLdapException("Error reading LDAP entry for UID "+uid, e);
 			} catch (CursorException e) {
 				throw new ConnectorIOException("Error reading LDAP entry for UID "+uid+": "+e.getMessage(), e);
 			}
@@ -686,7 +676,7 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 				throw new ConnectionFailedException("Unable to connect to LDAP server "+configuration.getHost()+":"+configuration.getPort()+" due to unknown reasons");
 			}
 		} catch (LdapException e) {
-			throw processLdapException("Unable to connect to LDAP server "+configuration.getHost()+":"+configuration.getPort(), e);
+			throw LdapUtil.processLdapException("Unable to connect to LDAP server "+configuration.getHost()+":"+configuration.getPort(), e);
 		}
 
 		bind();
@@ -716,7 +706,7 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 		try {
 			bindResponse = connection.bind(bindRequest);
 		} catch (LdapException e) {
-			throw processLdapException("Unable to bind to LDAP server "+configuration.getHost()+":"+configuration.getPort()+" as "+bindDn, e);
+			throw LdapUtil.processLdapException("Unable to bind to LDAP server "+configuration.getHost()+":"+configuration.getPort()+" as "+bindDn, e);
 		}
 		LOG.info("Bound to {0}", bindDn);
 	}
@@ -726,67 +716,6 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 		return connection.getRootDse();
 	}
 	
-    private RuntimeException processLdapException(String message, LdapException ldapException) {
-    	if (message == null) {
-    		message = "";
-    	} else {
-    		message = message + ": ";
-    	}
-		if (ldapException instanceof LdapEntryAlreadyExistsException) {
-			throw new AlreadyExistsException(message + ldapException.getMessage(), ldapException);
-		} else if (ldapException instanceof LdapSchemaViolationException) {
-			throw new InvalidAttributeValueException(message + ldapException.getMessage(), ldapException);
-		} else if (ldapException instanceof LdapStrongAuthenticationRequiredException) {
-			throw new ConnectorSecurityException(message + ldapException.getMessage(), ldapException);
-		} else if (ldapException instanceof LdapAdminLimitExceededException) {
-			throw new ConnectorSecurityException(message + ldapException.getMessage(), ldapException);
-		} else if (ldapException instanceof LdapAffectMultipleDsaException) {
-			throw new InvalidAttributeValueException(message + ldapException.getMessage(), ldapException);
-		} else if (ldapException instanceof LdapAffectMultipleDsaException) {
-			throw new InvalidAttributeValueException(message + ldapException.getMessage(), ldapException);
-		} else if (ldapException instanceof LdapAliasDereferencingException) {
-			throw new InvalidAttributeValueException(message + ldapException.getMessage(), ldapException);
-		} else if (ldapException instanceof LdapAliasException) {
-			throw new InvalidAttributeValueException(message + ldapException.getMessage(), ldapException);
-		} else if (ldapException instanceof LdapAttributeInUseException) {
-			throw new InvalidAttributeValueException(message + ldapException.getMessage(), ldapException);
-		} else if (ldapException instanceof LdapAuthenticationException) {
-			throw new ConnectorSecurityException(message + ldapException.getMessage(), ldapException);
-		} else if (ldapException instanceof LdapAuthenticationNotSupportedException) {
-			throw new ConnectorSecurityException(message + ldapException.getMessage(), ldapException);
-		} else if (ldapException instanceof LdapConfigurationException) {
-			throw new ConfigurationException(message + ldapException.getMessage(), ldapException);
-		} else if (ldapException instanceof InvalidConnectionException) {
-			throw new ConnectionFailedException(message + ldapException.getMessage(), ldapException);
-		} else if (ldapException instanceof LdapContextNotEmptyException) {
-			throw new InvalidAttributeValueException(message + ldapException.getMessage(), ldapException);
-		} else if (ldapException instanceof LdapInvalidAttributeTypeException) {
-			throw new InvalidAttributeValueException(message + ldapException.getMessage(), ldapException);
-		} else if (ldapException instanceof LdapInvalidAttributeValueException) {
-			throw new InvalidAttributeValueException(message + ldapException.getMessage(), ldapException);
-		} else if (ldapException instanceof LdapInvalidDnException) {
-			throw new InvalidAttributeValueException(message + ldapException.getMessage(), ldapException);
-		} else if (ldapException instanceof LdapInvalidSearchFilterException) {
-			throw new InvalidAttributeValueException(message + ldapException.getMessage(), ldapException);
-		} else if (ldapException instanceof LdapInvalidSearchFilterException) {
-			throw new InvalidAttributeValueException(message + ldapException.getMessage(), ldapException);
-		} else if (ldapException instanceof LdapLoopDetectedException) {
-			throw new ConfigurationException(message + ldapException.getMessage(), ldapException);
-		} else if (ldapException instanceof LdapNoPermissionException) {
-			throw new PermissionDeniedException(message + ldapException.getMessage(), ldapException);
-		} else if (ldapException instanceof LdapNoSuchAttributeException) {
-			throw new InvalidAttributeValueException(message + ldapException.getMessage(), ldapException);
-		} else if (ldapException instanceof LdapNoSuchObjectException) {
-			throw new UnknownUidException(message + ldapException.getMessage(), ldapException);
-		} else if (ldapException instanceof LdapSchemaException) {
-			throw new ConfigurationException(message + ldapException.getMessage(), ldapException);
-		} else if (ldapException instanceof LdapSchemaViolationException) {
-			throw new InvalidAttributeValueException(message + ldapException.getMessage(), ldapException);
-		} else if (ldapException instanceof LdapUnwillingToPerformException) {
-			throw new PermissionDeniedException(message + ldapException.getMessage(), ldapException);
-		} else {
-			return new ConnectorIOException(message + ldapException.getMessage(), ldapException);
-		}
-	}
+    
 
 }

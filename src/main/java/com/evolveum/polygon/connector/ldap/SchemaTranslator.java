@@ -20,8 +20,10 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.apache.commons.lang.ArrayUtils;
+import org.apache.directory.api.ldap.model.constants.SchemaConstants;
 import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.entry.StringValue;
 import org.apache.directory.api.ldap.model.entry.Value;
@@ -34,6 +36,7 @@ import org.apache.directory.api.ldap.model.schema.UsageEnum;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
+import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException;
 import org.identityconnectors.framework.common.objects.Attribute;
 import org.identityconnectors.framework.common.objects.AttributeBuilder;
 import org.identityconnectors.framework.common.objects.AttributeInfo;
@@ -49,6 +52,8 @@ import org.identityconnectors.framework.common.objects.Schema;
 import org.identityconnectors.framework.common.objects.SchemaBuilder;
 import org.identityconnectors.framework.common.objects.Uid;
 
+import com.evolveum.polygon.common.SchemaUtil;
+
 /**
  * @author semancik
  *
@@ -57,7 +62,6 @@ public class SchemaTranslator {
 	
 	private static final Log LOG = Log.getLog(SchemaTranslator.class);
 	private static final Map<String, Class<?>> SYNTAX_MAP = new HashMap<String,Class<?>>();
-	private static final String SYNTAX_GENERALIZED_TIME_OID = "TODO"; 
 	
 	private SchemaManager schemaManager;
 	private LdapConfiguration configuration;
@@ -67,6 +71,10 @@ public class SchemaTranslator {
 		super();
 		this.schemaManager = schemaManager;
 		this.configuration = configuration;
+	}
+	
+	public Schema getIcfSchema() {
+		return icfSchema;
 	}
 
 	public Schema translateSchema() {
@@ -84,6 +92,15 @@ public class SchemaTranslator {
 		icfSchema = schemaBuilder.build();
 		LOG.ok("Translated schema {0}", icfSchema);
 		return icfSchema;
+	}
+	
+	/**
+	 * Make sure that we have icfSchema 
+	 */
+	public void prepareIcfSchema() {
+		if (icfSchema == null) {
+			translateSchema();
+		}
 	}
 	
 	private void addAttributeTypes(List<AttributeInfo> attrInfoList, org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
@@ -266,7 +283,7 @@ public class SchemaTranslator {
 			}
 		}
 		String syntaxOid = ldapAttributeType.getSyntaxOid();
-		if (SYNTAX_GENERALIZED_TIME_OID.equals(syntaxOid)) {
+		if (SchemaConstants.GENERALIZED_TIME_SYNTAX.equals(syntaxOid)) {
 			// TODO: convert time
 			return null;
 		} else {
@@ -298,7 +315,7 @@ public class SchemaTranslator {
 		} else {
 			AttributeType ldapAttributeType = ldapValue.getAttributeType();
 			String syntaxOid = ldapAttributeType.getSyntaxOid();
-			if (SYNTAX_GENERALIZED_TIME_OID.equals(syntaxOid)) {
+			if (SchemaConstants.GENERALIZED_TIME_SYNTAX.equals(syntaxOid)) {
 				// TODO: convert time
 				return null;
 			} else {
@@ -306,20 +323,27 @@ public class SchemaTranslator {
 			}
 		}
 	}
-
+	
+	public ObjectClassInfo findObjectClassInfo(ObjectClass icfObjectClass) {
+		return icfSchema.findObjectClassInfo(icfObjectClass.getObjectClassValue());
+	}
 
 	public ConnectorObject toIcfObject(ObjectClass icfObjectClass, Entry entry) {
+		ObjectClassInfo icfObjectClassInfo = findObjectClassInfo(icfObjectClass);
+		if (icfObjectClassInfo == null) {
+			throw new InvalidAttributeValueException("No definition for object class "+icfObjectClass);
+		}
+		return toIcfObject(icfObjectClassInfo, entry);
+	}
+
+	public ConnectorObject toIcfObject(ObjectClassInfo icfObjectClassInfo, Entry entry) {
 		ConnectorObjectBuilder cob = new ConnectorObjectBuilder();
 		String dn = entry.getDn().getName();
 		cob.setName(dn);
-		cob.setObjectClass(icfObjectClass);
-		ObjectClassInfo icfObjectClassInfo = null;
-		if (icfSchema != null) {
-			icfObjectClassInfo = icfSchema.findObjectClassInfo(icfObjectClass.toString());
-		}
+		cob.setObjectClass(new ObjectClass(icfObjectClassInfo.getType()));
 		String uidAttributeName = configuration.getUidAttribute();
 		String uid;
-		if (LdapConfiguration.PSEUDO_ATTRIBUTE_DN_NAME.equals(uidAttributeName)) {
+		if (LdapUtil.isDnAttribute(uidAttributeName)) {
 			uid = dn;
 		} else {
 			org.apache.directory.api.ldap.model.entry.Attribute uidAttribute = entry.get(uidAttributeName);
@@ -342,9 +366,16 @@ public class SchemaTranslator {
 			org.apache.directory.api.ldap.model.entry.Attribute ldapAttribute = iterator.next();
 			AttributeType attributeType = ldapAttribute.getAttributeType();
 			String ldapAttributeName = attributeType.getName();
-			if (!uidAttributeName.equals(ldapAttributeName)) {
-				cob.addAttribute(toIcfAttribute(ldapAttribute));
+			if (uidAttributeName.equals(ldapAttributeName)) {
+				continue;
 			}
+			Attribute icfAttribute = toIcfAttribute(ldapAttribute);
+			AttributeInfo attributeInfo = SchemaUtil.findAttributeInfo(icfObjectClassInfo, icfAttribute);
+			if (attributeInfo != null) {
+				// Avoid sending unknown attributes (such as createtimestamp)
+				cob.addAttribute(icfAttribute);
+			}
+			
 		}
 		
 		return cob.build();
@@ -364,9 +395,85 @@ public class SchemaTranslator {
 	}
 
 	static {
-		SYNTAX_MAP.put("TODO",String.class);
-		SYNTAX_MAP.put(SYNTAX_GENERALIZED_TIME_OID, long.class);
+		SYNTAX_MAP.put(SchemaConstants.NAME_OR_NUMERIC_ID_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.OBJECT_CLASS_TYPE_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.NUMERIC_OID_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.ATTRIBUTE_TYPE_USAGE_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.NUMBER_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.OID_LEN_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.OBJECT_NAME_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.ACI_ITEM_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.ACCESS_POINT_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.ATTRIBUTE_TYPE_DESCRIPTION_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.AUDIO_SYNTAX, byte[].class);
+		SYNTAX_MAP.put(SchemaConstants.BINARY_SYNTAX, byte[].class);
+		SYNTAX_MAP.put(SchemaConstants.BIT_STRING_SYNTAX, byte[].class);
+		SYNTAX_MAP.put(SchemaConstants.BOOLEAN_SYNTAX, Boolean.class);
+		SYNTAX_MAP.put(SchemaConstants.CERTIFICATE_SYNTAX, byte[].class);
+		SYNTAX_MAP.put(SchemaConstants.CERTIFICATE_LIST_SYNTAX, byte[].class);
+		SYNTAX_MAP.put(SchemaConstants.CERTIFICATE_PAIR_SYNTAX, byte[].class);
+		SYNTAX_MAP.put(SchemaConstants.COUNTRY_STRING_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.DN_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.DATA_QUALITY_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.DELIVERY_METHOD_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.DIRECTORY_STRING_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.DIT_CONTENT_RULE_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.DIT_STRUCTURE_RULE_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.DL_SUBMIT_PERMISSION_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.DSA_QUALITY_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.DSE_TYPE_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.ENHANCED_GUIDE_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.FACSIMILE_TELEPHONE_NUMBER_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.FAX_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.GENERALIZED_TIME_SYNTAX, long.class);
+		SYNTAX_MAP.put(SchemaConstants.GUIDE_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.IA5_STRING_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.INTEGER_SYNTAX, int.class);
+		SYNTAX_MAP.put(SchemaConstants.JPEG_SYNTAX, byte[].class);
+		SYNTAX_MAP.put(SchemaConstants.MASTER_AND_SHADOW_ACCESS_POINTS_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.MATCHING_RULE_DESCRIPTION_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.MATCHING_RULE_USE_DESCRIPTION_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.MAIL_PREFERENCE_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.MHS_OR_ADDRESS_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.NAME_AND_OPTIONAL_UID_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.NAME_FORM_DESCRIPTION_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.NUMERIC_STRING_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.OBJECT_CLASS_DESCRIPTION_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.OID_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.OTHER_MAILBOX_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.OCTET_STRING_SYNTAX, byte[].class);
+		SYNTAX_MAP.put(SchemaConstants.POSTAL_ADDRESS_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.PROTOCOL_INFORMATION_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.PRESENTATION_ADDRESS_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.PRINTABLE_STRING_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.SUBTREE_SPECIFICATION_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.SUPPLIER_INFORMATION_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.SUPPLIER_OR_CONSUMER_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.SUPPLIER_AND_CONSUMER_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.SUPPORTED_ALGORITHM_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.TELEPHONE_NUMBER_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.TELETEX_TERMINAL_IDENTIFIER_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.TELEX_NUMBER_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.UTC_TIME_SYNTAX, long.class);
+		SYNTAX_MAP.put(SchemaConstants.LDAP_SYNTAX_DESCRIPTION_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.MODIFY_RIGHTS_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.LDAP_SCHEMA_DEFINITION_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.LDAP_SCHEMA_DESCRIPTION_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.SUBSTRING_ASSERTION_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.ATTRIBUTE_CERTIFICATE_ASSERTION_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.UUID_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.CSN_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.CSN_SID_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.JAVA_BYTE_SYNTAX, byte.class);
+		SYNTAX_MAP.put(SchemaConstants.JAVA_CHAR_SYNTAX, char.class);
+		SYNTAX_MAP.put(SchemaConstants.JAVA_SHORT_SYNTAX, short.class);
+		SYNTAX_MAP.put(SchemaConstants.JAVA_LONG_SYNTAX, long.class);
+		SYNTAX_MAP.put(SchemaConstants.JAVA_INT_SYNTAX, int.class);
+		SYNTAX_MAP.put(SchemaConstants.COMPARATOR_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.NORMALIZER_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.SYNTAX_CHECKER_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.SEARCH_SCOPE_SYNTAX, String.class);
+		SYNTAX_MAP.put(SchemaConstants.DEREF_ALIAS_SYNTAX, String.class);
 	}
-
 
 }

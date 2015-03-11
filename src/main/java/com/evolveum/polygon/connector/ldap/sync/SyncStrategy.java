@@ -15,6 +15,7 @@
  */
 package com.evolveum.polygon.connector.ldap.sync;
 
+import org.apache.directory.api.ldap.model.schema.SchemaManager;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
 import org.identityconnectors.framework.common.objects.ObjectClass;
 import org.identityconnectors.framework.common.objects.OperationOptions;
@@ -22,6 +23,7 @@ import org.identityconnectors.framework.common.objects.SyncResultsHandler;
 import org.identityconnectors.framework.common.objects.SyncToken;
 
 import com.evolveum.polygon.connector.ldap.LdapConfiguration;
+import com.evolveum.polygon.connector.ldap.SchemaTranslator;
 
 /**
  * @author semancik
@@ -31,11 +33,16 @@ public abstract class SyncStrategy {
 	
 	private LdapConfiguration configuration;
     private LdapNetworkConnection connection;
+    private SchemaManager schemaManager;
+    private SchemaTranslator schemaTranslator;
     
-	public SyncStrategy(LdapConfiguration configuration, LdapNetworkConnection connection) {
+	public SyncStrategy(LdapConfiguration configuration, LdapNetworkConnection connection, 
+			SchemaManager schemaManager, SchemaTranslator schemaTranslator) {
 		super();
 		this.configuration = configuration;
 		this.connection = connection;
+		this.schemaManager = schemaManager;
+		this.schemaTranslator = schemaTranslator;
 	}
 
 	public LdapConfiguration getConfiguration() {
@@ -44,6 +51,14 @@ public abstract class SyncStrategy {
 
 	public LdapNetworkConnection getConnection() {
 		return connection;
+	}
+	
+	public SchemaManager getSchemaManager() {
+		return schemaManager;
+	}
+
+	public SchemaTranslator getSchemaTranslator() {
+		return schemaTranslator;
 	}
 
 	public abstract void sync(ObjectClass objectClass, SyncToken token, SyncResultsHandler handler, OperationOptions options);

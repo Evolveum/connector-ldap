@@ -88,7 +88,6 @@ public class LdapFilterTranslator {
 	}
 	
 	private EqualityNode<String> createObjectClassEqFilter(ObjectClass ldapObjectClass) {
-		// TODO Auto-generated method stub
 		Value<String> ldapValue = new StringValue(ldapObjectClass.getName());
 		return new EqualityNode<String>(LdapConfiguration.ATTRIBUTE_OBJECTCLASS_NAME, ldapValue);
 	}

@@ -42,6 +42,8 @@ public class LdapConfiguration extends AbstractConfiguration {
 
 	public static final String PSEUDO_ATTRIBUTE_DN_NAME = "dn";
 	public static final String ATTRIBUTE_OBJECTCLASS_NAME = "objectClass";
+	public static final String ATTRIBUTE_ENTRYUUID_NAME = "entryUUID";
+	public static final String ATTRIBUTE_NSUNIQUEID_NAME = "nsUniqueId";
 	
 	public static final String SEARCH_FILTER_ALL = "(objectClass=*)";
     /**
@@ -139,7 +141,7 @@ public class LdapConfiguration extends AbstractConfiguration {
     /**
      * Name of the attribute which will be used as ICF UID.
      */
-    private String uidAttribute = "entryUUID";
+    private String uidAttribute = ATTRIBUTE_ENTRYUUID_NAME;
     
     /**
      * Operational attributes that apply to all object classes.
