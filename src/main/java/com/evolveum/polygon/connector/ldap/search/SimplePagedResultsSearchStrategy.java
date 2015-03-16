@@ -121,9 +121,11 @@ public class SimplePagedResultsSearchStrategy extends SearchStrategy {
         	
         	int responseResultCount = 0;
         	SearchCursor searchCursor = executeSearch(req);
+        	LOG.ok("Cursor: {0}", searchCursor);
     		try {
     			while (proceed && searchCursor.next()) {
     				Response response = searchCursor.get();
+    				LOG.ok("Response: {0}", response);
     				if (response instanceof SearchResultEntry) {
     					responseResultCount++;
     					if (offset > numberOfResultsSkipped) {
@@ -139,31 +141,41 @@ public class SimplePagedResultsSearchStrategy extends SearchStrategy {
                             }
                     	}
     			        
-    			    } else if (response instanceof SearchResultDone) {
-    			    	LdapResult ldapResult = ((SearchResultDone)response).getLdapResult();
-    			    	PagedResults pagedResultsResponseControl = (PagedResults)response.getControl(PagedResults.OID);
-    			    	String extra = "no paged response control";
-    			    	if (pagedResultsResponseControl != null) {
-    			    		StringBuilder sb = new StringBuilder();
-    			    		sb.append("paged control size=");
-    			    		sb.append(pagedResultsResponseControl.getSize());
-    			    		if (pagedResultsResponseControl.getCookie() != null) {
-    			    			sb.append(" cookie=");
-    			    			sb.append(Base64.encode(pagedResultsResponseControl.getCookie()));
-    			    		}
-    			    		extra = sb.toString();
-    			    		cookie = pagedResultsResponseControl.getCookie();
-    			    		lastListSize = pagedResultsResponseControl.getSize();
-    			    	} else {
-    			    		cookie = null;
-    			    		lastListSize = -1;
-    			    	}
-    			    	logSearchResult(ldapResult, extra);
+    			    } else {
+    			    	LOG.warn("Got unexpected response: {0}", response);
     			    }
     			}
+    			
+    			SearchResultDone searchResultDone = searchCursor.getSearchResultDone();
+    			LOG.ok("DONE: {0}", searchResultDone);
+    			if (searchResultDone != null) {
+    				LdapResult ldapResult = searchResultDone.getLdapResult();
+			    	LOG.ok("result: {0}", ldapResult);
+			    	PagedResults pagedResultsResponseControl = (PagedResults)searchResultDone.getControl(PagedResults.OID);
+			    	String extra = "no paged response control";
+			    	if (pagedResultsResponseControl != null) {
+			    		StringBuilder sb = new StringBuilder();
+			    		sb.append("paged control size=");
+			    		sb.append(pagedResultsResponseControl.getSize());
+			    		if (pagedResultsResponseControl.getCookie() != null) {
+			    			sb.append(" cookie=");
+			    			sb.append(Base64.encode(pagedResultsResponseControl.getCookie()));
+			    		}
+			    		extra = sb.toString();
+			    		cookie = pagedResultsResponseControl.getCookie();
+			    		lastListSize = pagedResultsResponseControl.getSize();
+			    	} else {
+			    		LOG.ok("no paged result control in the response");
+			    		cookie = null;
+			    		lastListSize = -1;
+			    	}
+			    	logSearchResult(ldapResult, extra);
+    			}
+    			
     			searchCursor.close();
     		} catch (CursorException e) {
     			// TODO: better error handling
+    			LOG.error("Error:", e);
     			throw new ConnectorIOException(e.getMessage(), e);
     		}
     		
@@ -181,6 +193,7 @@ public class SimplePagedResultsSearchStrategy extends SearchStrategy {
             }
         } while (cookie != null);
 
+        LOG.ok("Search done");
 	}
 
 	@Override

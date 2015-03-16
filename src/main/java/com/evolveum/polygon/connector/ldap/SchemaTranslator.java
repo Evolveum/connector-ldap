@@ -60,6 +60,10 @@ import com.evolveum.polygon.common.SchemaUtil;
  */
 public class SchemaTranslator {
 	
+	public static final String SYNTAX_AUTH_PASSWORD = "1.3.6.1.4.1.4203.1.1.2";
+	public static final String SYNTAX_SUN_DEFINED_ACCESS_CONTROL_INFORMATION = "1.3.6.1.4.1.26027.1.3.4";
+	public static final String SYNTAX_COLLECTIVE_CONFLICT_BEHAVIOR = "1.3.6.1.4.1.26027.1.3.6";
+	
 	private static final Log LOG = Log.getLog(SchemaTranslator.class);
 	private static final Map<String, Class<?>> SYNTAX_MAP = new HashMap<String,Class<?>>();
 	
@@ -474,6 +478,9 @@ public class SchemaTranslator {
 		SYNTAX_MAP.put(SchemaConstants.SYNTAX_CHECKER_SYNTAX, String.class);
 		SYNTAX_MAP.put(SchemaConstants.SEARCH_SCOPE_SYNTAX, String.class);
 		SYNTAX_MAP.put(SchemaConstants.DEREF_ALIAS_SYNTAX, String.class);
+		SYNTAX_MAP.put(SYNTAX_AUTH_PASSWORD, String.class);
+		SYNTAX_MAP.put(SYNTAX_COLLECTIVE_CONFLICT_BEHAVIOR, String.class);
+		SYNTAX_MAP.put(SYNTAX_SUN_DEFINED_ACCESS_CONTROL_INFORMATION, String.class);
 	}
 
 }
