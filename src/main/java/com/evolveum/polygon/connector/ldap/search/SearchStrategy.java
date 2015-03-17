@@ -262,6 +262,7 @@ public abstract class SearchStrategy {
 		SortRequest sortReqControl = null;
 		if (getOptions() != null && getOptions().getSortKeys() != null && getOptions().getSortKeys().length > 0) {
 			sortReqControl = new SortRequestControlImpl();
+			sortReqControl.setCritical(true);
 			for (SortKey icfSortKey: getOptions().getSortKeys()) {
 				AttributeType attributeType = getSchemaTranslator().toLdapAttribute(getLdapObjectClass(), icfSortKey.getField());
 				String attributeTypeDesc = attributeType.getName();
