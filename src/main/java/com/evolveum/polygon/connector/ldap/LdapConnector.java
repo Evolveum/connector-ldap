@@ -188,11 +188,11 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
     	// always fetch fresh schema when this method is called
     	schemaManager = null;
     	schemaTranslator = null;
-    	return getSchemaTranslator().translateSchema();
+    	return getSchemaTranslator().translateSchema(connection);
 	}
     
     private void prepareIcfSchema() {
-    	getSchemaTranslator().prepareIcfSchema();
+    	getSchemaTranslator().prepareIcfSchema(connection);
     }
 
 	@Override

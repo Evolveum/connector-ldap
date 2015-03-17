@@ -23,16 +23,20 @@ import java.util.Map;
 import java.util.Set;
 
 import org.apache.commons.lang.ArrayUtils;
+import org.apache.directory.api.ldap.extras.controls.vlv.VirtualListViewRequest;
 import org.apache.directory.api.ldap.model.constants.SchemaConstants;
 import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.entry.StringValue;
 import org.apache.directory.api.ldap.model.entry.Value;
 import org.apache.directory.api.ldap.model.exception.LdapException;
 import org.apache.directory.api.ldap.model.exception.LdapInvalidAttributeValueException;
+import org.apache.directory.api.ldap.model.message.controls.PagedResults;
+import org.apache.directory.api.ldap.model.message.controls.SortRequest;
 import org.apache.directory.api.ldap.model.schema.AttributeType;
 import org.apache.directory.api.ldap.model.schema.LdapSyntax;
 import org.apache.directory.api.ldap.model.schema.SchemaManager;
 import org.apache.directory.api.ldap.model.schema.UsageEnum;
+import org.apache.directory.ldap.client.api.LdapNetworkConnection;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
@@ -47,10 +51,12 @@ import org.identityconnectors.framework.common.objects.Name;
 import org.identityconnectors.framework.common.objects.ObjectClass;
 import org.identityconnectors.framework.common.objects.ObjectClassInfo;
 import org.identityconnectors.framework.common.objects.ObjectClassInfoBuilder;
+import org.identityconnectors.framework.common.objects.OperationOptionInfoBuilder;
 import org.identityconnectors.framework.common.objects.OperationalAttributeInfos;
 import org.identityconnectors.framework.common.objects.Schema;
 import org.identityconnectors.framework.common.objects.SchemaBuilder;
 import org.identityconnectors.framework.common.objects.Uid;
+import org.identityconnectors.framework.spi.operations.SearchOp;
 
 import com.evolveum.polygon.common.SchemaUtil;
 
@@ -81,7 +87,7 @@ public class SchemaTranslator {
 		return icfSchema;
 	}
 
-	public Schema translateSchema() {
+	public Schema translateSchema(LdapNetworkConnection connection) {
 		SchemaBuilder schemaBuilder = new SchemaBuilder(LdapConnector.class);
 		LOG.ok("Translating LDAP schema from {0}", schemaManager);
 		for (org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass: schemaManager.getObjectClassRegistry()) {
@@ -93,6 +99,28 @@ public class SchemaTranslator {
 			ocib.addAllAttributeInfo(attrInfoList);
 			schemaBuilder.defineObjectClass(ocib.build());
 		}
+		
+		schemaBuilder.defineOperationOption(OperationOptionInfoBuilder.buildAttributesToGet(), SearchOp.class);
+		schemaBuilder.defineOperationOption(OperationOptionInfoBuilder.buildAllowPartialResults(), SearchOp.class);
+		schemaBuilder.defineOperationOption(OperationOptionInfoBuilder.buildContainer(), SearchOp.class);
+		schemaBuilder.defineOperationOption(OperationOptionInfoBuilder.buildScope(), SearchOp.class);
+		List<String> supportedControls;
+		try {
+			supportedControls = connection.getSupportedControls();
+		} catch (LdapException e) {
+			throw LdapUtil.processLdapException("Error getting supported controls", e);
+		}
+		if (supportedControls.contains(PagedResults.OID) || supportedControls.contains(VirtualListViewRequest.OID)) {
+			schemaBuilder.defineOperationOption(OperationOptionInfoBuilder.buildPageSize(), SearchOp.class);
+			schemaBuilder.defineOperationOption(OperationOptionInfoBuilder.buildPagedResultsCookie(), SearchOp.class);
+		}
+		if (supportedControls.contains(VirtualListViewRequest.OID)) {
+			schemaBuilder.defineOperationOption(OperationOptionInfoBuilder.buildPagedResultsOffset(), SearchOp.class);
+		}
+		if (supportedControls.contains(SortRequest.OID)) {
+			schemaBuilder.defineOperationOption(OperationOptionInfoBuilder.buildSortKeys(), SearchOp.class);
+		}
+		
 		icfSchema = schemaBuilder.build();
 		LOG.ok("Translated schema {0}", icfSchema);
 		return icfSchema;
@@ -101,9 +129,9 @@ public class SchemaTranslator {
 	/**
 	 * Make sure that we have icfSchema 
 	 */
-	public void prepareIcfSchema() {
+	public void prepareIcfSchema(LdapNetworkConnection connection) {
 		if (icfSchema == null) {
-			translateSchema();
+			translateSchema(connection);
 		}
 	}
 	

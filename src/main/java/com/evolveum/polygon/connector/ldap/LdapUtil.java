@@ -54,6 +54,7 @@ import org.identityconnectors.framework.common.exceptions.ConnectorSecurityExcep
 import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException;
 import org.identityconnectors.framework.common.exceptions.PermissionDeniedException;
 import org.identityconnectors.framework.common.exceptions.UnknownUidException;
+import org.identityconnectors.framework.common.objects.Name;
 import org.identityconnectors.framework.common.objects.OperationOptions;
 
 /**
@@ -92,12 +93,37 @@ public class LdapUtil {
 		String[] ldapAttrs = new String[icfAttrs.length + 1];
 		int i = 0;
 		for (String icfAttr: icfAttrs) {
+			if (Name.NAME.equals(icfAttr)) {
+				continue;
+			}
 			AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, icfAttr);
-			ldapAttrs[i] = ldapAttributeType.getName();
+			if (ldapAttributeType == null) {
+				// No definition for this attribute. It is most likely operational attribute that is not in the schema.
+				if (isOperationalAttribute(configuration, icfAttr)) {
+					ldapAttrs[i] = icfAttr;
+				} else {
+					throw new InvalidAttributeValueException("Unknown attribute '"+icfAttr+"' (in attributesToGet)");
+				}
+			} else {
+				ldapAttrs[i] = ldapAttributeType.getName();
+			}
 			i++;
 		}
 		ldapAttrs[i] = configuration.getUidAttribute();
 		return ldapAttrs;
+	}
+
+	public static boolean isOperationalAttribute(LdapConfiguration configuration, String icfAttr) {
+		String[] operationalAttributes = configuration.getOperationalAttributes();
+		if (operationalAttributes == null) {
+			return false;
+		}
+		for (String opAt: operationalAttributes) {
+			if (opAt.equals(icfAttr)) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	public static Entry fetchEntry(LdapNetworkConnection connection, String dn, 

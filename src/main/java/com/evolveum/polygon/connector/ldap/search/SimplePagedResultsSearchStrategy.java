@@ -121,11 +121,9 @@ public class SimplePagedResultsSearchStrategy extends SearchStrategy {
         	
         	int responseResultCount = 0;
         	SearchCursor searchCursor = executeSearch(req);
-        	LOG.ok("Cursor: {0}", searchCursor);
     		try {
     			while (proceed && searchCursor.next()) {
     				Response response = searchCursor.get();
-    				LOG.ok("Response: {0}", response);
     				if (response instanceof SearchResultEntry) {
     					responseResultCount++;
     					if (offset > numberOfResultsSkipped) {
@@ -180,7 +178,7 @@ public class SimplePagedResultsSearchStrategy extends SearchStrategy {
     		}
     		
     		if (responseResultCount == 0) {
-            	// Zero results returned. This is either a hidded error or end of search.
+            	// Zero results returned. This is either a hidden error or end of search.
             	LOG.warn("Zero results returned from paged search");
             	break;
             }
