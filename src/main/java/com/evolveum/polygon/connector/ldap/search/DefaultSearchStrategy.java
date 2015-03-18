@@ -15,6 +15,7 @@
  */
 package com.evolveum.polygon.connector.ldap.search;
 
+import org.apache.directory.api.ldap.extras.controls.vlv.VirtualListViewResponse;
 import org.apache.directory.api.ldap.model.cursor.CursorException;
 import org.apache.directory.api.ldap.model.cursor.SearchCursor;
 import org.apache.directory.api.ldap.model.entry.Entry;
@@ -31,6 +32,8 @@ import org.apache.directory.api.ldap.model.message.SearchResultEntry;
 import org.apache.directory.api.ldap.model.message.SearchScope;
 import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
+import org.identityconnectors.common.Base64;
+import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
 import org.identityconnectors.framework.common.objects.ObjectClass;
 import org.identityconnectors.framework.common.objects.OperationOptions;
@@ -45,6 +48,8 @@ import com.evolveum.polygon.connector.ldap.SchemaTranslator;
  * @author Radovan Semancik
  */
 public class DefaultSearchStrategy extends SearchStrategy {
+	
+	private static final Log LOG = Log.getLog(DefaultSearchStrategy.class);
 
 	public DefaultSearchStrategy(LdapNetworkConnection connection, LdapConfiguration configuration,
 			SchemaTranslator schemaTranslator, ObjectClass objectClass,
@@ -77,12 +82,19 @@ public class DefaultSearchStrategy extends SearchStrategy {
 			        logSearchResult(entry);
 			        proceed = handleResult(entry);
 			        
-			    } else if (response instanceof SearchResultDone) {
-			    	LdapResult ldapResult = ((SearchResultDone)response).getLdapResult();
-			    	logSearchResult(ldapResult);
-			    	// TODO
+				} else {
+			    	LOG.warn("Got unexpected response: {0}", response);
 			    }
 			}
+			
+			SearchResultDone searchResultDone = searchCursor.getSearchResultDone();
+			if (searchResultDone != null) {
+				LdapResult ldapResult = searchResultDone.getLdapResult();
+		    	// process sizelimit excceeded, etc.
+		    	// TODO
+		    	logSearchResult("Done", ldapResult);    				
+			}
+			
 			searchCursor.close();
 		} catch (CursorException e) {
 			// TODO: better error handling

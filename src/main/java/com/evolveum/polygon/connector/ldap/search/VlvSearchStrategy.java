@@ -17,6 +17,7 @@ package com.evolveum.polygon.connector.ldap.search;
 
 import org.apache.directory.api.ldap.extras.controls.vlv.VirtualListViewRequest;
 import org.apache.directory.api.ldap.extras.controls.vlv.VirtualListViewRequestImpl;
+import org.apache.directory.api.ldap.extras.controls.vlv.VirtualListViewResponse;
 import org.apache.directory.api.ldap.model.cursor.CursorException;
 import org.apache.directory.api.ldap.model.cursor.SearchCursor;
 import org.apache.directory.api.ldap.model.entry.Entry;
@@ -147,28 +148,35 @@ public class VlvSearchStrategy extends SearchStrategy {
                         }
     			        lastResultDn = entry.getDn();
     			        
-    				} else if (response instanceof SearchResultDone) {
-    			    	LdapResult ldapResult = ((SearchResultDone)response).getLdapResult();
-    			    	// TODO: process VLV response
-//    			    	PagedResults pagedResultsResponseControl = (PagedResults)response.getControl(PagedResults.OID);
-//    			    	String extra = "no paged response control";
-//    			    	if (pagedResultsResponseControl != null) {
-//    			    		StringBuilder sb = new StringBuilder();
-//    			    		sb.append("paged control size=");
-//    			    		sb.append(pagedResultsResponseControl.getSize());
-//    			    		if (pagedResultsResponseControl.getCookie() != null) {
-//    			    			sb.append(" cookie=");
-//    			    			sb.append(Base64.encode(pagedResultsResponseControl.getCookie()));
-//    			    		}
-//    			    		extra = sb.toString();
-//    			    		cookie = pagedResultsResponseControl.getCookie();
-//    			    		lastListSize = pagedResultsResponseControl.getSize();
-//    			    	} else {
-//    			    		cookie = null;
-//    			    		lastListSize = -1;
-//    			    	}
-//    			    	logSearchResult(ldapResult, extra);
+    				} else {
+    			    	LOG.warn("Got unexpected response: {0}", response);
     			    }
+    			}
+    			
+    			SearchResultDone searchResultDone = searchCursor.getSearchResultDone();
+    			if (searchResultDone != null) {
+    				LdapResult ldapResult = searchResultDone.getLdapResult();
+			    	// process VLV response
+			    	VirtualListViewResponse vlvResponseControl = (VirtualListViewResponse)searchResultDone.getControl(VirtualListViewResponse.OID);
+			    	String extra = "no VLV response control";
+			    	if (vlvResponseControl != null) {
+			    		StringBuilder sb = new StringBuilder();
+			    		sb.append("VLV targetPosition=");
+			    		sb.append(vlvResponseControl.getTargetPosition());
+			    		sb.append(", contentCount=");
+			    		sb.append(vlvResponseControl.getContentCount());
+			    		if (vlvResponseControl.getContextId() != null) {
+			    			sb.append(" contextID=");
+			    			sb.append(Base64.encode(vlvResponseControl.getContextId()));
+			    		}
+			    		extra = sb.toString();
+			    		cookie = vlvResponseControl.getContextId();
+			    		lastListSize = vlvResponseControl.getContentCount();
+			    	} else {
+			    		cookie = null;
+			    		lastListSize = -1;
+			    	}
+			    	logSearchResult("Done", ldapResult, extra);    				
     			}
     			
     			searchCursor.close();

@@ -238,15 +238,15 @@ public abstract class SearchStrategy {
 		}
 	}
 	
-	protected void logSearchResult(LdapResult ldapResult) {
+	protected void logSearchResult(String type, LdapResult ldapResult) {
 		if (LOG.isOk()) {
-			LOG.ok("Search RES {0}", ldapResult);
+			LOG.ok("Search RES {0}: {1}", type, ldapResult);
 		}
 	}
 
-	protected void logSearchResult(LdapResult ldapResult, String extra) {
+	protected void logSearchResult(String type, LdapResult ldapResult, String extra) {
 		if (LOG.isOk()) {
-			LOG.ok("Search RES {0}, {1}", ldapResult, extra);
+			LOG.ok("Search RES {0}: {1} {2}", type, ldapResult, extra);
 		}
 	}
 

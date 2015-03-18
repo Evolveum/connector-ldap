@@ -145,10 +145,8 @@ public class SimplePagedResultsSearchStrategy extends SearchStrategy {
     			}
     			
     			SearchResultDone searchResultDone = searchCursor.getSearchResultDone();
-    			LOG.ok("DONE: {0}", searchResultDone);
     			if (searchResultDone != null) {
     				LdapResult ldapResult = searchResultDone.getLdapResult();
-			    	LOG.ok("result: {0}", ldapResult);
 			    	PagedResults pagedResultsResponseControl = (PagedResults)searchResultDone.getControl(PagedResults.OID);
 			    	String extra = "no paged response control";
 			    	if (pagedResultsResponseControl != null) {
@@ -167,7 +165,7 @@ public class SimplePagedResultsSearchStrategy extends SearchStrategy {
 			    		cookie = null;
 			    		lastListSize = -1;
 			    	}
-			    	logSearchResult(ldapResult, extra);
+			    	logSearchResult("Done", ldapResult, extra);
     			}
     			
     			searchCursor.close();
@@ -190,8 +188,6 @@ public class SimplePagedResultsSearchStrategy extends SearchStrategy {
             	break;
             }
         } while (cookie != null);
-
-        LOG.ok("Search done");
 	}
 
 	@Override
