@@ -284,6 +284,11 @@ public class SchemaTranslator {
 		if (OperationalAttributeInfos.PASSWORD.is(icfAttributeName)) {
 			return GuardedString.class;
 		}
+		if (syntax == null) {
+			// We may be in a quirks mode. Server schema may not be consistent (e.g. 389ds schema).
+			// Therefore syntax may be null. Fall back to default in that case.
+			return String.class;
+		}
     	Class<?> type = SYNTAX_MAP.get(syntax.getName());
     	if (type == null) {
     		LOG.warn("No type mapping for syntax {0}, using string", syntax.getName());

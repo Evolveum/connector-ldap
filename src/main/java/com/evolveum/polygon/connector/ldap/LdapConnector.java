@@ -65,6 +65,7 @@ import org.apache.directory.api.ldap.model.message.controls.PagedResults;
 import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.ldap.model.schema.AttributeType;
 import org.apache.directory.api.ldap.model.schema.SchemaManager;
+import org.apache.directory.api.ldap.schema.manager.impl.DefaultSchemaManager;
 import org.apache.directory.ldap.client.api.DefaultSchemaLoader;
 import org.apache.directory.ldap.client.api.LdapConnectionConfig;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
@@ -156,7 +157,11 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
     			boolean schemaQuirksMode = configuration.isSchemaQuirksMode();
     			LOG.ok("Loading schema (quirksMode={0})", schemaQuirksMode);
     			DefaultSchemaLoader schemaLoader = new DefaultSchemaLoader(connection, schemaQuirksMode);
-    			connection.loadSchema(schemaLoader);
+    			DefaultSchemaManager defSchemaManager = new DefaultSchemaManager(schemaLoader);
+    			if (schemaQuirksMode) {
+    				defSchemaManager.setRelaxed();
+    			}
+    			connection.loadSchema(defSchemaManager);
     		} catch (LdapException e) {
     			throw new ConnectorIOException(e.getMessage(), e);
     		}
@@ -665,6 +670,15 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
     	connectionConfig.setLdapHost(configuration.getHost());
     	connectionConfig.setLdapPort(configuration.getPort());
     	connectionConfig.setTimeout(configuration.getConnectTimeout());
+    	
+    	String connectionSecurity = configuration.getConnectionSecurity();
+    	if (LdapConfiguration.CONNECTION_SECURITY_SSL.equals(connectionSecurity)) {
+    		connectionConfig.setUseSsl(true);
+    	} else if (LdapConfiguration.CONNECTION_SECURITY_STARTTLS.equals(connectionSecurity)) {
+    		connectionConfig.setUseTls(true);
+    	} else if (connectionSecurity != null) {
+    		throw new ConfigurationException("Unknown value for connectionSecurity: "+connectionSecurity);
+    	}
     	
     	LOG.ok("Creating connection object");
 		connection = new LdapNetworkConnection(connectionConfig);

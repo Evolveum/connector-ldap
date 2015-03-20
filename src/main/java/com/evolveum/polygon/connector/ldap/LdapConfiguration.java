@@ -63,6 +63,9 @@ public class LdapConfiguration extends AbstractConfiguration {
      */
     private String connectionSecurity;
     
+    public static final String CONNECTION_SECURITY_SSL = "ssl";
+    public static final String CONNECTION_SECURITY_STARTTLS = "starttls";
+    
     /**
      * The authentication mechanism to use.
      * Possible values: "simple", "SASL-GSSAPI"
