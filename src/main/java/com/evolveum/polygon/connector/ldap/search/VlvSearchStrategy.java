@@ -74,7 +74,10 @@ public class VlvSearchStrategy extends SearchStrategy {
 		boolean proceed = true;
 		int index = 1;
         if (getOptions() != null && getOptions().getPagedResultsOffset() != null) {
-        	index = getOptions().getPagedResultsOffset();
+        	if (getOptions().getPagedResultsOffset() < 1) {
+        		throw new UnsupportedOperationException("Offset "+getOptions().getPagedResultsOffset()+" is not supported when VLV is used");
+        	}
+        	index = getOptions().getPagedResultsOffset() - 1;
         }
         Integer numberOfEntriesToReturn = null; // null means "as many as there are"
         if (getOptions() != null && getOptions().getPageSize() != null) {
