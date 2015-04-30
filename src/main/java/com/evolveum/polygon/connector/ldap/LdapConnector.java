@@ -158,14 +158,30 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
     			LOG.ok("Loading schema (quirksMode={0})", schemaQuirksMode);
     			DefaultSchemaLoader schemaLoader = new DefaultSchemaLoader(connection, schemaQuirksMode);
     			DefaultSchemaManager defSchemaManager = new DefaultSchemaManager(schemaLoader);
-    			if (schemaQuirksMode) {
-    				defSchemaManager.setRelaxed();
+    			try {
+    				if (schemaQuirksMode) {
+        				defSchemaManager.setRelaxed();
+        				defSchemaManager.loadAllEnabledRelaxed();
+    				} else {
+    					defSchemaManager.loadAllEnabled();
+    				}
+				} catch (Exception e) {
+					throw new ConnectorIOException(e.getMessage(), e);
+				}
+    			if ( !defSchemaManager.getErrors().isEmpty() ) {
+    				if (schemaQuirksMode) {
+    					LOG.ok("There are {0} schema errors, but we are in quirks mode so we are ignoring them", defSchemaManager.getErrors().size());
+    				} else {
+    					throw new ConnectorIOException("Errors loading schema "+defSchemaManager.getErrors());
+    				}
     			}
-    			connection.loadSchema(defSchemaManager);
+    			schemaManager = defSchemaManager;
+//    			connection.setSchemaManager(defSchemaManager);
+//    			connection.loadSchema(defSchemaManager);
     		} catch (LdapException e) {
     			throw new ConnectorIOException(e.getMessage(), e);
     		}
-    		schemaManager = connection.getSchemaManager();
+    		
     		try {
 				LOG.ok("Schema loaded, {0} schemas, {1} object classes, loader {2}",
 						schemaManager.getLoader().getAllSchemas(),

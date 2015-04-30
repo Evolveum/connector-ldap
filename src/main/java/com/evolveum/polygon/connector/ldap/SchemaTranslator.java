@@ -343,14 +343,13 @@ public class SchemaTranslator {
 		return toLdapValue(ldapAttributeType, icfAttributeValues.get(0));
 	}
 	
-	private Object toIcfValue(String icfAttributeName, Value<?> ldapValue) {
+	private Object toIcfValue(String icfAttributeName, Value<?> ldapValue, AttributeType ldapAttributeType) {
 		if (ldapValue == null) {
 			return null;
 		}
 		if (OperationalAttributeInfos.PASSWORD.is(icfAttributeName)) {
 			return new GuardedString(ldapValue.getString().toCharArray());
 		} else {
-			AttributeType ldapAttributeType = ldapValue.getAttributeType();
 			String syntaxOid = ldapAttributeType.getSyntaxOid();
 			if (SchemaConstants.GENERALIZED_TIME_SYNTAX.equals(syntaxOid)) {
 				// TODO: convert time
@@ -401,7 +400,7 @@ public class SchemaTranslator {
 		Iterator<org.apache.directory.api.ldap.model.entry.Attribute> iterator = entry.iterator();
 		while (iterator.hasNext()) {
 			org.apache.directory.api.ldap.model.entry.Attribute ldapAttribute = iterator.next();
-			AttributeType attributeType = ldapAttribute.getAttributeType();
+			AttributeType attributeType = schemaManager.getAttributeType(ldapAttribute.getId());
 			String ldapAttributeName = attributeType.getName();
 			if (uidAttributeName.equals(ldapAttributeName)) {
 				continue;
@@ -420,13 +419,13 @@ public class SchemaTranslator {
 	
 	private Attribute toIcfAttribute(org.apache.directory.api.ldap.model.entry.Attribute ldapAttribute) {
 		AttributeBuilder ab = new AttributeBuilder();
-		AttributeType ldapAttributeType = ldapAttribute.getAttributeType();
+		AttributeType ldapAttributeType = schemaManager.getAttributeType(ldapAttribute.getId());
 		String icfAttributeName = toIcfAttributeName(ldapAttributeType.getName());
 		ab.setName(icfAttributeName);
 		Iterator<Value<?>> iterator = ldapAttribute.iterator();
 		while (iterator.hasNext()) {
 			Value<?> ldapValue = iterator.next();
-			ab.addValue(toIcfValue(icfAttributeName, ldapValue));
+			ab.addValue(toIcfValue(icfAttributeName, ldapValue, ldapAttributeType));
 		}
 		return ab.build();
 	}

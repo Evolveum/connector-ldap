@@ -15,6 +15,9 @@
  */
 package com.evolveum.polygon.connector.ldap;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.apache.directory.api.ldap.model.cursor.CursorException;
 import org.apache.directory.api.ldap.model.cursor.EntryCursor;
 import org.apache.directory.api.ldap.model.entry.Attribute;
@@ -83,15 +86,20 @@ public class LdapUtil {
 	
 	public static String[] getAttributesToGet(org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass, 
 			OperationOptions options, LdapConfiguration configuration, SchemaTranslator schemaTranslator) {
+		String[] operationalAttributes = configuration.getOperationalAttributes();
 		if (options == null || options.getAttributesToGet() == null) {
-			String[] ldapAttrs = new String[2];
+			String[] ldapAttrs = new String[2 + operationalAttributes.length];
 			ldapAttrs[0] = "*";
 			ldapAttrs[1] = configuration.getUidAttribute();
+			int i = 2;
+			for (String operationalAttribute: operationalAttributes) {
+				ldapAttrs[i] = operationalAttribute;
+				i++;
+			}
 			return ldapAttrs;
 		}
 		String[] icfAttrs = options.getAttributesToGet();
-		String[] ldapAttrs = new String[icfAttrs.length + 1];
-		int i = 0;
+		List<String> ldapAttrs = new ArrayList<String>(icfAttrs.length + operationalAttributes.length + 1);
 		for (String icfAttr: icfAttrs) {
 			if (Name.NAME.equals(icfAttr)) {
 				continue;
@@ -100,17 +108,19 @@ public class LdapUtil {
 			if (ldapAttributeType == null) {
 				// No definition for this attribute. It is most likely operational attribute that is not in the schema.
 				if (isOperationalAttribute(configuration, icfAttr)) {
-					ldapAttrs[i] = icfAttr;
+					ldapAttrs.add(icfAttr);
 				} else {
 					throw new InvalidAttributeValueException("Unknown attribute '"+icfAttr+"' (in attributesToGet)");
 				}
 			} else {
-				ldapAttrs[i] = ldapAttributeType.getName();
+				ldapAttrs.add(ldapAttributeType.getName());
 			}
-			i++;
 		}
-		ldapAttrs[i] = configuration.getUidAttribute();
-		return ldapAttrs;
+		for (String operationalAttribute: operationalAttributes) {
+			ldapAttrs.add(operationalAttribute);
+		}
+		ldapAttrs.add(configuration.getUidAttribute());
+		return ldapAttrs.toArray(new String[ldapAttrs.size()]);
 	}
 
 	public static boolean isOperationalAttribute(LdapConfiguration configuration, String icfAttr) {
