@@ -60,6 +60,8 @@ import org.apache.directory.api.ldap.model.filter.ExprNode;
 import org.apache.directory.api.ldap.model.message.BindRequest;
 import org.apache.directory.api.ldap.model.message.BindRequestImpl;
 import org.apache.directory.api.ldap.model.message.BindResponse;
+import org.apache.directory.api.ldap.model.message.LdapResult;
+import org.apache.directory.api.ldap.model.message.ResultCodeEnum;
 import org.apache.directory.api.ldap.model.message.SearchScope;
 import org.apache.directory.api.ldap.model.message.controls.PagedResults;
 import org.apache.directory.api.ldap.model.name.Dn;
@@ -738,7 +740,14 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 		} catch (LdapException e) {
 			throw LdapUtil.processLdapException("Unable to bind to LDAP server "+configuration.getHost()+":"+configuration.getPort()+" as "+bindDn, e);
 		}
-		LOG.info("Bound to {0}", bindDn);
+		LdapResult ldapResult = bindResponse.getLdapResult();
+		if (ldapResult.getResultCode() != ResultCodeEnum.SUCCESS) {
+			String msg = "Unable to bind to LDAP server "+configuration.getHost()+":"+configuration.getPort()+" as "+bindDn
+					+": "+ldapResult.getResultCode().getMessage()+": "+ldapResult.getDiagnosticMessage()+" ("
+					+ldapResult.getResultCode().getResultCode()+")";
+			throw new ConfigurationException(msg);
+		}
+		LOG.info("Bound to {0}: {1} ({2})", bindDn, ldapResult.getDiagnosticMessage(), ldapResult.getResultCode());
 	}
     
 	private Entry getRootDse() throws LdapException {
