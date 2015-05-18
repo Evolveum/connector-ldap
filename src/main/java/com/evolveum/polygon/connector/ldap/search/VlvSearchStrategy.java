@@ -25,6 +25,7 @@ import org.apache.directory.api.ldap.model.exception.LdapException;
 import org.apache.directory.api.ldap.model.filter.ExprNode;
 import org.apache.directory.api.ldap.model.message.LdapResult;
 import org.apache.directory.api.ldap.model.message.Response;
+import org.apache.directory.api.ldap.model.message.ResultCodeEnum;
 import org.apache.directory.api.ldap.model.message.SearchRequest;
 import org.apache.directory.api.ldap.model.message.SearchRequestImpl;
 import org.apache.directory.api.ldap.model.message.SearchResultDone;
@@ -43,6 +44,7 @@ import org.identityconnectors.framework.common.objects.ResultsHandler;
 import org.identityconnectors.framework.common.objects.SortKey;
 
 import com.evolveum.polygon.connector.ldap.LdapConfiguration;
+import com.evolveum.polygon.connector.ldap.LdapUtil;
 import com.evolveum.polygon.connector.ldap.SchemaTranslator;
 
 /**
@@ -179,7 +181,19 @@ public class VlvSearchStrategy extends SearchStrategy {
 			    		cookie = null;
 			    		lastListSize = -1;
 			    	}
-			    	logSearchResult("Done", ldapResult, extra);    				
+			    	logSearchResult("Done", ldapResult, extra);
+			    	if (ldapResult.getResultCode() != ResultCodeEnum.SUCCESS) {
+    					String msg = "LDAP error during search: "+LdapUtil.formatLdapMessage(ldapResult);
+    					if (ldapResult.getResultCode() != ResultCodeEnum.SIZE_LIMIT_EXCEEDED && getOptions() != null && getOptions().getAllowPartialResults() != null && getOptions().getAllowPartialResults()) {
+    						LOG.ok("{0} (allowed error)", msg);
+    						setCompleteResultSet(false);
+    					} else {
+    						LOG.error("{0}", msg);
+    						throw LdapUtil.processLdapResult("LDAP error during search", ldapResult);
+    					}
+    					searchCursor.close();
+    					break;
+    				}
     			}
     			
     			searchCursor.close();

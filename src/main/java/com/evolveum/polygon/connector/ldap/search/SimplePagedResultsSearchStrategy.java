@@ -23,6 +23,7 @@ import org.apache.directory.api.ldap.model.filter.ExprNode;
 import org.apache.directory.api.ldap.model.message.Control;
 import org.apache.directory.api.ldap.model.message.LdapResult;
 import org.apache.directory.api.ldap.model.message.Response;
+import org.apache.directory.api.ldap.model.message.ResultCodeEnum;
 import org.apache.directory.api.ldap.model.message.SearchRequest;
 import org.apache.directory.api.ldap.model.message.SearchRequestImpl;
 import org.apache.directory.api.ldap.model.message.SearchResultDone;
@@ -37,6 +38,7 @@ import org.apache.directory.api.ldap.model.schema.AttributeType;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
 import org.identityconnectors.common.Base64;
 import org.identityconnectors.common.logging.Log;
+import org.identityconnectors.framework.common.exceptions.ConfigurationException;
 import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
 import org.identityconnectors.framework.common.objects.ObjectClass;
 import org.identityconnectors.framework.common.objects.OperationOptions;
@@ -44,6 +46,7 @@ import org.identityconnectors.framework.common.objects.ResultsHandler;
 import org.identityconnectors.framework.common.objects.SortKey;
 
 import com.evolveum.polygon.connector.ldap.LdapConfiguration;
+import com.evolveum.polygon.connector.ldap.LdapUtil;
 import com.evolveum.polygon.connector.ldap.SchemaTranslator;
 
 /**
@@ -160,12 +163,28 @@ public class SimplePagedResultsSearchStrategy extends SearchStrategy {
 			    		extra = sb.toString();
 			    		cookie = pagedResultsResponseControl.getCookie();
 			    		lastListSize = pagedResultsResponseControl.getSize();
+			    		if (lastListSize == 0) {
+			    			// RFC2696 specifies zero as "I do not know". We use -1 for that.
+			    			lastListSize = -1;
+			    		}
 			    	} else {
 			    		LOG.ok("no paged result control in the response");
 			    		cookie = null;
 			    		lastListSize = -1;
 			    	}
 			    	logSearchResult("Done", ldapResult, extra);
+    				if (ldapResult.getResultCode() != ResultCodeEnum.SUCCESS) {
+    					String msg = "LDAP error during search: "+LdapUtil.formatLdapMessage(ldapResult);
+    					if (ldapResult.getResultCode() != ResultCodeEnum.SIZE_LIMIT_EXCEEDED && getOptions() != null && getOptions().getAllowPartialResults() != null && getOptions().getAllowPartialResults()) {
+    						LOG.ok("{0} (allowed error)", msg);
+    						setCompleteResultSet(false);
+    					} else {
+    						LOG.error("{0}", msg);
+    						throw LdapUtil.processLdapResult("LDAP error during search", ldapResult);
+    					}
+    					searchCursor.close();
+    					break;
+    				}
     			}
     			
     			searchCursor.close();
@@ -188,6 +207,8 @@ public class SimplePagedResultsSearchStrategy extends SearchStrategy {
             	break;
             }
         } while (cookie != null);
+        
+        // TODO: properly abandon the paged search by sending request with size=0 and cookie=lastCookie
 	}
 
 	@Override
@@ -202,5 +223,7 @@ public class SimplePagedResultsSearchStrategy extends SearchStrategy {
 		}
 		return Base64.encode(cookie);
 	}
+    
+    
 
 }

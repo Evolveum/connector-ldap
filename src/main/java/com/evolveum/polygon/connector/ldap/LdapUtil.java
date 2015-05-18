@@ -45,6 +45,8 @@ import org.apache.directory.api.ldap.model.exception.LdapSchemaException;
 import org.apache.directory.api.ldap.model.exception.LdapSchemaViolationException;
 import org.apache.directory.api.ldap.model.exception.LdapStrongAuthenticationRequiredException;
 import org.apache.directory.api.ldap.model.exception.LdapUnwillingToPerformException;
+import org.apache.directory.api.ldap.model.message.LdapResult;
+import org.apache.directory.api.ldap.model.message.ResultCodeEnum;
 import org.apache.directory.api.ldap.model.message.SearchScope;
 import org.apache.directory.api.ldap.model.schema.AttributeType;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
@@ -200,8 +202,6 @@ public class LdapUtil {
 			throw new InvalidAttributeValueException(message + ldapException.getMessage(), ldapException);
 		} else if (ldapException instanceof LdapInvalidSearchFilterException) {
 			throw new InvalidAttributeValueException(message + ldapException.getMessage(), ldapException);
-		} else if (ldapException instanceof LdapInvalidSearchFilterException) {
-			throw new InvalidAttributeValueException(message + ldapException.getMessage(), ldapException);
 		} else if (ldapException instanceof LdapLoopDetectedException) {
 			throw new ConfigurationException(message + ldapException.getMessage(), ldapException);
 		} else if (ldapException instanceof LdapNoPermissionException) {
@@ -219,5 +219,42 @@ public class LdapUtil {
 		} else {
 			return new ConnectorIOException(message + ldapException.getMessage(), ldapException);
 		}
+	}
+	
+	public static RuntimeException processLdapResult(String message, LdapResult ldapResult) {
+		ResultCodeEnum resultCode = ldapResult.getResultCode();
+		if (resultCode == ResultCodeEnum.SUCCESS) {
+			return null;
+		} else if (resultCode == ResultCodeEnum.ENTRY_ALREADY_EXISTS) {
+			return new AlreadyExistsException(message + ": " + formatLdapMessage(ldapResult));
+		} else if (resultCode == ResultCodeEnum.OBJECT_CLASS_VIOLATION || resultCode == ResultCodeEnum.NOT_ALLOWED_ON_RDN ||
+				resultCode == ResultCodeEnum.OBJECT_CLASS_MODS_PROHIBITED || resultCode == ResultCodeEnum.NOT_ALLOWED_ON_NON_LEAF ||
+				resultCode == ResultCodeEnum.AFFECTS_MULTIPLE_DSAS || resultCode == ResultCodeEnum.ALIAS_DEREFERENCING_PROBLEM ||
+				resultCode == ResultCodeEnum.ALIAS_PROBLEM || resultCode == ResultCodeEnum.ATTRIBUTE_OR_VALUE_EXISTS || 
+				resultCode == ResultCodeEnum.UNDEFINED_ATTRIBUTE_TYPE || resultCode == ResultCodeEnum.CONSTRAINT_VIOLATION ||
+				resultCode == ResultCodeEnum.INVALID_ATTRIBUTE_SYNTAX || resultCode == ResultCodeEnum.INVALID_DN_SYNTAX ||
+				resultCode == ResultCodeEnum.NAMING_VIOLATION || resultCode == ResultCodeEnum.INAPPROPRIATE_MATCHING ||
+				resultCode == ResultCodeEnum.NO_SUCH_ATTRIBUTE) {
+			return new InvalidAttributeValueException(message + ": " + formatLdapMessage(ldapResult));
+		} else if (resultCode == ResultCodeEnum.STRONG_AUTH_REQUIRED || resultCode == ResultCodeEnum.ADMIN_LIMIT_EXCEEDED ||
+				resultCode == ResultCodeEnum.INVALID_CREDENTIALS || resultCode == ResultCodeEnum.INAPPROPRIATE_AUTHENTICATION ||
+				resultCode == ResultCodeEnum.CONFIDENTIALITY_REQUIRED || resultCode == ResultCodeEnum.AUTH_METHOD_NOT_SUPPORTED) {
+			return new ConnectorSecurityException(message + ": " + formatLdapMessage(ldapResult));
+		} else if (resultCode == ResultCodeEnum.OTHER || resultCode == ResultCodeEnum.LOOP_DETECT) {
+			return new ConfigurationException(message + ": " + formatLdapMessage(ldapResult));
+		} else if (resultCode == ResultCodeEnum.INSUFFICIENT_ACCESS_RIGHTS || resultCode == ResultCodeEnum.UNWILLING_TO_PERFORM ||
+				resultCode == ResultCodeEnum.SIZE_LIMIT_EXCEEDED || resultCode == ResultCodeEnum.TIME_LIMIT_EXCEEDED) {
+			return new PermissionDeniedException(message + ": " + formatLdapMessage(ldapResult));
+		} else if (resultCode == ResultCodeEnum.NO_SUCH_OBJECT) {
+			return new UnknownUidException(message + ": " + formatLdapMessage(ldapResult));
+		} else {
+			return new ConnectorIOException(message + ": " + formatLdapMessage(ldapResult));
+		}
+		
+	}
+	
+	public static String formatLdapMessage(LdapResult ldapResult) {
+		return ldapResult.getResultCode().getMessage() +
+				": " + ldapResult.getDiagnosticMessage() + " ("+ ldapResult.getResultCode().getResultCode()+")";
 	}
 }

@@ -62,6 +62,7 @@ public abstract class SearchStrategy {
 	private org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass;
 	private ResultsHandler handler;
 	private OperationOptions options;
+	private boolean isCompleteResultSet = true;
 	
 	protected SearchStrategy(LdapNetworkConnection connection, LdapConfiguration configuration,
 			SchemaTranslator schemaTranslator, ObjectClass objectClass,
@@ -111,6 +112,14 @@ public abstract class SearchStrategy {
 		return null;
 	}
 	
+	public boolean isCompleteResultSet() {
+		return isCompleteResultSet;
+	}
+	
+	protected void setCompleteResultSet(boolean isCompleteResultSet) {
+		this.isCompleteResultSet = isCompleteResultSet;
+	}
+
 	protected int getDefaultPageSize() {
 		return configuration.getPagingBlockSize();
 	}
@@ -240,13 +249,13 @@ public abstract class SearchStrategy {
 	
 	protected void logSearchResult(String type, LdapResult ldapResult) {
 		if (LOG.isOk()) {
-			LOG.ok("Search RES {0}: {1}", type, ldapResult);
+			LOG.ok("Search RES {0}:\n{1}", type, ldapResult);
 		}
 	}
 
 	protected void logSearchResult(String type, LdapResult ldapResult, String extra) {
 		if (LOG.isOk()) {
-			LOG.ok("Search RES {0}: {1} {2}", type, ldapResult, extra);
+			LOG.ok("Search RES {0}: {1}\n{2}", type, extra, ldapResult);
 		}
 	}
 
@@ -266,7 +275,10 @@ public abstract class SearchStrategy {
 			for (SortKey icfSortKey: getOptions().getSortKeys()) {
 				AttributeType attributeType = getSchemaTranslator().toLdapAttribute(getLdapObjectClass(), icfSortKey.getField());
 				String attributeTypeDesc = attributeType.getName();
-				String matchingRuleId = null;
+				String matchingRuleId = attributeType.getOrderingOid();
+				if (matchingRuleId == null) {
+					matchingRuleId = defaultSortOrderingRule;
+				}
 				boolean reverseOrder = !icfSortKey.isAscendingOrder();
 				org.apache.directory.api.ldap.model.message.controls.SortKey ldapSortKey = 
 						new org.apache.directory.api.ldap.model.message.controls.SortKey(attributeTypeDesc, matchingRuleId, reverseOrder);
@@ -274,8 +286,13 @@ public abstract class SearchStrategy {
 			}
 		} else if (defaultSortLdapAttribute != null) {
 			sortReqControl = new SortRequestControlImpl();
+			AttributeType attributeType = getSchemaTranslator().toLdapAttribute(getLdapObjectClass(), defaultSortLdapAttribute);
+			String matchingRuleId = attributeType.getOrderingOid();
+			if (matchingRuleId == null) {
+				matchingRuleId = defaultSortOrderingRule;
+			}
 			org.apache.directory.api.ldap.model.message.controls.SortKey ldapSortKey = 
-					new org.apache.directory.api.ldap.model.message.controls.SortKey(defaultSortLdapAttribute, defaultSortOrderingRule, false); 
+					new org.apache.directory.api.ldap.model.message.controls.SortKey(defaultSortLdapAttribute, matchingRuleId, false); 
 			sortReqControl.addSortKey(ldapSortKey);
 		}
 		return sortReqControl;
