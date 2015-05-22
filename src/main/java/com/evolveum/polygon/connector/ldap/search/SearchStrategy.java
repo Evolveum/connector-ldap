@@ -42,6 +42,7 @@ import org.identityconnectors.framework.common.exceptions.ConfigurationException
 import org.identityconnectors.framework.common.objects.ObjectClass;
 import org.identityconnectors.framework.common.objects.OperationOptions;
 import org.identityconnectors.framework.common.objects.ResultsHandler;
+import org.identityconnectors.framework.common.objects.SearchResult;
 import org.identityconnectors.framework.common.objects.SortKey;
 
 import com.evolveum.polygon.connector.ldap.LdapConfiguration;
@@ -296,6 +297,5 @@ public abstract class SearchStrategy {
 			sortReqControl.addSortKey(ldapSortKey);
 		}
 		return sortReqControl;
-	}
-	
+	}	
 }

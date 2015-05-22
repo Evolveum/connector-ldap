@@ -90,6 +90,7 @@ import org.identityconnectors.framework.common.objects.OperationOptions;
 import org.identityconnectors.framework.common.objects.QualifiedUid;
 import org.identityconnectors.framework.common.objects.ResultsHandler;
 import org.identityconnectors.framework.common.objects.Schema;
+import org.identityconnectors.framework.common.objects.SearchResult;
 import org.identityconnectors.framework.common.objects.SyncResultsHandler;
 import org.identityconnectors.framework.common.objects.SyncToken;
 import org.identityconnectors.framework.common.objects.Uid;
@@ -99,6 +100,7 @@ import org.identityconnectors.framework.common.objects.filter.FilterTranslator;
 import org.identityconnectors.framework.spi.Configuration;
 import org.identityconnectors.framework.spi.ConnectorClass;
 import org.identityconnectors.framework.spi.PoolableConnector;
+import org.identityconnectors.framework.spi.SearchResultsHandler;
 import org.identityconnectors.framework.spi.operations.CreateOp;
 import org.identityconnectors.framework.spi.operations.DeleteOp;
 import org.identityconnectors.framework.spi.operations.SchemaOp;
@@ -237,11 +239,12 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 		prepareIcfSchema();
 		org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass = getSchemaTranslator().toLdapObjectClass(objectClass);
 		
+		SearchStrategy searchStrategy;
 		if (icfFilter != null && (icfFilter instanceof EqualsFilter) && Name.NAME.equals(((EqualsFilter)icfFilter).getName())) {
 			// Search by __NAME__, which means DN. This translated to a base search.
 			String dn = SchemaUtil.getSingleStringNonBlankValue(((EqualsFilter)icfFilter).getAttribute());
 			// We know that this can return at most one object. Therefore always use simple search.
-			SearchStrategy searchStrategy = getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
+			searchStrategy = getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
 			String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
 			try {
 				searchStrategy.search(dn, null, SearchScope.OBJECT, attributesToGet);
@@ -261,7 +264,7 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 
 				// The filter was limited by a ICF filter clause for __NAME__
 				// so we look at exactly one object here
-				SearchStrategy searchStrategy = getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
+				searchStrategy = getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
 				try {
 					searchStrategy.search(scopedFilter.getBaseDn(), filterNode, SearchScope.OBJECT, attributesToGet);
 				} catch (LdapException e) {
@@ -271,7 +274,7 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 			} else {
 
 				// This is the real (usual) search
-				SearchStrategy searchStrategy = chooseSearchStrategy(objectClass, ldapObjectClass, handler, options);
+				searchStrategy = chooseSearchStrategy(objectClass, ldapObjectClass, handler, options);
 				SearchScope scope = getScope(options);
 				try {
 					searchStrategy.search(baseDn, filterNode, scope, attributesToGet);
@@ -281,6 +284,17 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 				
 			}
 		}
+		
+		if (handler instanceof SearchResultsHandler) {
+			String cookie = searchStrategy.getPagedResultsCookie();
+			int remainingResults = searchStrategy.getRemainingPagedResults();
+			boolean completeResultSet = searchStrategy.isCompleteResultSet();
+			SearchResult searchResult = new SearchResult(cookie, remainingResults, completeResultSet);
+			((SearchResultsHandler)handler).handleResult(searchResult);
+		} else {
+			LOG.warn("Result handler is NOT SearchResultsHandler, it is {0}", handler.getClass());
+		}
+		
 	}
 
 	private String getBaseDn(OperationOptions options) {

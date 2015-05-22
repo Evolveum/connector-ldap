@@ -175,7 +175,7 @@ public class SimplePagedResultsSearchStrategy extends SearchStrategy {
 			    	logSearchResult("Done", ldapResult, extra);
     				if (ldapResult.getResultCode() != ResultCodeEnum.SUCCESS) {
     					String msg = "LDAP error during search: "+LdapUtil.formatLdapMessage(ldapResult);
-    					if (ldapResult.getResultCode() != ResultCodeEnum.SIZE_LIMIT_EXCEEDED && getOptions() != null && getOptions().getAllowPartialResults() != null && getOptions().getAllowPartialResults()) {
+    					if (ldapResult.getResultCode() == ResultCodeEnum.SIZE_LIMIT_EXCEEDED && getOptions() != null && getOptions().getAllowPartialResults() != null && getOptions().getAllowPartialResults()) {
     						LOG.ok("{0} (allowed error)", msg);
     						setCompleteResultSet(false);
     					} else {

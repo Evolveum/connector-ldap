@@ -25,6 +25,7 @@ import org.apache.directory.api.ldap.model.filter.ExprNode;
 import org.apache.directory.api.ldap.model.message.AliasDerefMode;
 import org.apache.directory.api.ldap.model.message.LdapResult;
 import org.apache.directory.api.ldap.model.message.Response;
+import org.apache.directory.api.ldap.model.message.ResultCodeEnum;
 import org.apache.directory.api.ldap.model.message.SearchRequest;
 import org.apache.directory.api.ldap.model.message.SearchRequestImpl;
 import org.apache.directory.api.ldap.model.message.SearchResultDone;
@@ -38,8 +39,10 @@ import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
 import org.identityconnectors.framework.common.objects.ObjectClass;
 import org.identityconnectors.framework.common.objects.OperationOptions;
 import org.identityconnectors.framework.common.objects.ResultsHandler;
+import org.identityconnectors.framework.common.objects.SearchResult;
 
 import com.evolveum.polygon.connector.ldap.LdapConfiguration;
+import com.evolveum.polygon.connector.ldap.LdapUtil;
 import com.evolveum.polygon.connector.ldap.SchemaTranslator;
 
 /**
@@ -90,9 +93,17 @@ public class DefaultSearchStrategy extends SearchStrategy {
 			SearchResultDone searchResultDone = searchCursor.getSearchResultDone();
 			if (searchResultDone != null) {
 				LdapResult ldapResult = searchResultDone.getLdapResult();
-		    	// process sizelimit excceeded, etc.
-		    	// TODO
 		    	logSearchResult("Done", ldapResult);    				
+		    	if (ldapResult.getResultCode() != ResultCodeEnum.SUCCESS) {
+					String msg = "LDAP error during search: "+LdapUtil.formatLdapMessage(ldapResult);
+					if (ldapResult.getResultCode() == ResultCodeEnum.SIZE_LIMIT_EXCEEDED && getOptions() != null && getOptions().getAllowPartialResults() != null && getOptions().getAllowPartialResults()) {
+						LOG.ok("{0} (allowed error)", msg);
+						setCompleteResultSet(false);
+					} else {
+						LOG.error("{0}", msg);
+						throw LdapUtil.processLdapResult("LDAP error during search", ldapResult);
+					}
+				}
 			}
 			
 			searchCursor.close();
