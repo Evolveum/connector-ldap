@@ -134,7 +134,9 @@ public class SunChangelogSyncStrategy extends SyncStrategy {
 				LOG.warn("Synchronization token is not integer, ignoring");
 			}
 		}
-		LOG.ok("Searching changelog '"+changelogDn+"' with "+changelogSearchFilter);
+		LOG.ok("Searching changelog {0} with {1}", changelogDn, changelogSearchFilter);
+		int numChangelogEntries = 0;
+		int numProcessedEntries = 0;
 		try {
 			EntryCursor searchCursor = getConnection().search(changelogDn, changelogSearchFilter, SearchScope.ONELEVEL, 
 					changeNumberAttributeName,
@@ -149,6 +151,7 @@ public class SunChangelogSyncStrategy extends SyncStrategy {
 			while (searchCursor.next()) {
 				Entry entry = searchCursor.get();
 				LOG.ok("Got changelog entry: {0}", entry);
+				numChangelogEntries++;
 				
 				// TODO: filter out by modifiersName
 				
@@ -221,8 +224,10 @@ public class SunChangelogSyncStrategy extends SyncStrategy {
 				deltaBuilder.setDeltaType(deltaType);
 				
 				handler.handle(deltaBuilder.build());
+				numProcessedEntries++;
 			}
 			searchCursor.close();
+			LOG.ok("Search changelog {0} with {1}: {2} entries, {3} processed", changelogDn, changelogSearchFilter, numChangelogEntries, numProcessedEntries);
 		} catch (LdapException e) {
 			throw new ConnectorIOException("Error searching changelog ("+changelogDn+"): "+e.getMessage(), e);
 		} catch (CursorException e) {

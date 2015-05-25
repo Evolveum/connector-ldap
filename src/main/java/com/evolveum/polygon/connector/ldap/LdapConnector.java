@@ -152,7 +152,6 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 		} catch (LdapException e) {
 			throw LdapUtil.processLdapException(null, e);
 		}
-		// TODO: better error handling
 	}
     
     private SchemaManager getSchemaManager() {
