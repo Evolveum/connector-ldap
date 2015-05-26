@@ -31,7 +31,9 @@ import org.apache.directory.api.ldap.model.entry.StringValue;
 import org.apache.directory.api.ldap.model.entry.Value;
 import org.apache.directory.api.ldap.model.exception.LdapException;
 import org.apache.directory.api.ldap.model.exception.LdapInvalidAttributeValueException;
+import org.apache.directory.api.ldap.model.filter.ExprNode;
 import org.apache.directory.api.ldap.model.filter.GreaterEqNode;
+import org.apache.directory.api.ldap.model.filter.OrNode;
 import org.apache.directory.api.ldap.model.ldif.LdifAttributesReader;
 import org.apache.directory.api.ldap.model.ldif.LdifEntry;
 import org.apache.directory.api.ldap.model.message.LdapResult;
@@ -59,6 +61,7 @@ import org.identityconnectors.framework.common.objects.SyncDeltaType;
 import org.identityconnectors.framework.common.objects.SyncResultsHandler;
 import org.identityconnectors.framework.common.objects.SyncToken;
 import org.identityconnectors.framework.common.objects.Uid;
+import org.identityconnectors.framework.spi.SyncTokenResultsHandler;
 
 import com.evolveum.polygon.connector.ldap.LdapConfiguration;
 import com.evolveum.polygon.connector.ldap.LdapConnector;
@@ -73,6 +76,8 @@ public class ModifyTimestampSyncStrategy extends SyncStrategy {
 	
 	private static final String MODIFYTIMESTAMP_ATTRIBUTE = "modifyTimestamp";
 	private static final String MODIFIERSNAME_ATTRIBUTE = "modifiersName";
+	private static final String CREATETIMESTAMP_ATTRIBUTE = "createTimestamp";
+	private static final String CREATORSNAME_ATTRIBUTE = "creatorsName";
 	
 	private static final Log LOG = Log.getLog(ModifyTimestampSyncStrategy.class);
 
@@ -104,12 +109,17 @@ public class ModifyTimestampSyncStrategy extends SyncStrategy {
 		}
 		
 		String[] attributesToGet = LdapUtil.getAttributesToGet(ldapObjectClass, options, getConfiguration(), 
-				getSchemaTranslator(), MODIFYTIMESTAMP_ATTRIBUTE, MODIFIERSNAME_ATTRIBUTE);
+				getSchemaTranslator(), MODIFYTIMESTAMP_ATTRIBUTE, CREATETIMESTAMP_ATTRIBUTE, MODIFIERSNAME_ATTRIBUTE, CREATORSNAME_ATTRIBUTE);
 		
 		String baseContext = getConfiguration().getBaseContext();
 		if (LOG.isOk()) {
 			LOG.ok("Searching DN {0} with {1}, attrs: {2}", baseContext, searchFilter, Arrays.toString(attributesToGet));
 		}
+		
+		// Remember final token before we start searching. This will avoid missing
+		// the changes that come when the search is already running and do not make
+		// it into the search.
+		SyncToken finalToken = getLatestSyncToken(icfObjectClass);
 		
 		int numFoundEntries = 0;
 		int numProcessedEntries = 0;
@@ -126,15 +136,20 @@ public class ModifyTimestampSyncStrategy extends SyncStrategy {
 				// TODO: filter out by object class
 				
 				SyncDeltaBuilder deltaBuilder = new SyncDeltaBuilder();
-				deltaBuilder.setDeltaType(SyncDeltaType.CREATE_OR_UPDATE);
+				SyncDeltaType deltaType = SyncDeltaType.CREATE_OR_UPDATE;
 				
 				SyncToken deltaToken = null;
 				Attribute modifyTimestampAttribute = entry.get(MODIFYTIMESTAMP_ATTRIBUTE);
 				if (modifyTimestampAttribute != null) {
 					deltaToken = new SyncToken(modifyTimestampAttribute.getString());
+				} else {
+					Attribute createTimestampAttribute = entry.get(CREATETIMESTAMP_ATTRIBUTE);
+					deltaToken = new SyncToken(createTimestampAttribute.getString());
+					deltaType = SyncDeltaType.CREATE;
 				}
 				deltaBuilder.setToken(deltaToken);
 				
+				deltaBuilder.setDeltaType(deltaType);
 				ConnectorObject targetObject = getSchemaTranslator().toIcfObject(icfObjectClassInfo, entry);
 				deltaBuilder.setObject(targetObject);
 				
@@ -148,12 +163,22 @@ public class ModifyTimestampSyncStrategy extends SyncStrategy {
 		} catch (CursorException e) {
 			throw new ConnectorIOException("Error searching for changes ("+searchFilter+"): "+e.getMessage(), e);
 		}
-				
+		
+		// Send a final token with the time that the scan started. This will stop repeating the
+		// last change over and over again.
+		// NOTE: this assumes that the clock of client and server are synchronized
+		if (handler instanceof SyncTokenResultsHandler) {
+			((SyncTokenResultsHandler)handler).handleResult(finalToken);
+		}
 	}
 
 	private String createSeachFilter(String fromTokenValue) {
 		Value<String> ldapValue = new StringValue(fromTokenValue);
-		GreaterEqNode<String> filterNode = new GreaterEqNode<String>(MODIFYTIMESTAMP_ATTRIBUTE, ldapValue);
+		ExprNode filterNode =
+				new OrNode(
+						new GreaterEqNode<String>(MODIFYTIMESTAMP_ATTRIBUTE, ldapValue),
+						new GreaterEqNode<String>(CREATETIMESTAMP_ATTRIBUTE, ldapValue)
+				);
 		return filterNode.toString();
 	}
 
@@ -162,7 +187,7 @@ public class ModifyTimestampSyncStrategy extends SyncStrategy {
 		Calendar calNow = Calendar.getInstance();
 		calNow.setTimeInMillis(System.currentTimeMillis());
 		GeneralizedTime gtNow = new GeneralizedTime(calNow);
-		return new SyncToken(gtNow.toGeneralizedTime());
+		return new SyncToken(gtNow.toGeneralizedTimeWithoutFraction());
 	}
 
 }
