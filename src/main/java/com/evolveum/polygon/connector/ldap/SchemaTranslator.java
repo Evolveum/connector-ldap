@@ -15,6 +15,7 @@
  */
 package com.evolveum.polygon.connector.ldap;
 
+import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -36,6 +37,7 @@ import org.apache.directory.api.ldap.model.schema.AttributeType;
 import org.apache.directory.api.ldap.model.schema.LdapSyntax;
 import org.apache.directory.api.ldap.model.schema.SchemaManager;
 import org.apache.directory.api.ldap.model.schema.UsageEnum;
+import org.apache.directory.api.util.GeneralizedTime;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.common.security.GuardedString;
@@ -352,8 +354,12 @@ public class SchemaTranslator {
 		} else {
 			String syntaxOid = ldapAttributeType.getSyntaxOid();
 			if (SchemaConstants.GENERALIZED_TIME_SYNTAX.equals(syntaxOid)) {
-				// TODO: convert time
-				return null;
+				try {
+					GeneralizedTime gt = new GeneralizedTime(ldapValue.getString());
+					return gt.getCalendar().getTimeInMillis();
+				} catch (ParseException e) {
+					throw new InvalidAttributeValueException("Wrong generalized time format in LDAP attribute "+ldapAttributeType.getName()+": "+e.getMessage(), e);
+				}
 			} else {
 				return ldapValue.getString();
 			}

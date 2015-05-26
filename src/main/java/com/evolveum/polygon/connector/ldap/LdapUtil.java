@@ -87,15 +87,19 @@ public class LdapUtil {
 	}
 	
 	public static String[] getAttributesToGet(org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass, 
-			OperationOptions options, LdapConfiguration configuration, SchemaTranslator schemaTranslator) {
+			OperationOptions options, LdapConfiguration configuration, SchemaTranslator schemaTranslator, String... additionalAttributes) {
 		String[] operationalAttributes = configuration.getOperationalAttributes();
 		if (options == null || options.getAttributesToGet() == null) {
-			String[] ldapAttrs = new String[2 + operationalAttributes.length];
+			String[] ldapAttrs = new String[2 + operationalAttributes.length + additionalAttributes.length];
 			ldapAttrs[0] = "*";
 			ldapAttrs[1] = configuration.getUidAttribute();
 			int i = 2;
 			for (String operationalAttribute: operationalAttributes) {
 				ldapAttrs[i] = operationalAttribute;
+				i++;
+			}
+			for (String additionalAttribute: additionalAttributes) {
+				ldapAttrs[i] = additionalAttribute;
 				i++;
 			}
 			return ldapAttrs;
@@ -120,6 +124,9 @@ public class LdapUtil {
 		}
 		for (String operationalAttribute: operationalAttributes) {
 			ldapAttrs.add(operationalAttribute);
+		}
+		for (String additionalAttribute: additionalAttributes) {
+			ldapAttrs.add(additionalAttribute);
 		}
 		ldapAttrs.add(configuration.getUidAttribute());
 		return ldapAttrs.toArray(new String[ldapAttrs.size()]);
@@ -256,5 +263,13 @@ public class LdapUtil {
 	public static String formatLdapMessage(LdapResult ldapResult) {
 		return ldapResult.getResultCode().getMessage() +
 				": " + ldapResult.getDiagnosticMessage() + " ("+ ldapResult.getResultCode().getResultCode()+")";
+	}
+
+	public static Entry getRootDse(LdapNetworkConnection connection, String... attributesToGet) {
+		try {
+			return connection.getRootDse(attributesToGet);
+		} catch (LdapException e) {
+			throw new ConnectorIOException("Error getting changelog data from root DSE: "+e.getMessage(), e);
+		}
 	}
 }

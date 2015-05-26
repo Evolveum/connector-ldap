@@ -115,6 +115,7 @@ import com.evolveum.polygon.connector.ldap.search.DefaultSearchStrategy;
 import com.evolveum.polygon.connector.ldap.search.SearchStrategy;
 import com.evolveum.polygon.connector.ldap.search.SimplePagedResultsSearchStrategy;
 import com.evolveum.polygon.connector.ldap.search.VlvSearchStrategy;
+import com.evolveum.polygon.connector.ldap.sync.ModifyTimestampSyncStrategy;
 import com.evolveum.polygon.connector.ldap.sync.SunChangelogSyncStrategy;
 import com.evolveum.polygon.connector.ldap.sync.SyncStrategy;
 
@@ -128,6 +129,7 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
     private LdapNetworkConnection connection;
     private SchemaManager schemaManager = null;
     private SchemaTranslator schemaTranslator = null;
+    private SyncStrategy syncStrategy = null;
 
     @Override
     public Configuration getConfiguration() {
@@ -621,8 +623,35 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 	}
 	
 	private SyncStrategy chooseSyncStrategy(ObjectClass objectClass) {
-		// TODO 
-		return new SunChangelogSyncStrategy(configuration, connection, getSchemaManager(), getSchemaTranslator());
+		if (syncStrategy == null) {
+			switch (configuration.getSynchronizationStrategy()) {
+				case LdapConfiguration.SYNCHRONIZATION_STRATEGY_NONE:
+					throw new UnsupportedOperationException("Synchronization disabled (synchronizationStrategy=none)");
+				case LdapConfiguration.SYNCHRONIZATION_STRATEGY_SUN_CHANGE_LOG:
+					syncStrategy = new SunChangelogSyncStrategy(configuration, connection, getSchemaManager(), getSchemaTranslator());
+					break;
+				case LdapConfiguration.SYNCHRONIZATION_STRATEGY_MODIFY_TIMESTAMP:
+					syncStrategy = new ModifyTimestampSyncStrategy(configuration, connection, getSchemaManager(), getSchemaTranslator());
+					break;
+				case LdapConfiguration.SYNCHRONIZATION_STRATEGY_AUTO:
+					syncStrategy = chooseSyncStrategyAuto(objectClass);
+					break;
+				default:
+					throw new IllegalArgumentException("Unknown synchronization strategy '"+configuration.getSynchronizationStrategy()+"'");
+			}
+		}
+		return syncStrategy;
+	}
+
+	private SyncStrategy chooseSyncStrategyAuto(ObjectClass objectClass) {
+		Entry rootDse = LdapUtil.getRootDse(connection, SunChangelogSyncStrategy.ROOT_DSE_ATTRIBUTE_CHANGELOG_NAME);
+		org.apache.directory.api.ldap.model.entry.Attribute changelogAttribute = rootDse.get(SunChangelogSyncStrategy.ROOT_DSE_ATTRIBUTE_CHANGELOG_NAME);
+		if (changelogAttribute != null) {
+			LOG.ok("Choosing Sun ChangeLog sync stategy (found {0} attribute in root DSE)", SunChangelogSyncStrategy.ROOT_DSE_ATTRIBUTE_CHANGELOG_NAME);
+			return new SunChangelogSyncStrategy(configuration, connection, getSchemaManager(), getSchemaTranslator());
+		}
+		LOG.ok("Choosing modifyTimestamp sync stategy (fallback)");
+		return new ModifyTimestampSyncStrategy(configuration, connection, getSchemaManager(), getSchemaTranslator());
 	}
 
 	@Override

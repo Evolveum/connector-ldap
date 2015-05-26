@@ -168,7 +168,12 @@ public class LdapConfiguration extends AbstractConfiguration {
      * Possible values: "none", "auto", ... TODO
      * Default value: auto
      */
-    private String synchronizationStrategy = "auto";
+    private String synchronizationStrategy = SYNCHRONIZATION_STRATEGY_AUTO;
+    
+    public static final String SYNCHRONIZATION_STRATEGY_NONE = "none";
+    public static final String SYNCHRONIZATION_STRATEGY_AUTO = "auto";
+    public static final String SYNCHRONIZATION_STRATEGY_SUN_CHANGE_LOG = "sunChangeLog";
+    public static final String SYNCHRONIZATION_STRATEGY_MODIFY_TIMESTAMP = "modifyTimestamp";
     
     /**
      * List of base contexts DNs that will be accepted during synchronization.

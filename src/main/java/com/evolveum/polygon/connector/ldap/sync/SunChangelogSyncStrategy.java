@@ -68,9 +68,9 @@ import com.evolveum.polygon.connector.ldap.SchemaTranslator;
  */
 public class SunChangelogSyncStrategy extends SyncStrategy {
 	
-	private static String ROOT_DSE_ATTRIBUTE_CHANGELOG_NAME = "changelog";
-	private static String ROOT_DSE_ATTRIBUTE_FIRST_CHANGE_NUMBER_NAME = "firstChangeNumber";
-	private static String ROOT_DSE_ATTRIBUTE_LAST_CHANGE_NUMBER_NAME = "lastChangeNumber";
+	public static final String ROOT_DSE_ATTRIBUTE_CHANGELOG_NAME = "changelog";
+	private static final String ROOT_DSE_ATTRIBUTE_FIRST_CHANGE_NUMBER_NAME = "firstChangeNumber";
+	private static final String ROOT_DSE_ATTRIBUTE_LAST_CHANGE_NUMBER_NAME = "lastChangeNumber";
 	
 	private static final Log LOG = Log.getLog(SunChangelogSyncStrategy.class);
 	private static final String CHANGELOG_ATTRIBUTE_TARGET_UNIQUE_ID = "targetUniqueID";
@@ -108,12 +108,7 @@ public class SunChangelogSyncStrategy extends SyncStrategy {
 		}
 		org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass = getSchemaTranslator().toLdapObjectClass(icfObjectClass);
 		
-		Entry rootDse;
-		try {
-			rootDse = getConnection().getRootDse(ROOT_DSE_ATTRIBUTE_CHANGELOG_NAME, ROOT_DSE_ATTRIBUTE_FIRST_CHANGE_NUMBER_NAME, ROOT_DSE_ATTRIBUTE_LAST_CHANGE_NUMBER_NAME);
-		} catch (LdapException e) {
-			throw new ConnectorIOException("Error getting changelog data from root DSE: "+e.getMessage(), e);
-		}
+		Entry rootDse = LdapUtil.getRootDse(getConnection(), ROOT_DSE_ATTRIBUTE_CHANGELOG_NAME, ROOT_DSE_ATTRIBUTE_FIRST_CHANGE_NUMBER_NAME, ROOT_DSE_ATTRIBUTE_LAST_CHANGE_NUMBER_NAME);
 		Attribute changelogAttribute = rootDse.get(ROOT_DSE_ATTRIBUTE_CHANGELOG_NAME);
 		if (changelogAttribute == null) {
 			throw new ConnectorException("Cannot locate changelog, the root DSE attribute "+ROOT_DSE_ATTRIBUTE_CHANGELOG_NAME+" is not present");
