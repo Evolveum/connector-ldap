@@ -16,6 +16,7 @@
 package com.evolveum.polygon.connector.ldap.sync;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.commons.lang.StringUtils;
@@ -36,6 +37,8 @@ import org.apache.directory.api.ldap.model.message.Response;
 import org.apache.directory.api.ldap.model.message.SearchResultDone;
 import org.apache.directory.api.ldap.model.message.SearchResultEntry;
 import org.apache.directory.api.ldap.model.message.SearchScope;
+import org.apache.directory.api.ldap.model.name.Dn;
+import org.apache.directory.api.ldap.model.name.Rdn;
 import org.apache.directory.api.ldap.model.schema.SchemaManager;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
 import org.identityconnectors.common.Base64;
@@ -194,6 +197,10 @@ public class SunChangelogSyncStrategy extends SyncStrategy {
 //						LdifEntry ldifEntry = new LdifEntry(targetDn, changesString);
 //						List<Modification> modifications = ldifEntry.getModifications();
 						Entry targetEntry = LdapUtil.fetchEntry(getConnection(), targetDn, ldapObjectClass, options, getConfiguration(), getSchemaTranslator());
+						if (targetEntry == null) {
+							LOG.warn("Changelog entry {0} refers to an entry {1} that no longer exists, ignoring", entry.getDn(), targetDn);
+							continue;
+						}
 						ConnectorObject targetObject = getSchemaTranslator().toIcfObject(icfObjectClassInfo, targetEntry);
 						deltaBuilder.setObject(targetObject);
 						deltaBuilder.setUid(new Uid(oldUid));
@@ -213,6 +220,27 @@ public class SunChangelogSyncStrategy extends SyncStrategy {
 						
 					} else if (CHANGE_TYPE_DELETE.equals(changeType)) {
 						deltaType = SyncDeltaType.DELETE;
+						deltaBuilder.setUid(new Uid(oldUid));
+						
+					} else if (CHANGE_TYPE_MODRDN.equals(changeType)) {
+						deltaType = SyncDeltaType.UPDATE;
+						Dn oldDn = new Dn(targetDn);
+						Rdn[] newRdns = new Rdn[oldDn.size()];
+						String newRdn = LdapUtil.getStringAttribute(entry, CHANGELOG_ATTRIBUTE_NEW_RDN_NAME);
+						for(int i=1; i < oldDn.size(); i++) {
+							newRdns[i] = oldDn.getRdn(i);
+						}
+						newRdns[0] = new Rdn(newRdn);
+						Dn newDn = new Dn(newRdns);
+						LOG.ok("ModRdn (RDN: {0}) -> {1}", newRdn, newDn.toString());
+						Entry targetEntry = LdapUtil.fetchEntry(getConnection(), newDn.toString(), ldapObjectClass, options, getConfiguration(), getSchemaTranslator());
+						if (targetEntry == null) {
+							LOG.warn("Changelog entry {0} refers to an entry {1} that no longer exists, ignoring", entry.getDn(), newDn);
+							continue;
+						}
+						ConnectorObject targetObject = getSchemaTranslator().toIcfObject(icfObjectClassInfo, targetEntry);
+						deltaBuilder.setObject(targetObject);
+						LOG.ok("ModRdn Obj UID: {0},  changelog UID: {1}", targetObject.getUid(), oldUid);
 						deltaBuilder.setUid(new Uid(oldUid));
 						
 					} else {
