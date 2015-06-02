@@ -165,7 +165,7 @@ public class SchemaTranslator {
 				} else {
 					aib.setMultiValued(true);
 				}
-				if (attributeType.isReadOnly()) {
+				if (attributeType.isReadOnly() || !attributeType.isUserModifiable()) {
 					aib.setReadable(true);
 					aib.setCreateable(false);
 					aib.setUpdateable(false);
