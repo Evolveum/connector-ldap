@@ -138,6 +138,38 @@ public class SchemaTranslator {
 	}
 	
 	private void addAttributeTypes(List<AttributeInfo> attrInfoList, org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
+		
+		// ICF UID
+		String uidAttribudeLdapName = configuration.getUidAttribute();
+		AttributeInfoBuilder uidAib = new AttributeInfoBuilder(Uid.NAME);
+		uidAib.setNativeName(uidAttribudeLdapName);
+		uidAib.setRequired(false); // Must be optional. It is not present for create operations
+		AttributeType uidAttributeLdapType = null;
+		try {
+			uidAttributeLdapType = schemaManager.getAttributeTypeRegistry().lookup(uidAttribudeLdapName);
+		} catch (LdapException e) {
+			// We can live with this
+			LOG.ok("Got exception looking up UID atribute {0}: {1} ({2}) (probabably harmless)", uidAttribudeLdapName,
+					e.getMessage(), e.getClass());
+		}
+		if (uidAttributeLdapType != null) {
+			uidAib.setType(toIcfType(uidAttributeLdapType.getSyntax(), Uid.NAME));
+			setAttributeMultiplicityAndPermissions(uidAttributeLdapType, uidAib);
+		} else {
+			uidAib.setType(String.class);
+			uidAib.setCreateable(false);
+			uidAib.setUpdateable(false);
+			uidAib.setReadable(true);
+		}
+		attrInfoList.add(uidAib.build());
+		
+		// ICF NAME
+		AttributeInfoBuilder nameAib = new AttributeInfoBuilder(Name.NAME);
+		nameAib.setType(String.class);
+		nameAib.setNativeName(LdapConfiguration.PSEUDO_ATTRIBUTE_DN_NAME);
+		nameAib.setRequired(true);
+		attrInfoList.add(nameAib.build());
+		
 		addAttributeTypesFromLdapSchema(attrInfoList, ldapObjectClass);
 		addExtraOperationalAttributes(attrInfoList, ldapObjectClass);
 	}
@@ -149,6 +181,7 @@ public class SchemaTranslator {
 			}
 			AttributeInfoBuilder aib = new AttributeInfoBuilder(operationalAttributeLdapName);
 			aib.setRequired(false);
+			aib.setNativeName(operationalAttributeLdapName);
 			
 			AttributeType attributeType = null;
 			try {
@@ -160,16 +193,7 @@ public class SchemaTranslator {
 			
 			if (attributeType != null) {
 				aib.setType(toIcfType(attributeType.getSyntax(), operationalAttributeLdapName));
-				if (attributeType.isSingleValued()) {
-					aib.setMultiValued(false);
-				} else {
-					aib.setMultiValued(true);
-				}
-				if (attributeType.isReadOnly() || !attributeType.isUserModifiable()) {
-					aib.setReadable(true);
-					aib.setCreateable(false);
-					aib.setUpdateable(false);
-				}
+				setAttributeMultiplicityAndPermissions(attributeType, aib);
 			} else {
 				aib.setType(String.class);
 				aib.setMultiValued(false);
@@ -202,19 +226,28 @@ public class SchemaTranslator {
 			AttributeInfoBuilder aib = new AttributeInfoBuilder(icfAttributeName);
 			aib.setRequired(isRequired);
 			aib.setType(toIcfType(ldapAttribute.getSyntax(), icfAttributeName));
+			aib.setNativeName(ldapAttribute.getName());
 			if (ldapAttribute.isOperational()) {
 				aib.setReturnedByDefault(false);
 			}
-			if (ldapAttribute.isSingleValued()) {
-				aib.setMultiValued(false);
-			} else {
-				aib.setMultiValued(true);
-			}
-			if (ldapAttribute.isReadOnly()) {
-				aib.setCreateable(false);
-				aib.setUpdateable(false);
-			}
+			setAttributeMultiplicityAndPermissions(ldapAttribute, aib);
 			attrInfoList.add(aib.build());
+		}
+	}
+	
+	private void setAttributeMultiplicityAndPermissions(AttributeType ldapAttributeType, AttributeInfoBuilder aib) {
+		if (ldapAttributeType.isSingleValued()) {
+			aib.setMultiValued(false);
+		} else {
+			aib.setMultiValued(true);
+		}
+		aib.setReadable(true);
+		if (ldapAttributeType.isReadOnly() || !ldapAttributeType.isUserModifiable()) {
+			aib.setCreateable(false);
+			aib.setUpdateable(false);
+		} else {
+			aib.setCreateable(true);
+			aib.setUpdateable(true);			
 		}
 	}
 	
