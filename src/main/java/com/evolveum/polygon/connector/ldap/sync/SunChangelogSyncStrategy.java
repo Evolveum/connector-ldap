@@ -102,11 +102,18 @@ public class SunChangelogSyncStrategy extends SyncStrategy {
 	public void sync(ObjectClass icfObjectClass, SyncToken fromToken, SyncResultsHandler handler,
 			OperationOptions options) {
 		// TODO: "ALL" object class
-		ObjectClassInfo icfObjectClassInfo = getSchemaTranslator().findObjectClassInfo(icfObjectClass);
-		if (icfObjectClassInfo == null) {
-			throw new InvalidAttributeValueException("No definition for object class "+icfObjectClass);
+		ObjectClassInfo icfObjectClassInfo = null;
+		org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass = null;
+		if (icfObjectClass.is(ObjectClass.ALL_NAME)) {
+			// It is OK to leave the icfObjectClassInfo and ldapObjectClass as null. These need to be determined
+			// for every changelog entry anyway
+		} else {
+			icfObjectClassInfo = getSchemaTranslator().findObjectClassInfo(icfObjectClass);
+			if (icfObjectClassInfo == null) {
+				throw new InvalidAttributeValueException("No definition for object class "+icfObjectClass);
+			}
+			ldapObjectClass = getSchemaTranslator().toLdapObjectClass(icfObjectClass);
 		}
-		org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass = getSchemaTranslator().toLdapObjectClass(icfObjectClass);
 		
 		Entry rootDse = LdapUtil.getRootDse(getConnection(), ROOT_DSE_ATTRIBUTE_CHANGELOG_NAME, ROOT_DSE_ATTRIBUTE_FIRST_CHANGE_NUMBER_NAME, ROOT_DSE_ATTRIBUTE_LAST_CHANGE_NUMBER_NAME);
 		Attribute changelogAttribute = rootDse.get(ROOT_DSE_ATTRIBUTE_CHANGELOG_NAME);
@@ -153,7 +160,7 @@ public class SunChangelogSyncStrategy extends SyncStrategy {
 				
 				// TODO: filter out by modifiersName
 				
-				// TODO: filter out by object class
+				
 				
 				SyncDeltaBuilder deltaBuilder = new SyncDeltaBuilder();
 				
@@ -196,6 +203,10 @@ public class SunChangelogSyncStrategy extends SyncStrategy {
 							LOG.warn("Changelog entry {0} refers to an entry {1} that no longer exists, ignoring", entry.getDn(), targetDn);
 							continue;
 						}
+						if (!isObjectClass(targetEntry, ldapObjectClass)) {
+							LOG.ok("Changelog entry {0} does not match object class, skipping", targetEntry.getDn());
+							continue;
+						}
 						ConnectorObject targetObject = getSchemaTranslator().toIcfObject(icfObjectClassInfo, targetEntry);
 						deltaBuilder.setObject(targetObject);
 						deltaBuilder.setUid(new Uid(oldUid));
@@ -210,12 +221,17 @@ public class SunChangelogSyncStrategy extends SyncStrategy {
 						} catch (IOException e) {
 							throw new ConnectorIOException(e);
 						}
+						if (!isObjectClass(targetEntry, ldapObjectClass)) {
+							LOG.ok("Changelog entry {0} does not match object class, skipping", targetEntry.getDn());
+							continue;
+						}
 						ConnectorObject targetObject = getSchemaTranslator().toIcfObject(icfObjectClassInfo, targetEntry);
 						deltaBuilder.setObject(targetObject);
 						
 					} else if (CHANGE_TYPE_DELETE.equals(changeType)) {
 						deltaType = SyncDeltaType.DELETE;
 						deltaBuilder.setUid(new Uid(oldUid));
+						// TODO: filter out by object class
 						
 					} else if (CHANGE_TYPE_MODRDN.equals(changeType)) {
 						deltaType = SyncDeltaType.UPDATE;
@@ -231,6 +247,10 @@ public class SunChangelogSyncStrategy extends SyncStrategy {
 						Entry targetEntry = LdapUtil.fetchEntry(getConnection(), newDn.toString(), ldapObjectClass, options, getConfiguration(), getSchemaTranslator());
 						if (targetEntry == null) {
 							LOG.warn("Changelog entry {0} refers to an entry {1} that no longer exists, ignoring", entry.getDn(), newDn);
+							continue;
+						}
+						if (!isObjectClass(targetEntry, ldapObjectClass)) {
+							LOG.ok("Changelog entry {0} does not match object class, skipping", targetEntry.getDn());
 							continue;
 						}
 						ConnectorObject targetObject = getSchemaTranslator().toIcfObject(icfObjectClassInfo, targetEntry);
@@ -257,6 +277,20 @@ public class SunChangelogSyncStrategy extends SyncStrategy {
 			throw new ConnectorIOException("Error searching changelog ("+changelogDn+"): "+e.getMessage(), e);
 		}
 				
+	}
+
+	private boolean isObjectClass(Entry targetEntry,
+			org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
+		if (ldapObjectClass == null) {
+			return true;
+		}
+		Attribute objectClassAttribute = targetEntry.get(LdapConfiguration.ATTRIBUTE_OBJECTCLASS_NAME); 
+		for (Value<?> objectClassVal: objectClassAttribute) {
+			if (ldapObjectClass.getName().equals(objectClassVal.getString())) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private String createSeachFilter(Integer fromTokenValue) {
