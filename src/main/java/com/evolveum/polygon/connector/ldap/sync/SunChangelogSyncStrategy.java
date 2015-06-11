@@ -203,7 +203,7 @@ public class SunChangelogSyncStrategy extends SyncStrategy {
 							LOG.warn("Changelog entry {0} refers to an entry {1} that no longer exists, ignoring", entry.getDn(), targetDn);
 							continue;
 						}
-						if (!isObjectClass(targetEntry, ldapObjectClass)) {
+						if (!LdapUtil.isObjectClass(targetEntry, ldapObjectClass)) {
 							LOG.ok("Changelog entry {0} does not match object class, skipping", targetEntry.getDn());
 							continue;
 						}
@@ -221,7 +221,7 @@ public class SunChangelogSyncStrategy extends SyncStrategy {
 						} catch (IOException e) {
 							throw new ConnectorIOException(e);
 						}
-						if (!isObjectClass(targetEntry, ldapObjectClass)) {
+						if (!LdapUtil.isObjectClass(targetEntry, ldapObjectClass)) {
 							LOG.ok("Changelog entry {0} does not match object class, skipping", targetEntry.getDn());
 							continue;
 						}
@@ -249,7 +249,7 @@ public class SunChangelogSyncStrategy extends SyncStrategy {
 							LOG.warn("Changelog entry {0} refers to an entry {1} that no longer exists, ignoring", entry.getDn(), newDn);
 							continue;
 						}
-						if (!isObjectClass(targetEntry, ldapObjectClass)) {
+						if (!LdapUtil.isObjectClass(targetEntry, ldapObjectClass)) {
 							LOG.ok("Changelog entry {0} does not match object class, skipping", targetEntry.getDn());
 							continue;
 						}
@@ -277,20 +277,6 @@ public class SunChangelogSyncStrategy extends SyncStrategy {
 			throw new ConnectorIOException("Error searching changelog ("+changelogDn+"): "+e.getMessage(), e);
 		}
 				
-	}
-
-	private boolean isObjectClass(Entry targetEntry,
-			org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
-		if (ldapObjectClass == null) {
-			return true;
-		}
-		Attribute objectClassAttribute = targetEntry.get(LdapConfiguration.ATTRIBUTE_OBJECTCLASS_NAME); 
-		for (Value<?> objectClassVal: objectClassAttribute) {
-			if (ldapObjectClass.getName().equals(objectClassVal.getString())) {
-				return true;
-			}
-		}
-		return false;
 	}
 
 	private String createSeachFilter(Integer fromTokenValue) {

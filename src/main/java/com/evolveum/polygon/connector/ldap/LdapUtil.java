@@ -22,6 +22,7 @@ import org.apache.directory.api.ldap.model.cursor.CursorException;
 import org.apache.directory.api.ldap.model.cursor.EntryCursor;
 import org.apache.directory.api.ldap.model.entry.Attribute;
 import org.apache.directory.api.ldap.model.entry.Entry;
+import org.apache.directory.api.ldap.model.entry.Value;
 import org.apache.directory.api.ldap.model.exception.LdapAdminLimitExceededException;
 import org.apache.directory.api.ldap.model.exception.LdapAffectMultipleDsaException;
 import org.apache.directory.api.ldap.model.exception.LdapAliasDereferencingException;
@@ -271,5 +272,19 @@ public class LdapUtil {
 		} catch (LdapException e) {
 			throw new ConnectorIOException("Error getting changelog data from root DSE: "+e.getMessage(), e);
 		}
+	}
+	
+	public static boolean isObjectClass(Entry entry,
+			org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
+		if (ldapObjectClass == null) {
+			return true;
+		}
+		Attribute objectClassAttribute = entry.get(LdapConfiguration.ATTRIBUTE_OBJECTCLASS_NAME); 
+		for (Value<?> objectClassVal: objectClassAttribute) {
+			if (ldapObjectClass.getName().equals(objectClassVal.getString())) {
+				return true;
+			}
+		}
+		return false;
 	}
 }
