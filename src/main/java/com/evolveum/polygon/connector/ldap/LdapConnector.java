@@ -57,6 +57,9 @@ import org.apache.directory.api.ldap.model.exception.LdapStrongAuthenticationReq
 import org.apache.directory.api.ldap.model.exception.LdapUnwillingToPerformException;
 import org.apache.directory.api.ldap.model.filter.EqualityNode;
 import org.apache.directory.api.ldap.model.filter.ExprNode;
+import org.apache.directory.api.ldap.model.message.AddRequest;
+import org.apache.directory.api.ldap.model.message.AddRequestImpl;
+import org.apache.directory.api.ldap.model.message.AddResponse;
 import org.apache.directory.api.ldap.model.message.BindRequest;
 import org.apache.directory.api.ldap.model.message.BindRequestImpl;
 import org.apache.directory.api.ldap.model.message.BindResponse;
@@ -84,6 +87,7 @@ import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueE
 import org.identityconnectors.framework.common.exceptions.PermissionDeniedException;
 import org.identityconnectors.framework.common.exceptions.UnknownUidException;
 import org.identityconnectors.framework.common.objects.Attribute;
+import org.identityconnectors.framework.common.objects.ConnectorObject;
 import org.identityconnectors.framework.common.objects.Name;
 import org.identityconnectors.framework.common.objects.ObjectClass;
 import org.identityconnectors.framework.common.objects.OperationOptions;
@@ -94,9 +98,11 @@ import org.identityconnectors.framework.common.objects.SearchResult;
 import org.identityconnectors.framework.common.objects.SyncResultsHandler;
 import org.identityconnectors.framework.common.objects.SyncToken;
 import org.identityconnectors.framework.common.objects.Uid;
+import org.identityconnectors.framework.common.objects.filter.ContainsAllValuesFilter;
 import org.identityconnectors.framework.common.objects.filter.EqualsFilter;
 import org.identityconnectors.framework.common.objects.filter.Filter;
 import org.identityconnectors.framework.common.objects.filter.FilterTranslator;
+import org.identityconnectors.framework.common.objects.filter.OrFilter;
 import org.identityconnectors.framework.spi.Configuration;
 import org.identityconnectors.framework.spi.ConnectorClass;
 import org.identityconnectors.framework.spi.PoolableConnector;
@@ -241,49 +247,27 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 		org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass = getSchemaTranslator().toLdapObjectClass(objectClass);
 		
 		SearchStrategy searchStrategy;
-		if (icfFilter != null && (icfFilter instanceof EqualsFilter) && Name.NAME.equals(((EqualsFilter)icfFilter).getName())) {
+		if (isEqualsFilter(icfFilter, Name.NAME)) {
 			// Search by __NAME__, which means DN. This translated to a base search.
-			String dn = SchemaUtil.getSingleStringNonBlankValue(((EqualsFilter)icfFilter).getAttribute());
-			// We know that this can return at most one object. Therefore always use simple search.
-			searchStrategy = getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
-			String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
-			try {
-				searchStrategy.search(dn, null, SearchScope.OBJECT, attributesToGet);
-			} catch (LdapException e) {
-				throw LdapUtil.processLdapException("Error searching for "+dn, e);
-			}
+			searchStrategy = searchByDn(SchemaUtil.getSingleStringNonBlankValue(((EqualsFilter)icfFilter).getAttribute()),
+					objectClass, ldapObjectClass, handler, options);
+			
+		} else if (isEqualsFilter(icfFilter, Uid.NAME)) {
+			// Search by __UID__. Special case for performance.
+			searchStrategy = searchByUid(SchemaUtil.getSingleStringNonBlankValue(((EqualsFilter)icfFilter).getAttribute()),
+					objectClass, ldapObjectClass, handler, options);
+				
+		} else if (isSecondaryIdentifierOrFilter(icfFilter)) {
+			// Very special case. Search by DN or other secondary identifier value. It is used by IDMs to get object by 
+			// This is not supported by LDAP. But it can be quite common. Therefore we want to support it as a special
+			// case by executing two searches.
+			
+			searchStrategy = searchBySecondaryIdenfiers(icfFilter, objectClass, ldapObjectClass, handler, options);
 			
 		} else {
 
-			String baseDn = getBaseDn(options);
-			LdapFilterTranslator filterTranslator = new LdapFilterTranslator(getSchemaTranslator(), ldapObjectClass);
-			ScopedFilter scopedFilter = filterTranslator.translate(icfFilter, ldapObjectClass);
-			ExprNode filterNode = scopedFilter.getFilter();
-			String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
+			searchStrategy = searchUsual(icfFilter, objectClass, ldapObjectClass, handler, options);
 			
-			if (scopedFilter.getBaseDn() != null) {
-
-				// The filter was limited by a ICF filter clause for __NAME__
-				// so we look at exactly one object here
-				searchStrategy = getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
-				try {
-					searchStrategy.search(scopedFilter.getBaseDn(), filterNode, SearchScope.OBJECT, attributesToGet);
-				} catch (LdapException e) {
-					throw LdapUtil.processLdapException("Error searching for "+scopedFilter.getBaseDn(), e);
-				}
-			
-			} else {
-
-				// This is the real (usual) search
-				searchStrategy = chooseSearchStrategy(objectClass, ldapObjectClass, handler, options);
-				SearchScope scope = getScope(options);
-				try {
-					searchStrategy.search(baseDn, filterNode, scope, attributesToGet);
-				} catch (LdapException e) {
-					throw LdapUtil.processLdapException("Error searching in "+baseDn, e);
-				}
-				
-			}
 		}
 		
 		if (handler instanceof SearchResultsHandler) {
@@ -298,6 +282,160 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 		
 	}
 
+	private boolean isEqualsFilter(Filter icfFilter, String icfAttrname) {
+		return icfFilter != null && (icfFilter instanceof EqualsFilter) && icfAttrname.equals(((EqualsFilter)icfFilter).getName());
+	}
+
+	private boolean isSecondaryIdentifierOrFilter(Filter icfFilter) {
+		if (icfFilter == null) {
+			return false;
+		}
+		if (!(icfFilter instanceof OrFilter)) {
+			return false;
+		}
+		Filter leftSubfilter = ((OrFilter)icfFilter).getLeft();
+		Filter rightSubfilter = ((OrFilter)icfFilter).getRight();
+		if (isEqualsFilter(leftSubfilter,  Name.NAME) && ((rightSubfilter instanceof EqualsFilter) || (rightSubfilter instanceof ContainsAllValuesFilter))) {
+			return true;
+		}
+		if (isEqualsFilter(rightSubfilter,  Name.NAME) && ((leftSubfilter instanceof EqualsFilter) || (leftSubfilter instanceof ContainsAllValuesFilter))) {
+			return true;
+		}
+		return false;
+	}
+
+	private SearchStrategy searchByDn(String dn, ObjectClass objectClass, org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
+			ResultsHandler handler, OperationOptions options) {
+		// This translated to a base search.
+		// We know that this can return at most one object. Therefore always use simple search.
+		SearchStrategy searchStrategy = getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
+		String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
+		try {
+			searchStrategy.search(dn, null, SearchScope.OBJECT, attributesToGet);
+		} catch (LdapException e) {
+			throw LdapUtil.processLdapException("Error searching for DN '"+dn+"'", e);
+		}
+		return searchStrategy;
+	}
+	
+	private SearchStrategy searchByUid(String uidValue, ObjectClass objectClass, org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
+			ResultsHandler handler, OperationOptions options) {
+		// We know that this can return at most one object. Therefore always use simple search.
+		SearchStrategy searchStrategy = getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
+		String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
+		SearchScope scope = getScope(options);
+		AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, Uid.NAME);
+		Value<Object> ldapValue = schemaTranslator.toLdapValue(ldapAttributeType, uidValue);
+		ExprNode filterNode = new EqualityNode<>(ldapAttributeType, ldapValue);
+		String baseDn = getBaseDn(options);
+		try {
+			searchStrategy.search(baseDn, filterNode, scope, attributesToGet);
+		} catch (LdapException e) {
+			throw LdapUtil.processLdapException("Error searching for "+ldapAttributeType.getName()+" '"+uidValue+"'", e);
+		}
+		
+		return searchStrategy;
+	}
+	
+	private SearchStrategy searchBySecondaryIdenfiers(Filter icfFilter, ObjectClass objectClass, org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
+			final ResultsHandler handler, OperationOptions options) {
+		// This translated to a base search.
+		// We know that this can return at most one object. Therefore always use simple search.
+		
+		Filter leftSubfilter = ((OrFilter)icfFilter).getLeft();
+		Filter rightSubfilter = ((OrFilter)icfFilter).getRight();
+		EqualsFilter dnSubfilter;
+		Filter otherSubfilter;
+		if ((leftSubfilter instanceof EqualsFilter) && Uid.NAME.equals(((EqualsFilter)leftSubfilter).getName())) {
+			dnSubfilter = (EqualsFilter) leftSubfilter;
+			otherSubfilter = rightSubfilter;
+		} else {
+			dnSubfilter = (EqualsFilter) rightSubfilter;
+			otherSubfilter = leftSubfilter;
+		}
+		
+		final String[] mutableFirstUid = new String[1];
+		ResultsHandler innerHandler = new ResultsHandler() {
+			@Override
+			public boolean handle(ConnectorObject connectorObject) {
+				if (mutableFirstUid[0] == null) {
+					mutableFirstUid[0] = connectorObject.getUid().getUidValue();
+				} else {
+					if (connectorObject.getUid().getUidValue().equals(mutableFirstUid[0])) {
+						// We have already returned this object, skip it.
+						return true;
+					}
+				}
+				return handler.handle(connectorObject);
+			}
+		};
+		
+		// Search by DN first. This is supposed to be more efficient.
+
+		String dn = SchemaUtil.getSingleStringNonBlankValue(dnSubfilter.getAttribute());
+		try {
+			searchByDn(dn, objectClass, ldapObjectClass, innerHandler, options);
+		} catch (UnknownUidException e) {
+			// No problem. The Dn is not here. Just no on.
+			LOG.ok("The DN \"{0}\" not found: {1} (this is OK)", dn, e.getMessage());
+		}
+		
+		// Search by the other attribute now
+		
+		// We know that this can return at most one object. Therefore always use simple search.
+		SearchStrategy searchStrategy = getDefaultSearchStrategy(objectClass, ldapObjectClass, innerHandler, options);
+		LdapFilterTranslator filterTranslator = new LdapFilterTranslator(getSchemaTranslator(), ldapObjectClass);
+		ScopedFilter scopedFilter = filterTranslator.translate(otherSubfilter, ldapObjectClass);
+		ExprNode filterNode = scopedFilter.getFilter();
+		String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
+		SearchScope scope = getScope(options);
+		String baseDn = getBaseDn(options);
+		try {
+			searchStrategy.search(baseDn, filterNode, scope, attributesToGet);
+		} catch (LdapException e) {
+			throw LdapUtil.processLdapException("Error searching in "+baseDn, e);
+		}
+		
+		return searchStrategy;
+				
+	}
+	
+	private SearchStrategy searchUsual(Filter icfFilter, ObjectClass objectClass, org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
+			ResultsHandler handler, OperationOptions options) {
+		String baseDn = getBaseDn(options);
+		LdapFilterTranslator filterTranslator = new LdapFilterTranslator(getSchemaTranslator(), ldapObjectClass);
+		ScopedFilter scopedFilter = filterTranslator.translate(icfFilter, ldapObjectClass);
+		ExprNode filterNode = scopedFilter.getFilter();
+		String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
+		
+		SearchStrategy searchStrategy;
+		if (scopedFilter.getBaseDn() != null) {
+
+			// The filter was limited by a ICF filter clause for __NAME__
+			// so we look at exactly one object here
+			searchStrategy = getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
+			try {
+				searchStrategy.search(scopedFilter.getBaseDn(), filterNode, SearchScope.OBJECT, attributesToGet);
+			} catch (LdapException e) {
+				throw LdapUtil.processLdapException("Error searching for "+scopedFilter.getBaseDn(), e);
+			}
+		
+		} else {
+
+			// This is the real (usual) search
+			searchStrategy = chooseSearchStrategy(objectClass, ldapObjectClass, handler, options);
+			SearchScope scope = getScope(options);
+			try {
+				searchStrategy.search(baseDn, filterNode, scope, attributesToGet);
+			} catch (LdapException e) {
+				throw LdapUtil.processLdapException("Error searching in "+baseDn, e);
+			}
+			
+		}
+		
+		return searchStrategy;
+	}
+	
 	private String getBaseDn(OperationOptions options) {
 		if (options != null && options.getContainer() != null) {
 			QualifiedUid containerQUid = options.getContainer();
@@ -445,10 +583,21 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 			}
 		}
 		
+		if (LOG.isOk()) {
+			LOG.ok("Adding entry: {0}", entry);
+		}
+		
+		AddRequest addRequest = new AddRequestImpl();
+		addRequest.setEntry(entry);
+		
+		AddResponse addResponse;
 		try {
-			connection.add(entry);
+			addResponse = connection.add(addRequest);
 		} catch (LdapException e) {
 			throw LdapUtil.processLdapException("Error adding LDAP entry "+dn, e);
+		}
+		if (addResponse.getLdapResult().getResultCode() != ResultCodeEnum.SUCCESS) {
+			throw LdapUtil.processLdapResult("Error adding LDAP entry "+dn, addResponse.getLdapResult());
 		}
 		
 		Uid uid = null;

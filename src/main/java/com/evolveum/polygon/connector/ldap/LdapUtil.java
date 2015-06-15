@@ -42,6 +42,7 @@ import org.apache.directory.api.ldap.model.exception.LdapLoopDetectedException;
 import org.apache.directory.api.ldap.model.exception.LdapNoPermissionException;
 import org.apache.directory.api.ldap.model.exception.LdapNoSuchAttributeException;
 import org.apache.directory.api.ldap.model.exception.LdapNoSuchObjectException;
+import org.apache.directory.api.ldap.model.exception.LdapOperationException;
 import org.apache.directory.api.ldap.model.exception.LdapSchemaException;
 import org.apache.directory.api.ldap.model.exception.LdapSchemaViolationException;
 import org.apache.directory.api.ldap.model.exception.LdapStrongAuthenticationRequiredException;
@@ -52,6 +53,7 @@ import org.apache.directory.api.ldap.model.message.SearchScope;
 import org.apache.directory.api.ldap.model.schema.AttributeType;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
 import org.apache.directory.ldap.client.api.exception.InvalidConnectionException;
+import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.framework.common.exceptions.AlreadyExistsException;
 import org.identityconnectors.framework.common.exceptions.ConfigurationException;
 import org.identityconnectors.framework.common.exceptions.ConnectionFailedException;
@@ -68,6 +70,8 @@ import org.identityconnectors.framework.common.objects.OperationOptions;
  *
  */
 public class LdapUtil {
+	
+	private static final Log LOG = Log.getLog(LdapUtil.class);
 	
 	public static boolean isDnAttribute(String attributeName) {
 		return LdapConfiguration.PSEUDO_ATTRIBUTE_DN_NAME.equals(attributeName);
@@ -174,91 +178,114 @@ public class LdapUtil {
     	} else {
     		message = message + ": ";
     	}
+    	RuntimeException re;
 		if (ldapException instanceof LdapEntryAlreadyExistsException) {
-			throw new AlreadyExistsException(message + ldapException.getMessage(), ldapException);
+			re = new AlreadyExistsException(message + ldapException.getMessage(), ldapException);
 		} else if (ldapException instanceof LdapSchemaViolationException) {
-			throw new InvalidAttributeValueException(message + ldapException.getMessage(), ldapException);
+			re = new InvalidAttributeValueException(message + ldapException.getMessage(), ldapException);
 		} else if (ldapException instanceof LdapStrongAuthenticationRequiredException) {
-			throw new ConnectorSecurityException(message + ldapException.getMessage(), ldapException);
+			re = new ConnectorSecurityException(message + ldapException.getMessage(), ldapException);
 		} else if (ldapException instanceof LdapAdminLimitExceededException) {
-			throw new ConnectorSecurityException(message + ldapException.getMessage(), ldapException);
+			re = new ConnectorSecurityException(message + ldapException.getMessage(), ldapException);
 		} else if (ldapException instanceof LdapAffectMultipleDsaException) {
-			throw new InvalidAttributeValueException(message + ldapException.getMessage(), ldapException);
+			re = new InvalidAttributeValueException(message + ldapException.getMessage(), ldapException);
 		} else if (ldapException instanceof LdapAffectMultipleDsaException) {
-			throw new InvalidAttributeValueException(message + ldapException.getMessage(), ldapException);
+			re = new InvalidAttributeValueException(message + ldapException.getMessage(), ldapException);
 		} else if (ldapException instanceof LdapAliasDereferencingException) {
-			throw new InvalidAttributeValueException(message + ldapException.getMessage(), ldapException);
+			re = new InvalidAttributeValueException(message + ldapException.getMessage(), ldapException);
 		} else if (ldapException instanceof LdapAliasException) {
-			throw new InvalidAttributeValueException(message + ldapException.getMessage(), ldapException);
+			re = new InvalidAttributeValueException(message + ldapException.getMessage(), ldapException);
 		} else if (ldapException instanceof LdapAttributeInUseException) {
-			throw new InvalidAttributeValueException(message + ldapException.getMessage(), ldapException);
+			re = new InvalidAttributeValueException(message + ldapException.getMessage(), ldapException);
 		} else if (ldapException instanceof LdapAuthenticationException) {
-			throw new ConnectorSecurityException(message + ldapException.getMessage(), ldapException);
+			re = new ConnectorSecurityException(message + ldapException.getMessage(), ldapException);
 		} else if (ldapException instanceof LdapAuthenticationNotSupportedException) {
-			throw new ConnectorSecurityException(message + ldapException.getMessage(), ldapException);
+			re = new ConnectorSecurityException(message + ldapException.getMessage(), ldapException);
 		} else if (ldapException instanceof LdapConfigurationException) {
-			throw new ConfigurationException(message + ldapException.getMessage(), ldapException);
+			re = new ConfigurationException(message + ldapException.getMessage(), ldapException);
 		} else if (ldapException instanceof InvalidConnectionException) {
-			throw new ConnectionFailedException(message + ldapException.getMessage(), ldapException);
+			re = new ConnectionFailedException(message + ldapException.getMessage(), ldapException);
 		} else if (ldapException instanceof LdapContextNotEmptyException) {
-			throw new InvalidAttributeValueException(message + ldapException.getMessage(), ldapException);
+			re = new InvalidAttributeValueException(message + ldapException.getMessage(), ldapException);
 		} else if (ldapException instanceof LdapInvalidAttributeTypeException) {
-			throw new InvalidAttributeValueException(message + ldapException.getMessage(), ldapException);
+			re = new InvalidAttributeValueException(message + ldapException.getMessage(), ldapException);
 		} else if (ldapException instanceof LdapInvalidAttributeValueException) {
-			throw new InvalidAttributeValueException(message + ldapException.getMessage(), ldapException);
+			if (((LdapInvalidAttributeValueException)ldapException).getResultCode() == ResultCodeEnum.CONSTRAINT_VIOLATION) {
+				// CONSTRAINT_VIOLATION is usually returned when uniqueness plugin is triggered
+				re = new AlreadyExistsException(message + ldapException.getMessage(), ldapException);
+			} else {
+				re = new InvalidAttributeValueException(message + ldapException.getMessage(), ldapException);
+			}
 		} else if (ldapException instanceof LdapInvalidDnException) {
-			throw new InvalidAttributeValueException(message + ldapException.getMessage(), ldapException);
+			re = new InvalidAttributeValueException(message + ldapException.getMessage(), ldapException);
 		} else if (ldapException instanceof LdapInvalidSearchFilterException) {
-			throw new InvalidAttributeValueException(message + ldapException.getMessage(), ldapException);
+			re = new InvalidAttributeValueException(message + ldapException.getMessage(), ldapException);
 		} else if (ldapException instanceof LdapLoopDetectedException) {
-			throw new ConfigurationException(message + ldapException.getMessage(), ldapException);
+			re = new ConfigurationException(message + ldapException.getMessage(), ldapException);
 		} else if (ldapException instanceof LdapNoPermissionException) {
-			throw new PermissionDeniedException(message + ldapException.getMessage(), ldapException);
+			re = new PermissionDeniedException(message + ldapException.getMessage(), ldapException);
 		} else if (ldapException instanceof LdapNoSuchAttributeException) {
-			throw new InvalidAttributeValueException(message + ldapException.getMessage(), ldapException);
+			re = new InvalidAttributeValueException(message + ldapException.getMessage(), ldapException);
 		} else if (ldapException instanceof LdapNoSuchObjectException) {
-			throw new UnknownUidException(message + ldapException.getMessage(), ldapException);
+			re = new UnknownUidException(message + ldapException.getMessage(), ldapException);
 		} else if (ldapException instanceof LdapSchemaException) {
-			throw new ConfigurationException(message + ldapException.getMessage(), ldapException);
+			re = new ConfigurationException(message + ldapException.getMessage(), ldapException);
 		} else if (ldapException instanceof LdapSchemaViolationException) {
-			throw new InvalidAttributeValueException(message + ldapException.getMessage(), ldapException);
+			re = new InvalidAttributeValueException(message + ldapException.getMessage(), ldapException);
 		} else if (ldapException instanceof LdapUnwillingToPerformException) {
-			throw new PermissionDeniedException(message + ldapException.getMessage(), ldapException);
+			re = new PermissionDeniedException(message + ldapException.getMessage(), ldapException);
 		} else {
-			return new ConnectorIOException(message + ldapException.getMessage(), ldapException);
+			re = new ConnectorIOException(message + ldapException.getMessage(), ldapException);
 		}
+		if (LOG.isOk()) {
+			if (ldapException instanceof LdapOperationException) {
+				LOG.ok("Operation \"{0}\" ended with error ({1}: {2}): {3}", message, 
+						ldapException.getClass().getSimpleName(), 
+						((LdapOperationException)ldapException).getResultCode().getResultCode(), 
+						ldapException.getMessage());
+			} else {
+				LOG.ok("Operation \"{0}\" ended with error ({1}): {2}", message, 
+						ldapException.getClass().getSimpleName(), ldapException.getMessage());
+			}
+		}
+		return re;
 	}
 	
 	public static RuntimeException processLdapResult(String message, LdapResult ldapResult) {
 		ResultCodeEnum resultCode = ldapResult.getResultCode();
+		RuntimeException re;
 		if (resultCode == ResultCodeEnum.SUCCESS) {
-			return null;
-		} else if (resultCode == ResultCodeEnum.ENTRY_ALREADY_EXISTS) {
-			return new AlreadyExistsException(message + ": " + formatLdapMessage(ldapResult));
+			re = null;
+		} else if (resultCode == ResultCodeEnum.ENTRY_ALREADY_EXISTS || resultCode == ResultCodeEnum.CONSTRAINT_VIOLATION) {
+			// CONSTRAINT_VIOLATION is usually returned when uniqueness plugin is triggered
+			re =  new AlreadyExistsException(message + ": " + formatLdapMessage(ldapResult));
 		} else if (resultCode == ResultCodeEnum.OBJECT_CLASS_VIOLATION || resultCode == ResultCodeEnum.NOT_ALLOWED_ON_RDN ||
 				resultCode == ResultCodeEnum.OBJECT_CLASS_MODS_PROHIBITED || resultCode == ResultCodeEnum.NOT_ALLOWED_ON_NON_LEAF ||
 				resultCode == ResultCodeEnum.AFFECTS_MULTIPLE_DSAS || resultCode == ResultCodeEnum.ALIAS_DEREFERENCING_PROBLEM ||
 				resultCode == ResultCodeEnum.ALIAS_PROBLEM || resultCode == ResultCodeEnum.ATTRIBUTE_OR_VALUE_EXISTS || 
-				resultCode == ResultCodeEnum.UNDEFINED_ATTRIBUTE_TYPE || resultCode == ResultCodeEnum.CONSTRAINT_VIOLATION ||
+				resultCode == ResultCodeEnum.UNDEFINED_ATTRIBUTE_TYPE ||
 				resultCode == ResultCodeEnum.INVALID_ATTRIBUTE_SYNTAX || resultCode == ResultCodeEnum.INVALID_DN_SYNTAX ||
 				resultCode == ResultCodeEnum.NAMING_VIOLATION || resultCode == ResultCodeEnum.INAPPROPRIATE_MATCHING ||
 				resultCode == ResultCodeEnum.NO_SUCH_ATTRIBUTE) {
-			return new InvalidAttributeValueException(message + ": " + formatLdapMessage(ldapResult));
+			re =  new InvalidAttributeValueException(message + ": " + formatLdapMessage(ldapResult));
 		} else if (resultCode == ResultCodeEnum.STRONG_AUTH_REQUIRED || resultCode == ResultCodeEnum.ADMIN_LIMIT_EXCEEDED ||
 				resultCode == ResultCodeEnum.INVALID_CREDENTIALS || resultCode == ResultCodeEnum.INAPPROPRIATE_AUTHENTICATION ||
 				resultCode == ResultCodeEnum.CONFIDENTIALITY_REQUIRED || resultCode == ResultCodeEnum.AUTH_METHOD_NOT_SUPPORTED) {
-			return new ConnectorSecurityException(message + ": " + formatLdapMessage(ldapResult));
+			re =  new ConnectorSecurityException(message + ": " + formatLdapMessage(ldapResult));
 		} else if (resultCode == ResultCodeEnum.OTHER || resultCode == ResultCodeEnum.LOOP_DETECT) {
-			return new ConfigurationException(message + ": " + formatLdapMessage(ldapResult));
+			re =  new ConfigurationException(message + ": " + formatLdapMessage(ldapResult));
 		} else if (resultCode == ResultCodeEnum.INSUFFICIENT_ACCESS_RIGHTS || resultCode == ResultCodeEnum.UNWILLING_TO_PERFORM ||
 				resultCode == ResultCodeEnum.SIZE_LIMIT_EXCEEDED || resultCode == ResultCodeEnum.TIME_LIMIT_EXCEEDED) {
-			return new PermissionDeniedException(message + ": " + formatLdapMessage(ldapResult));
+			re =  new PermissionDeniedException(message + ": " + formatLdapMessage(ldapResult));
 		} else if (resultCode == ResultCodeEnum.NO_SUCH_OBJECT) {
-			return new UnknownUidException(message + ": " + formatLdapMessage(ldapResult));
+			re =  new UnknownUidException(message + ": " + formatLdapMessage(ldapResult));
 		} else {
-			return new ConnectorIOException(message + ": " + formatLdapMessage(ldapResult));
+			re =  new ConnectorIOException(message + ": " + formatLdapMessage(ldapResult));
 		}
-		
+		if (LOG.isOk()) {
+			LOG.ok("Operation \"{0}\" ended with error ({1}): {2}", message, ldapResult.getResultCode().getResultCode(), ldapResult.getDiagnosticMessage());
+		}
+		return re;
 	}
 	
 	public static String formatLdapMessage(LdapResult ldapResult) {
