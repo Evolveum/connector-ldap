@@ -219,6 +219,9 @@ public class SchemaTranslator {
 
 	private void addAttributeTypes(List<AttributeInfo> attrInfoList, List<AttributeType> attributeTypes, boolean isRequired) {
 		for (AttributeType ldapAttribute: attributeTypes) {
+			if (ldapAttribute.getName().equals(LdapConfiguration.ATTRIBUTE_OBJECTCLASS_NAME)) {
+				continue;
+			}
 			String icfAttributeName = toIcfAttributeName(ldapAttribute.getName());
 			if (containsAttribute(attrInfoList, icfAttributeName)) {
 				continue;
