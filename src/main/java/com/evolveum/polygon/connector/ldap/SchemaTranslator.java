@@ -99,6 +99,9 @@ public class SchemaTranslator {
 			List<AttributeInfo> attrInfoList = new ArrayList<AttributeInfo>();
 			addAttributeTypes(attrInfoList, ldapObjectClass);
 			ocib.addAllAttributeInfo(attrInfoList);
+			if (ldapObjectClass.isAuxiliary()) {
+				ocib.setAuxiliary(true);
+			}
 			schemaBuilder.defineObjectClass(ocib.build());
 		}
 		
