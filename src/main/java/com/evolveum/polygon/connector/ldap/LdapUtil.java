@@ -112,7 +112,14 @@ public class LdapUtil {
 			return ldapAttrs;
 		}
 		String[] icfAttrs = options.getAttributesToGet();
-		List<String> ldapAttrs = new ArrayList<String>(icfAttrs.length + operationalAttributes.length + 2);
+		int extraAttrs = 2;
+		if (options.getReturnDefaultAttributes() != null && options.getReturnDefaultAttributes()) {
+			extraAttrs++;
+		}
+		List<String> ldapAttrs = new ArrayList<String>(icfAttrs.length + operationalAttributes.length + extraAttrs);
+		if (options.getReturnDefaultAttributes() != null && options.getReturnDefaultAttributes()) {
+			ldapAttrs.add("*");
+		}
 		for (String icfAttr: icfAttrs) {
 			if (Name.NAME.equals(icfAttr)) {
 				continue;
