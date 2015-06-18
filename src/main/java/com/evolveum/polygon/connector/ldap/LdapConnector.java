@@ -131,7 +131,7 @@ import com.evolveum.polygon.connector.ldap.sync.SyncStrategy;
 
 @ConnectorClass(displayNameKey = "ldap.connector.display", configurationClass = LdapConfiguration.class)
 public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, SearchOp<Filter>, CreateOp, DeleteOp, 
-		UpdateAttributeValuesOp, SyncOp{
+		UpdateAttributeValuesOp, SyncOp {
 
     private static final Log LOG = Log.getLog(LdapConnector.class);
     

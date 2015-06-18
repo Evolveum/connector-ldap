@@ -58,7 +58,10 @@ import org.identityconnectors.framework.common.objects.OperationalAttributeInfos
 import org.identityconnectors.framework.common.objects.Schema;
 import org.identityconnectors.framework.common.objects.SchemaBuilder;
 import org.identityconnectors.framework.common.objects.Uid;
+import org.identityconnectors.framework.spi.operations.CreateOp;
+import org.identityconnectors.framework.spi.operations.SchemaOp;
 import org.identityconnectors.framework.spi.operations.SearchOp;
+import org.identityconnectors.framework.spi.operations.SyncOp;
 
 import com.evolveum.polygon.common.SchemaUtil;
 import com.evolveum.polygon.connector.ldap.LdapConfiguration;
@@ -112,6 +115,10 @@ public class SchemaTranslator {
 		schemaBuilder.defineOperationOption(OperationOptionInfoBuilder.buildAllowPartialResults(), SearchOp.class);
 		schemaBuilder.defineOperationOption(OperationOptionInfoBuilder.buildContainer(), SearchOp.class);
 		schemaBuilder.defineOperationOption(OperationOptionInfoBuilder.buildScope(), SearchOp.class);
+		
+		schemaBuilder.defineOperationOption(OperationOptionInfoBuilder.buildAuxiliaryObjectClasses(), 
+				CreateOp.class, SchemaOp.class,  SearchOp.class, SyncOp.class);
+		
 		List<String> supportedControls;
 		try {
 			supportedControls = connection.getSupportedControls();
@@ -441,8 +448,10 @@ public class SchemaTranslator {
 		String dn = entry.getDn().getName();
 		cob.setName(dn);
 		cob.setObjectClass(new ObjectClass(icfStructuralObjectClassInfo.getType()));
+		List<ObjectClassInfo> icfAuxiliaryObjectClassInfos = new ArrayList<>(ldapObjectClasses.getLdapAuxiliaryObjectClasses().size());
 		for (org.apache.directory.api.ldap.model.schema.ObjectClass ldapAuxiliaryObjectClass: ldapObjectClasses.getLdapAuxiliaryObjectClasses()) {
 			cob.addAuxiliaryObjectClass(new ObjectClass(ldapAuxiliaryObjectClass.getName()));
+			icfAuxiliaryObjectClassInfos.add(icfSchema.findObjectClassInfo(ldapAuxiliaryObjectClass.getName()));
 		}
 		String uidAttributeName = configuration.getUidAttribute();
 		String uid;
@@ -474,6 +483,14 @@ public class SchemaTranslator {
 			}
 			Attribute icfAttribute = toIcfAttribute(ldapAttribute);
 			AttributeInfo attributeInfo = SchemaUtil.findAttributeInfo(icfStructuralObjectClassInfo, icfAttribute);
+			if (attributeInfo == null) {
+				for (ObjectClassInfo icfAuxiliaryObjectClassInfo: icfAuxiliaryObjectClassInfos) {
+					attributeInfo = SchemaUtil.findAttributeInfo(icfAuxiliaryObjectClassInfo, icfAttribute);
+					if (attributeInfo != null) {
+						break;
+					}
+				}
+			}
 			if (attributeInfo != null) {
 				// Avoid sending unknown attributes (such as createtimestamp)
 				cob.addAttribute(icfAttribute);
