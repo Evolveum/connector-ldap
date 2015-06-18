@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.evolveum.polygon.connector.ldap;
+package com.evolveum.polygon.connector.ldap.schema;
 
 import java.text.ParseException;
 import java.util.ArrayList;
@@ -61,6 +61,9 @@ import org.identityconnectors.framework.common.objects.Uid;
 import org.identityconnectors.framework.spi.operations.SearchOp;
 
 import com.evolveum.polygon.common.SchemaUtil;
+import com.evolveum.polygon.connector.ldap.LdapConfiguration;
+import com.evolveum.polygon.connector.ldap.LdapConnector;
+import com.evolveum.polygon.connector.ldap.LdapUtil;
 
 /**
  * @author semancik
@@ -273,6 +276,17 @@ public class SchemaTranslator {
 		return ldapAttributeName;
 	}
 
+	public List<org.apache.directory.api.ldap.model.schema.ObjectClass> toLdapObjectClasses(ObjectClass[] icfObjectClasses) {
+		if (icfObjectClasses == null) {
+			return new ArrayList<>(0);
+		}
+		List<org.apache.directory.api.ldap.model.schema.ObjectClass> ldapObjectClasses = new ArrayList<>(icfObjectClasses.length);
+		for (ObjectClass icfObjectClass: icfObjectClasses) {
+			ldapObjectClasses.add(toLdapObjectClass(icfObjectClass));
+		}
+		return ldapObjectClasses;
+	}
+	
 	public org.apache.directory.api.ldap.model.schema.ObjectClass toLdapObjectClass(ObjectClass icfObjectClass) {
 		String ldapObjectClassName;
 		if (icfObjectClass.is(ObjectClass.ACCOUNT_NAME)) {
@@ -418,14 +432,18 @@ public class SchemaTranslator {
 		return toIcfObject(icfObjectClassInfo, entry);
 	}
 
-	public ConnectorObject toIcfObject(ObjectClassInfo icfObjectClassInfo, Entry entry) {
-		if (icfObjectClassInfo == null) {
-			icfObjectClassInfo = determineObjectClassInfo(entry);
+	public ConnectorObject toIcfObject(ObjectClassInfo icfStructuralObjectClassInfo, Entry entry) {
+		LdapObjectClasses ldapObjectClasses = processObjectClasses(entry);
+		if (icfStructuralObjectClassInfo == null) {
+			icfStructuralObjectClassInfo = icfSchema.findObjectClassInfo(ldapObjectClasses.getLdapLowestStructuralObjectClass().getName());
 		}
 		ConnectorObjectBuilder cob = new ConnectorObjectBuilder();
 		String dn = entry.getDn().getName();
 		cob.setName(dn);
-		cob.setObjectClass(new ObjectClass(icfObjectClassInfo.getType()));
+		cob.setObjectClass(new ObjectClass(icfStructuralObjectClassInfo.getType()));
+		for (org.apache.directory.api.ldap.model.schema.ObjectClass ldapAuxiliaryObjectClass: ldapObjectClasses.getLdapAuxiliaryObjectClasses()) {
+			cob.addAuxiliaryObjectClass(new ObjectClass(ldapAuxiliaryObjectClass.getName()));
+		}
 		String uidAttributeName = configuration.getUidAttribute();
 		String uid;
 		if (LdapUtil.isDnAttribute(uidAttributeName)) {
@@ -455,7 +473,7 @@ public class SchemaTranslator {
 				continue;
 			}
 			Attribute icfAttribute = toIcfAttribute(ldapAttribute);
-			AttributeInfo attributeInfo = SchemaUtil.findAttributeInfo(icfObjectClassInfo, icfAttribute);
+			AttributeInfo attributeInfo = SchemaUtil.findAttributeInfo(icfStructuralObjectClassInfo, icfAttribute);
 			if (attributeInfo != null) {
 				// Avoid sending unknown attributes (such as createtimestamp)
 				cob.addAttribute(icfAttribute);
@@ -466,14 +484,12 @@ public class SchemaTranslator {
 		return cob.build();
 	}
 	
-	private ObjectClassInfo determineObjectClassInfo(Entry entry) {
-		String ldapObjectClassName = findLowestStructuralObjectClass(entry);
-		return icfSchema.findObjectClassInfo(ldapObjectClassName);
-	}
-	
-	private String findLowestStructuralObjectClass(Entry entry) {
+	private LdapObjectClasses processObjectClasses(Entry entry) {
+		LdapObjectClasses ocs = new LdapObjectClasses();
 		org.apache.directory.api.ldap.model.entry.Attribute objectClassAttribute = entry.get(LdapConfiguration.ATTRIBUTE_OBJECTCLASS_NAME);
-		List<org.apache.directory.api.ldap.model.schema.ObjectClass> structObjectClasses = new ArrayList<>();
+		if (objectClassAttribute == null) {
+			throw new InvalidAttributeValueException("No object class attribute in entry "+entry.getDn());
+		}
 		for (Value<?> objectClassVal: objectClassAttribute) {
 			String objectClassString = objectClassVal.getString();
 			org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass;
@@ -483,36 +499,43 @@ public class SchemaTranslator {
 				throw new InvalidAttributeValueException(e.getMessage(), e);
 			}
 			if (ldapObjectClass.isStructural()) {
-				structObjectClasses.add(ldapObjectClass);
+				ocs.getLdapStructuralObjectClasses().add(ldapObjectClass);
+			} else if (ldapObjectClass.isAuxiliary()) {
+				ocs.getLdapAuxiliaryObjectClasses().add(ldapObjectClass);
 			}
 		}
-		if (structObjectClasses.isEmpty()) {
+		if (ocs.getLdapStructuralObjectClasses().isEmpty()) {
 			throw new InvalidAttributeValueException("Entry "+entry.getDn()+" has no structural object classes");
 		}
-		if (structObjectClasses.size() == 1) {
-			return structObjectClasses.get(0).getName();
-		}
-		for (org.apache.directory.api.ldap.model.schema.ObjectClass structObjectClass: structObjectClasses) {
-//			LOG.ok("Trying {0} ({1})", structObjectClass.getName(), structObjectClass.getOid());
-			boolean isSuper = false;
-			for (org.apache.directory.api.ldap.model.schema.ObjectClass otherObjectClass: structObjectClasses) {
-				if (structObjectClass.getOid().equals(otherObjectClass.getOid())) {
-					continue;
+		if (ocs.getLdapStructuralObjectClasses().size() == 1) {
+			ocs.setLdapLowestStructuralObjectClass(ocs.getLdapStructuralObjectClasses().get(0));
+		} else {
+			for (org.apache.directory.api.ldap.model.schema.ObjectClass structObjectClass: ocs.getLdapStructuralObjectClasses()) {
+	//			LOG.ok("Trying {0} ({1})", structObjectClass.getName(), structObjectClass.getOid());
+				boolean isSuper = false;
+				for (org.apache.directory.api.ldap.model.schema.ObjectClass otherObjectClass: ocs.getLdapStructuralObjectClasses()) {
+					if (structObjectClass.getOid().equals(otherObjectClass.getOid())) {
+						continue;
+					}
+	//				LOG.ok("  with {0} ({1})", otherObjectClass.getName(), structObjectClass.getOid());
+	//				LOG.ok("    superiorOids: {0}", otherObjectClass.getSuperiorOids());
+					if (otherObjectClass.getSuperiorOids().contains(structObjectClass.getOid()) || otherObjectClass.getSuperiorOids().contains(structObjectClass.getName())) {
+	//					LOG.ok("    isSuper");
+						isSuper = true;
+						break;
+					}
 				}
-//				LOG.ok("  with {0} ({1})", otherObjectClass.getName(), structObjectClass.getOid());
-//				LOG.ok("    superiorOids: {0}", otherObjectClass.getSuperiorOids());
-				if (otherObjectClass.getSuperiorOids().contains(structObjectClass.getOid()) || otherObjectClass.getSuperiorOids().contains(structObjectClass.getName())) {
-//					LOG.ok("    isSuper");
-					isSuper = true;
+	//			LOG.ok("    isSuper={0}", isSuper);
+				if (!isSuper) {
+					ocs.setLdapLowestStructuralObjectClass(structObjectClass);
 					break;
 				}
 			}
-//			LOG.ok("    isSuper={0}", isSuper);
-			if (!isSuper) {
-				return structObjectClass.getName();
+			if (ocs.getLdapLowestStructuralObjectClass() == null) {
+				throw new InvalidAttributeValueException("Cannot determine lowest structural object class for set of object classes: "+objectClassAttribute);
 			}
 		}
-		throw new InvalidAttributeValueException("Cannot determine lowest structural object class for set of object classes: "+objectClassAttribute);
+		return ocs;
 	}
 
 	private Attribute toIcfAttribute(org.apache.directory.api.ldap.model.entry.Attribute ldapAttribute) {

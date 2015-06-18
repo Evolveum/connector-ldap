@@ -66,7 +66,7 @@ import org.identityconnectors.framework.spi.SyncTokenResultsHandler;
 import com.evolveum.polygon.connector.ldap.LdapConfiguration;
 import com.evolveum.polygon.connector.ldap.LdapConnector;
 import com.evolveum.polygon.connector.ldap.LdapUtil;
-import com.evolveum.polygon.connector.ldap.SchemaTranslator;
+import com.evolveum.polygon.connector.ldap.schema.SchemaTranslator;
 
 /**
  * @author semancik

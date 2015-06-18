@@ -65,6 +65,8 @@ import org.identityconnectors.framework.common.exceptions.UnknownUidException;
 import org.identityconnectors.framework.common.objects.Name;
 import org.identityconnectors.framework.common.objects.OperationOptions;
 
+import com.evolveum.polygon.connector.ldap.schema.SchemaTranslator;
+
 /**
  * @author semancik
  *
@@ -110,7 +112,7 @@ public class LdapUtil {
 			return ldapAttrs;
 		}
 		String[] icfAttrs = options.getAttributesToGet();
-		List<String> ldapAttrs = new ArrayList<String>(icfAttrs.length + operationalAttributes.length + 1);
+		List<String> ldapAttrs = new ArrayList<String>(icfAttrs.length + operationalAttributes.length + 2);
 		for (String icfAttr: icfAttrs) {
 			if (Name.NAME.equals(icfAttr)) {
 				continue;
@@ -134,6 +136,7 @@ public class LdapUtil {
 			ldapAttrs.add(additionalAttribute);
 		}
 		ldapAttrs.add(configuration.getUidAttribute());
+		ldapAttrs.add(LdapConfiguration.ATTRIBUTE_OBJECTCLASS_NAME);
 		return ldapAttrs.toArray(new String[ldapAttrs.size()]);
 	}
 

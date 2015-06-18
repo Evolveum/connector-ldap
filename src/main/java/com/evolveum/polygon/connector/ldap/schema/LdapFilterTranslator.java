@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.evolveum.polygon.connector.ldap;
+package com.evolveum.polygon.connector.ldap.schema;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -50,6 +50,7 @@ import org.identityconnectors.framework.common.objects.filter.OrFilter;
 import org.identityconnectors.framework.common.objects.filter.StartsWithFilter;
 
 import com.evolveum.polygon.common.SchemaUtil;
+import com.evolveum.polygon.connector.ldap.LdapConfiguration;
 
 /**
  * @author Radovan Semancik

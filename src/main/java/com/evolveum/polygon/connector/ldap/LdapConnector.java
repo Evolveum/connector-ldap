@@ -18,6 +18,7 @@ package com.evolveum.polygon.connector.ldap;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 
@@ -117,6 +118,9 @@ import org.identityconnectors.framework.spi.operations.UpdateAttributeValuesOp;
 
 import com.evolveum.polygon.common.GuardedStringAccessor;
 import com.evolveum.polygon.common.SchemaUtil;
+import com.evolveum.polygon.connector.ldap.schema.LdapFilterTranslator;
+import com.evolveum.polygon.connector.ldap.schema.SchemaTranslator;
+import com.evolveum.polygon.connector.ldap.schema.ScopedFilter;
 import com.evolveum.polygon.connector.ldap.search.DefaultSearchStrategy;
 import com.evolveum.polygon.connector.ldap.search.SearchStrategy;
 import com.evolveum.polygon.connector.ldap.search.SimplePagedResultsSearchStrategy;
@@ -561,20 +565,26 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 		}
 		
 		SchemaTranslator shcemaTranslator = getSchemaTranslator();
-		org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass = shcemaTranslator.toLdapObjectClass(icfObjectClass);
+		org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass = shcemaTranslator.toLdapObjectClass(icfObjectClass);
+		List<org.apache.directory.api.ldap.model.schema.ObjectClass> ldapAuxiliaryObjectClasses = shcemaTranslator.toLdapObjectClasses(options==null?null:options.getAuxiliaryObjectClasses());
+		String[] ldapObjectClassNames = new String[ldapAuxiliaryObjectClasses.size() + 1];
+		ldapObjectClassNames[0] = ldapStructuralObjectClass.getName();
+		for (int i = 0; i < ldapAuxiliaryObjectClasses.size(); i++) {
+			ldapObjectClassNames[i+1] = ldapAuxiliaryObjectClasses.get(i).getName();
+		}
 		Entry entry;
 		try {
 			entry = new DefaultEntry(getSchemaManager(), dn);
 		} catch (LdapInvalidDnException e) {
 			throw new InvalidAttributeValueException("Wrong DN '"+dn+"': "+e.getMessage(), e);
 		}
-		entry.put("objectClass", ldapObjectClass.getName());
+		entry.put("objectClass", ldapObjectClassNames);
 		
 		for (Attribute icfAttr: createAttributes) {
 			if (icfAttr.is(Name.NAME)) {
 				continue;
 			}
-			AttributeType ldapAttrType = shcemaTranslator.toLdapAttribute(ldapObjectClass, icfAttr.getName());
+			AttributeType ldapAttrType = shcemaTranslator.toLdapAttribute(ldapStructuralObjectClass, icfAttr.getName());
 			List<Value<Object>> ldapValues = shcemaTranslator.toLdapValues(ldapAttrType, icfAttr.getValue());
 			try {
 				entry.put(ldapAttrType, ldapValues.toArray(new Value[ldapValues.size()]));

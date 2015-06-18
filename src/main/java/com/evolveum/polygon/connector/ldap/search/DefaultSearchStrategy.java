@@ -43,7 +43,7 @@ import org.identityconnectors.framework.common.objects.SearchResult;
 
 import com.evolveum.polygon.connector.ldap.LdapConfiguration;
 import com.evolveum.polygon.connector.ldap.LdapUtil;
-import com.evolveum.polygon.connector.ldap.SchemaTranslator;
+import com.evolveum.polygon.connector.ldap.schema.SchemaTranslator;
 
 /**
  * Very simple search without any controls (paging). The most efficient thing to do.

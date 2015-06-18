@@ -47,7 +47,7 @@ import org.identityconnectors.framework.common.objects.SortKey;
 
 import com.evolveum.polygon.connector.ldap.LdapConfiguration;
 import com.evolveum.polygon.connector.ldap.LdapUtil;
-import com.evolveum.polygon.connector.ldap.SchemaTranslator;
+import com.evolveum.polygon.connector.ldap.schema.SchemaTranslator;
 
 /**
  * @author semancik
