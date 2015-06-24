@@ -55,6 +55,8 @@ import org.identityconnectors.framework.common.objects.ObjectClassInfo;
 import org.identityconnectors.framework.common.objects.ObjectClassInfoBuilder;
 import org.identityconnectors.framework.common.objects.OperationOptionInfoBuilder;
 import org.identityconnectors.framework.common.objects.OperationalAttributeInfos;
+import org.identityconnectors.framework.common.objects.PredefinedAttributeInfos;
+import org.identityconnectors.framework.common.objects.PredefinedAttributes;
 import org.identityconnectors.framework.common.objects.Schema;
 import org.identityconnectors.framework.common.objects.SchemaBuilder;
 import org.identityconnectors.framework.common.objects.Uid;
@@ -62,6 +64,7 @@ import org.identityconnectors.framework.spi.operations.CreateOp;
 import org.identityconnectors.framework.spi.operations.SchemaOp;
 import org.identityconnectors.framework.spi.operations.SearchOp;
 import org.identityconnectors.framework.spi.operations.SyncOp;
+import org.identityconnectors.framework.spi.operations.UpdateAttributeValuesOp;
 
 import com.evolveum.polygon.common.SchemaUtil;
 import com.evolveum.polygon.connector.ldap.LdapConfiguration;
@@ -116,9 +119,6 @@ public class SchemaTranslator {
 		schemaBuilder.defineOperationOption(OperationOptionInfoBuilder.buildAllowPartialResults(), SearchOp.class);
 		schemaBuilder.defineOperationOption(OperationOptionInfoBuilder.buildContainer(), SearchOp.class);
 		schemaBuilder.defineOperationOption(OperationOptionInfoBuilder.buildScope(), SearchOp.class);
-		
-		schemaBuilder.defineOperationOption(OperationOptionInfoBuilder.buildAuxiliaryObjectClasses(), 
-				CreateOp.class, SchemaOp.class,  SearchOp.class, SyncOp.class);
 		
 		List<String> supportedControls;
 		try {
@@ -183,6 +183,9 @@ public class SchemaTranslator {
 		nameAib.setNativeName(LdapConfiguration.PSEUDO_ATTRIBUTE_DN_NAME);
 		nameAib.setRequired(true);
 		attrInfoList.add(nameAib.build());
+		
+		// AUXILIARY_OBJECT_CLASS
+		attrInfoList.add(PredefinedAttributeInfos.AUXILIARY_OBJECT_CLASS);
 		
 		addAttributeTypesFromLdapSchema(attrInfoList, ldapObjectClass);
 		addExtraOperationalAttributes(attrInfoList, ldapObjectClass);
@@ -282,17 +285,6 @@ public class SchemaTranslator {
 			return OperationalAttributeInfos.PASSWORD.getName();
 		}
 		return ldapAttributeName;
-	}
-
-	public List<org.apache.directory.api.ldap.model.schema.ObjectClass> toLdapObjectClasses(ObjectClass[] icfObjectClasses) {
-		if (icfObjectClasses == null) {
-			return new ArrayList<>(0);
-		}
-		List<org.apache.directory.api.ldap.model.schema.ObjectClass> ldapObjectClasses = new ArrayList<>(icfObjectClasses.length);
-		for (ObjectClass icfObjectClass: icfObjectClasses) {
-			ldapObjectClasses.add(toLdapObjectClass(icfObjectClass));
-		}
-		return ldapObjectClasses;
 	}
 	
 	public org.apache.directory.api.ldap.model.schema.ObjectClass toLdapObjectClass(ObjectClass icfObjectClass) {
@@ -449,11 +441,18 @@ public class SchemaTranslator {
 		String dn = entry.getDn().getName();
 		cob.setName(dn);
 		cob.setObjectClass(new ObjectClass(icfStructuralObjectClassInfo.getType()));
+		
 		List<ObjectClassInfo> icfAuxiliaryObjectClassInfos = new ArrayList<>(ldapObjectClasses.getLdapAuxiliaryObjectClasses().size());
-		for (org.apache.directory.api.ldap.model.schema.ObjectClass ldapAuxiliaryObjectClass: ldapObjectClasses.getLdapAuxiliaryObjectClasses()) {
-			cob.addAuxiliaryObjectClass(new ObjectClass(ldapAuxiliaryObjectClass.getName()));
-			icfAuxiliaryObjectClassInfos.add(icfSchema.findObjectClassInfo(ldapAuxiliaryObjectClass.getName()));
+		if (!ldapObjectClasses.getLdapAuxiliaryObjectClasses().isEmpty()) {
+			AttributeBuilder auxAttrBuilder = new AttributeBuilder();
+			auxAttrBuilder.setName(PredefinedAttributes.AUXILIARY_OBJECT_CLASS_NAME);
+			for (org.apache.directory.api.ldap.model.schema.ObjectClass ldapAuxiliaryObjectClass: ldapObjectClasses.getLdapAuxiliaryObjectClasses()) {
+				auxAttrBuilder.addValue(ldapAuxiliaryObjectClass.getName());
+				icfAuxiliaryObjectClassInfos.add(icfSchema.findObjectClassInfo(ldapAuxiliaryObjectClass.getName()));
+			}
+			cob.addAttribute(auxAttrBuilder.build());
 		}
+		
 		String uidAttributeName = configuration.getUidAttribute();
 		String uid;
 		if (LdapUtil.isDnAttribute(uidAttributeName)) {

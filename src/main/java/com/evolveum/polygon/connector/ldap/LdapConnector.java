@@ -92,6 +92,8 @@ import org.identityconnectors.framework.common.objects.ConnectorObject;
 import org.identityconnectors.framework.common.objects.Name;
 import org.identityconnectors.framework.common.objects.ObjectClass;
 import org.identityconnectors.framework.common.objects.OperationOptions;
+import org.identityconnectors.framework.common.objects.OperationalAttributes;
+import org.identityconnectors.framework.common.objects.PredefinedAttributes;
 import org.identityconnectors.framework.common.objects.QualifiedUid;
 import org.identityconnectors.framework.common.objects.ResultsHandler;
 import org.identityconnectors.framework.common.objects.Schema;
@@ -566,7 +568,16 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 		
 		SchemaTranslator shcemaTranslator = getSchemaTranslator();
 		org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass = shcemaTranslator.toLdapObjectClass(icfObjectClass);
-		List<org.apache.directory.api.ldap.model.schema.ObjectClass> ldapAuxiliaryObjectClasses = shcemaTranslator.toLdapObjectClasses(options==null?null:options.getAuxiliaryObjectClasses());
+		
+		List<org.apache.directory.api.ldap.model.schema.ObjectClass> ldapAuxiliaryObjectClasses = new ArrayList<>();
+		for (Attribute icfAttr: createAttributes) {
+			if (icfAttr.is(PredefinedAttributes.AUXILIARY_OBJECT_CLASS_NAME)) {
+				for (Object val: icfAttr.getValue()) {
+					ldapAuxiliaryObjectClasses.add(schemaTranslator.toLdapObjectClass(new ObjectClass((String)val)));
+				}
+			}
+		}
+		
 		String[] ldapObjectClassNames = new String[ldapAuxiliaryObjectClasses.size() + 1];
 		ldapObjectClassNames[0] = ldapStructuralObjectClass.getName();
 		for (int i = 0; i < ldapAuxiliaryObjectClasses.size(); i++) {
@@ -582,6 +593,9 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 		
 		for (Attribute icfAttr: createAttributes) {
 			if (icfAttr.is(Name.NAME)) {
+				continue;
+			}
+			if (icfAttr.is(PredefinedAttributes.AUXILIARY_OBJECT_CLASS_NAME)) {
 				continue;
 			}
 			AttributeType ldapAttrType = shcemaTranslator.toLdapAttribute(ldapStructuralObjectClass, icfAttr.getName());
@@ -709,27 +723,49 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
     	return uid;
 	}
 	
-	private Uid ldapUpdate(ObjectClass objectClass, Uid uid, Set<Attribute> values,
+	private Uid ldapUpdate(ObjectClass icfObjectClass, Uid uid, Set<Attribute> values,
 			OperationOptions options, ModificationOperation modOp) {
 		
-		String dn = resolveDn(objectClass, uid, options);
+		String dn = resolveDn(icfObjectClass, uid, options);
 		
-		org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass = schemaTranslator.toLdapObjectClass(objectClass);
+		org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass = schemaTranslator.toLdapObjectClass(icfObjectClass);
 		
 		List<Modification> modifications = new ArrayList<Modification>(values.size());
 		for (Attribute icfAttr: values) {
 			if (icfAttr.is(Name.NAME)) {
 				continue;
 			}
-			AttributeType attributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, icfAttr.getName());
-			if (attributeType == null && !ArrayUtils.contains(configuration.getOperationalAttributes(), icfAttr.getName())) {
-				throw new InvalidAttributeValueException("Unknown attribute "+icfAttr.getName()+" in object class "+objectClass);
-			}
-			List<Value<Object>> ldapValues = schemaTranslator.toLdapValues(attributeType, icfAttr.getValue());
-			try {
-				modifications.add(new DefaultModification(modOp, attributeType, ldapValues.toArray(new Value[ldapValues.size()])));
-			} catch (LdapInvalidAttributeValueException e) {
-				throw new InvalidAttributeValueException("Invalid modification value for LDAP attribute "+attributeType.getName()+": "+e.getMessage(), e);
+			if (icfAttr.is(PredefinedAttributes.AUXILIARY_OBJECT_CLASS_NAME)) {
+				if (modOp == ModificationOperation.REPLACE_ATTRIBUTE) {
+					// We need to keep structural object class
+					String[] stringValues = new String[icfAttr.getValue().size() + 1];
+					stringValues[0] = ldapStructuralObjectClass.getName();
+					int i = 1;
+					for(Object val: icfAttr.getValue()) {
+						stringValues[i] = (String)val;
+						i++;
+					}
+					modifications.add(new DefaultModification(modOp, LdapConfiguration.ATTRIBUTE_OBJECTCLASS_NAME, stringValues));
+				} else {
+					String[] stringValues = new String[icfAttr.getValue().size()];
+					int i = 0;
+					for(Object val: icfAttr.getValue()) {
+						stringValues[i] = (String)val;
+						i++;
+					}
+					modifications.add(new DefaultModification(modOp, LdapConfiguration.ATTRIBUTE_OBJECTCLASS_NAME, stringValues));
+				}
+			} else {
+				AttributeType attributeType = schemaTranslator.toLdapAttribute(ldapStructuralObjectClass, icfAttr.getName());
+				if (attributeType == null && !ArrayUtils.contains(configuration.getOperationalAttributes(), icfAttr.getName())) {
+					throw new InvalidAttributeValueException("Unknown attribute "+icfAttr.getName()+" in object class "+icfObjectClass);
+				}
+				List<Value<Object>> ldapValues = schemaTranslator.toLdapValues(attributeType, icfAttr.getValue());
+				try {
+					modifications.add(new DefaultModification(modOp, attributeType, ldapValues.toArray(new Value[ldapValues.size()])));
+				} catch (LdapInvalidAttributeValueException e) {
+					throw new InvalidAttributeValueException("Invalid modification value for LDAP attribute "+attributeType.getName()+": "+e.getMessage(), e);
+				}
 			}
 		}
 		
@@ -760,7 +796,7 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 		}
 		StringBuilder sb = new StringBuilder("[");
 		for (Modification mod: modifications) {
-			sb.append(mod);
+			sb.append(mod.getOperation()).append(":").append(mod.getAttribute());
 			sb.append(",");
 		}
 		sb.append("]");
@@ -876,6 +912,7 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
         configuration = null;
         if (connection != null) {
         	try {
+        		LOG.ok("Closing connection");
 				connection.close();
 			} catch (IOException e) {
 				throw new ConnectorIOException(e.getMessage(), e);
