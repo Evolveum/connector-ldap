@@ -101,7 +101,6 @@ public class SunChangelogSyncStrategy extends SyncStrategy {
 	@Override
 	public void sync(ObjectClass icfObjectClass, SyncToken fromToken, SyncResultsHandler handler,
 			OperationOptions options) {
-		// TODO: "ALL" object class
 		ObjectClassInfo icfObjectClassInfo = null;
 		org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass = null;
 		if (icfObjectClass.is(ObjectClass.ALL_NAME)) {
@@ -231,7 +230,8 @@ public class SunChangelogSyncStrategy extends SyncStrategy {
 					} else if (CHANGE_TYPE_DELETE.equals(changeType)) {
 						deltaType = SyncDeltaType.DELETE;
 						deltaBuilder.setUid(new Uid(oldUid));
-						// TODO: filter out by object class
+						// Cannot filter out by object class here because we simply do not know it.
+						// Therefore just use all deltas.
 						
 					} else if (CHANGE_TYPE_MODRDN.equals(changeType)) {
 						deltaType = SyncDeltaType.UPDATE;

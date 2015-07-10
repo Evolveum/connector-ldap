@@ -90,12 +90,19 @@ public class ModifyTimestampSyncStrategy extends SyncStrategy {
 	@Override
 	public void sync(ObjectClass icfObjectClass, SyncToken fromToken, SyncResultsHandler handler,
 			OperationOptions options) {
-		// TODO: "ALL" object class
-		ObjectClassInfo icfObjectClassInfo = getSchemaTranslator().findObjectClassInfo(icfObjectClass);
-		if (icfObjectClassInfo == null) {
-			throw new InvalidAttributeValueException("No definition for object class "+icfObjectClass);
+		
+		ObjectClassInfo icfObjectClassInfo = null;
+		org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass = null;
+		if (icfObjectClass.is(ObjectClass.ALL_NAME)) {
+			// It is OK to leave the icfObjectClassInfo and ldapObjectClass as null. These need to be determined
+			// for every changelog entry anyway
+		} else {
+			icfObjectClassInfo = getSchemaTranslator().findObjectClassInfo(icfObjectClass);
+			if (icfObjectClassInfo == null) {
+				throw new InvalidAttributeValueException("No definition for object class "+icfObjectClass);
+			}
+			ldapObjectClass = getSchemaTranslator().toLdapObjectClass(icfObjectClass);
 		}
-		org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass = getSchemaTranslator().toLdapObjectClass(icfObjectClass);
 		
 		String searchFilter = LdapConfiguration.SEARCH_FILTER_ALL;
 		if (fromToken == null) {
