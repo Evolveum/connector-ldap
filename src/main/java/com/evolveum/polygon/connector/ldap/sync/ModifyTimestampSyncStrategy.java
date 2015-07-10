@@ -145,16 +145,10 @@ public class ModifyTimestampSyncStrategy extends SyncStrategy {
 				SyncDeltaBuilder deltaBuilder = new SyncDeltaBuilder();
 				SyncDeltaType deltaType = SyncDeltaType.CREATE_OR_UPDATE;
 				
-				SyncToken deltaToken = null;
-				Attribute modifyTimestampAttribute = entry.get(MODIFYTIMESTAMP_ATTRIBUTE);
-				if (modifyTimestampAttribute != null) {
-					deltaToken = new SyncToken(modifyTimestampAttribute.getString());
-				} else {
-					Attribute createTimestampAttribute = entry.get(CREATETIMESTAMP_ATTRIBUTE);
-					deltaToken = new SyncToken(createTimestampAttribute.getString());
-					deltaType = SyncDeltaType.CREATE;
-				}
-				deltaBuilder.setToken(deltaToken);
+				// Send "final" token for all entries (which means do NOT sent
+				// modify/create timestamp of an entry). This is a lazy method
+				// so we do not need to sort the changes.
+				deltaBuilder.setToken(finalToken);
 				
 				deltaBuilder.setDeltaType(deltaType);
 				ConnectorObject targetObject = getSchemaTranslator().toIcfObject(icfObjectClassInfo, entry);
