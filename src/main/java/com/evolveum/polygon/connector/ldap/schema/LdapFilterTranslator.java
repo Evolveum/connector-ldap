@@ -181,7 +181,7 @@ public class LdapFilterTranslator {
 			return new ScopedFilter(new AndNode(subNodes));
 			
 		} else if (icfFilter instanceof ContainsFilter) {
-			Attribute icfAttribute = ((EqualsFilter)icfFilter).getAttribute();
+			Attribute icfAttribute = ((ContainsFilter)icfFilter).getAttribute();
 			String icfAttributeName = icfAttribute.getName();
 			List<Object> icfAttributeValue = icfAttribute.getValue();
 			if (Name.NAME.equals(icfAttributeName)) {
