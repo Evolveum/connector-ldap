@@ -182,9 +182,6 @@ public class SunChangelogSyncStrategy extends SyncStrategy {
 						oldUid = targetUniqueId;
 					} else if (targetEntryUuid != null) {
 						oldUid = targetEntryUuid;
-					} else {
-						// TODO
-						throw new UnsupportedOperationException("TODO");
 					}
 				}
 				
@@ -208,7 +205,6 @@ public class SunChangelogSyncStrategy extends SyncStrategy {
 						}
 						ConnectorObject targetObject = getSchemaTranslator().toIcfObject(icfObjectClassInfo, targetEntry);
 						deltaBuilder.setObject(targetObject);
-						deltaBuilder.setUid(new Uid(oldUid));
 						
 					} else if (CHANGE_TYPE_ADD.equals(changeType)) {
 						deltaType = SyncDeltaType.CREATE;
@@ -224,10 +220,22 @@ public class SunChangelogSyncStrategy extends SyncStrategy {
 							LOG.ok("Changelog entry {0} does not match object class, skipping", targetEntry.getDn());
 							continue;
 						}
+						if (!getSchemaTranslator().hasUidAttribute(targetEntry)) {
+							// No UID attribute in the changelog entry. We need to re-read it explicitly.
+							targetEntry = LdapUtil.fetchEntry(getConnection(), targetDn.toString(), ldapObjectClass, options, getConfiguration(), getSchemaTranslator());
+							if (targetEntry == null) {
+								LOG.warn("Changelog entry {0} refers to an entry {1} that no longer exists, ignoring", entry.getDn(), targetDn);
+								continue;
+							}
+						}
 						ConnectorObject targetObject = getSchemaTranslator().toIcfObject(icfObjectClassInfo, targetEntry);
 						deltaBuilder.setObject(targetObject);
 						
 					} else if (CHANGE_TYPE_DELETE.equals(changeType)) {
+						if (oldUid == null) {
+							LOG.info("Ignoring DELETE delta because we are not able to determine UID");
+							continue;
+						}
 						deltaType = SyncDeltaType.DELETE;
 						deltaBuilder.setUid(new Uid(oldUid));
 						// Cannot filter out by object class here because we simply do not know it.
@@ -256,7 +264,6 @@ public class SunChangelogSyncStrategy extends SyncStrategy {
 						ConnectorObject targetObject = getSchemaTranslator().toIcfObject(icfObjectClassInfo, targetEntry);
 						deltaBuilder.setObject(targetObject);
 						LOG.ok("ModRdn Obj UID: {0},  changelog UID: {1}", targetObject.getUid(), oldUid);
-						deltaBuilder.setUid(new Uid(oldUid));
 						
 					} else {
 						throw new InvalidAttributeValueException("Unknown value '"+changeType+"' of changeType attribute in changelog entry "+entry.getDn());

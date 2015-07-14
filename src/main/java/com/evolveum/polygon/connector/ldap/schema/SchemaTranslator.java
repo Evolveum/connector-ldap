@@ -423,6 +423,16 @@ public class SchemaTranslator {
 	public ObjectClassInfo findObjectClassInfo(ObjectClass icfObjectClass) {
 		return icfSchema.findObjectClassInfo(icfObjectClass.getObjectClassValue());
 	}
+	
+	public boolean hasUidAttribute(Entry entry) {
+		String uidAttributeName = configuration.getUidAttribute();
+		if (LdapUtil.isDnAttribute(uidAttributeName)) {
+			return true;
+		} else {
+			org.apache.directory.api.ldap.model.entry.Attribute uidAttribute = entry.get(uidAttributeName);
+			return uidAttribute != null;
+		}
+	}
 
 	public ConnectorObject toIcfObject(ObjectClass icfObjectClass, Entry entry) {
 		ObjectClassInfo icfObjectClassInfo = findObjectClassInfo(icfObjectClass);
