@@ -82,7 +82,7 @@ public class SimplePagedResultsSearchStrategy extends SearchStrategy {
 		int pageSize = getDefaultPageSize();
 		int offset = 0;
 		if (getOptions() != null && getOptions().getPagedResultsOffset() != null) {
-        	offset = getOptions().getPagedResultsOffset();
+        	offset = getOptions().getPagedResultsOffset() - 1;
         	if (offset != 0) {
         		LOG.info("Inefficient search using SimplePaged control and offset {0}",offset);
         	}
