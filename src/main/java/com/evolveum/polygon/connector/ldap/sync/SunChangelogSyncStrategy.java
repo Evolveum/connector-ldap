@@ -178,10 +178,11 @@ public class SunChangelogSyncStrategy extends SyncStrategy {
 				if (LdapUtil.isDnAttribute(uidAttributeName)) {
 					oldUid = targetDn;
 				} else if (LdapUtil.isEntryUuidAttribute(uidAttributeName)) {
-					if (targetUniqueId != null) {
-						oldUid = targetUniqueId;
-					} else if (targetEntryUuid != null) {
+					// Prefer targetEntryUUID. targetUniqueID has wrong format in OpenDJ 2.4.x
+					if (targetEntryUuid != null) {
 						oldUid = targetEntryUuid;
+					} else if (targetUniqueId != null) {
+						oldUid = targetUniqueId;
 					}
 				}
 				
