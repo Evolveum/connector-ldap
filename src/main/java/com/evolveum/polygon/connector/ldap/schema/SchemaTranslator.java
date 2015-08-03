@@ -288,12 +288,7 @@ public class SchemaTranslator {
 	}
 	
 	public org.apache.directory.api.ldap.model.schema.ObjectClass toLdapObjectClass(ObjectClass icfObjectClass) {
-		String ldapObjectClassName;
-		if (icfObjectClass.is(ObjectClass.ACCOUNT_NAME)) {
-			ldapObjectClassName = configuration.getMagicAccountObjectClass();
-		} else {
-			ldapObjectClassName = icfObjectClass.getObjectClassValue();
-		}
+		String ldapObjectClassName = icfObjectClass.getObjectClassValue();
 		String ldapObjectClassOid;
 		try {
 			ldapObjectClassOid = schemaManager.getObjectClassRegistry().getOidByName(ldapObjectClassName);

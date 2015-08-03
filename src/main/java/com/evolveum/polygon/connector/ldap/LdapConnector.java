@@ -131,7 +131,7 @@ import com.evolveum.polygon.connector.ldap.sync.ModifyTimestampSyncStrategy;
 import com.evolveum.polygon.connector.ldap.sync.SunChangelogSyncStrategy;
 import com.evolveum.polygon.connector.ldap.sync.SyncStrategy;
 
-@ConnectorClass(displayNameKey = "ldap.connector.display", configurationClass = LdapConfiguration.class)
+@ConnectorClass(displayNameKey = "connector.ldap.display", configurationClass = LdapConfiguration.class)
 public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, SearchOp<Filter>, CreateOp, DeleteOp, 
 		UpdateAttributeValuesOp, SyncOp {
 

@@ -208,9 +208,6 @@ public class LdapConfiguration extends AbstractConfiguration {
      */
     private String changeNumberAttribute = "changeNumber";
     
-    
-    private String magicAccountObjectClass = "inetOrgPerson";
-    
     // TODO: failover, accountSynchronizationFilter
     // MAYBE TODO: respectResourcePasswordPolicyChangeAfterReset? filterWithOrInsteadOfAnd? 
     //			   removeLogEntryObjectClassFromFilter? synchronizePasswords? passwordAttributeToSynchronize?
@@ -423,14 +420,6 @@ public class LdapConfiguration extends AbstractConfiguration {
 		this.changeNumberAttribute = changeNumberAttribute;
 	}
 	
-    public String getMagicAccountObjectClass() {
-		return magicAccountObjectClass;
-	}
-
-	public void setMagicAccountObjectClass(String magicAccountObjectClass) {
-		this.magicAccountObjectClass = magicAccountObjectClass;
-	}
-
 	@Override
     public void validate() {
     	validateNotBlank(host, "host.blank");
