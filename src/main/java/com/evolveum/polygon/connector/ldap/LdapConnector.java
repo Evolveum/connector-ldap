@@ -26,6 +26,7 @@ import org.apache.commons.lang.ArrayUtils;
 import org.apache.directory.api.ldap.extras.controls.vlv.VirtualListViewRequest;
 import org.apache.directory.api.ldap.model.cursor.CursorException;
 import org.apache.directory.api.ldap.model.cursor.EntryCursor;
+import org.apache.directory.api.ldap.model.entry.DefaultAttribute;
 import org.apache.directory.api.ldap.model.entry.DefaultEntry;
 import org.apache.directory.api.ldap.model.entry.DefaultModification;
 import org.apache.directory.api.ldap.model.entry.Entry;
@@ -120,6 +121,7 @@ import org.identityconnectors.framework.spi.operations.UpdateAttributeValuesOp;
 
 import com.evolveum.polygon.common.GuardedStringAccessor;
 import com.evolveum.polygon.common.SchemaUtil;
+import com.evolveum.polygon.connector.ldap.schema.GuardedStringValue;
 import com.evolveum.polygon.connector.ldap.schema.LdapFilterTranslator;
 import com.evolveum.polygon.connector.ldap.schema.SchemaTranslator;
 import com.evolveum.polygon.connector.ldap.schema.ScopedFilter;
@@ -611,6 +613,8 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 			LOG.ok("Adding entry: {0}", entry);
 		}
 		
+		processEntryBeforeCreate(entry);
+		
 		AddRequest addRequest = new AddRequestImpl();
 		addRequest.setEntry(entry);
 		
@@ -778,7 +782,7 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 			if (LOG.isOk()) {
 				LOG.ok("Modify REQ {0}: {1}", dn, dumpModifications(modifications));
 			}
-			connection.modify(dn, modifications.toArray(new Modification[modifications.size()]));
+			connection.modify(dn, processModificationsBeforeUpdate(modifications));
 			if (LOG.isOk()) {
 				LOG.ok("Modify RES {0}: {1}", dn, dumpModifications(modifications));
 			}
@@ -788,6 +792,55 @@ public class LdapConnector implements PoolableConnector, TestOp, SchemaOp, Searc
 		}
 		
 		return uid;
+	}
+
+	// We want to decrypt GuardedString at the very last moment
+	private Modification[] processModificationsBeforeUpdate(List<Modification> modifications) {
+		Modification[] out = new Modification[modifications.size()];
+		int i = 0;
+		for (final Modification modification: modifications) {
+			if (modification.getAttribute() != null && modification.getAttribute().get() != null) {
+				Value<?> val = modification.getAttribute().get();
+				if (val instanceof GuardedStringValue) {
+					((GuardedStringValue)val).getGuardedStringValue().access(new GuardedString.Accessor() {
+						@Override
+						public void access(char[] clearChars) {
+							DefaultAttribute attr;
+							try {
+								attr = new DefaultAttribute( modification.getAttribute().getAttributeType(), new String(clearChars));
+							} catch (LdapInvalidAttributeValueException e) {
+								throw new InvalidAttributeValueException(e.getMessage(), e);
+							}
+							modification.setAttribute(attr);
+						}
+					});
+				}
+			}
+			out[i] = modification;
+			i++;
+		}
+		return out;
+	}
+	
+	// We want to decrypt GuardedString at the very last moment
+	private void processEntryBeforeCreate(Entry entry) {
+		for(final org.apache.directory.api.ldap.model.entry.Attribute attribute: entry.getAttributes()) {
+			Value<?> val = attribute.get();
+			if (val instanceof GuardedStringValue) {
+				attribute.remove(val);
+				((GuardedStringValue)val).getGuardedStringValue().access(new GuardedString.Accessor() {
+					@Override
+					public void access(char[] clearChars) {
+						try {
+							attribute.add(new String(clearChars));
+						} catch (LdapInvalidAttributeValueException e) {
+							throw new InvalidAttributeValueException(e.getMessage(), e);
+						}
+					}
+				});
+			}
+		}
+		
 	}
 
 	private String dumpModifications(List<Modification> modifications) {

@@ -114,6 +114,8 @@ public class LdapConfiguration extends AbstractConfiguration {
      */
     private String passwordHashAlgorithm;
     
+    public static final String PASSWORD_HASH_ALGORITHM_NONE = "none";
+    
     /**
      * Specifies strategy of using paging mechanisms such as VLV or Simple Paged Results.
      * Possible values: "none", "auto", "spr", "vlv"

@@ -15,12 +15,17 @@
  */
 package com.evolveum.polygon.connector.ldap.schema;
 
+import java.io.UnsupportedEncodingException;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.text.ParseException;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.Set;
 
 import org.apache.commons.lang.ArrayUtils;
@@ -39,8 +44,10 @@ import org.apache.directory.api.ldap.model.schema.SchemaManager;
 import org.apache.directory.api.ldap.model.schema.UsageEnum;
 import org.apache.directory.api.util.GeneralizedTime;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
+import org.identityconnectors.common.Base64;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.common.security.GuardedString;
+import org.identityconnectors.framework.common.exceptions.ConnectorException;
 import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
 import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException;
 import org.identityconnectors.framework.common.objects.Attribute;
@@ -370,10 +377,37 @@ public class SchemaTranslator {
 						+"; attributeType="+ldapAttributeType, e);
 			}
 		}
+		
+		if (configuration.getPasswordHashAlgorithm() != null 
+				&& !LdapConfiguration.PASSWORD_HASH_ALGORITHM_NONE.equals(configuration.getPasswordHashAlgorithm())
+				&& ldapAttributeType.getName().equals(configuration.getPasswordAttribute())) {
+			icfAttributeValue = hashPassword(icfAttributeValue);
+		}
 		String syntaxOid = ldapAttributeType.getSyntaxOid();
 		if (SchemaConstants.GENERALIZED_TIME_SYNTAX.equals(syntaxOid)) {
-			// TODO: convert time
-			return null;
+			if (icfAttributeValue instanceof Long) {
+				GeneralizedTime gtime = new GeneralizedTime(new Date((Long)icfAttributeValue));
+				try {
+					return (Value)new StringValue(ldapAttributeType, gtime.toGeneralizedTime());
+				} catch (LdapInvalidAttributeValueException e) {
+					throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
+							+"; attributeType="+ldapAttributeType, e);
+				}
+			} else {
+				try {
+					return (Value)new StringValue(ldapAttributeType, icfAttributeValue.toString());
+				} catch (LdapInvalidAttributeValueException e) {
+					throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
+							+"; attributeType="+ldapAttributeType, e);
+				}				
+			}
+		} else if (icfAttributeValue instanceof GuardedString) {
+			try {
+				return (Value)new GuardedStringValue(ldapAttributeType, (GuardedString) icfAttributeValue);
+			} catch (LdapInvalidAttributeValueException e) {
+				throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
+						+"; attributeType="+ldapAttributeType, e);
+			}
 		} else {
 			try {
 				return (Value)new StringValue(ldapAttributeType, icfAttributeValue.toString());
@@ -383,7 +417,7 @@ public class SchemaTranslator {
 			}
 		}
 	}
-	
+
 	public Value<Object> toLdapValue(AttributeType ldapAttributeType, List<Object> icfAttributeValues) {
 		if (icfAttributeValues == null || icfAttributeValues.isEmpty()) {
 			return null;
@@ -559,6 +593,81 @@ public class SchemaTranslator {
 		}
 		return ocs;
 	}
+	
+	private Object hashPassword(Object icfAttributeValue) {
+		if (icfAttributeValue == null) {
+			return null;
+		}
+		byte[] bytes;
+		if (icfAttributeValue instanceof String) {
+			try {
+				bytes = ((String)icfAttributeValue).getBytes("UTF-8");
+			} catch (UnsupportedEncodingException e) {
+				throw new IllegalStateException(e.getMessage(), e);
+			}
+		} else if (icfAttributeValue instanceof GuardedString) {
+			final String[] out = new String[1];
+			((GuardedString)icfAttributeValue).access(new GuardedString.Accessor() {
+				@Override
+				public void access(char[] clearChars) {
+					out[0] = new String(clearChars);
+				}
+			});
+			try {
+				bytes = out[0].getBytes("UTF-8");
+			} catch (UnsupportedEncodingException e) {
+				throw new IllegalStateException(e.getMessage(), e);
+			}
+		} else if (icfAttributeValue instanceof byte[]) {
+			bytes = (byte[])icfAttributeValue;
+		} else {
+			throw new InvalidAttributeValueException("Unsupported type of password attribute: "+icfAttributeValue.getClass());
+		}
+		return hashBytes(bytes, configuration.getPasswordHashAlgorithm(), 0);
+	}
+	
+	private String hashBytes(byte[] clear, String alg, long seed) {
+        MessageDigest md = null;
+        
+    	try {
+            if (alg.equalsIgnoreCase("SSHA") || alg.equalsIgnoreCase("SHA")) {
+            		md = MessageDigest.getInstance("SHA-1");
+            } else if ( alg.equalsIgnoreCase("SMD5") || alg.equalsIgnoreCase("MD5") ) {
+                md = MessageDigest.getInstance("MD5");
+            }
+    	} catch (NoSuchAlgorithmException e) {
+            throw new ConnectorException("Could not find MessageDigest algorithm: "+alg);
+        }
+        
+        if (md == null) {
+            throw new ConnectorException("Unsupported MessageDigest algorithm: " + alg);
+        }
+
+        byte[] salt = {};
+        if (alg.equalsIgnoreCase("SSHA") || alg.equalsIgnoreCase("SMD5")) {
+            Random rnd = new Random();
+            rnd.setSeed(System.currentTimeMillis() + seed);
+            salt = new byte[8];
+            rnd.nextBytes(salt);
+        }
+
+        md.reset();
+        md.update(clear);
+        md.update(salt);
+        byte[] hash = md.digest();
+
+        byte[] hashAndSalt = new byte[hash.length + salt.length];
+        System.arraycopy(hash, 0, hashAndSalt, 0, hash.length);
+        System.arraycopy(salt, 0, hashAndSalt, hash.length, salt.length);
+
+        StringBuilder resSb = new StringBuilder(alg.length() + hashAndSalt.length);
+        resSb.append('{');
+        resSb.append(alg);
+        resSb.append('}');
+        resSb.append(Base64.encode(hashAndSalt));
+
+        return resSb.toString();
+    }
 
 	private Attribute toIcfAttribute(org.apache.directory.api.ldap.model.entry.Attribute ldapAttribute) {
 		AttributeBuilder ab = new AttributeBuilder();
