@@ -22,6 +22,7 @@ import org.identityconnectors.framework.common.objects.OperationOptions;
 import org.identityconnectors.framework.common.objects.SyncResultsHandler;
 import org.identityconnectors.framework.common.objects.SyncToken;
 
+import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
 import com.evolveum.polygon.connector.ldap.LdapConfiguration;
 import com.evolveum.polygon.connector.ldap.schema.SchemaTranslator;
 
@@ -31,12 +32,12 @@ import com.evolveum.polygon.connector.ldap.schema.SchemaTranslator;
  */
 public abstract class SyncStrategy {
 	
-	private LdapConfiguration configuration;
+	private AbstractLdapConfiguration configuration;
     private LdapNetworkConnection connection;
     private SchemaManager schemaManager;
     private SchemaTranslator schemaTranslator;
     
-	public SyncStrategy(LdapConfiguration configuration, LdapNetworkConnection connection, 
+	public SyncStrategy(AbstractLdapConfiguration configuration, LdapNetworkConnection connection, 
 			SchemaManager schemaManager, SchemaTranslator schemaTranslator) {
 		super();
 		this.configuration = configuration;
@@ -45,7 +46,7 @@ public abstract class SyncStrategy {
 		this.schemaTranslator = schemaTranslator;
 	}
 
-	public LdapConfiguration getConfiguration() {
+	public AbstractLdapConfiguration getConfiguration() {
 		return configuration;
 	}
 

@@ -21,6 +21,7 @@ import java.util.List;
 import org.apache.directory.api.ldap.model.cursor.CursorException;
 import org.apache.directory.api.ldap.model.cursor.EntryCursor;
 import org.apache.directory.api.ldap.model.entry.Attribute;
+import org.apache.directory.api.ldap.model.entry.BinaryValue;
 import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.entry.Value;
 import org.apache.directory.api.ldap.model.exception.LdapAdminLimitExceededException;
@@ -90,11 +91,15 @@ public class LdapUtil {
 		if (attribute == null) {
 			return null;
 		}
-		return attribute.getString();
+		Value<?> value = attribute.get();
+		if (value == null) {
+			return null;
+		}
+		return value.getString();
 	}
 	
 	public static String[] getAttributesToGet(org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass, 
-			OperationOptions options, LdapConfiguration configuration, SchemaTranslator schemaTranslator, String... additionalAttributes) {
+			OperationOptions options, AbstractLdapConfiguration configuration, SchemaTranslator schemaTranslator, String... additionalAttributes) {
 		String[] operationalAttributes = configuration.getOperationalAttributes();
 		if (options == null || options.getAttributesToGet() == null) {
 			String[] ldapAttrs = new String[2 + operationalAttributes.length + additionalAttributes.length];
@@ -147,7 +152,7 @@ public class LdapUtil {
 		return ldapAttrs.toArray(new String[ldapAttrs.size()]);
 	}
 
-	public static boolean isOperationalAttribute(LdapConfiguration configuration, String icfAttr) {
+	public static boolean isOperationalAttribute(AbstractLdapConfiguration configuration, String icfAttr) {
 		String[] operationalAttributes = configuration.getOperationalAttributes();
 		if (operationalAttributes == null) {
 			return false;
@@ -162,11 +167,11 @@ public class LdapUtil {
 
 	public static Entry fetchEntry(LdapNetworkConnection connection, String dn, 
 			org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass, 
-			OperationOptions options, LdapConfiguration configuration, SchemaTranslator schemaTranslator) {
+			OperationOptions options, AbstractLdapConfiguration configuration, SchemaTranslator schemaTranslator) {
 		String[] attributesToGet = getAttributesToGet(ldapObjectClass, options, configuration, schemaTranslator);
 		Entry entry = null;
 		try {
-			EntryCursor searchCursor = connection.search(dn, LdapConfiguration.SEARCH_FILTER_ALL, SearchScope.OBJECT, attributesToGet);
+			EntryCursor searchCursor = connection.search(dn, AbstractLdapConfiguration.SEARCH_FILTER_ALL, SearchScope.OBJECT, attributesToGet);
 			if (searchCursor.next()) {
 				entry = searchCursor.get();
 			}
@@ -323,5 +328,23 @@ public class LdapUtil {
 			}
 		}
 		return false;
+	}
+	
+	public static String binaryToHex(byte[] bytes) {
+		StringBuilder sb = new StringBuilder(bytes.length * 2);
+		for (byte b : bytes) {
+			sb.append(String.format("%02x", b & 0xff));
+		}
+		return sb.toString();
+	}
+
+	public static byte[] hexToBinary(String hex) {
+		int l = hex.length();
+		byte[] bytes = new byte[l/2];
+		for (int i = 0; i < l; i += 2) {
+			bytes[i/2] = (byte) ((Character.digit(hex.charAt(i), 16) << 4) 
+					+ Character.digit(hex.charAt(i + 1), 16));
+		}
+		return bytes;
 	}
 }

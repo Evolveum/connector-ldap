@@ -43,6 +43,7 @@ import org.identityconnectors.framework.common.objects.OperationOptions;
 import org.identityconnectors.framework.common.objects.ResultsHandler;
 import org.identityconnectors.framework.common.objects.SortKey;
 
+import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
 import com.evolveum.polygon.connector.ldap.LdapConfiguration;
 import com.evolveum.polygon.connector.ldap.LdapUtil;
 import com.evolveum.polygon.connector.ldap.schema.SchemaTranslator;
@@ -58,7 +59,7 @@ public class VlvSearchStrategy extends SearchStrategy {
 	private int lastListSize = -1;
 	private byte[] cookie = null;
 	
-	public VlvSearchStrategy(LdapNetworkConnection connection, LdapConfiguration configuration,
+	public VlvSearchStrategy(LdapNetworkConnection connection, AbstractLdapConfiguration configuration,
 			SchemaTranslator schemaTranslator, ObjectClass objectClass,
 			org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass, ResultsHandler handler,
 			OperationOptions options) {

@@ -15,6 +15,10 @@
  */
 package com.evolveum.polygon.connector.ldap.schema;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.ObjectOutputStream;
+import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -31,6 +35,7 @@ import java.util.Set;
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.directory.api.ldap.extras.controls.vlv.VirtualListViewRequest;
 import org.apache.directory.api.ldap.model.constants.SchemaConstants;
+import org.apache.directory.api.ldap.model.entry.BinaryValue;
 import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.entry.StringValue;
 import org.apache.directory.api.ldap.model.entry.Value;
@@ -44,6 +49,7 @@ import org.apache.directory.api.ldap.model.schema.SchemaManager;
 import org.apache.directory.api.ldap.model.schema.UsageEnum;
 import org.apache.directory.api.util.GeneralizedTime;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
+import org.apache.directory.ldap.client.api.exception.InvalidConnectionException;
 import org.identityconnectors.common.Base64;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.common.security.GuardedString;
@@ -74,6 +80,7 @@ import org.identityconnectors.framework.spi.operations.SyncOp;
 import org.identityconnectors.framework.spi.operations.UpdateAttributeValuesOp;
 
 import com.evolveum.polygon.common.SchemaUtil;
+import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
 import com.evolveum.polygon.connector.ldap.LdapConfiguration;
 import com.evolveum.polygon.connector.ldap.LdapConnector;
 import com.evolveum.polygon.connector.ldap.LdapUtil;
@@ -82,7 +89,7 @@ import com.evolveum.polygon.connector.ldap.LdapUtil;
  * @author semancik
  *
  */
-public class SchemaTranslator {
+public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 	
 	public static final String SYNTAX_AUTH_PASSWORD = "1.3.6.1.4.1.4203.1.1.2";
 	public static final String SYNTAX_SUN_DEFINED_ACCESS_CONTROL_INFORMATION = "1.3.6.1.4.1.26027.1.3.4";
@@ -92,10 +99,10 @@ public class SchemaTranslator {
 	private static final Map<String, Class<?>> SYNTAX_MAP = new HashMap<String,Class<?>>();
 	
 	private SchemaManager schemaManager;
-	private LdapConfiguration configuration;
+	private C configuration;
 	private Schema icfSchema = null;
 	
-	public SchemaTranslator(SchemaManager schemaManager, LdapConfiguration configuration) {
+	public SchemaTranslator(SchemaManager schemaManager, C configuration) {
 		super();
 		this.schemaManager = schemaManager;
 		this.configuration = configuration;
@@ -105,20 +112,32 @@ public class SchemaTranslator {
 		return icfSchema;
 	}
 
-	public Schema translateSchema(LdapNetworkConnection connection) {
+	public SchemaManager getSchemaManager() {
+		return schemaManager;
+	}
+
+	public C getConfiguration() {
+		return configuration;
+	}
+
+	public Schema translateSchema(LdapNetworkConnection connection) throws InvalidConnectionException {
 		SchemaBuilder schemaBuilder = new SchemaBuilder(LdapConnector.class);
 		LOG.ok("Translating LDAP schema from {0}", schemaManager);
 		for (org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass: schemaManager.getObjectClassRegistry()) {
-			LOG.ok("Found LDAP schema object class {0}", ldapObjectClass.getName());
-			ObjectClassInfoBuilder ocib = new ObjectClassInfoBuilder();
-			ocib.setType(ldapObjectClass.getName());
-			List<AttributeInfo> attrInfoList = new ArrayList<AttributeInfo>();
-			addAttributeTypes(attrInfoList, ldapObjectClass);
-			ocib.addAllAttributeInfo(attrInfoList);
-			if (ldapObjectClass.isAuxiliary()) {
-				ocib.setAuxiliary(true);
+			if (shouldTranslate(ldapObjectClass)) {
+				LOG.ok("Found LDAP schema object class {0}, translating", ldapObjectClass.getName());
+				ObjectClassInfoBuilder ocib = new ObjectClassInfoBuilder();
+				ocib.setType(toIcfObjectClassType(ldapObjectClass));
+				List<AttributeInfo> attrInfoList = new ArrayList<AttributeInfo>();
+				addAttributeTypes(attrInfoList, ldapObjectClass);
+				ocib.addAllAttributeInfo(attrInfoList);
+				if (ldapObjectClass.isAuxiliary()) {
+					ocib.setAuxiliary(true);
+				}
+				schemaBuilder.defineObjectClass(ocib.build());
+			} else {
+				LOG.ok("Found LDAP schema object class {0}, skipping", ldapObjectClass.getName());
 			}
-			schemaBuilder.defineObjectClass(ocib.build());
 		}
 		
 		schemaBuilder.defineOperationOption(OperationOptionInfoBuilder.buildAttributesToGet(), SearchOp.class, SyncOp.class);
@@ -130,7 +149,12 @@ public class SchemaTranslator {
 		List<String> supportedControls;
 		try {
 			supportedControls = connection.getSupportedControls();
+		} catch (InvalidConnectionException e) {
+			throw e;
 		} catch (LdapException e) {
+			if (e.getCause() instanceof InvalidConnectionException) {
+				throw (InvalidConnectionException)e.getCause();
+			}
 			throw LdapUtil.processLdapException("Error getting supported controls", e);
 		}
 		if (supportedControls.contains(PagedResults.OID) || supportedControls.contains(VirtualListViewRequest.OID)) {
@@ -148,11 +172,23 @@ public class SchemaTranslator {
 		LOG.ok("Translated schema {0}", icfSchema);
 		return icfSchema;
 	}
+
+	protected boolean shouldTranslate(org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
+		return true;
+	}
 	
+	protected String toIcfObjectClassType(org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
+		return ldapObjectClass.getName();
+	}
+	
+	protected String toLdapObjectClassName(ObjectClass icfObjectClass) {
+		return icfObjectClass.getObjectClassValue();
+	}
+
 	/**
-	 * Make sure that we have icfSchema 
+	 * Make sure that we have icfSchema  
 	 */
-	public void prepareIcfSchema(LdapNetworkConnection connection) {
+	public void prepareIcfSchema(LdapNetworkConnection connection) throws InvalidConnectionException {
 		if (icfSchema == null) {
 			translateSchema(connection);
 		}
@@ -174,7 +210,8 @@ public class SchemaTranslator {
 					e.getMessage(), e.getClass());
 		}
 		if (uidAttributeLdapType != null) {
-			uidAib.setType(toIcfType(uidAttributeLdapType.getSyntax(), Uid.NAME));
+			// UID must be string. It is hardcoded in the framework.
+			uidAib.setType(String.class);
 			setAttributeMultiplicityAndPermissions(uidAttributeLdapType, uidAib);
 		} else {
 			uidAib.setType(String.class);
@@ -246,6 +283,10 @@ public class SchemaTranslator {
 			if (ldapAttribute.getName().equals(LdapConfiguration.ATTRIBUTE_OBJECTCLASS_NAME)) {
 				continue;
 			}
+			if (ldapAttribute.getName().equals(getConfiguration().getUidAttribute())) {
+				// This is handler separatelly as __UID__ attribute
+				continue;
+			}
 			String icfAttributeName = toIcfAttributeName(ldapAttribute.getName());
 			if (containsAttribute(attrInfoList, icfAttributeName)) {
 				continue;
@@ -295,7 +336,7 @@ public class SchemaTranslator {
 	}
 	
 	public org.apache.directory.api.ldap.model.schema.ObjectClass toLdapObjectClass(ObjectClass icfObjectClass) {
-		String ldapObjectClassName = icfObjectClass.getObjectClassValue();
+		String ldapObjectClassName = toLdapObjectClassName(icfObjectClass);
 		String ldapObjectClassOid;
 		try {
 			ldapObjectClassOid = schemaManager.getObjectClassRegistry().getOidByName(ldapObjectClassName);
@@ -408,9 +449,101 @@ public class SchemaTranslator {
 				throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
 						+"; attributeType="+ldapAttributeType, e);
 			}
-		} else {
+		} else if (isBinarySyntax(syntaxOid)) {
+			LOG.ok("Converting to LDAP: {0} ({1}): explicit binary", ldapAttributeType.getName(), syntaxOid);
+			if (icfAttributeValue instanceof byte[]) {
+				try {
+					// Do NOT set attributeType in the Value in this case.
+					// The attributeType might not match the Value class
+					// e.g. human-readable jpegPhoto attribute will expect StringValue
+					return (Value)new BinaryValue(null, (byte[])icfAttributeValue);
+				} catch (LdapInvalidAttributeValueException e) {
+					throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
+							+"; attributeType="+ldapAttributeType, e);
+				}
+			} else if (icfAttributeValue instanceof String) {
+				// this can happen for userPassword
+				byte[] bytes;
+				try {
+					bytes = ((String)icfAttributeValue).getBytes("UTF-8");
+				} catch (UnsupportedEncodingException e) {
+					throw new IllegalArgumentException("Cannot encode attribute value to UTF-8 for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
+							+"; attributeType="+ldapAttributeType, e);
+				}
+				try {
+					// Do NOT set attributeType in the Value in this case.
+					// The attributeType might not match the Value class
+					// e.g. human-readable jpegPhoto attribute will expect StringValue
+					return (Value)new BinaryValue(null, bytes);
+				} catch (LdapInvalidAttributeValueException e) {
+					throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
+							+"; attributeType="+ldapAttributeType, e);
+				}
+			} else {
+				throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": expected byte[] but got "+icfAttributeValue.getClass()
+						+"; attributeType="+ldapAttributeType);
+			}
+		} else if (isStringSyntax(syntaxOid)) {
+			LOG.ok("Converting to LDAP: {0} ({1}): explicit string", ldapAttributeType.getName(), syntaxOid);
 			try {
 				return (Value)new StringValue(ldapAttributeType, icfAttributeValue.toString());
+			} catch (LdapInvalidAttributeValueException e) {
+				throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
+						+"; attributeType="+ldapAttributeType, e);
+			}
+		} else {
+			if (icfAttributeValue instanceof byte[]) {
+				LOG.ok("Converting to LDAP: {0} ({1}): detected binary", ldapAttributeType.getName(), syntaxOid);
+				try {
+					return (Value)new BinaryValue(ldapAttributeType, (byte[])icfAttributeValue);
+				} catch (LdapInvalidAttributeValueException e) {
+					throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
+							+"; attributeType="+ldapAttributeType, e);
+				}
+			} else {
+				LOG.ok("Converting to LDAP: {0} ({1}): detected string", ldapAttributeType.getName(), syntaxOid);
+				try {
+					return (Value)new StringValue(ldapAttributeType, icfAttributeValue.toString());
+				} catch (LdapInvalidAttributeValueException e) {
+					throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
+							+"; attributeType="+ldapAttributeType, e);
+				}
+			}
+		}
+	}
+	
+	/**
+	 * Used to parse __UID__ and __NAME__.
+	 */
+	public Value<Object> toLdapIdentifierValue(AttributeType ldapAttributeType, String icfAttributeValue) {
+		if (icfAttributeValue == null) {
+			return null;
+		}
+		if (ldapAttributeType == null) {
+			// We have no definition for this attribute. Assume string.
+			try {
+				return (Value)new StringValue(ldapAttributeType, icfAttributeValue.toString());
+			} catch (LdapInvalidAttributeValueException e) {
+				throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
+						+"; attributeType="+ldapAttributeType, e);
+			}
+		}
+		
+		String syntaxOid = ldapAttributeType.getSyntaxOid();
+		if (SchemaConstants.OCTET_STRING_SYNTAX.equals(syntaxOid)) {
+			// Expect hex-encoded value (see toIcfIdentifierValue())
+			byte[] bytes = LdapUtil.hexToBinary(icfAttributeValue);
+			try {
+				// Do NOT set attributeType in the Value in this case.
+				// The attributeType might not match the Value class
+				return (Value)new BinaryValue(null, bytes);
+			} catch (LdapInvalidAttributeValueException e) {
+				throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
+						+"; attributeType="+ldapAttributeType, e);
+			}
+		} else {
+			try {
+				return (Value)new StringValue(ldapAttributeType, icfAttributeValue);
 			} catch (LdapInvalidAttributeValueException e) {
 				throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
 						+"; attributeType="+ldapAttributeType, e);
@@ -443,9 +576,100 @@ public class SchemaTranslator {
 				} catch (ParseException e) {
 					throw new InvalidAttributeValueException("Wrong generalized time format in LDAP attribute "+ldapAttributeType.getName()+": "+e.getMessage(), e);
 				}
-			} else {
+			} else if (isBinarySyntax(syntaxOid)) {
+				LOG.ok("Converting to ICF: {0} (syntax {1}, value {2}): explicit binary", ldapAttributeType.getName(), syntaxOid, ldapValue.getClass());
+				return ldapValue.getBytes();
+			} else if (isStringSyntax(syntaxOid)) {
+				LOG.ok("Converting to ICF: {0} (syntax {1}, value {2}): explicit string", ldapAttributeType.getName(), syntaxOid, ldapValue.getClass());
 				return ldapValue.getString();
+			} else {
+				if (ldapValue instanceof StringValue) {
+					LOG.ok("Converting to ICF: {0} (syntax {1}, value {2}): detected string", ldapAttributeType.getName(), syntaxOid, ldapValue.getClass());
+					return ldapValue.getString();
+				} else {
+					LOG.ok("Converting to ICF: {0} (syntax {1}, value {2}): detected binary", ldapAttributeType.getName(), syntaxOid, ldapValue.getClass());
+					return ldapValue.getBytes();
+				}
 			}
+		}
+	}
+	
+	private boolean isStringSyntax(String syntaxOid) {
+		return SchemaConstants.DIRECTORY_STRING_SYNTAX.equals(syntaxOid) 
+				|| SchemaConstants.IA5_STRING_SYNTAX.equals(syntaxOid)				
+				|| SchemaConstants.OBJECT_CLASS_TYPE_SYNTAX.equals(syntaxOid)
+				|| SchemaConstants.DN_SYNTAX.equals(syntaxOid)
+				|| SchemaConstants.PRINTABLE_STRING_SYNTAX.equals(syntaxOid);
+	}
+
+	private boolean isBinarySyntax(String syntaxOid) {
+		return SchemaConstants.OCTET_STRING_SYNTAX.equals(syntaxOid) 
+				|| SchemaConstants.JPEG_SYNTAX.equals(syntaxOid)
+				|| SchemaConstants.BINARY_SYNTAX.equals(syntaxOid)
+				|| SchemaConstants.BIT_STRING_SYNTAX.equals(syntaxOid)
+				|| SchemaConstants.CERTIFICATE_SYNTAX.equals(syntaxOid)
+				|| SchemaConstants.CERTIFICATE_LIST_SYNTAX.equals(syntaxOid)
+				|| SchemaConstants.CERTIFICATE_PAIR_SYNTAX.equals(syntaxOid);				
+	}
+	
+	public boolean isBinaryAttribute(String attributeId) {
+		AttributeType attributeType = schemaManager.getAttributeType(attributeId);
+		if (attributeType == null) {
+			LOG.warn("Uknown attribute ID {0}, cannot determine if it is binary", attributeId);
+			return false;
+		}
+		LdapSyntax syntax = attributeType.getSyntax();
+		if (syntax == null) {
+			// OpenLDAP does not define some syntaxes that it uses
+			return false;
+		}
+		String syntaxOid = syntax.getOid();
+		if (isBinarySyntax(syntaxOid)) {
+			return true;
+		}
+		if (isStringSyntax(syntaxOid)) {
+			return false;
+		}
+		return !syntax.isHumanReadable();
+	}
+
+	/**
+	 * Used to format __UID__ and __NAME__.
+	 */
+	private String toIcfIdentifierValue(Value<?> ldapValue, AttributeType ldapAttributeType) {
+		if (ldapValue == null) {
+			return null;
+		}
+		String syntaxOid = ldapAttributeType.getSyntaxOid();
+		if (isBinarySyntax(syntaxOid)) {
+			LOG.ok("Converting identifier to ICF: {0} (syntax {1}, value {2}): explicit binary", ldapAttributeType.getName(), syntaxOid, ldapValue.getClass());
+			LOG.ok("UID: {0} ({1}): {2} -> {3}", ldapValue, ldapValue.getClass(), Base64.encode(ldapValue.getBytes()), LdapUtil.binaryToHex(ldapValue.getBytes()));
+			byte[] bytes;
+			if (ldapValue instanceof BinaryValue) {
+				bytes = ldapValue.getBytes();
+			} else if (ldapValue instanceof StringValue) {
+				// Binary value incorrectly detected as string value. Conversion to Java string has broken the data.
+				// We need to do some magic to fix it.
+				LOG.ok("UID: string: {0}, bytes", ldapValue.getString());
+				ByteArrayOutputStream bout = new ByteArrayOutputStream();
+				try {
+					ObjectOutputStream oos = new ObjectOutputStream(bout);
+					oos.writeUTF(ldapValue.getString());
+					oos.close();
+					bout.close();
+				} catch (IOException e) {
+					throw new IllegalStateException(e.getMessage(), e);
+				}
+				bytes = bout.toByteArray();
+			} else {
+				throw new IllegalStateException("Unexpected value type "+ldapValue.getClass());
+			}
+			LOG.ok("UID: bytes: {0} = {1}", Base64.encode(bytes), LdapUtil.binaryToHex(bytes));
+			// Assume that identifiers are short. It is more readable to use hex representation than base64.
+			return LdapUtil.binaryToHex(bytes);
+		} else {
+			LOG.ok("Converting identifier to ICF: {0} (syntax {1}, value {2}): implicit string", ldapAttributeType.getName(), syntaxOid, ldapValue.getClass());
+			return ldapValue.getString();
 		}
 	}
 	
@@ -504,11 +728,8 @@ public class SchemaTranslator {
 			if (uidAttribute.size() > 1) {
 				throw new IllegalArgumentException("LDAP entry "+dn+" has more than one value for UID attribute "+uidAttributeName);
 			}
-			try {
-				uid = uidAttribute.getString();
-			} catch (LdapInvalidAttributeValueException e) {
-				throw new IllegalArgumentException("LDAP entry "+dn+" has non-string value for UID attribute "+uidAttributeName, e);
-			}
+			AttributeType attributeType = schemaManager.getAttributeType(uidAttribute.getId());
+			uid = toIcfIdentifierValue(uidAttribute.get(), attributeType);
 		}
 		cob.setUid(uid);
 		

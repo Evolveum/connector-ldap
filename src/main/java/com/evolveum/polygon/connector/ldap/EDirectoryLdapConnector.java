@@ -16,31 +16,21 @@
 
 package com.evolveum.polygon.connector.ldap;
 
-import static org.identityconnectors.common.StringUtil.isBlank;
-
-import org.identityconnectors.framework.common.exceptions.ConfigurationException;
-import org.identityconnectors.framework.spi.AbstractConfiguration;
 import org.identityconnectors.common.logging.Log;
-import org.identityconnectors.common.security.GuardedString;
-import org.identityconnectors.framework.spi.ConfigurationProperty;
+import org.identityconnectors.framework.spi.ConnectorClass;
 
-/**
- * LDAP Connector configuration.
- * 
- * @author Radovan Semancik
- *
- */
-public class LdapConfiguration extends AbstractLdapConfiguration {
+import com.evolveum.polygon.connector.ldap.schema.EDirectorySchemaTranslator;
+import com.evolveum.polygon.connector.ldap.schema.SchemaTranslator;
 
-    private static final Log LOG = Log.getLog(LdapConfiguration.class);
+@ConnectorClass(displayNameKey = "connector.ldap.display", configurationClass = EDirectoryLdapConfiguration.class)
+public class EDirectoryLdapConnector extends AbstractLdapConnector<EDirectoryLdapConfiguration> {
 
-    // Nothing to add
+    private static final Log LOG = Log.getLog(EDirectoryLdapConnector.class);
 
 	@Override
-	public void recompute() {
-		if (getUidAttribute() == null) {
-			setUidAttribute(ATTRIBUTE_ENTRYUUID_NAME);
-		}
+	protected SchemaTranslator<EDirectoryLdapConfiguration> createSchemaTranslator() {
+		return new EDirectorySchemaTranslator(getSchemaManager(), getConfiguration());
 	}
-
+        
+    
 }

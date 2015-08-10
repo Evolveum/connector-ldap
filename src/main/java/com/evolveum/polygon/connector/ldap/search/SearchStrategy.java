@@ -45,6 +45,7 @@ import org.identityconnectors.framework.common.objects.ResultsHandler;
 import org.identityconnectors.framework.common.objects.SearchResult;
 import org.identityconnectors.framework.common.objects.SortKey;
 
+import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
 import com.evolveum.polygon.connector.ldap.LdapConfiguration;
 import com.evolveum.polygon.connector.ldap.schema.SchemaTranslator;
 
@@ -57,7 +58,7 @@ public abstract class SearchStrategy {
 	private static final Log LOG = Log.getLog(SearchStrategy.class);
 	
 	private LdapNetworkConnection connection;
-	private LdapConfiguration configuration;
+	private AbstractLdapConfiguration configuration;
 	private SchemaTranslator schemaTranslator;
 	private ObjectClass objectClass;
 	private org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass;
@@ -65,7 +66,7 @@ public abstract class SearchStrategy {
 	private OperationOptions options;
 	private boolean isCompleteResultSet = true;
 	
-	protected SearchStrategy(LdapNetworkConnection connection, LdapConfiguration configuration,
+	protected SearchStrategy(LdapNetworkConnection connection, AbstractLdapConfiguration configuration,
 			SchemaTranslator schemaTranslator, ObjectClass objectClass,
 			org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
 			ResultsHandler handler, OperationOptions options) {
@@ -83,7 +84,7 @@ public abstract class SearchStrategy {
 		return connection;
 	}
 
-	public LdapConfiguration getConfiguration() {
+	public AbstractLdapConfiguration getConfiguration() {
 		return configuration;
 	}
 	

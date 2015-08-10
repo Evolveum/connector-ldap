@@ -45,6 +45,7 @@ import org.identityconnectors.framework.common.objects.OperationOptions;
 import org.identityconnectors.framework.common.objects.ResultsHandler;
 import org.identityconnectors.framework.common.objects.SortKey;
 
+import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
 import com.evolveum.polygon.connector.ldap.LdapConfiguration;
 import com.evolveum.polygon.connector.ldap.LdapUtil;
 import com.evolveum.polygon.connector.ldap.schema.SchemaTranslator;
@@ -61,7 +62,7 @@ public class SimplePagedResultsSearchStrategy extends SearchStrategy {
 	private byte[] cookie = null;
 
 	public SimplePagedResultsSearchStrategy(LdapNetworkConnection connection,
-			LdapConfiguration configuration, SchemaTranslator schemaTranslator, ObjectClass objectClass,
+			AbstractLdapConfiguration configuration, SchemaTranslator schemaTranslator, ObjectClass objectClass,
 			org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
 			ResultsHandler handler, OperationOptions options) {
 		super(connection, configuration, schemaTranslator, objectClass, ldapObjectClass, handler, options);

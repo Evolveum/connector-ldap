@@ -34,6 +34,7 @@ import org.apache.directory.api.ldap.model.schema.ObjectClass;
 import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException;
 import org.identityconnectors.framework.common.objects.Attribute;
 import org.identityconnectors.framework.common.objects.Name;
+import org.identityconnectors.framework.common.objects.Uid;
 import org.identityconnectors.framework.common.objects.filter.AndFilter;
 import org.identityconnectors.framework.common.objects.filter.ContainsAllValuesFilter;
 import org.identityconnectors.framework.common.objects.filter.ContainsFilter;
@@ -154,7 +155,15 @@ public class LdapFilterTranslator {
 				return new ScopedFilter(null, dn);
 			}
 			AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, icfAttributeName);
-			Value<Object> ldapValue = schemaTranslator.toLdapValue(ldapAttributeType, icfAttributeValue);
+			Value<Object> ldapValue;
+			if (Uid.NAME.equals(icfAttributeName)) {
+				if (icfAttributeValue.size() != 1) {
+					throw new InvalidAttributeValueException("Expected single value for UID, but got " + icfAttributeValue);
+				}
+				ldapValue = schemaTranslator.toLdapIdentifierValue(ldapAttributeType, (String)icfAttributeValue.get(0));
+			} else {
+				ldapValue = schemaTranslator.toLdapValue(ldapAttributeType, icfAttributeValue);
+			}
 			return new ScopedFilter(new EqualityNode<Object>(ldapAttributeType, ldapValue));
 
 		} else if (icfFilter instanceof ContainsAllValuesFilter) {

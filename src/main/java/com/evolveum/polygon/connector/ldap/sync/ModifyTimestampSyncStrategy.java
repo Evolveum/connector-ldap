@@ -63,6 +63,7 @@ import org.identityconnectors.framework.common.objects.SyncToken;
 import org.identityconnectors.framework.common.objects.Uid;
 import org.identityconnectors.framework.spi.SyncTokenResultsHandler;
 
+import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
 import com.evolveum.polygon.connector.ldap.LdapConfiguration;
 import com.evolveum.polygon.connector.ldap.LdapConnector;
 import com.evolveum.polygon.connector.ldap.LdapUtil;
@@ -82,7 +83,7 @@ public class ModifyTimestampSyncStrategy extends SyncStrategy {
 	private static final Log LOG = Log.getLog(ModifyTimestampSyncStrategy.class);
 
 
-	public ModifyTimestampSyncStrategy(LdapConfiguration configuration, LdapNetworkConnection connection, 
+	public ModifyTimestampSyncStrategy(AbstractLdapConfiguration configuration, LdapNetworkConnection connection, 
 			SchemaManager schemaManager, SchemaTranslator schemaTranslator) {
 		super(configuration, connection, schemaManager, schemaTranslator);
 	}

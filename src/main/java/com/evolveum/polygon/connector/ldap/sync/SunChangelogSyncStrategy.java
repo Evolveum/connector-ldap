@@ -57,6 +57,7 @@ import org.identityconnectors.framework.common.objects.SyncResultsHandler;
 import org.identityconnectors.framework.common.objects.SyncToken;
 import org.identityconnectors.framework.common.objects.Uid;
 
+import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
 import com.evolveum.polygon.connector.ldap.LdapConfiguration;
 import com.evolveum.polygon.connector.ldap.LdapConnector;
 import com.evolveum.polygon.connector.ldap.LdapUtil;
@@ -93,7 +94,7 @@ public class SunChangelogSyncStrategy extends SyncStrategy {
 	private static final Object CHANGE_TYPE_MODRDN = "modrdn";
 	
 
-	public SunChangelogSyncStrategy(LdapConfiguration configuration, LdapNetworkConnection connection, 
+	public SunChangelogSyncStrategy(AbstractLdapConfiguration configuration, LdapNetworkConnection connection, 
 			SchemaManager schemaManager, SchemaTranslator schemaTranslator) {
 		super(configuration, connection, schemaManager, schemaTranslator);
 	}

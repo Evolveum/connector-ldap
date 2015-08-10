@@ -41,6 +41,7 @@ import org.identityconnectors.framework.common.objects.OperationOptions;
 import org.identityconnectors.framework.common.objects.ResultsHandler;
 import org.identityconnectors.framework.common.objects.SearchResult;
 
+import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
 import com.evolveum.polygon.connector.ldap.LdapConfiguration;
 import com.evolveum.polygon.connector.ldap.LdapUtil;
 import com.evolveum.polygon.connector.ldap.schema.SchemaTranslator;
@@ -54,7 +55,7 @@ public class DefaultSearchStrategy extends SearchStrategy {
 	
 	private static final Log LOG = Log.getLog(DefaultSearchStrategy.class);
 
-	public DefaultSearchStrategy(LdapNetworkConnection connection, LdapConfiguration configuration,
+	public DefaultSearchStrategy(LdapNetworkConnection connection, AbstractLdapConfiguration configuration,
 			SchemaTranslator schemaTranslator, ObjectClass objectClass,
 			org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass, ResultsHandler handler,
 			OperationOptions options) {
