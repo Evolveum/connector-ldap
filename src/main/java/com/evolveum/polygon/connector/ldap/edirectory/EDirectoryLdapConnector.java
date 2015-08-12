@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-package com.evolveum.polygon.connector.ldap;
+package com.evolveum.polygon.connector.ldap.edirectory;
 
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.framework.spi.ConnectorClass;
 
-import com.evolveum.polygon.connector.ldap.schema.EDirectorySchemaTranslator;
+import com.evolveum.polygon.connector.ldap.AbstractLdapConnector;
 import com.evolveum.polygon.connector.ldap.schema.SchemaTranslator;
 
 @ConnectorClass(displayNameKey = "connector.ldap.display", configurationClass = EDirectoryLdapConfiguration.class)

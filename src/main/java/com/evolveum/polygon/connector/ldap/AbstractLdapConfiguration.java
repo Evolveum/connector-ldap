@@ -46,6 +46,9 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 	public static final String ATTRIBUTE_NSUNIQUEID_NAME = "nsUniqueId";
 	
 	public static final String SEARCH_FILTER_ALL = "(objectClass=*)";
+	public static final String BOOLEAN_TRUE = "TRUE";
+	public static final String BOOLEAN_FALSE = "FALSE";
+	
     /**
      * The LDAP server hostname.
      */

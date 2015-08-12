@@ -15,7 +15,9 @@
  */
 package com.evolveum.polygon.connector.ldap;
 
+import java.text.ParseException;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 import org.apache.directory.api.ldap.model.cursor.CursorException;
@@ -23,6 +25,7 @@ import org.apache.directory.api.ldap.model.cursor.EntryCursor;
 import org.apache.directory.api.ldap.model.entry.Attribute;
 import org.apache.directory.api.ldap.model.entry.BinaryValue;
 import org.apache.directory.api.ldap.model.entry.Entry;
+import org.apache.directory.api.ldap.model.entry.StringValue;
 import org.apache.directory.api.ldap.model.entry.Value;
 import org.apache.directory.api.ldap.model.exception.LdapAdminLimitExceededException;
 import org.apache.directory.api.ldap.model.exception.LdapAffectMultipleDsaException;
@@ -52,6 +55,7 @@ import org.apache.directory.api.ldap.model.message.LdapResult;
 import org.apache.directory.api.ldap.model.message.ResultCodeEnum;
 import org.apache.directory.api.ldap.model.message.SearchScope;
 import org.apache.directory.api.ldap.model.schema.AttributeType;
+import org.apache.directory.api.util.GeneralizedTime;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
 import org.apache.directory.ldap.client.api.exception.InvalidConnectionException;
 import org.identityconnectors.common.logging.Log;
@@ -85,8 +89,7 @@ public class LdapUtil {
 				|| LdapConfiguration.ATTRIBUTE_NSUNIQUEID_NAME.equals(attributeName);
 	}
 
-
-	public static String getStringAttribute(Entry entry, String attrName) throws LdapInvalidAttributeValueException {
+	public static String getStringAttribute(Entry entry, String attrName) {
 		Attribute attribute = entry.get(attrName);
 		if (attribute == null) {
 			return null;
@@ -96,6 +99,52 @@ public class LdapUtil {
 			return null;
 		}
 		return value.getString();
+	}
+	
+	public static Boolean getBooleanAttribute(Entry entry, String attrName, Boolean defaultVal) {
+		String stringVal = getStringAttribute(entry, attrName);
+		if (stringVal == null) {
+			return defaultVal;
+		}
+		if (stringVal.compareToIgnoreCase("true") == 0) {
+			return Boolean.TRUE;
+		}
+		if (stringVal.compareToIgnoreCase("false") == 0) {
+			return Boolean.FALSE;
+		}
+		throw new InvalidAttributeValueException("Invalid boolean value '"+stringVal+"' in attribute "+attrName+" of entry "+entry.getDn());
+	}
+	
+	public static Long getTimestampAttribute(Entry entry, String attrName) {
+		String stringVal = getStringAttribute(entry, attrName);
+		if (stringVal == null) {
+			return null;
+		}
+		GeneralizedTime gt;
+		try {
+			gt = new GeneralizedTime(stringVal);
+		} catch (ParseException e) {
+			throw new InvalidAttributeValueException("Invalid generalized time value '"+stringVal+"' in attribute "+attrName+" of entry "+entry.getDn()+": "+e.getMessage(), e);
+		}
+		return gt.getCalendar().getTimeInMillis();
+	}
+	
+	public static String toGeneralizedTime(long millis) {
+		GeneralizedTime gtime = new GeneralizedTime(new Date(millis));
+		return gtime.toGeneralizedTime();
+	}
+	
+	public static Boolean toBoolean(String stringVal, Boolean defaultVal) {
+		if (stringVal == null) {
+			return defaultVal;
+		}
+		if (stringVal.compareToIgnoreCase("true") == 0) {
+			return Boolean.TRUE;
+		}
+		if (stringVal.compareToIgnoreCase("false") == 0) {
+			return Boolean.FALSE;
+		}
+		throw new InvalidAttributeValueException("Invalid boolean value '"+stringVal+"'");
 	}
 	
 	public static String[] getAttributesToGet(org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass, 
@@ -347,4 +396,6 @@ public class LdapUtil {
 		}
 		return bytes;
 	}
+	
+	
 }

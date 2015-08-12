@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.evolveum.polygon.connector.ldap;
+package com.evolveum.polygon.connector.ldap.edirectory;
 
 import static org.identityconnectors.common.StringUtil.isBlank;
 
@@ -23,6 +23,8 @@ import org.identityconnectors.framework.spi.AbstractConfiguration;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.spi.ConfigurationProperty;
+
+import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
 
 /**
  * eDirectory LDAP Connector configuration.

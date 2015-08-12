@@ -451,7 +451,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 	private SearchStrategy searchUsual(Filter icfFilter, ObjectClass objectClass, org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
 			ResultsHandler handler, OperationOptions options) {
 		String baseDn = getBaseDn(options);
-		LdapFilterTranslator filterTranslator = new LdapFilterTranslator(getSchemaTranslator(), ldapObjectClass);
+		LdapFilterTranslator filterTranslator = createLdapFilterTranslator(ldapObjectClass);
 		ScopedFilter scopedFilter = filterTranslator.translate(icfFilter, ldapObjectClass);
 		ExprNode filterNode = scopedFilter.getFilter();
 		String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
@@ -482,6 +482,10 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		}
 		
 		return searchStrategy;
+	}
+	
+	protected LdapFilterTranslator createLdapFilterTranslator(org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
+		return new LdapFilterTranslator(getSchemaTranslator(), ldapObjectClass);
 	}
 	
 	private String getBaseDn(OperationOptions options) {

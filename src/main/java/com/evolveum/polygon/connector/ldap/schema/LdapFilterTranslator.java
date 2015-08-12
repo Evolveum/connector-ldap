@@ -147,24 +147,8 @@ public class LdapFilterTranslator {
 			return new ScopedFilter(new NotNode(subNode.getFilter()));
 			
 		} else if (icfFilter instanceof EqualsFilter) {
-			Attribute icfAttribute = ((EqualsFilter)icfFilter).getAttribute();
-			String icfAttributeName = icfAttribute.getName();
-			List<Object> icfAttributeValue = icfAttribute.getValue();
-			if (Name.NAME.equals(icfAttributeName)) {
-				String dn = SchemaUtil.getSingleStringNonBlankValue(icfAttribute);
-				return new ScopedFilter(null, dn);
-			}
-			AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, icfAttributeName);
-			Value<Object> ldapValue;
-			if (Uid.NAME.equals(icfAttributeName)) {
-				if (icfAttributeValue.size() != 1) {
-					throw new InvalidAttributeValueException("Expected single value for UID, but got " + icfAttributeValue);
-				}
-				ldapValue = schemaTranslator.toLdapIdentifierValue(ldapAttributeType, (String)icfAttributeValue.get(0));
-			} else {
-				ldapValue = schemaTranslator.toLdapValue(ldapAttributeType, icfAttributeValue);
-			}
-			return new ScopedFilter(new EqualityNode<Object>(ldapAttributeType, ldapValue));
+			return translateEqualsFilter(((EqualsFilter)icfFilter));
+			
 
 		} else if (icfFilter instanceof ContainsAllValuesFilter) {
 			Attribute icfAttribute = ((ContainsAllValuesFilter)icfFilter).getAttribute();
@@ -280,6 +264,27 @@ public class LdapFilterTranslator {
 		} else {
 			throw new IllegalArgumentException("Unknown filter "+icfFilter.getClass());
 		}
+	}
+
+	protected ScopedFilter translateEqualsFilter(EqualsFilter icfFilter) {
+		Attribute icfAttribute = icfFilter.getAttribute();
+		String icfAttributeName = icfAttribute.getName();
+		List<Object> icfAttributeValue = icfAttribute.getValue();
+		if (Name.NAME.equals(icfAttributeName)) {
+			String dn = SchemaUtil.getSingleStringNonBlankValue(icfAttribute);
+			return new ScopedFilter(null, dn);
+		}
+		AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, icfAttributeName);
+		Value<Object> ldapValue;
+		if (Uid.NAME.equals(icfAttributeName)) {
+			if (icfAttributeValue.size() != 1) {
+				throw new InvalidAttributeValueException("Expected single value for UID, but got " + icfAttributeValue);
+			}
+			ldapValue = schemaTranslator.toLdapIdentifierValue(ldapAttributeType, (String)icfAttributeValue.get(0));
+		} else {
+			ldapValue = schemaTranslator.toLdapValue(ldapAttributeType, icfAttributeValue);
+		}
+		return new ScopedFilter(new EqualityNode<Object>(ldapAttributeType, ldapValue));
 	}
 
 }

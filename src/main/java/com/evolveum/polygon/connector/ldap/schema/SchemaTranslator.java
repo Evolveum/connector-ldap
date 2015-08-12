@@ -124,7 +124,7 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 		SchemaBuilder schemaBuilder = new SchemaBuilder(LdapConnector.class);
 		LOG.ok("Translating LDAP schema from {0}", schemaManager);
 		for (org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass: schemaManager.getObjectClassRegistry()) {
-			if (shouldTranslate(ldapObjectClass)) {
+			if (shouldTranslateObjectClass(ldapObjectClass.getName())) {
 				LOG.ok("Found LDAP schema object class {0}, translating", ldapObjectClass.getName());
 				ObjectClassInfoBuilder ocib = new ObjectClassInfoBuilder();
 				ocib.setType(toIcfObjectClassType(ldapObjectClass));
@@ -134,6 +134,7 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 				if (ldapObjectClass.isAuxiliary()) {
 					ocib.setAuxiliary(true);
 				}
+				extendObjectClassDefinition(ocib, ldapObjectClass);
 				schemaBuilder.defineObjectClass(ocib.build());
 			} else {
 				LOG.ok("Found LDAP schema object class {0}, skipping", ldapObjectClass.getName());
@@ -173,7 +174,12 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 		return icfSchema;
 	}
 
-	protected boolean shouldTranslate(org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
+	protected void extendObjectClassDefinition(ObjectClassInfoBuilder ocib,
+			org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
+		// Nothing to do. Expected to be overridden in subclasses.
+	}
+
+	protected boolean shouldTranslateObjectClass(String ldapObjectClassName) {
 		return true;
 	}
 	
@@ -280,6 +286,9 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 
 	private void addAttributeTypes(List<AttributeInfo> attrInfoList, List<AttributeType> attributeTypes, boolean isRequired) {
 		for (AttributeType ldapAttribute: attributeTypes) {
+			if (!shouldTranslateAttribute(ldapAttribute.getName())) {
+				continue;
+			}
 			if (ldapAttribute.getName().equals(LdapConfiguration.ATTRIBUTE_OBJECTCLASS_NAME)) {
 				continue;
 			}
@@ -427,9 +436,8 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 		String syntaxOid = ldapAttributeType.getSyntaxOid();
 		if (SchemaConstants.GENERALIZED_TIME_SYNTAX.equals(syntaxOid)) {
 			if (icfAttributeValue instanceof Long) {
-				GeneralizedTime gtime = new GeneralizedTime(new Date((Long)icfAttributeValue));
 				try {
-					return (Value)new StringValue(ldapAttributeType, gtime.toGeneralizedTime());
+					return (Value)new StringValue(ldapAttributeType, LdapUtil.toGeneralizedTime((Long)icfAttributeValue));
 				} catch (LdapInvalidAttributeValueException e) {
 					throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
 							+"; attributeType="+ldapAttributeType, e);
@@ -594,7 +602,7 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 		}
 	}
 	
-	private boolean isStringSyntax(String syntaxOid) {
+	protected boolean isStringSyntax(String syntaxOid) {
 		return SchemaConstants.DIRECTORY_STRING_SYNTAX.equals(syntaxOid) 
 				|| SchemaConstants.IA5_STRING_SYNTAX.equals(syntaxOid)				
 				|| SchemaConstants.OBJECT_CLASS_TYPE_SYNTAX.equals(syntaxOid)
@@ -602,7 +610,7 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 				|| SchemaConstants.PRINTABLE_STRING_SYNTAX.equals(syntaxOid);
 	}
 
-	private boolean isBinarySyntax(String syntaxOid) {
+	protected boolean isBinarySyntax(String syntaxOid) {
 		return SchemaConstants.OCTET_STRING_SYNTAX.equals(syntaxOid) 
 				|| SchemaConstants.JPEG_SYNTAX.equals(syntaxOid)
 				|| SchemaConstants.BINARY_SYNTAX.equals(syntaxOid)
@@ -643,7 +651,6 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 		String syntaxOid = ldapAttributeType.getSyntaxOid();
 		if (isBinarySyntax(syntaxOid)) {
 			LOG.ok("Converting identifier to ICF: {0} (syntax {1}, value {2}): explicit binary", ldapAttributeType.getName(), syntaxOid, ldapValue.getClass());
-			LOG.ok("UID: {0} ({1}): {2} -> {3}", ldapValue, ldapValue.getClass(), Base64.encode(ldapValue.getBytes()), LdapUtil.binaryToHex(ldapValue.getBytes()));
 			byte[] bytes;
 			if (ldapValue instanceof BinaryValue) {
 				bytes = ldapValue.getBytes();
@@ -664,7 +671,6 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 			} else {
 				throw new IllegalStateException("Unexpected value type "+ldapValue.getClass());
 			}
-			LOG.ok("UID: bytes: {0} = {1}", Base64.encode(bytes), LdapUtil.binaryToHex(bytes));
 			// Assume that identifiers are short. It is more readable to use hex representation than base64.
 			return LdapUtil.binaryToHex(bytes);
 		} else {
@@ -736,6 +742,9 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 		Iterator<org.apache.directory.api.ldap.model.entry.Attribute> iterator = entry.iterator();
 		while (iterator.hasNext()) {
 			org.apache.directory.api.ldap.model.entry.Attribute ldapAttribute = iterator.next();
+			if (!shouldTranslateAttribute(ldapAttribute.getId())) {
+				continue;
+			}
 			AttributeType attributeType = schemaManager.getAttributeType(ldapAttribute.getId());
 			String ldapAttributeName = attributeType.getName();
 			if (uidAttributeName.equals(ldapAttributeName)) {
@@ -758,9 +767,19 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 			
 		}
 		
+		extendConnectorObject(cob, entry);
+		
 		return cob.build();
 	}
 	
+	protected boolean shouldTranslateAttribute(String attrName) {
+		return true;
+	}
+
+	protected void extendConnectorObject(ConnectorObjectBuilder cob, Entry entry) {
+		// Nothing to do here. This is supposed to be overriden by subclasses.
+	}
+
 	private LdapObjectClasses processObjectClasses(Entry entry) {
 		LdapObjectClasses ocs = new LdapObjectClasses();
 		org.apache.directory.api.ldap.model.entry.Attribute objectClassAttribute = entry.get(LdapConfiguration.ATTRIBUTE_OBJECTCLASS_NAME);
