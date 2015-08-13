@@ -227,7 +227,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
     	return schemaManager;
     }
     
-    private SchemaTranslator<C> getSchemaTranslator() {
+    protected SchemaTranslator<C> getSchemaTranslator() {
     	if (schemaTranslator == null) {
     		schemaTranslator = createSchemaTranslator();
     		binaryAttributeDetector.setSchemaTranslator(schemaTranslator);
@@ -803,18 +803,8 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 					modifications.add(new DefaultModification(modOp, LdapConfiguration.ATTRIBUTE_OBJECTCLASS_NAME, stringValues));
 				}
 			} else {
-				AttributeType attributeType = schemaTranslator.toLdapAttribute(ldapStructuralObjectClass, icfAttr.getName());
-				if (attributeType == null && !ArrayUtils.contains(configuration.getOperationalAttributes(), icfAttr.getName())) {
-					throw new InvalidAttributeValueException("Unknown attribute "+icfAttr.getName()+" in object class "+icfObjectClass);
-				}
-				List<Value<Object>> ldapValues = schemaTranslator.toLdapValues(attributeType, icfAttr.getValue());
-				if (ldapValues == null || ldapValues.isEmpty()) {
-					// Do NOT set AttributeType here
-					modifications.add(new DefaultModification(modOp, attributeType.getOid()));					
-				} else {
-					// Do NOT set AttributeType here
-					modifications.add(new DefaultModification(modOp, attributeType.getOid(), ldapValues.toArray(new Value[ldapValues.size()])));
-				}
+				LOG.ok("XXX Attr modification {0}", icfAttr);
+				addAttributeModification(modifications, ldapStructuralObjectClass, icfObjectClass, icfAttr, modOp);
 			}
 		}
 		
@@ -837,6 +827,23 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		}
 		
 		return uid;
+	}
+
+	protected void addAttributeModification(List<Modification> modifications,
+			org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass,
+			ObjectClass icfObjectClass, Attribute icfAttr, ModificationOperation modOp) {
+		AttributeType attributeType = schemaTranslator.toLdapAttribute(ldapStructuralObjectClass, icfAttr.getName());
+		if (attributeType == null && !ArrayUtils.contains(configuration.getOperationalAttributes(), icfAttr.getName())) {
+			throw new InvalidAttributeValueException("Unknown attribute "+icfAttr.getName()+" in object class "+icfObjectClass);
+		}
+		List<Value<Object>> ldapValues = schemaTranslator.toLdapValues(attributeType, icfAttr.getValue());
+		if (ldapValues == null || ldapValues.isEmpty()) {
+			// Do NOT set AttributeType here
+			modifications.add(new DefaultModification(modOp, attributeType.getOid()));					
+		} else {
+			// Do NOT set AttributeType here
+			modifications.add(new DefaultModification(modOp, attributeType.getOid(), ldapValues.toArray(new Value[ldapValues.size()])));
+		}
 	}
 
 	// We want to decrypt GuardedString at the very last moment
@@ -970,7 +977,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			} catch (LdapException e1) {
 				throw new InvalidAttributeValueException("Cannot find schema for UID attribute "+uidAttributeName);
 			}
-			Value<Object> ldapValue = schemaTranslator.toLdapValue(ldapAttributeType, uid.getUidValue());
+			Value<Object> ldapValue = schemaTranslator.toLdapIdentifierValue(ldapAttributeType, uid.getUidValue());
 			ExprNode filterNode = new EqualityNode<Object>(ldapAttributeType, ldapValue);
 			try {
 				EntryCursor cursor = connection.search(baseDn, filterNode.toString(), scope, uidAttributeName);

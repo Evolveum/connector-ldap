@@ -107,6 +107,11 @@ public class EDirectorySchemaTranslator extends SchemaTranslator<EDirectoryLdapC
 	protected boolean isBinarySyntax(String syntaxOid) {
 		return EDirectoryConstants.OID_NOVELL_SYNTAX_NETADDRESS.equals(syntaxOid) ||
 				super.isBinarySyntax(syntaxOid);
-	}	
+	}
+	
+	@Override
+	protected boolean acceptsFractionalGeneralizedTime() {
+		return false;
+	}
 
 }

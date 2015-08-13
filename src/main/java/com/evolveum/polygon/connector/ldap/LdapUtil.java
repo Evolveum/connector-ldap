@@ -129,9 +129,13 @@ public class LdapUtil {
 		return gt.getCalendar().getTimeInMillis();
 	}
 	
-	public static String toGeneralizedTime(long millis) {
+	public static String toGeneralizedTime(long millis, boolean fractionalPart) {
 		GeneralizedTime gtime = new GeneralizedTime(new Date(millis));
-		return gtime.toGeneralizedTime();
+		if (fractionalPart) {
+			return gtime.toGeneralizedTime();
+		} else {
+			return gtime.toGeneralizedTimeWithoutFraction();
+		}
 	}
 	
 	public static Boolean toBoolean(String stringVal, Boolean defaultVal) {

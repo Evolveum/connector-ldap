@@ -15,11 +15,17 @@
  */
 package com.evolveum.polygon.connector.ldap.edirectory;
 
+import java.util.List;
+
 import org.apache.directory.api.ldap.model.entry.StringValue;
 import org.apache.directory.api.ldap.model.filter.AndNode;
 import org.apache.directory.api.ldap.model.filter.EqualityNode;
+import org.apache.directory.api.ldap.model.filter.ExprNode;
+import org.apache.directory.api.ldap.model.filter.GreaterEqNode;
 import org.apache.directory.api.ldap.model.filter.LessEqNode;
+import org.apache.directory.api.ldap.model.filter.NotNode;
 import org.apache.directory.api.ldap.model.schema.ObjectClass;
+import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException;
 import org.identityconnectors.framework.common.objects.OperationalAttributes;
 import org.identityconnectors.framework.common.objects.filter.EqualsFilter;
 
@@ -42,19 +48,29 @@ public class EDirectoryLdapFilterTranslator extends LdapFilterTranslator {
 	@Override
 	protected ScopedFilter translateEqualsFilter(EqualsFilter icfFilter) {
 		if (OperationalAttributes.LOCK_OUT_NAME.equals(icfFilter.getAttribute().getName())) {
-			return new ScopedFilter(
-					new AndNode(new EqualityNode<String>(EDirectoryConstants.LOCKOUT_ATTRIBUTE_LOCKED_NAME, 
-									new StringValue(AbstractLdapConfiguration.BOOLEAN_TRUE)
-								),
-								new LessEqNode<String>(EDirectoryConstants.LOCKOUT_ATTRIBUTE_RESET_TIME_NAME,
-									new StringValue(LdapUtil.toGeneralizedTime(System.currentTimeMillis()))
-								)
-					)
-			);
+			List<Object> values = icfFilter.getAttribute().getValue();
+			if (values.size() != 1) {
+				throw new InvalidAttributeValueException("Unexpected number of values in filter "+icfFilter);
+			}
+			Boolean value = (Boolean)values.get(0);
+			if (value) {
+				return new ScopedFilter(createLockoutFilter());
+			} else {
+				return new ScopedFilter(new NotNode(createLockoutFilter()));
+			}
 		} else {
 			return super.translateEqualsFilter(icfFilter);
 		}
 	}
 
+	private ExprNode createLockoutFilter() {
+		return new AndNode(new EqualityNode<String>(EDirectoryConstants.LOCKOUT_ATTRIBUTE_LOCKED_NAME, 
+				new StringValue(AbstractLdapConfiguration.BOOLEAN_TRUE)
+			),
+			new GreaterEqNode<String>(EDirectoryConstants.LOCKOUT_ATTRIBUTE_RESET_TIME_NAME,
+				new StringValue(LdapUtil.toGeneralizedTime(System.currentTimeMillis(), false))
+			)
+		);
+	}
 	
 }

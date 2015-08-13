@@ -437,7 +437,7 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 		if (SchemaConstants.GENERALIZED_TIME_SYNTAX.equals(syntaxOid)) {
 			if (icfAttributeValue instanceof Long) {
 				try {
-					return (Value)new StringValue(ldapAttributeType, LdapUtil.toGeneralizedTime((Long)icfAttributeValue));
+					return (Value)new StringValue(ldapAttributeType, LdapUtil.toGeneralizedTime((Long)icfAttributeValue, acceptsFractionalGeneralizedTime()));
 				} catch (LdapInvalidAttributeValueException e) {
 					throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
 							+"; attributeType="+ldapAttributeType, e);
@@ -520,6 +520,10 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 		}
 	}
 	
+	protected boolean acceptsFractionalGeneralizedTime() {
+		return true;
+	}
+
 	/**
 	 * Used to parse __UID__ and __NAME__.
 	 */
