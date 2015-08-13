@@ -66,15 +66,15 @@ public class EDirectorySchemaTranslator extends SchemaTranslator<EDirectoryLdapC
 	
 	@Override
 	protected boolean shouldTranslateAttribute(String attrName) {
-		return (!attrName.equals(EDirectoryConstants.LOCKOUT_ATTRIBUTE_LOCKED_NAME));
+		return (!attrName.equals(EDirectoryConstants.ATTRIBUTE_LOCKOUT_LOCKED_NAME));
 	}
 	
 	@Override
 	protected void extendConnectorObject(ConnectorObjectBuilder cob, Entry entry) {
 		super.extendConnectorObject(cob, entry);
-		boolean ldapLocked = LdapUtil.getBooleanAttribute(entry, EDirectoryConstants.LOCKOUT_ATTRIBUTE_LOCKED_NAME, Boolean.FALSE);
+		boolean ldapLocked = LdapUtil.getBooleanAttribute(entry, EDirectoryConstants.ATTRIBUTE_LOCKOUT_LOCKED_NAME, Boolean.FALSE);
 		if (ldapLocked) {
-			Long resetTime = LdapUtil.getTimestampAttribute(entry, EDirectoryConstants.LOCKOUT_ATTRIBUTE_RESET_TIME_NAME);
+			Long resetTime = LdapUtil.getTimestampAttribute(entry, EDirectoryConstants.ATTRIBUTE_LOCKOUT_RESET_TIME_NAME);
 			long now = System.currentTimeMillis();
 			LOG.ok("LOCK reset={0}, now={1}", resetTime, now);
 			if (resetTime > now) {
@@ -87,11 +87,11 @@ public class EDirectorySchemaTranslator extends SchemaTranslator<EDirectoryLdapC
 		}
 	}
 
-	private boolean isUserObjectClass(String ldapObjectClass) {
+	public boolean isUserObjectClass(String ldapObjectClass) {
 		return getConfiguration().getUserObjectClass().equals(ldapObjectClass);
 	}
 
-	private boolean isGroupObjectClass(String ldapObjectClass) {
+	public boolean isGroupObjectClass(String ldapObjectClass) {
 		return getConfiguration().getGroupObjectClass().equals(ldapObjectClass);
 	}
 	

@@ -152,7 +152,11 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
         return configuration;
     }
 
-    @Override
+    protected LdapNetworkConnection getConnection() {
+		return connection;
+	}
+
+	@Override
     public void init(Configuration configuration) {
         this.configuration = (C)configuration;
         LOG.info("Connector init");
@@ -697,7 +701,8 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 					throw new InvalidAttributeValueException("More than one value ("+uidLdapAttribute.size()+") for UID attribute "+uidAttributeName+" in object "+dn);
 				}
 				Value<?> uidLdapAttributeValue = uidLdapAttribute.get();
-				uid = new Uid(uidLdapAttributeValue.getString());
+				AttributeType uidLdapAttributeType = getSchemaManager().getAttributeType(uidAttributeName);
+				uid = new Uid(getSchemaTranslator().toIcfIdentifierValue(uidLdapAttributeValue, uidLdapAttributeType));
 			} else {
 				// Something wrong happened, the entry was not created.
 				throw new UnknownUidException("Entry with dn "+dn+" was not found (right after it was created)");
@@ -803,7 +808,6 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 					modifications.add(new DefaultModification(modOp, LdapConfiguration.ATTRIBUTE_OBJECTCLASS_NAME, stringValues));
 				}
 			} else {
-				LOG.ok("XXX Attr modification {0}", icfAttr);
 				addAttributeModification(modifications, ldapStructuralObjectClass, icfObjectClass, icfAttr, modOp);
 			}
 		}
@@ -813,10 +817,19 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			return uid;
 		}
 		
+		modify(dn, modifications);
+		
+		postUpdate(icfObjectClass, uid, values, options, modOp, dn, ldapStructuralObjectClass, modifications);
+		
+		return uid;
+	}
+	
+	protected void modify(String dn, List<Modification> modifications) {
 		try {
 			if (LOG.isOk()) {
 				LOG.ok("Modify REQ {0}: {1}", dn, dumpModifications(modifications));
 			}
+			// processModificationsBeforeUpdate must happen after logging. Otherwise passwords might be logged.
 			connection.modify(dn, processModificationsBeforeUpdate(modifications));
 			if (LOG.isOk()) {
 				LOG.ok("Modify RES {0}: {1}", dn, dumpModifications(modifications));
@@ -825,8 +838,6 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			LOG.error("Modify ERROR {0}: {1}: {2}", dn, dumpModifications(modifications), e.getMessage(), e);
 			throw LdapUtil.processLdapException("Error modifying entry "+dn, e);
 		}
-		
-		return uid;
 	}
 
 	protected void addAttributeModification(List<Modification> modifications,
@@ -839,11 +850,17 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		List<Value<Object>> ldapValues = schemaTranslator.toLdapValues(attributeType, icfAttr.getValue());
 		if (ldapValues == null || ldapValues.isEmpty()) {
 			// Do NOT set AttributeType here
-			modifications.add(new DefaultModification(modOp, attributeType.getOid()));					
+			modifications.add(new DefaultModification(modOp, attributeType.getName()));					
 		} else {
 			// Do NOT set AttributeType here
-			modifications.add(new DefaultModification(modOp, attributeType.getOid(), ldapValues.toArray(new Value[ldapValues.size()])));
+			modifications.add(new DefaultModification(modOp, attributeType.getName(), ldapValues.toArray(new Value[ldapValues.size()])));
 		}
+	}
+	
+	protected void postUpdate(ObjectClass icfObjectClass, Uid uid, Set<Attribute> values,
+			OperationOptions options, ModificationOperation modOp, 
+			String dn, org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass, List<Modification> modifications) {
+		// Nothing to do here. Just for override in subclasses.
 	}
 
 	// We want to decrypt GuardedString at the very last moment
@@ -955,7 +972,11 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		String dn = resolveDn(objectClass, uid, options);
 		
 		try {
+			LOG.ok("Delete REQ {0}", dn);
+			
 			connection.delete(dn);
+			
+			LOG.ok("Delete RES {0}", dn);
 		} catch (LdapException e) {
 			throw LdapUtil.processLdapException("Failed to delete entry with DN "+dn+" (UID="+uid+")", e);
 		}

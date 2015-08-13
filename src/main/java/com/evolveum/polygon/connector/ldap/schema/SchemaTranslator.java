@@ -648,7 +648,7 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 	/**
 	 * Used to format __UID__ and __NAME__.
 	 */
-	private String toIcfIdentifierValue(Value<?> ldapValue, AttributeType ldapAttributeType) {
+	public String toIcfIdentifierValue(Value<?> ldapValue, AttributeType ldapAttributeType) {
 		if (ldapValue == null) {
 			return null;
 		}

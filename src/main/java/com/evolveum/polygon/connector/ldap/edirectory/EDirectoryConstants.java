@@ -23,8 +23,11 @@ import org.apache.directory.api.ldap.model.schema.AttributeType;
  */
 public class EDirectoryConstants {
 	
-	public static final String LOCKOUT_ATTRIBUTE_LOCKED_NAME = "lockedByIntruder";
-	public static final String LOCKOUT_ATTRIBUTE_RESET_TIME_NAME = "loginIntruderResetTime";
+	public static final String ATTRIBUTE_LOCKOUT_LOCKED_NAME = "lockedByIntruder";
+	public static final String ATTRIBUTE_LOCKOUT_RESET_TIME_NAME = "loginIntruderResetTime";
+	public static final String ATTRIBUTE_GROUP_MEMBERSHIP_NAME = "groupMembership";
+	public static final String ATTRIBUTE_EQUIVALENT_TO_ME_NAME = "equivalentToMe";
+	public static final String ATTRIBUTE_SECURITY_EQUALS_NAME = "securityEquals";
 	
 	public static final String OID_NOVELL_PREFIX = "2.16.840.1.113719";
 	public static final String OID_NOVELL_SYNTAX_PREFIX = OID_NOVELL_PREFIX+".1.1.5.1";

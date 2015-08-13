@@ -64,10 +64,10 @@ public class EDirectoryLdapFilterTranslator extends LdapFilterTranslator {
 	}
 
 	private ExprNode createLockoutFilter() {
-		return new AndNode(new EqualityNode<String>(EDirectoryConstants.LOCKOUT_ATTRIBUTE_LOCKED_NAME, 
+		return new AndNode(new EqualityNode<String>(EDirectoryConstants.ATTRIBUTE_LOCKOUT_LOCKED_NAME, 
 				new StringValue(AbstractLdapConfiguration.BOOLEAN_TRUE)
 			),
-			new GreaterEqNode<String>(EDirectoryConstants.LOCKOUT_ATTRIBUTE_RESET_TIME_NAME,
+			new GreaterEqNode<String>(EDirectoryConstants.ATTRIBUTE_LOCKOUT_RESET_TIME_NAME,
 				new StringValue(LdapUtil.toGeneralizedTime(System.currentTimeMillis(), false))
 			)
 		);

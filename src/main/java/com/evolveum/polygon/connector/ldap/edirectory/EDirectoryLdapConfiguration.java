@@ -16,14 +16,6 @@
 
 package com.evolveum.polygon.connector.ldap.edirectory;
 
-import static org.identityconnectors.common.StringUtil.isBlank;
-
-import org.identityconnectors.framework.common.exceptions.ConfigurationException;
-import org.identityconnectors.framework.spi.AbstractConfiguration;
-import org.identityconnectors.common.logging.Log;
-import org.identityconnectors.common.security.GuardedString;
-import org.identityconnectors.framework.spi.ConfigurationProperty;
-
 import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
 
 /**
@@ -34,17 +26,21 @@ import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
  */
 public class EDirectoryLdapConfiguration extends AbstractLdapConfiguration {
 
-    private static final Log LOG = Log.getLog(EDirectoryLdapConfiguration.class);
-
 	private static final String ATTRIBUTE_GUID_NAME = "GUID";
     
     private String userObjectClass = "inetOrgPerson";
     
     private String groupObjectClass = "groupOfNames";
     
+    private String groupObjectMemberAttribute = "member";
+    
     private String userContainerDn;
     
     private String groupContainerDn;
+    
+    private boolean manageReciprocalGroupAttributes = true;
+    
+    private boolean manageEquivalenceAttributes = true;
     
     private boolean completeSchema = false;
     
@@ -62,6 +58,14 @@ public class EDirectoryLdapConfiguration extends AbstractLdapConfiguration {
 
 	public void setGroupObjectClass(String groupObjectClass) {
 		this.groupObjectClass = groupObjectClass;
+	}
+
+	public String getGroupObjectMemberAttribute() {
+		return groupObjectMemberAttribute;
+	}
+
+	public void setGroupObjectMemberAttribute(String groupObjectMemberAttribute) {
+		this.groupObjectMemberAttribute = groupObjectMemberAttribute;
 	}
 
 	public String getUserContainerDn() {
@@ -86,6 +90,22 @@ public class EDirectoryLdapConfiguration extends AbstractLdapConfiguration {
 
 	public void setCompleteSchema(boolean completeSchema) {
 		this.completeSchema = completeSchema;
+	}
+
+	public boolean isManageReciprocalGroupAttributes() {
+		return manageReciprocalGroupAttributes;
+	}
+
+	public void setManageReciprocalGroupAttributes(boolean manageReciprocalGroupAttributes) {
+		this.manageReciprocalGroupAttributes = manageReciprocalGroupAttributes;
+	}
+
+	public boolean isManageEquivalenceAttributes() {
+		return manageEquivalenceAttributes;
+	}
+
+	public void setManageEquivalenceAttributes(boolean manageEquivalenceAttributes) {
+		this.manageEquivalenceAttributes = manageEquivalenceAttributes;
 	}
 
 	@Override
