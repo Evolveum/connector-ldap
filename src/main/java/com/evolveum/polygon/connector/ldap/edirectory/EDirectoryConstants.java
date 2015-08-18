@@ -31,7 +31,14 @@ public class EDirectoryConstants {
 	
 	public static final String OID_NOVELL_PREFIX = "2.16.840.1.113719";
 	public static final String OID_NOVELL_SYNTAX_PREFIX = OID_NOVELL_PREFIX+".1.1.5.1";
+	public static final String OID_NOVELL_SYNTAX_CASE_IGNORE_LIST = OID_NOVELL_SYNTAX_PREFIX+".6";
 	public static final String OID_NOVELL_SYNTAX_NETADDRESS = OID_NOVELL_SYNTAX_PREFIX+".12";
-
+	public static final String OID_NOVELL_SYNTAX_TAGGED_STRING = OID_NOVELL_SYNTAX_PREFIX+".14";
+	public static final String OID_NOVELL_SYNTAX_TAGGED_NAME_AND_STRING = OID_NOVELL_SYNTAX_PREFIX+".15";
+	public static final String OID_NOVELL_SYNTAX_NDS_ACL = OID_NOVELL_SYNTAX_PREFIX+".17";
+	public static final String OID_NOVELL_SYNTAX_NDS_TIMESTAMP = OID_NOVELL_SYNTAX_PREFIX+".19";
+	public static final String OID_NOVELL_SYNTAX_COUNTER = OID_NOVELL_SYNTAX_PREFIX+".22";
+	public static final String OID_NOVELL_SYNTAX_TAGGED_NAME = OID_NOVELL_SYNTAX_PREFIX+".23";
+	public static final String OID_NOVELL_SYNTAX_TYPED_NAME = OID_NOVELL_SYNTAX_PREFIX+".25";
 
 }

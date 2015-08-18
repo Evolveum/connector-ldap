@@ -95,19 +95,23 @@ public class EDirectorySchemaTranslator extends SchemaTranslator<EDirectoryLdapC
 		return getConfiguration().getGroupObjectClass().equals(ldapObjectClass);
 	}
 	
-	// TODO:
-	// 2.16.840.1.113719.1.1.5.1.6
-	// 2.16.840.1.113719.1.1.5.1.14
-	// 2.16.840.1.113719.1.1.5.1.15
-	// 2.16.840.1.113719.1.1.5.1.17
-	// 2.16.840.1.113719.1.1.5.1.19
-	// 2.16.840.1.113719.1.1.5.1.22
-	// 2.16.840.1.113719.1.1.5.1.23
-	// 2.16.840.1.113719.1.1.5.1.25
+	// TODO: OID_NOVELL_SYNTAX_NDS_TIMESTAMP
 	
 	@Override
 	public Class<?> toIcfType(LdapSyntax syntax, String icfAttributeName) {
-		if (syntax != null && EDirectoryConstants.OID_NOVELL_SYNTAX_NETADDRESS.equals(syntax.getOid())) {
+		if (syntax != null && (EDirectoryConstants.OID_NOVELL_SYNTAX_CASE_IGNORE_LIST.equals(syntax.getOid())
+				|| EDirectoryConstants.OID_NOVELL_SYNTAX_TAGGED_STRING.equals(syntax.getOid())
+				|| EDirectoryConstants.OID_NOVELL_SYNTAX_TAGGED_NAME_AND_STRING.equals(syntax.getOid())
+				|| EDirectoryConstants.OID_NOVELL_SYNTAX_NDS_ACL.equals(syntax.getOid())
+				|| EDirectoryConstants.OID_NOVELL_SYNTAX_COUNTER.equals(syntax.getOid())
+				|| EDirectoryConstants.OID_NOVELL_SYNTAX_TAGGED_NAME.equals(syntax.getOid())
+				|| EDirectoryConstants.OID_NOVELL_SYNTAX_TYPED_NAME.equals(syntax.getOid())
+			)) {
+			return String.class;
+		} else if (syntax != null && EDirectoryConstants.OID_NOVELL_SYNTAX_NDS_TIMESTAMP.equals(syntax.getOid())) {
+			// String now. But we should convert this to date
+			return String.class;
+		} else if (syntax != null && EDirectoryConstants.OID_NOVELL_SYNTAX_NETADDRESS.equals(syntax.getOid())) {
 			return byte[].class;
 		}
 		return super.toIcfType(syntax, icfAttributeName);
