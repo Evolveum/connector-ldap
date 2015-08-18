@@ -44,15 +44,6 @@ public class EDirectorySchemaTranslator extends SchemaTranslator<EDirectoryLdapC
 	}
 
 	@Override
-	protected boolean shouldTranslateObjectClass(String ldapObjectClassName) {
-		if (getConfiguration().isCompleteSchema()) {
-			return super.shouldTranslateObjectClass(ldapObjectClassName);
-		} else {
-			return (isUserObjectClass(ldapObjectClassName) || isGroupObjectClass(ldapObjectClassName));
-		}
-	}
-
-	@Override
 	protected void extendObjectClassDefinition(ObjectClassInfoBuilder ocib,
 			org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
 		super.extendObjectClassDefinition(ocib, ldapObjectClass);

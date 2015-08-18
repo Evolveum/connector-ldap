@@ -42,8 +42,6 @@ public class EDirectoryLdapConfiguration extends AbstractLdapConfiguration {
     
     private boolean manageEquivalenceAttributes = true;
     
-    private boolean completeSchema = false;
-    
 	public String getUserObjectClass() {
 		return userObjectClass;
 	}
@@ -82,14 +80,6 @@ public class EDirectoryLdapConfiguration extends AbstractLdapConfiguration {
 
 	public void setGroupContainerDn(String groupContainerDn) {
 		this.groupContainerDn = groupContainerDn;
-	}
-
-	public boolean isCompleteSchema() {
-		return completeSchema;
-	}
-
-	public void setCompleteSchema(boolean completeSchema) {
-		this.completeSchema = completeSchema;
 	}
 
 	public boolean isManageReciprocalGroupAttributes() {
