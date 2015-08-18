@@ -273,7 +273,9 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 	}
 	
 	private void addAttributeTypesFromLdapSchema(List<AttributeInfo> attrInfoList, org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
+		LOG.ok("  ... translating attributes from {0}:\n{1}\nMUST\n{2}", ldapObjectClass.getName(), ldapObjectClass, ldapObjectClass.getMustAttributeTypes());
 		addAttributeTypes(attrInfoList, ldapObjectClass.getMustAttributeTypes(), true);
+		LOG.ok("  ... translating attributes from {0}:\n{1}\nMAY\n{2}", ldapObjectClass.getName(), ldapObjectClass, ldapObjectClass.getMayAttributeTypes());
 		addAttributeTypes(attrInfoList, ldapObjectClass.getMayAttributeTypes(), false);
 		
 		List<org.apache.directory.api.ldap.model.schema.ObjectClass> superiors = ldapObjectClass.getSuperiors();
@@ -287,17 +289,19 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 	private void addAttributeTypes(List<AttributeInfo> attrInfoList, List<AttributeType> attributeTypes, boolean isRequired) {
 		for (AttributeType ldapAttribute: attributeTypes) {
 			if (!shouldTranslateAttribute(ldapAttribute.getName())) {
+				LOG.ok("Skipping translation of attribute {0} because it should not be translated", ldapAttribute.getName());
 				continue;
 			}
 			if (ldapAttribute.getName().equals(LdapConfiguration.ATTRIBUTE_OBJECTCLASS_NAME)) {
 				continue;
 			}
 			if (ldapAttribute.getName().equals(getConfiguration().getUidAttribute())) {
-				// This is handler separatelly as __UID__ attribute
+				// This is handled separately as __UID__ attribute
 				continue;
 			}
 			String icfAttributeName = toIcfAttributeName(ldapAttribute.getName());
 			if (containsAttribute(attrInfoList, icfAttributeName)) {
+				LOG.ok("Skipping translation of attribute {0} because it is already translated", ldapAttribute.getName());
 				continue;
 			}
 			AttributeInfoBuilder aib = new AttributeInfoBuilder(icfAttributeName);
@@ -308,6 +312,7 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 				aib.setReturnedByDefault(false);
 			}
 			setAttributeMultiplicityAndPermissions(ldapAttribute, aib);
+			LOG.ok("Translating {0} -> {1}", ldapAttribute.getName(), icfAttributeName);
 			attrInfoList.add(aib.build());
 		}
 	}
