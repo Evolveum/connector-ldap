@@ -651,7 +651,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			AttributeType ldapAttrType = shcemaTranslator.toLdapAttribute(ldapStructuralObjectClass, icfAttr.getName());
 			List<Value<Object>> ldapValues = shcemaTranslator.toLdapValues(ldapAttrType, icfAttr.getValue());
 			// Do NOT set attributeType here. The attributeType may not match the type of the value.
-			entry.put(ldapAttrType.getOid(), ldapValues.toArray(new Value[ldapValues.size()]));
+			entry.put(ldapAttrType.getName(), ldapValues.toArray(new Value[ldapValues.size()]));
 			// no simple way how to check if he attribute was added. It may end up with ERR_04451. So let's just
 			// hope that it worked well. It should - unless there is a connector bug.
 		}
