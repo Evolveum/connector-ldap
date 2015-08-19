@@ -16,6 +16,7 @@
 package com.evolveum.polygon.connector.ldap.edirectory;
 
 import org.apache.directory.api.ldap.model.entry.Entry;
+import org.apache.directory.api.ldap.model.entry.Value;
 import org.apache.directory.api.ldap.model.exception.LdapInvalidAttributeValueException;
 import org.apache.directory.api.ldap.model.schema.AttributeType;
 import org.apache.directory.api.ldap.model.schema.LdapSyntax;
@@ -52,17 +53,53 @@ public class EDirectorySchemaTranslator extends SchemaTranslator<EDirectoryLdapC
 			lockoutAb.setType(boolean.class);
 //			lockoutAb.setReturnedByDefault(false);
 			ocib.addAttributeInfo(lockoutAb.build());
+			
+			AttributeInfoBuilder enableAb = new AttributeInfoBuilder(OperationalAttributes.ENABLE_NAME);
+			enableAb.setType(boolean.class);
+			ocib.addAttributeInfo(enableAb.build());
 		}
 	}
 	
 	@Override
 	protected boolean shouldTranslateAttribute(String attrName) {
-		return (!attrName.equals(EDirectoryConstants.ATTRIBUTE_LOCKOUT_LOCKED_NAME));
+		return (!attrName.equals(EDirectoryConstants.ATTRIBUTE_LOCKOUT_LOCKED_NAME)
+				&& !attrName.equals(EDirectoryConstants.ATTRIBUTE_LOGIN_DISABLED_NAME));
 	}
 	
 	@Override
-	protected void extendConnectorObject(ConnectorObjectBuilder cob, Entry entry) {
-		super.extendConnectorObject(cob, entry);
+	public AttributeType toLdapAttribute(
+			org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass, String icfAttributeName) {
+		if (icfAttributeName.equals(OperationalAttributes.ENABLE_NAME)) {
+			return super.toLdapAttribute(ldapObjectClass, EDirectoryConstants.ATTRIBUTE_LOGIN_DISABLED_NAME);
+		} else {
+			return super.toLdapAttribute(ldapObjectClass, icfAttributeName);
+		}
+	}
+	
+	@Override
+	public Value<Object> toLdapValue(AttributeType ldapAttributeType, Object icfAttributeValue) {
+		if (EDirectoryConstants.ATTRIBUTE_LOGIN_DISABLED_NAME.equals(ldapAttributeType.getName())) {
+			// This is translated from __ENABLE__. So we need to negate it.
+			return super.toLdapValue(ldapAttributeType, !((Boolean)icfAttributeValue));
+		}
+		return super.toLdapValue(ldapAttributeType, icfAttributeValue);
+	}
+
+	@Override
+	protected void extendConnectorObject(ConnectorObjectBuilder cob, Entry entry, String objectClassName) {
+		super.extendConnectorObject(cob, entry, objectClassName);
+		Boolean ldapDisabled = LdapUtil.getBooleanAttribute(entry, EDirectoryConstants.ATTRIBUTE_LOGIN_DISABLED_NAME, null);
+		if (ldapDisabled == null) {
+			if (isUserObjectClass(objectClassName)) {
+				cob.addAttribute(OperationalAttributes.ENABLE_NAME, Boolean.TRUE);
+			}
+		} else {
+			if (ldapDisabled) {
+				cob.addAttribute(OperationalAttributes.ENABLE_NAME, Boolean.FALSE);
+			} else {
+				cob.addAttribute(OperationalAttributes.ENABLE_NAME, Boolean.TRUE);
+			}
+		}
 		boolean ldapLocked = LdapUtil.getBooleanAttribute(entry, EDirectoryConstants.ATTRIBUTE_LOCKOUT_LOCKED_NAME, Boolean.FALSE);
 		if (ldapLocked) {
 			Long resetTime = LdapUtil.getTimestampAttribute(entry, EDirectoryConstants.ATTRIBUTE_LOCKOUT_RESET_TIME_NAME);

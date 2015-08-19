@@ -65,7 +65,22 @@ public class EDirectoryLdapConnector extends AbstractLdapConnector<EDirectoryLda
 			ObjectClass ldapStructuralObjectClass,
 			org.identityconnectors.framework.common.objects.ObjectClass icfObjectClass, Attribute icfAttr,
 			ModificationOperation modOp) {
-		if (icfAttr.is(OperationalAttributes.LOCK_OUT_NAME)) {
+		if (icfAttr.is(OperationalAttributes.ENABLE_NAME)) {
+			List<Object> values = icfAttr.getValue();
+			if (values.size() != 1) {
+				throw new InvalidAttributeValueException("Unexpected number of values in attribute "+icfAttr);
+			}
+			Boolean value = (Boolean)values.get(0);
+			if (value) {
+				modifications.add(
+						new DefaultModification(modOp, EDirectoryConstants.ATTRIBUTE_LOGIN_DISABLED_NAME, 
+								AbstractLdapConfiguration.BOOLEAN_FALSE));
+			} else {
+				modifications.add(
+						new DefaultModification(modOp, EDirectoryConstants.ATTRIBUTE_LOGIN_DISABLED_NAME, 
+								AbstractLdapConfiguration.BOOLEAN_TRUE));
+			}
+		} else if (icfAttr.is(OperationalAttributes.LOCK_OUT_NAME)) {
 			List<Object> values = icfAttr.getValue();
 			if (values.size() != 1) {
 				throw new InvalidAttributeValueException("Unexpected number of values in attribute "+icfAttr);

@@ -15,14 +15,13 @@
  */
 package com.evolveum.polygon.connector.ldap.edirectory;
 
-import org.apache.directory.api.ldap.model.schema.AttributeType;
-
 /**
  * @author semancik
  *
  */
 public class EDirectoryConstants {
 	
+	public static final String ATTRIBUTE_LOGIN_DISABLED_NAME = "loginDisabled";
 	public static final String ATTRIBUTE_LOCKOUT_LOCKED_NAME = "lockedByIntruder";
 	public static final String ATTRIBUTE_LOCKOUT_RESET_TIME_NAME = "loginIntruderResetTime";
 	public static final String ATTRIBUTE_GROUP_MEMBERSHIP_NAME = "groupMembership";

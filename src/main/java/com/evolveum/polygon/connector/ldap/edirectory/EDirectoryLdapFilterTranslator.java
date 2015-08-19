@@ -47,7 +47,18 @@ public class EDirectoryLdapFilterTranslator extends LdapFilterTranslator {
 
 	@Override
 	protected ScopedFilter translateEqualsFilter(EqualsFilter icfFilter) {
-		if (OperationalAttributes.LOCK_OUT_NAME.equals(icfFilter.getAttribute().getName())) {
+		if (OperationalAttributes.ENABLE_NAME.equals(icfFilter.getAttribute().getName())) {
+			List<Object> values = icfFilter.getAttribute().getValue();
+			if (values.size() != 1) {
+				throw new InvalidAttributeValueException("Unexpected number of values in filter "+icfFilter);
+			}
+			Boolean value = (Boolean)values.get(0);
+			if (value) {
+				return new ScopedFilter(createLoginDisabledFilter(AbstractLdapConfiguration.BOOLEAN_FALSE));
+			} else {
+				return new ScopedFilter(createLoginDisabledFilter(AbstractLdapConfiguration.BOOLEAN_TRUE));
+			}
+		} else if (OperationalAttributes.LOCK_OUT_NAME.equals(icfFilter.getAttribute().getName())) {
 			List<Object> values = icfFilter.getAttribute().getValue();
 			if (values.size() != 1) {
 				throw new InvalidAttributeValueException("Unexpected number of values in filter "+icfFilter);
@@ -71,6 +82,11 @@ public class EDirectoryLdapFilterTranslator extends LdapFilterTranslator {
 				new StringValue(LdapUtil.toGeneralizedTime(System.currentTimeMillis(), false))
 			)
 		);
+	}
+	
+	private ExprNode createLoginDisabledFilter(String value) {
+		return new EqualityNode<String>(EDirectoryConstants.ATTRIBUTE_LOGIN_DISABLED_NAME, 
+				new StringValue(value));
 	}
 	
 }

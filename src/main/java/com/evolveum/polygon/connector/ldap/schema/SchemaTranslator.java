@@ -776,7 +776,7 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 			
 		}
 		
-		extendConnectorObject(cob, entry);
+		extendConnectorObject(cob, entry, icfStructuralObjectClassInfo.getType());
 		
 		return cob.build();
 	}
@@ -785,7 +785,7 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 		return true;
 	}
 
-	protected void extendConnectorObject(ConnectorObjectBuilder cob, Entry entry) {
+	protected void extendConnectorObject(ConnectorObjectBuilder cob, Entry entry, String objectClassName) {
 		// Nothing to do here. This is supposed to be overriden by subclasses.
 	}
 
