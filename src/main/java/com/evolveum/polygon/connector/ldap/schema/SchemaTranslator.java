@@ -717,12 +717,18 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 	}
 
 	public ConnectorObject toIcfObject(ObjectClassInfo icfStructuralObjectClassInfo, Entry entry) {
+		return toIcfObject(icfStructuralObjectClassInfo, entry, null);
+	}
+	
+	public ConnectorObject toIcfObject(ObjectClassInfo icfStructuralObjectClassInfo, Entry entry, String dn) {
 		LdapObjectClasses ldapObjectClasses = processObjectClasses(entry);
 		if (icfStructuralObjectClassInfo == null) {
 			icfStructuralObjectClassInfo = icfSchema.findObjectClassInfo(ldapObjectClasses.getLdapLowestStructuralObjectClass().getName());
 		}
 		ConnectorObjectBuilder cob = new ConnectorObjectBuilder();
-		String dn = entry.getDn().getName();
+		if (dn == null) {
+			dn = entry.getDn().getName();
+		}
 		cob.setName(dn);
 		cob.setObjectClass(new ObjectClass(icfStructuralObjectClassInfo.getType()));
 		

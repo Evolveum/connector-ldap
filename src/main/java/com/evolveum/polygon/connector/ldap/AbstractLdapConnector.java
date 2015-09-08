@@ -374,22 +374,25 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 	
 	private SearchStrategy searchByUid(String uidValue, ObjectClass objectClass, org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
 			ResultsHandler handler, OperationOptions options) {
-		// We know that this can return at most one object. Therefore always use simple search.
-		SearchStrategy searchStrategy = getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
-		String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
-		SearchScope scope = getScope(options);
-		AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, Uid.NAME);
-		Value<Object> ldapValue = schemaTranslator.toLdapIdentifierValue(ldapAttributeType, uidValue);
-		LOG.ok("UID '{0}' -> {1} ({2})", uidValue, LdapUtil.binaryToHex(ldapValue.getBytes()), Base64.encode(ldapValue.getBytes()));
-		ExprNode filterNode = new EqualityNode<>(ldapAttributeType, ldapValue);
-		String baseDn = getBaseDn(options);
-		try {
-			searchStrategy.search(baseDn, filterNode, scope, attributesToGet);
-		} catch (LdapException e) {
-			throw LdapUtil.processLdapException("Error searching for "+ldapAttributeType.getName()+" '"+uidValue+"'", e);
+		if (LdapUtil.isDnAttribute(configuration.getUidAttribute())) {
+			return searchByDn(uidValue, objectClass, ldapObjectClass, handler, options);
+		} else {
+			// We know that this can return at most one object. Therefore always use simple search.
+			SearchStrategy searchStrategy = getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
+			String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
+			SearchScope scope = getScope(options);
+			AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, Uid.NAME);
+			Value<Object> ldapValue = schemaTranslator.toLdapIdentifierValue(ldapAttributeType, uidValue);
+			ExprNode filterNode = new EqualityNode<>(ldapAttributeType, ldapValue);
+			String baseDn = getBaseDn(options);
+			try {
+				searchStrategy.search(baseDn, filterNode, scope, attributesToGet);
+			} catch (LdapException e) {
+				throw LdapUtil.processLdapException("Error searching for "+ldapAttributeType.getName()+" '"+uidValue+"'", e);
+			}
+			
+			return searchStrategy;
 		}
-		
-		return searchStrategy;
 	}
 	
 	private SearchStrategy searchBySecondaryIdenfiers(Filter icfFilter, ObjectClass objectClass, org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
@@ -677,9 +680,13 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		if (addResponse.getLdapResult().getResultCode() != ResultCodeEnum.SUCCESS) {
 			throw LdapUtil.processLdapResult("Error adding LDAP entry "+dn, addResponse.getLdapResult());
 		}
+
+		String uidAttributeName = configuration.getUidAttribute();
+		if (LdapUtil.isDnAttribute(uidAttributeName)) {
+			return new Uid(dn);
+		}
 		
 		Uid uid = null;
-		String uidAttributeName = configuration.getUidAttribute();
 		for (Attribute icfAttr: createAttributes) {
 			if (icfAttr.is(uidAttributeName)) {
 				uid = new Uid(SchemaUtil.getSingleStringNonBlankValue(icfAttr));
@@ -723,11 +730,12 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 	public Uid update(ObjectClass objectClass, Uid uid, Set<Attribute> replaceAttributes,
 			OperationOptions options) {
     	
+		String newDn = null;
 		for (Attribute icfAttr: replaceAttributes) {
 			if (icfAttr.is(Name.NAME)) {
 				// This is rename. Which means change of DN. This is a special operation
 				String oldDn = resolveDn(objectClass, uid, options);
-				String newDn = SchemaUtil.getSingleStringNonBlankValue(icfAttr);
+				newDn = SchemaUtil.getSingleStringNonBlankValue(icfAttr);
 				if (oldDn.equals(newDn)) {
 					// nothing to rename, just ignore
 				} else {
@@ -743,9 +751,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			}
 		}
     	
-    	ldapUpdate(objectClass, uid, replaceAttributes, options, ModificationOperation.REPLACE_ATTRIBUTE);
-    	
-    	return uid;
+    	return ldapUpdate(objectClass, uid, newDn, replaceAttributes, options, ModificationOperation.REPLACE_ATTRIBUTE);
 	}
     
     @Override
@@ -758,9 +764,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			}
 		}
 		
-		ldapUpdate(objectClass, uid, valuesToAdd, options, ModificationOperation.ADD_ATTRIBUTE);
-		
-		return uid;
+		return ldapUpdate(objectClass, uid, null, valuesToAdd, options, ModificationOperation.ADD_ATTRIBUTE);
 	}
 
 	@Override
@@ -773,15 +777,16 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			}
 		}
 
-    	ldapUpdate(objectClass, uid, valuesToRemove, options, ModificationOperation.REMOVE_ATTRIBUTE);
-    	
-    	return uid;
+    	return ldapUpdate(objectClass, uid, null, valuesToRemove, options, ModificationOperation.REMOVE_ATTRIBUTE);
 	}
 	
-	private Uid ldapUpdate(ObjectClass icfObjectClass, Uid uid, Set<Attribute> values,
+	private Uid ldapUpdate(ObjectClass icfObjectClass, Uid uid, String newDn, Set<Attribute> values,
 			OperationOptions options, ModificationOperation modOp) {
 		
-		String dn = resolveDn(icfObjectClass, uid, options);
+		String dn = newDn;
+		if (dn == null) {
+			dn = resolveDn(icfObjectClass, uid, options);
+		}
 		
 		org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass = schemaTranslator.toLdapObjectClass(icfObjectClass);
 		
@@ -817,14 +822,29 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		
 		if (modifications.isEmpty()) {
 			LOG.ok("Skipping modify({0}) operation as there are no modifications to execute", modOp);
-			return uid;
+		} else {
+		
+			modify(dn, modifications);
+			
+			postUpdate(icfObjectClass, uid, values, options, modOp, dn, ldapStructuralObjectClass, modifications);
+			
 		}
 		
-		modify(dn, modifications);
+		String uidAttributeName = configuration.getUidAttribute();
+		if (LdapUtil.isDnAttribute(uidAttributeName)) {
+			return new Uid(dn);
+		}
 		
-		postUpdate(icfObjectClass, uid, values, options, modOp, dn, ldapStructuralObjectClass, modifications);
+		Uid returnUid = uid;
+		for (Attribute icfAttr: values) {
+			if (icfAttr.is(uidAttributeName)) {
+				returnUid = new Uid(SchemaUtil.getSingleStringNonBlankValue(icfAttr));
+			}
+		}
 		
-		return uid;
+		// if UID is not in the set of modified attributes then assume that it has not changed.
+		
+		return returnUid;
 	}
 	
 	protected void modify(String dn, List<Modification> modifications) {

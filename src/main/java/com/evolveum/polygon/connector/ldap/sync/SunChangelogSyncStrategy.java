@@ -230,7 +230,7 @@ public class SunChangelogSyncStrategy extends SyncStrategy {
 								continue;
 							}
 						}
-						ConnectorObject targetObject = getSchemaTranslator().toIcfObject(icfObjectClassInfo, targetEntry);
+						ConnectorObject targetObject = getSchemaTranslator().toIcfObject(icfObjectClassInfo, targetEntry, targetDn);
 						deltaBuilder.setObject(targetObject);
 						
 					} else if (CHANGE_TYPE_DELETE.equals(changeType)) {
@@ -262,6 +262,17 @@ public class SunChangelogSyncStrategy extends SyncStrategy {
 						if (!LdapUtil.isObjectClass(targetEntry, ldapObjectClass)) {
 							LOG.ok("Changelog entry {0} does not match object class, skipping", targetEntry.getDn());
 							continue;
+						}
+						if (LdapUtil.isDnAttribute(getConfiguration().getUidAttribute())) {
+							// We cannot pass enough information about the rename in this case.
+							// The best thing that we can do is simulate a delete delta for the
+							// old entry
+							SyncDeltaBuilder deleteDeltaBuilder = new SyncDeltaBuilder();
+							deleteDeltaBuilder.setDeltaType(SyncDeltaType.DELETE);
+							deleteDeltaBuilder.setUid(new Uid(oldDn.getName()));
+							deleteDeltaBuilder.setToken(deltaToken);
+							LOG.ok("Sending simulated delete delta for {0}", oldDn.getName());
+							handler.handle(deleteDeltaBuilder.build());
 						}
 						ConnectorObject targetObject = getSchemaTranslator().toIcfObject(icfObjectClassInfo, targetEntry);
 						deltaBuilder.setObject(targetObject);
