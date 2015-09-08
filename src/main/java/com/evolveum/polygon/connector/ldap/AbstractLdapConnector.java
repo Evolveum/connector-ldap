@@ -208,6 +208,9 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
     			if ( !defSchemaManager.getErrors().isEmpty() ) {
     				if (schemaQuirksMode) {
     					LOG.ok("There are {0} schema errors, but we are in quirks mode so we are ignoring them", defSchemaManager.getErrors().size());
+    					for (Throwable error: defSchemaManager.getErrors()) {
+    						LOG.ok("Schema error (ignored): {0}: {1}", error.getClass().getName(), error.getMessage());
+    					}
     				} else {
     					throw new ConnectorIOException("Errors loading schema "+defSchemaManager.getErrors());
     				}

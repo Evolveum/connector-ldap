@@ -632,6 +632,12 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 	public boolean isBinaryAttribute(String attributeId) {
 		AttributeType attributeType = schemaManager.getAttributeType(attributeId);
 		if (attributeType == null) {
+			// RedHat 389ds is using attributes that are not defined in schema.
+			// So accept these without warning
+			if (AbstractLdapConfiguration.ATTRIBUTE_389DS_FIRSTCHANGENUMBER.equals(attributeId) || 
+					AbstractLdapConfiguration.ATTRIBUTE_389DS_LASTCHANGENUMBER.equals(attributeId)) {
+				return false;
+			}
 			LOG.warn("Uknown attribute ID {0}, cannot determine if it is binary", attributeId);
 			return false;
 		}
