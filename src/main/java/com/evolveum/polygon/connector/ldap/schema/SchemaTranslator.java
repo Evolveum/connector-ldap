@@ -593,6 +593,8 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 				} catch (ParseException e) {
 					throw new InvalidAttributeValueException("Wrong generalized time format in LDAP attribute "+ldapAttributeType.getName()+": "+e.getMessage(), e);
 				}
+			} else if (SchemaConstants.INTEGER_SYNTAX.equals(syntaxOid)) {
+				return Integer.parseInt(ldapValue.getString());
 			} else if (isBinarySyntax(syntaxOid)) {
 				LOG.ok("Converting to ICF: {0} (syntax {1}, value {2}): explicit binary", ldapAttributeType.getName(), syntaxOid, ldapValue.getClass());
 				return ldapValue.getBytes();
