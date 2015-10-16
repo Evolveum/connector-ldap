@@ -662,6 +662,8 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			// hope that it worked well. It should - unless there is a connector bug.
 		}
 		
+		preCreate(entry);
+		
 		if (LOG.isOk()) {
 			LOG.ok("Adding entry: {0}", entry);
 		}
@@ -724,6 +726,10 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		}
 		
 		return uid;
+	}
+
+	protected void preCreate(Entry entry) {
+		// Nothing to do here. Hooks for subclasses.
 	}
 
 	@Override

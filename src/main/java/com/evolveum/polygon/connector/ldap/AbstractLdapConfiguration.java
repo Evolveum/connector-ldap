@@ -45,8 +45,8 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 	public static final String ATTRIBUTE_ENTRYUUID_NAME = "entryUUID";
 	public static final String ATTRIBUTE_NSUNIQUEID_NAME = "nsUniqueId";
 	
-	public static final Object ATTRIBUTE_389DS_FIRSTCHANGENUMBER = "firstchangenumber";
-	public static final Object ATTRIBUTE_389DS_LASTCHANGENUMBER = "lastchangenumber";
+	public static final String ATTRIBUTE_389DS_FIRSTCHANGENUMBER = "firstchangenumber";
+	public static final String ATTRIBUTE_389DS_LASTCHANGENUMBER = "lastchangenumber";
 	
 	public static final String SEARCH_FILTER_ALL = "(objectClass=*)";
 	public static final String BOOLEAN_TRUE = "TRUE";
@@ -113,7 +113,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
     /**
      * The name of the attribute which contains the password.
      */
-    private String passwordAttribute = "userPassword";
+    private String passwordAttribute = null;
     
     /**
      * Hash the passwords with a specified algorithm before they are sent to the server.
@@ -456,7 +456,11 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
     	throw new ConfigurationException(getConnectorMessages().format(errorKey, null));
     }
     
-    public abstract void recompute();
+    public void recompute() {
+    	if (passwordAttribute == null) {
+    		passwordAttribute = "userPassword";
+    	}
+    }
     
     // TODO: equals, hashCode
 }

@@ -101,6 +101,14 @@ public class LdapUtil {
 		return value.getString();
 	}
 	
+	public static Integer getIntegerAttribute(Entry entry, String attrName, Integer defaultVal) {
+		String stringVal = getStringAttribute(entry, attrName);
+		if (stringVal == null) {
+			return defaultVal;
+		}
+		return Integer.parseInt(stringVal);
+	}
+	
 	public static Boolean getBooleanAttribute(Entry entry, String attrName, Boolean defaultVal) {
 		String stringVal = getStringAttribute(entry, attrName);
 		if (stringVal == null) {

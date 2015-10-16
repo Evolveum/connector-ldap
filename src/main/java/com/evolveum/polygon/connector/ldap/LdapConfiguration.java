@@ -41,6 +41,7 @@ public class LdapConfiguration extends AbstractLdapConfiguration {
 		if (getUidAttribute() == null) {
 			setUidAttribute(ATTRIBUTE_ENTRYUUID_NAME);
 		}
+		super.recompute();
 	}
 
 }

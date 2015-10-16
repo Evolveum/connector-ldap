@@ -14,34 +14,31 @@
  * limitations under the License.
  */
 
-package com.evolveum.polygon.connector.ldap.edirectory;
+package com.evolveum.polygon.connector.ldap.ad;
 
 import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
 
 /**
- * eDirectory LDAP Connector configuration.
+ * Active Directory LDAP Connector configuration.
  * 
  * @author Radovan Semancik
  *
  */
-public class EDirectoryLdapConfiguration extends AbstractLdapConfiguration {
+public class AdLdapConfiguration extends AbstractLdapConfiguration {
 
-	private static final String ATTRIBUTE_GUID_NAME = "GUID";
+	public static final String ATTRIBUTE_OBJECT_GUID_NAME = "objectGUID";
+	public static final String ATTRIBUTE_UNICODE_PWD_NAME = "unicodePwd";
     
-    private String userObjectClass = "inetOrgPerson";
+    private String userObjectClass = "user";
     
-    private String groupObjectClass = "groupOfNames";
+    private String groupObjectClass = "group";
     
     private String groupObjectMemberAttribute = "member";
     
     private String userContainerDn;
     
     private String groupContainerDn;
-    
-    private boolean manageReciprocalGroupAttributes = true;
-    
-    private boolean manageEquivalenceAttributes = true;
-    
+        
 	public String getUserObjectClass() {
 		return userObjectClass;
 	}
@@ -82,34 +79,22 @@ public class EDirectoryLdapConfiguration extends AbstractLdapConfiguration {
 		this.groupContainerDn = groupContainerDn;
 	}
 
-	public boolean isManageReciprocalGroupAttributes() {
-		return manageReciprocalGroupAttributes;
-	}
-
-	public void setManageReciprocalGroupAttributes(boolean manageReciprocalGroupAttributes) {
-		this.manageReciprocalGroupAttributes = manageReciprocalGroupAttributes;
-	}
-
-	public boolean isManageEquivalenceAttributes() {
-		return manageEquivalenceAttributes;
-	}
-
-	public void setManageEquivalenceAttributes(boolean manageEquivalenceAttributes) {
-		this.manageEquivalenceAttributes = manageEquivalenceAttributes;
-	}
-
 	@Override
 	public void recompute() {
+		if (getPasswordAttribute() == null) {
+			setPasswordAttribute(ATTRIBUTE_UNICODE_PWD_NAME);
+		}
 		if (userContainerDn == null) {
-			userContainerDn = "ou=People,"+getBaseContext();
+			userContainerDn = "CN=Users,"+getBaseContext();
 		}
 		if (groupContainerDn == null) {
-			groupContainerDn = "ou=Groups,"+getBaseContext();
+			groupContainerDn = "CN=Users,"+getBaseContext();
 		}
 		if (getUidAttribute() == null) {
-			setUidAttribute(ATTRIBUTE_GUID_NAME);
+			setUidAttribute(ATTRIBUTE_OBJECT_GUID_NAME);
 		}
 		super.recompute();
 	}
+    
 
 }

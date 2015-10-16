@@ -24,6 +24,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.text.ParseException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -97,6 +98,7 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 	
 	private static final Log LOG = Log.getLog(SchemaTranslator.class);
 	private static final Map<String, Class<?>> SYNTAX_MAP = new HashMap<String,Class<?>>();
+	private static final Collection<String> STRING_ATTRIBUTE_NAMES = new ArrayList<String>();
 	
 	private SchemaManager schemaManager;
 	private C configuration;
@@ -306,13 +308,21 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 			}
 			AttributeInfoBuilder aib = new AttributeInfoBuilder(icfAttributeName);
 			aib.setRequired(isRequired);
-			aib.setType(toIcfType(ldapAttribute.getSyntax(), icfAttributeName));
+			
+			LdapSyntax ldapSyntax = getSyntax(ldapAttribute);
+			if (ldapSyntax == null) {
+				LOG.warn("No syntax for attribute: {0}", ldapAttribute.getName());
+			}
+			
+			Class<?> icfType = toIcfType(ldapSyntax, icfAttributeName);
+			aib.setType(icfType);
 			aib.setNativeName(ldapAttribute.getName());
 			if (ldapAttribute.isOperational()) {
 				aib.setReturnedByDefault(false);
 			}
 			setAttributeMultiplicityAndPermissions(ldapAttribute, aib);
-			LOG.ok("Translating {0} -> {1}", ldapAttribute.getName(), icfAttributeName);
+			LOG.ok("Translating {0} -> {1} ({2} -> {3})", ldapAttribute.getName(), icfAttributeName, 
+					ldapSyntax==null?null:ldapSyntax.getOid(), icfType);
 			attrInfoList.add(aib.build());
 		}
 	}
@@ -433,11 +443,14 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 			}
 		}
 		
-		if (configuration.getPasswordHashAlgorithm() != null 
-				&& !LdapConfiguration.PASSWORD_HASH_ALGORITHM_NONE.equals(configuration.getPasswordHashAlgorithm())
-				&& ldapAttributeType.getName().equals(configuration.getPasswordAttribute())) {
-			icfAttributeValue = hashPassword(icfAttributeValue);
+		if (ldapAttributeType.getName().equals(configuration.getPasswordAttribute())) {
+			return toLdapPasswordValue(ldapAttributeType, icfAttributeValue);
 		}
+		
+		return wrapInLdapValueClass(ldapAttributeType, icfAttributeValue);
+	}
+	
+	protected Value<Object> wrapInLdapValueClass(AttributeType ldapAttributeType, Object icfAttributeValue) {
 		String syntaxOid = ldapAttributeType.getSyntaxOid();
 		if (SchemaConstants.GENERALIZED_TIME_SYNTAX.equals(syntaxOid)) {
 			if (icfAttributeValue instanceof Long) {
@@ -525,6 +538,14 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 		}
 	}
 	
+	protected Value<Object> toLdapPasswordValue(AttributeType ldapAttributeType, Object icfAttributeValue) {
+		if (configuration.getPasswordHashAlgorithm() != null 
+				&& !LdapConfiguration.PASSWORD_HASH_ALGORITHM_NONE.equals(configuration.getPasswordHashAlgorithm())) {
+			icfAttributeValue = hashLdapPassword(icfAttributeValue);
+		}
+		return wrapInLdapValueClass(ldapAttributeType, icfAttributeValue);
+	}
+
 	protected boolean acceptsFractionalGeneralizedTime() {
 		return true;
 	}
@@ -634,21 +655,18 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 	public boolean isBinaryAttribute(String attributeId) {
 		AttributeType attributeType = schemaManager.getAttributeType(attributeId);
 		if (attributeType == null) {
-			// RedHat 389ds is using attributes that are not defined in schema.
-			// So accept these without warning
-			if (AbstractLdapConfiguration.ATTRIBUTE_389DS_FIRSTCHANGENUMBER.equals(attributeId) || 
-					AbstractLdapConfiguration.ATTRIBUTE_389DS_LASTCHANGENUMBER.equals(attributeId)) {
+			if (STRING_ATTRIBUTE_NAMES.contains(attributeId.toLowerCase())) {
 				return false;
 			}
 			LOG.warn("Uknown attribute ID {0}, cannot determine if it is binary", attributeId);
 			return false;
 		}
-		LdapSyntax syntax = attributeType.getSyntax();
+		LdapSyntax syntax = getSyntax(attributeType);
 		if (syntax == null) {
 			// OpenLDAP does not define some syntaxes that it uses
 			return false;
 		}
-		String syntaxOid = syntax.getOid();
+		String syntaxOid = attributeType.getSyntaxOid();
 		if (isBinarySyntax(syntaxOid)) {
 			return true;
 		}
@@ -656,6 +674,16 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 			return false;
 		}
 		return !syntax.isHumanReadable();
+	}
+	
+	LdapSyntax getSyntax(AttributeType attributeType) {
+		LdapSyntax syntax = attributeType.getSyntax();
+		if (syntax == null && attributeType.getSyntaxOid() != null) {
+			// HACK to support ugly servers (such as AD) that do not declare 
+			// ldapSyntaxes in the schema
+			syntax = new LdapSyntax(attributeType.getSyntaxOid());
+		}
+		return syntax;
 	}
 
 	/**
@@ -857,7 +885,7 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 		return ocs;
 	}
 	
-	private Object hashPassword(Object icfAttributeValue) {
+	private Object hashLdapPassword(Object icfAttributeValue) {
 		if (icfAttributeValue == null) {
 			return null;
 		}
@@ -1028,6 +1056,32 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 		SYNTAX_MAP.put(SYNTAX_AUTH_PASSWORD, String.class);
 		SYNTAX_MAP.put(SYNTAX_COLLECTIVE_CONFLICT_BEHAVIOR, String.class);
 		SYNTAX_MAP.put(SYNTAX_SUN_DEFINED_ACCESS_CONTROL_INFORMATION, String.class);
+		
+		// Make sure that these attributes are always resolved as string attributes
+		// These are mostly root DSE attributes
+		// WARNING: all attribute names must be in lowercase
+		STRING_ATTRIBUTE_NAMES.add("namingcontexts");
+		STRING_ATTRIBUTE_NAMES.add("defaultnamingcontext");
+		STRING_ATTRIBUTE_NAMES.add("schemanamingcontext");
+		STRING_ATTRIBUTE_NAMES.add("supportedcontrol");
+		STRING_ATTRIBUTE_NAMES.add("configurationnamingcontext");
+		STRING_ATTRIBUTE_NAMES.add("rootdomainnamingcontext");
+		STRING_ATTRIBUTE_NAMES.add("supportedldapversion");
+		STRING_ATTRIBUTE_NAMES.add("supportedldappolicies");
+		STRING_ATTRIBUTE_NAMES.add("supportedsaslmechanisms");
+		STRING_ATTRIBUTE_NAMES.add("highestcommittedusn");
+		STRING_ATTRIBUTE_NAMES.add("ldapservicename");
+		STRING_ATTRIBUTE_NAMES.add("supportedcapabilities");
+		STRING_ATTRIBUTE_NAMES.add("issynchronized");
+		STRING_ATTRIBUTE_NAMES.add("isglobalcatalogready");
+		STRING_ATTRIBUTE_NAMES.add("domainfunctionality");
+		STRING_ATTRIBUTE_NAMES.add("forestfunctionality");
+		STRING_ATTRIBUTE_NAMES.add("domaincontrollerfunctionality");
+		STRING_ATTRIBUTE_NAMES.add("currenttime");
+		STRING_ATTRIBUTE_NAMES.add("dsservicename");
+		STRING_ATTRIBUTE_NAMES.add(AbstractLdapConfiguration.ATTRIBUTE_389DS_FIRSTCHANGENUMBER.toLowerCase());
+		STRING_ATTRIBUTE_NAMES.add(AbstractLdapConfiguration.ATTRIBUTE_389DS_LASTCHANGENUMBER.toLowerCase());
+		
 	}
 
 }
