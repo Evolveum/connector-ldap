@@ -25,6 +25,10 @@ import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.entry.Modification;
 import org.apache.directory.api.ldap.model.entry.ModificationOperation;
 import org.apache.directory.api.ldap.model.exception.LdapException;
+import org.apache.directory.api.ldap.model.exception.LdapInvalidDnException;
+import org.apache.directory.api.ldap.model.name.Dn;
+import org.apache.directory.api.ldap.model.name.Rdn;
+import org.apache.directory.api.ldap.model.schema.AttributeType;
 import org.apache.directory.api.ldap.model.schema.ObjectClass;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException;
@@ -70,6 +74,27 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 			} catch (LdapException e) {
 				throw new IllegalStateException("Error adding attribute "+AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME+" to entry");
 			}
+		}
+	}
+
+	@Override
+	protected void addAttributeModification(String dn, List<Modification> modifications, ObjectClass ldapStructuralObjectClass,
+			org.identityconnectors.framework.common.objects.ObjectClass icfObjectClass, Attribute icfAttr, ModificationOperation modOp) {
+		Dn dndn;
+		try {
+			dndn = new Dn(dn);
+		} catch (LdapInvalidDnException e) {
+			throw new IllegalArgumentException(e.getMessage(), e);
+		}
+		Rdn firstRdn = dndn.getRdns().get(0);
+		String firstRdnAttrName = firstRdn.getAva().getType();
+		AttributeType modAttributeType = getSchemaTranslator().toLdapAttribute(ldapStructuralObjectClass, icfAttr.getName());
+		if (firstRdnAttrName.equalsIgnoreCase(modAttributeType.getName())) {
+			// Ignore this modification. It is already done by the rename operation.
+			// Attempting to do it will result in an error.
+			return;
+		} else {
+			super.addAttributeModification(dn, modifications, ldapStructuralObjectClass, icfObjectClass, icfAttr, modOp);
 		}
 	}
 	

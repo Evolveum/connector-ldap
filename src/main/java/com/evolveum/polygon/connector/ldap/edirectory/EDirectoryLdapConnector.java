@@ -61,7 +61,7 @@ public class EDirectoryLdapConnector extends AbstractLdapConnector<EDirectoryLda
 	}
 	
 	@Override
-	protected void addAttributeModification(List<Modification> modifications,
+	protected void addAttributeModification(String dn, List<Modification> modifications,
 			ObjectClass ldapStructuralObjectClass,
 			org.identityconnectors.framework.common.objects.ObjectClass icfObjectClass, Attribute icfAttr,
 			ModificationOperation modOp) {
@@ -97,17 +97,17 @@ public class EDirectoryLdapConnector extends AbstractLdapConnector<EDirectoryLda
 
 		} else if (getSchemaTranslator().isGroupObjectClass(ldapStructuralObjectClass.getName())) {
 			// modification handles modification of ordinary attributes - and also modification of "member" itself
-			super.addAttributeModification(modifications, ldapStructuralObjectClass, icfObjectClass, icfAttr, modOp);
+			super.addAttributeModification(dn, modifications, ldapStructuralObjectClass, icfObjectClass, icfAttr, modOp);
 			if (icfAttr.is(getConfiguration().getGroupObjectMemberAttribute())) {
 				if (getConfiguration().isManageEquivalenceAttributes()) {
 					// do the same operation with a equivalentToMe attribute
-					super.addAttributeModification(modifications, ldapStructuralObjectClass, icfObjectClass,
+					super.addAttributeModification(dn, modifications, ldapStructuralObjectClass, icfObjectClass,
 							AttributeBuilder.build(EDirectoryConstants.ATTRIBUTE_EQUIVALENT_TO_ME_NAME, icfAttr.getValue()),
 							modOp);
 				}
 			}
 		} else {
-			super.addAttributeModification(modifications, ldapStructuralObjectClass, icfObjectClass, icfAttr, modOp);
+			super.addAttributeModification(dn, modifications, ldapStructuralObjectClass, icfObjectClass, icfAttr, modOp);
 		}
 	}
 

@@ -822,7 +822,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 					modifications.add(new DefaultModification(modOp, LdapConfiguration.ATTRIBUTE_OBJECTCLASS_NAME, stringValues));
 				}
 			} else {
-				addAttributeModification(modifications, ldapStructuralObjectClass, icfObjectClass, icfAttr, modOp);
+				addAttributeModification(dn, modifications, ldapStructuralObjectClass, icfObjectClass, icfAttr, modOp);
 			}
 		}
 		
@@ -869,7 +869,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		}
 	}
 
-	protected void addAttributeModification(List<Modification> modifications,
+	protected void addAttributeModification(String dn, List<Modification> modifications,
 			org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass,
 			ObjectClass icfObjectClass, Attribute icfAttr, ModificationOperation modOp) {
 		AttributeType attributeType = schemaTranslator.toLdapAttribute(ldapStructuralObjectClass, icfAttr.getName());
