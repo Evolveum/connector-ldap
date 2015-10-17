@@ -368,8 +368,8 @@ public class LdapUtil {
 	}
 	
 	public static String formatLdapMessage(LdapResult ldapResult) {
-		return ldapResult.getResultCode().getMessage() +
-				": " + ldapResult.getDiagnosticMessage() + " ("+ ldapResult.getResultCode().getResultCode()+")";
+		return ldapResult.getResultCode().getMessage().replaceAll("\\p{C}", "?") +
+				": " + ldapResult.getDiagnosticMessage().replaceAll("\\p{C}", "?") + " ("+ ldapResult.getResultCode().getResultCode()+")";
 	}
 
 	public static Entry getRootDse(LdapNetworkConnection connection, String... attributesToGet) {
