@@ -93,6 +93,9 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		if (getUidAttribute() == null) {
 			setUidAttribute(ATTRIBUTE_OBJECT_GUID_NAME);
 		}
+		if (getSynchronizationStrategy() == null) {
+    		setSynchronizationStrategy(SYNCHRONIZATION_STRATEGY_AD_DIR_SYNC);
+    	}
 		super.recompute();
 	}
     

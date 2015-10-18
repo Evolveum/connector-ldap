@@ -804,6 +804,9 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 				continue;
 			}
 			Attribute icfAttribute = toIcfAttribute(ldapAttribute);
+			if (icfAttribute == null) {
+				continue;
+			}
 			AttributeInfo attributeInfo = SchemaUtil.findAttributeInfo(icfStructuralObjectClassInfo, icfAttribute);
 			if (attributeInfo == null) {
 				for (ObjectClassInfo icfAuxiliaryObjectClassInfo: icfAuxiliaryObjectClassInfos) {
@@ -968,11 +971,24 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 		String icfAttributeName = toIcfAttributeName(ldapAttributeType.getName());
 		ab.setName(icfAttributeName);
 		Iterator<Value<?>> iterator = ldapAttribute.iterator();
+		boolean hasValidValue = false;
 		while (iterator.hasNext()) {
 			Value<?> ldapValue = iterator.next();
-			ab.addValue(toIcfValue(icfAttributeName, ldapValue, ldapAttributeType));
+			Object icfValue = toIcfValue(icfAttributeName, ldapValue, ldapAttributeType);
+			if (icfValue != null) {
+				ab.addValue(icfValue);
+				hasValidValue = true;
+			}
 		}
-		return ab.build();
+		if (!hasValidValue) {
+			// Do not even try to build. The build will fail.
+			return null;
+		}
+		try {
+			return ab.build();
+		} catch (IllegalArgumentException e) {
+			throw new IllegalArgumentException(e.getMessage() + ", attribute "+icfAttributeName+" (ldap: "+ldapAttribute.getId()+")", e);
+		}
 	}
 
 	static {

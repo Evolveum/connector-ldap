@@ -176,12 +176,13 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
      * Possible values: "none", "auto", ... TODO
      * Default value: auto
      */
-    private String synchronizationStrategy = SYNCHRONIZATION_STRATEGY_AUTO;
+    private String synchronizationStrategy = null;
     
     public static final String SYNCHRONIZATION_STRATEGY_NONE = "none";
     public static final String SYNCHRONIZATION_STRATEGY_AUTO = "auto";
     public static final String SYNCHRONIZATION_STRATEGY_SUN_CHANGE_LOG = "sunChangeLog";
     public static final String SYNCHRONIZATION_STRATEGY_MODIFY_TIMESTAMP = "modifyTimestamp";
+    public static final String SYNCHRONIZATION_STRATEGY_AD_DIR_SYNC = "adDirSync";
     
     /**
      * List of base contexts DNs that will be accepted during synchronization.
@@ -459,6 +460,9 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
     public void recompute() {
     	if (passwordAttribute == null) {
     		passwordAttribute = "userPassword";
+    	}
+    	if (synchronizationStrategy == null) {
+    		synchronizationStrategy = SYNCHRONIZATION_STRATEGY_AUTO;
     	}
     }
     

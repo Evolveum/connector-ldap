@@ -22,6 +22,7 @@ import java.util.List;
 
 import org.apache.directory.api.ldap.model.cursor.CursorException;
 import org.apache.directory.api.ldap.model.cursor.EntryCursor;
+import org.apache.directory.api.ldap.model.cursor.SearchCursor;
 import org.apache.directory.api.ldap.model.entry.Attribute;
 import org.apache.directory.api.ldap.model.entry.BinaryValue;
 import org.apache.directory.api.ldap.model.entry.Entry;
@@ -51,9 +52,16 @@ import org.apache.directory.api.ldap.model.exception.LdapSchemaException;
 import org.apache.directory.api.ldap.model.exception.LdapSchemaViolationException;
 import org.apache.directory.api.ldap.model.exception.LdapStrongAuthenticationRequiredException;
 import org.apache.directory.api.ldap.model.exception.LdapUnwillingToPerformException;
+import org.apache.directory.api.ldap.model.filter.EqualityNode;
+import org.apache.directory.api.ldap.model.filter.ExprNode;
 import org.apache.directory.api.ldap.model.message.LdapResult;
+import org.apache.directory.api.ldap.model.message.Response;
 import org.apache.directory.api.ldap.model.message.ResultCodeEnum;
+import org.apache.directory.api.ldap.model.message.SearchRequest;
+import org.apache.directory.api.ldap.model.message.SearchRequestImpl;
+import org.apache.directory.api.ldap.model.message.SearchResultEntry;
 import org.apache.directory.api.ldap.model.message.SearchScope;
+import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.ldap.model.schema.AttributeType;
 import org.apache.directory.api.util.GeneralizedTime;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
@@ -69,6 +77,7 @@ import org.identityconnectors.framework.common.exceptions.PermissionDeniedExcept
 import org.identityconnectors.framework.common.exceptions.UnknownUidException;
 import org.identityconnectors.framework.common.objects.Name;
 import org.identityconnectors.framework.common.objects.OperationOptions;
+import org.identityconnectors.framework.common.objects.Uid;
 
 import com.evolveum.polygon.connector.ldap.schema.SchemaTranslator;
 
@@ -247,7 +256,69 @@ public class LdapUtil {
 		}
 		return entry;
 	}
+	
+	public static Entry fetchEntryByUid(LdapNetworkConnection connection, String uid, 
+			org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass, 
+			OperationOptions options, AbstractLdapConfiguration configuration, SchemaTranslator schemaTranslator) {
+		String[] attributesToGet = getAttributesToGet(ldapObjectClass, options, configuration, schemaTranslator);
+		ExprNode filter = createUidSearchFilter(uid, ldapObjectClass, schemaTranslator);
+		return searchSingleEntry(connection, configuration.getBaseContext(), SearchScope.SUBTREE, filter, attributesToGet);
+	}
+	
+	public static Entry searchSingleEntry(LdapNetworkConnection connection, String baseDn, SearchScope scope,
+			ExprNode filter, String[] attributesToGet) {
+		SearchRequest req = new SearchRequestImpl();
+		try {
+			req.setBase(new Dn(baseDn));
+		} catch (LdapInvalidDnException e) {
+			throw new IllegalArgumentException(e.getMessage(), e);
+		}
+		req.setScope(scope);
+		req.setFilter(filter);
+		if (attributesToGet != null) {
+			req.addAttributes(attributesToGet);
+		}
+		Entry entry = null;
+		try {
+			SearchCursor searchCursor = connection.search(req);
+			while (searchCursor.next()) {
+				Response response = searchCursor.get();
+				if (response instanceof SearchResultEntry) {
+					if (entry != null) {
+						LOG.error("Search for {0} in {1} (scope {2}) returned more than one entry:\n{1}", 
+								filter, baseDn, scope, searchCursor.get());
+						throw new IllegalStateException("Search for "+filter+" in "+baseDn+" returned unexpected entries");
+					}
+					entry = ((SearchResultEntry)response).getEntry();
+				}
+			}
+			searchCursor.close();
+		} catch (LdapException e) {
+			throw processLdapException("Search for "+filter+" in "+baseDn+" failed", e);
+		} catch (CursorException e) {
+			throw new ConnectorIOException("Search for "+filter+" in "+baseDn+" failed: "+e.getMessage(), e);
+		}
+		return entry;
+	}
+	
+	public static ExprNode createUidSearchFilter(String uidValue, 
+			org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass, SchemaTranslator schemaTranslator) {
+		AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, Uid.NAME);
+		Value<Object> ldapValue = schemaTranslator.toLdapIdentifierValue(ldapAttributeType, uidValue);
+		return new EqualityNode<>(ldapAttributeType, ldapValue);
+	}
 
+	public static String getUidValue(Entry entry, org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
+			AbstractLdapConfiguration configuration, SchemaTranslator schemaTranslator) {
+		if (isDnAttribute(configuration.getUidAttribute())) {
+			return entry.getDn().toString();
+		}
+		Attribute uidAttribute = entry.get(configuration.getUidAttribute());
+		AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, Uid.NAME);
+		return schemaTranslator.toIcfIdentifierValue(uidAttribute.get(), ldapAttributeType);
+	}
+	
+	
 	public static RuntimeException processLdapException(String message, LdapException ldapException) {
 		// AD returns non-printable chars in the message. Remove them, otherwise we will havve problems
 		// displaying the message in upper layers
@@ -411,6 +482,5 @@ public class LdapUtil {
 		}
 		return bytes;
 	}
-	
 	
 }

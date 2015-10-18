@@ -146,5 +146,15 @@ public class AdSchemaTranslator extends SchemaTranslator<AdLdapConfiguration> {
 					+"; attributeType="+ldapAttributeType, e);
 		}
 	}
+
+	@Override
+	public boolean isBinaryAttribute(String attributeId) {
+		if (AdConstants.ATTRIBUTE_NT_SECURITY_DESCRIPTOR.equalsIgnoreCase(attributeId)) {
+			return true;
+		}
+		return super.isBinaryAttribute(attributeId);
+	}
+	
+	
 	
 }

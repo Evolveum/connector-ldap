@@ -131,6 +131,7 @@ import com.evolveum.polygon.connector.ldap.search.DefaultSearchStrategy;
 import com.evolveum.polygon.connector.ldap.search.SearchStrategy;
 import com.evolveum.polygon.connector.ldap.search.SimplePagedResultsSearchStrategy;
 import com.evolveum.polygon.connector.ldap.search.VlvSearchStrategy;
+import com.evolveum.polygon.connector.ldap.sync.AdDirSyncStrategy;
 import com.evolveum.polygon.connector.ldap.sync.ModifyTimestampSyncStrategy;
 import com.evolveum.polygon.connector.ldap.sync.SunChangelogSyncStrategy;
 import com.evolveum.polygon.connector.ldap.sync.SyncStrategy;
@@ -380,15 +381,13 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			// We know that this can return at most one object. Therefore always use simple search.
 			SearchStrategy searchStrategy = getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
 			String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
-			SearchScope scope = getScope(options);
-			AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, Uid.NAME);
-			Value<Object> ldapValue = schemaTranslator.toLdapIdentifierValue(ldapAttributeType, uidValue);
-			ExprNode filterNode = new EqualityNode<>(ldapAttributeType, ldapValue);
+			SearchScope scope = getScope(options);			
+			ExprNode filterNode = LdapUtil.createUidSearchFilter(uidValue, ldapObjectClass, schemaTranslator);
 			String baseDn = getBaseDn(options);
 			try {
 				searchStrategy.search(baseDn, filterNode, scope, attributesToGet);
 			} catch (LdapException e) {
-				throw LdapUtil.processLdapException("Error searching for "+ldapAttributeType.getName()+" '"+uidValue+"'", e);
+				throw LdapUtil.processLdapException("Error searching for UID '"+uidValue+"'", e);
 			}
 			
 			return searchStrategy;
@@ -973,6 +972,9 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 					break;
 				case LdapConfiguration.SYNCHRONIZATION_STRATEGY_MODIFY_TIMESTAMP:
 					syncStrategy = new ModifyTimestampSyncStrategy(configuration, connection, getSchemaManager(), getSchemaTranslator());
+					break;
+				case LdapConfiguration.SYNCHRONIZATION_STRATEGY_AD_DIR_SYNC:
+					syncStrategy = new AdDirSyncStrategy(configuration, connection, getSchemaManager(), getSchemaTranslator());
 					break;
 				case LdapConfiguration.SYNCHRONIZATION_STRATEGY_AUTO:
 					syncStrategy = chooseSyncStrategyAuto(objectClass);
