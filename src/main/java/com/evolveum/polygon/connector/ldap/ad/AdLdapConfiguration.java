@@ -96,6 +96,9 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		if (getSynchronizationStrategy() == null) {
     		setSynchronizationStrategy(SYNCHRONIZATION_STRATEGY_AD_DIR_SYNC);
     	}
+		if (getVlvSortAttribute() == null) {
+			setVlvSortAttribute("cn");
+		}
 		super.recompute();
 	}
     

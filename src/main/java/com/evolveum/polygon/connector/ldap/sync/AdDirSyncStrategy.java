@@ -18,6 +18,8 @@ package com.evolveum.polygon.connector.ldap.sync;
 import java.util.Arrays;
 
 import org.apache.commons.lang.StringUtils;
+import org.apache.directory.api.ldap.extras.controls.ad.AdShowDeleted;
+import org.apache.directory.api.ldap.extras.controls.ad.AdShowDeletedImpl;
 import org.apache.directory.api.ldap.extras.controls.ad.AdDirSync;
 import org.apache.directory.api.ldap.extras.controls.ad.AdDirSyncImpl;
 import org.apache.directory.api.ldap.model.cursor.CursorException;
@@ -45,11 +47,13 @@ import org.identityconnectors.framework.common.objects.SyncDeltaBuilder;
 import org.identityconnectors.framework.common.objects.SyncDeltaType;
 import org.identityconnectors.framework.common.objects.SyncResultsHandler;
 import org.identityconnectors.framework.common.objects.SyncToken;
+import org.identityconnectors.framework.common.objects.Uid;
 import org.identityconnectors.framework.spi.SyncTokenResultsHandler;
 
 import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
 import com.evolveum.polygon.connector.ldap.LdapConfiguration;
 import com.evolveum.polygon.connector.ldap.LdapUtil;
+import com.evolveum.polygon.connector.ldap.ad.AdConstants;
 import com.evolveum.polygon.connector.ldap.schema.SchemaTranslator;
 
 /**
@@ -88,6 +92,8 @@ public class AdDirSyncStrategy extends SyncStrategy {
 				getSchemaTranslator());
 		
 		SearchRequest req = createSearchRequest(LdapConfiguration.SEARCH_FILTER_ALL, fromToken);
+		AdShowDeleted showDeletedReqControl = new AdShowDeletedImpl();
+		req.addControl(showDeletedReqControl);
 		
 		int numFoundEntries = 0;
 		int numProcessedEntries = 0;
@@ -104,13 +110,9 @@ public class AdDirSyncStrategy extends SyncStrategy {
 					
 					byte[] entryCookie = null;
 					AdDirSync dirSyncRespControl = (AdDirSync) response.getControl(AdDirSync.OID);
-					if (dirSyncRespControl == null) {
-						LOG.warn("No DirSync response control in entry {0}", dirSyncEntry.getDn());
-					} else {
+					if (dirSyncRespControl != null) {
 						entryCookie = dirSyncRespControl.getCookie();
-						if (entryCookie == null) {
-							LOG.warn("No entry cookie in DirSync responso control in entry {0}", dirSyncEntry.getDn());
-						} else {
+						if (entryCookie != null) {
 							lastEntryCookie = entryCookie;
 						}
 					}
@@ -120,22 +122,29 @@ public class AdDirSyncStrategy extends SyncStrategy {
 					// Luckily, it looks like we always have objectGUID
 					
 					String targetUid = LdapUtil.getUidValue(dirSyncEntry, ldapObjectClass, getConfiguration(), getSchemaTranslator());
-					Entry targetEntry = LdapUtil.fetchEntryByUid(getConnection(), targetUid, ldapObjectClass, options, getConfiguration(), getSchemaTranslator());
-					LOG.ok("Got target entry based on dirSync:\n{0}", targetEntry);
-					
-					// TODO: filter out by modifiersName
-					
-					// TODO: filter out by object class
 					
 					SyncDeltaBuilder deltaBuilder = new SyncDeltaBuilder();
-					SyncDeltaType deltaType = SyncDeltaType.CREATE_OR_UPDATE;
-
+					
 					SyncToken entryToken = new SyncToken(entryCookie==null?"":Base64.encode(entryCookie));
 					deltaBuilder.setToken(entryToken);
 					
-					deltaBuilder.setDeltaType(deltaType);
-					ConnectorObject targetObject = getSchemaTranslator().toIcfObject(icfObjectClassInfo, targetEntry);
-					deltaBuilder.setObject(targetObject);
+					boolean isDelted = LdapUtil.getBooleanAttribute(dirSyncEntry, AdConstants.ATTRIBUTE_IS_DELETED, Boolean.FALSE);
+					if (isDelted) {
+						deltaBuilder.setDeltaType(SyncDeltaType.DELETE);
+						deltaBuilder.setUid(new Uid(targetUid));
+						
+					} else {
+						deltaBuilder.setDeltaType(SyncDeltaType.CREATE_OR_UPDATE);
+						Entry targetEntry = LdapUtil.fetchEntryByUid(getConnection(), targetUid, ldapObjectClass, options, getConfiguration(), getSchemaTranslator());
+						LOG.ok("Got target entry based on dirSync:\n{0}", targetEntry);
+					
+						// TODO: filter out by modifiersName
+						
+						// TODO: filter out by object class
+						
+						ConnectorObject targetObject = getSchemaTranslator().toIcfObject(icfObjectClassInfo, targetEntry);
+						deltaBuilder.setObject(targetObject);
+					}
 					
 					handler.handle(deltaBuilder.build());
 					numProcessedEntries++;

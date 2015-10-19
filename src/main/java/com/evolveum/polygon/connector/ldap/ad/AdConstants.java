@@ -24,6 +24,7 @@ public class AdConstants {
 	public static final String ATTRIBUTE_SAM_ACCOUNT_NAME_NAME = "sAMAccountName";
 	public static final String ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME = "userAccountControl";
 	public static final String ATTRIBUTE_NT_SECURITY_DESCRIPTOR = "nTSecurityDescriptor";
+	public static final String ATTRIBUTE_IS_DELETED = "isDeleted";
 	
 	public static final int USER_ACCOUNT_CONTROL_NORMAL = 0x0200;
 	public static final int USER_ACCOUNT_CONTROL_DISABLED = 0x0002;

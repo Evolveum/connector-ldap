@@ -570,8 +570,10 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
     		}
     		
         } else if (LdapConfiguration.PAGING_STRATEGY_AUTO.equals(pagingStrategy)) {
-        	if (options.getPagedResultsOffset() != null && options.getPagedResultsOffset() > 1) {
-        		// VLV is the only practical option here
+        	if (options.getPagedResultsOffset() != null) {
+        		// Always prefer VLV even if the offset is 1. We expect that the client will use paging and subsequent
+        		// queries will come with offset other than 1. The server may use a slightly different sorting for VLV and other
+        		// paging mechanisms. Bu we want consisten results. Therefore in this case prefer VLV even if it might be less efficient.
         		if (supportsControl(VirtualListViewRequest.OID)) {
         			LOG.ok("Selecting VLV search strategy because strategy setting is set to {0} and the request specifies an offset", pagingStrategy);
         			return new VlvSearchStrategy(connection, configuration, getSchemaTranslator(), objectClass, ldapObjectClass, handler, options);
@@ -1088,6 +1090,21 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
     		connectionConfig.setUseTls(true);
     	} else if (connectionSecurity != null) {
     		throw new ConfigurationException("Unknown value for connectionSecurity: "+connectionSecurity);
+    	}
+    	
+    	String[] enabledSecurityProtocols = configuration.getEnabledSecurityProtocols();
+    	if (enabledSecurityProtocols != null) {
+    		connectionConfig.setEnabledProtocols(enabledSecurityProtocols);
+    	}
+    	
+    	String[] enabledCipherSuites = configuration.getEnabledCipherSuites();
+    	if (enabledCipherSuites != null) {
+    		connectionConfig.setEnabledCipherSuites(enabledCipherSuites);
+    	}
+    	
+    	String sslProtocol = configuration.getSslProtocol();
+    	if (sslProtocol != null) {
+    		connectionConfig.setSslProtocol(sslProtocol);
     	}
     	
 		connectionConfig.setBinaryAttributeDetector(binaryAttributeDetector);

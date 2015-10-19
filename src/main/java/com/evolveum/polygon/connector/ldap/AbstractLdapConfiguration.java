@@ -73,6 +73,17 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
     public static final String CONNECTION_SECURITY_STARTTLS = "starttls";
     
     /**
+     * The standard name of the SSL protocol.
+     * This name is used to instantiate javax.net.ssl.SSLContext.
+     * See the SSLContext section in the Java Cryptography Architecture Standard Algorithm Name Documentation.
+     */
+    private String sslProtocol = null;
+    
+    private String[] enabledSecurityProtocols = null;
+    
+    private String[] enabledCipherSuites = null;
+    
+    /**
      * The authentication mechanism to use.
      * Possible values: "simple", "SASL-GSSAPI"
      * Default value: "simple"
@@ -142,13 +153,13 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
     /**
      * The attribute used for sorting for the VLV searches if no explicit sorting attribute was specified.
      */
-    private String vlvSortAttribute = "uid";
+    private String vlvSortAttribute = null;
     
     /**
      * The ordering rule for VLV searches if no other ordering was specified.
      */
     private String vlvSortOrderingRule = null;
-
+    
     /**
      * Name of the attribute which will be used as ICF UID.
      */
@@ -243,6 +254,30 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 
 	public void setConnectionSecurity(String connectionSecurity) {
 		this.connectionSecurity = connectionSecurity;
+	}
+
+	public String getSslProtocol() {
+		return sslProtocol;
+	}
+
+	public void setSslProtocol(String sslProtocol) {
+		this.sslProtocol = sslProtocol;
+	}
+
+	public String[] getEnabledSecurityProtocols() {
+		return enabledSecurityProtocols;
+	}
+
+	public void setEnabledSecurityProtocols(String[] enabledSecurityProtocols) {
+		this.enabledSecurityProtocols = enabledSecurityProtocols;
+	}
+
+	public String[] getEnabledCipherSuites() {
+		return enabledCipherSuites;
+	}
+
+	public void setEnabledCipherSuites(String[] enabledCipherSuites) {
+		this.enabledCipherSuites = enabledCipherSuites;
 	}
 
 	public String getAuthenticationType() {
@@ -463,6 +498,9 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
     	}
     	if (synchronizationStrategy == null) {
     		synchronizationStrategy = SYNCHRONIZATION_STRATEGY_AUTO;
+    	}
+    	if (vlvSortAttribute == null) {
+    		vlvSortAttribute = "uid";
     	}
     }
     

@@ -15,6 +15,10 @@
  */
 package com.evolveum.polygon.connector.ldap.search;
 
+import java.util.HashSet;
+import java.util.Set;
+
+import org.apache.commons.lang.BooleanUtils;
 import org.apache.directory.api.ldap.extras.controls.vlv.VirtualListViewRequest;
 import org.apache.directory.api.ldap.extras.controls.vlv.VirtualListViewRequestImpl;
 import org.apache.directory.api.ldap.extras.controls.vlv.VirtualListViewResponse;
@@ -88,17 +92,18 @@ public class VlvSearchStrategy extends SearchStrategy {
         }
         
         SortRequest sortReqControl = createSortControl(getConfiguration().getVlvSortAttribute(), getConfiguration().getVlvSortOrderingRule());
+        sortReqControl.setCritical(true);
                 
         lastListSize = 0;
         cookie = null;
         if (getOptions() != null && getOptions().getPagedResultsCookie() != null) {
         	cookie = Base64.decode(getOptions().getPagedResultsCookie());
         }
-		
+		        
         Dn lastResultDn = null;
         int numberOfResutlsReturned = 0;
-        
         while (proceed) {
+        	
         	SearchRequest req = new SearchRequestImpl();
     		req.setBase(new Dn(baseDn));
     		req.setFilter(filterNode);
@@ -121,7 +126,7 @@ public class VlvSearchStrategy extends SearchStrategy {
         	vlvReqControl.setCritical(true);
         	vlvReqControl.setBeforeCount(0);
         	vlvReqControl.setAfterCount(afterCount);
-        	vlvReqControl.setOffset(index);
+			vlvReqControl.setOffset(index);
         	vlvReqControl.setContentCount(lastListSize);
         	vlvReqControl.setContextId(cookie);
         	req.addControl(vlvReqControl);
@@ -145,8 +150,8 @@ public class VlvSearchStrategy extends SearchStrategy {
     			        }
     			        if (!overlap) {
     			        	proceed = handleResult(entry);
-    			        	index++;
     			        	numberOfResutlsReturned++;
+    			        	index++;
     			        }
     			        if (!proceed) {
                         	LOG.ok("Ending search because handler returned false");
@@ -177,7 +182,11 @@ public class VlvSearchStrategy extends SearchStrategy {
 			    		}
 			    		extra = sb.toString();
 			    		cookie = vlvResponseControl.getContextId();
-			    		lastListSize = vlvResponseControl.getContentCount();
+			    		if (vlvResponseControl.getContentCount() == 0) {
+			    			lastListSize = -1;
+			    		} else {
+			    			lastListSize = vlvResponseControl.getContentCount();
+			    		}
 			    	} else {
 			    		cookie = null;
 			    		lastListSize = -1;
@@ -204,7 +213,7 @@ public class VlvSearchStrategy extends SearchStrategy {
     			throw new ConnectorIOException(e.getMessage(), e);
     		}
 
-    		if (index > lastListSize) {
+    		if (lastListSize > 0 && index > lastListSize) {
             	LOG.ok("Ending VLV search because index ({0}) went over list size ({1})", index, lastListSize);
                 break;
             }

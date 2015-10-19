@@ -139,6 +139,7 @@ public abstract class SearchStrategy {
 		} else {
 			throw new ConfigurationException("Unknown value of referralStrategy configuration property: "+referralStrategy);
 		}
+		req.setDerefAliases(AliasDerefMode.NEVER_DEREF_ALIASES);
 	}
 	
 	protected SearchCursor executeSearch(SearchRequest req) throws LdapException {
