@@ -151,8 +151,8 @@ public class VlvSearchStrategy extends SearchStrategy {
     			        if (!overlap) {
     			        	proceed = handleResult(entry);
     			        	numberOfResutlsReturned++;
-    			        	index++;
     			        }
+    			        index++;
     			        if (!proceed) {
                         	LOG.ok("Ending search because handler returned false");
                         	break;
