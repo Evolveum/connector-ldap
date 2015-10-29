@@ -95,6 +95,8 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 	public static final String SYNTAX_AUTH_PASSWORD = "1.3.6.1.4.1.4203.1.1.2";
 	public static final String SYNTAX_SUN_DEFINED_ACCESS_CONTROL_INFORMATION = "1.3.6.1.4.1.26027.1.3.4";
 	public static final String SYNTAX_COLLECTIVE_CONFLICT_BEHAVIOR = "1.3.6.1.4.1.26027.1.3.6";
+	private static final String SYNTAX_NIS_NETGROUP_TRIPLE_SYNTAX = "1.3.6.1.1.1.0.0";
+	private static final String SYNTAX_NIS_BOOT_PARAMETER_SYNTAX = "1.3.6.1.1.1.0.1";
 	
 	private static final Log LOG = Log.getLog(SchemaTranslator.class);
 	private static final Map<String, Class<?>> SYNTAX_MAP = new HashMap<String,Class<?>>();
@@ -1074,6 +1076,8 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 		SYNTAX_MAP.put(SYNTAX_AUTH_PASSWORD, String.class);
 		SYNTAX_MAP.put(SYNTAX_COLLECTIVE_CONFLICT_BEHAVIOR, String.class);
 		SYNTAX_MAP.put(SYNTAX_SUN_DEFINED_ACCESS_CONTROL_INFORMATION, String.class);
+		SYNTAX_MAP.put(SYNTAX_NIS_NETGROUP_TRIPLE_SYNTAX, String.class);
+		SYNTAX_MAP.put(SYNTAX_NIS_BOOT_PARAMETER_SYNTAX, String.class);
 		
 		// Make sure that these attributes are always resolved as string attributes
 		// These are mostly root DSE attributes
