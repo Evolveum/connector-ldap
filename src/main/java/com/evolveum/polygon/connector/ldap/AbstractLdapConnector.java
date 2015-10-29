@@ -382,7 +382,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			SearchStrategy searchStrategy = getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
 			String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
 			SearchScope scope = getScope(options);			
-			ExprNode filterNode = LdapUtil.createUidSearchFilter(uidValue, ldapObjectClass, schemaTranslator);
+			ExprNode filterNode = LdapUtil.createUidSearchFilter(uidValue, ldapObjectClass, getSchemaTranslator());
 			String baseDn = getBaseDn(options);
 			try {
 				searchStrategy.search(baseDn, filterNode, scope, attributesToGet);
@@ -536,6 +536,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 	private SearchStrategy chooseSearchStrategy(ObjectClass objectClass, 
 			org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass, 
 			ResultsHandler handler, OperationOptions options) {
+		SchemaTranslator<C> schemaTranslator = getSchemaTranslator();
 		String pagingStrategy = configuration.getPagingStrategy();
 		if (pagingStrategy == null) {
 			pagingStrategy = LdapConfiguration.PAGING_STRATEGY_AUTO;
@@ -630,7 +631,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		for (Attribute icfAttr: createAttributes) {
 			if (icfAttr.is(PredefinedAttributes.AUXILIARY_OBJECT_CLASS_NAME)) {
 				for (Object val: icfAttr.getValue()) {
-					ldapAuxiliaryObjectClasses.add(schemaTranslator.toLdapObjectClass(new ObjectClass((String)val)));
+					ldapAuxiliaryObjectClasses.add(getSchemaTranslator().toLdapObjectClass(new ObjectClass((String)val)));
 				}
 			}
 		}
@@ -795,7 +796,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			dn = resolveDn(icfObjectClass, uid, options);
 		}
 		
-		org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass = schemaTranslator.toLdapObjectClass(icfObjectClass);
+		org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass = getSchemaTranslator().toLdapObjectClass(icfObjectClass);
 		
 		List<Modification> modifications = new ArrayList<Modification>(values.size());
 		for (Attribute icfAttr: values) {
@@ -873,6 +874,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 	protected void addAttributeModification(String dn, List<Modification> modifications,
 			org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass,
 			ObjectClass icfObjectClass, Attribute icfAttr, ModificationOperation modOp) {
+		SchemaTranslator<C> schemaTranslator = getSchemaTranslator();
 		AttributeType attributeType = schemaTranslator.toLdapAttribute(ldapStructuralObjectClass, icfAttr.getName());
 		if (attributeType == null && !ArrayUtils.contains(configuration.getOperationalAttributes(), icfAttr.getName())) {
 			throw new InvalidAttributeValueException("Unknown attribute "+icfAttr.getName()+" in object class "+icfObjectClass);
@@ -1021,17 +1023,17 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		if (LdapUtil.isDnAttribute(uidAttributeName)) {
 			dn = uid.getUidValue();
 		} else {
-			org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass = schemaTranslator.toLdapObjectClass(objectClass);
 			String baseDn = getBaseDn(options);
 			SearchScope scope = getScope(options);
 			AttributeType ldapAttributeType;
+			SchemaManager schemaManager = getSchemaManager();
 			try {
 				String attributeOid = schemaManager.getAttributeTypeRegistry().getOidByName(uidAttributeName);
 				ldapAttributeType = schemaManager.getAttributeTypeRegistry().lookup(attributeOid);
 			} catch (LdapException e1) {
 				throw new InvalidAttributeValueException("Cannot find schema for UID attribute "+uidAttributeName);
 			}
-			Value<Object> ldapValue = schemaTranslator.toLdapIdentifierValue(ldapAttributeType, uid.getUidValue());
+			Value<Object> ldapValue = getSchemaTranslator().toLdapIdentifierValue(ldapAttributeType, uid.getUidValue());
 			ExprNode filterNode = new EqualityNode<Object>(ldapAttributeType, ldapValue);
 			try {
 				EntryCursor cursor = connection.search(baseDn, filterNode.toString(), scope, uidAttributeName);
