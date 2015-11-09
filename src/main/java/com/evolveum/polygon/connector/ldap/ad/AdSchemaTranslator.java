@@ -52,7 +52,7 @@ public class AdSchemaTranslator extends SchemaTranslator<AdLdapConfiguration> {
 	protected void extendObjectClassDefinition(ObjectClassInfoBuilder ocib,
 			org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
 		super.extendObjectClassDefinition(ocib, ldapObjectClass);
-		if (isUserObjectClass(ldapObjectClass.getName())) {
+		if (isUserObjectClass(ldapObjectClass.getName()) || isGroupObjectClass(ldapObjectClass.getName())) {
 			AttributeInfoBuilder samAccountNameAttr = new AttributeInfoBuilder(AdConstants.ATTRIBUTE_SAM_ACCOUNT_NAME_NAME);
 			samAccountNameAttr.setType(String.class);
 			ocib.addAttributeInfo(samAccountNameAttr.build());
