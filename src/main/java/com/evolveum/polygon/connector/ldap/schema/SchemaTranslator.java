@@ -97,6 +97,11 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 	public static final String SYNTAX_COLLECTIVE_CONFLICT_BEHAVIOR = "1.3.6.1.4.1.26027.1.3.6";
 	private static final String SYNTAX_NIS_NETGROUP_TRIPLE_SYNTAX = "1.3.6.1.1.1.0.0";
 	private static final String SYNTAX_NIS_BOOT_PARAMETER_SYNTAX = "1.3.6.1.1.1.0.1";
+	private static final String SYNTAX_AD_DN_WITH_BINARY_SYNTAX = "1.2.840.113556.1.4.903";
+	private static final String SYNTAX_AD_DN_WITH_STRING_SYNTAX = "1.2.840.113556.1.4.904";
+	private static final String SYNTAX_AD_CASE_IGNORE_STRING_SYNTAX = "1.2.840.113556.1.4.905";
+	private static final String SYNTAX_AD_INTEGER8_SYNTAX = "1.2.840.113556.1.4.906";
+	private static final String SYNTAX_AD_SECURITY_DESCRIPTOR_SYNTAX = "1.2.840.113556.1.4.907";
 	
 	private static final Log LOG = Log.getLog(SchemaTranslator.class);
 	private static final Map<String, Class<?>> SYNTAX_MAP = new HashMap<String,Class<?>>();
@@ -1078,6 +1083,14 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 		SYNTAX_MAP.put(SYNTAX_SUN_DEFINED_ACCESS_CONTROL_INFORMATION, String.class);
 		SYNTAX_MAP.put(SYNTAX_NIS_NETGROUP_TRIPLE_SYNTAX, String.class);
 		SYNTAX_MAP.put(SYNTAX_NIS_BOOT_PARAMETER_SYNTAX, String.class);
+		SYNTAX_MAP.put(SYNTAX_AD_CASE_IGNORE_STRING_SYNTAX, String.class);
+		SYNTAX_MAP.put(SYNTAX_AD_DN_WITH_STRING_SYNTAX, String.class);
+		SYNTAX_MAP.put(SYNTAX_AD_DN_WITH_BINARY_SYNTAX, String.class);
+		SYNTAX_MAP.put(SYNTAX_AD_INTEGER8_SYNTAX, long.class);
+		SYNTAX_MAP.put(SYNTAX_AD_SECURITY_DESCRIPTOR_SYNTAX, String.class);
+		
+		// AD strangeness
+		SYNTAX_MAP.put("OctetString", byte[].class);
 		
 		// Make sure that these attributes are always resolved as string attributes
 		// These are mostly root DSE attributes
