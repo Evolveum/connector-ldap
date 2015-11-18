@@ -664,7 +664,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			// hope that it worked well. It should - unless there is a connector bug.
 		}
 		
-		preCreate(entry);
+		preCreate(ldapStructuralObjectClass, entry);
 		
 		if (LOG.isOk()) {
 			LOG.ok("Adding entry: {0}", entry);
@@ -730,7 +730,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		return uid;
 	}
 
-	protected void preCreate(Entry entry) {
+	protected void preCreate(org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass, Entry entry) {
 		// Nothing to do here. Hooks for subclasses.
 	}
 

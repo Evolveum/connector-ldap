@@ -67,16 +67,15 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 	}
 
 	@Override
-	protected void preCreate(Entry entry) {
-		super.preCreate(entry);
-		if (entry.get(AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME) == null) {
-			
-			try {
-				if (((DefaultAttribute)entry.get("objectClass")).getString().equals("user")){
-				entry.add(AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME, Integer.toString(AdConstants.USER_ACCOUNT_CONTROL_NORMAL));
+	protected void preCreate(org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass, Entry entry) {
+		super.preCreate(ldapStructuralObjectClass, entry);
+		if (getSchemaTranslator().isUserObjectClass(ldapStructuralObjectClass.getName())) {
+			if (entry.get(AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME) == null) {
+				try {
+					entry.add(AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME, Integer.toString(AdConstants.USER_ACCOUNT_CONTROL_NORMAL));
+				} catch (LdapException e) {
+					throw new IllegalStateException("Error adding attribute "+AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME+" to entry");
 				}
-			} catch (LdapException e) {
-				throw new IllegalStateException("Error adding attribute "+AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME+" to entry");
 			}
 		}
 	}
