@@ -1087,7 +1087,7 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 		SYNTAX_MAP.put(SYNTAX_AD_DN_WITH_STRING_SYNTAX, String.class);
 		SYNTAX_MAP.put(SYNTAX_AD_DN_WITH_BINARY_SYNTAX, String.class);
 		SYNTAX_MAP.put(SYNTAX_AD_INTEGER8_SYNTAX, long.class);
-		SYNTAX_MAP.put(SYNTAX_AD_SECURITY_DESCRIPTOR_SYNTAX, String.class);
+		SYNTAX_MAP.put(SYNTAX_AD_SECURITY_DESCRIPTOR_SYNTAX, byte[].class);
 		
 		// AD strangeness
 		SYNTAX_MAP.put("OctetString", byte[].class);
