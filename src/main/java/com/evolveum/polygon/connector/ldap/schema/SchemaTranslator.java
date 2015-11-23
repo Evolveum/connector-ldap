@@ -475,6 +475,14 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 							+"; attributeType="+ldapAttributeType, e);
 				}				
 			}
+		} else if (icfAttributeValue instanceof Boolean) {
+			LOG.ok("Converting to LDAP: {0} ({1}): boolean", ldapAttributeType.getName(), syntaxOid);
+			try {
+				return (Value)new StringValue(ldapAttributeType, icfAttributeValue.toString().toUpperCase());
+			} catch (LdapInvalidAttributeValueException e) {
+				throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
+						+"; attributeType="+ldapAttributeType, e);
+			}
 		} else if (icfAttributeValue instanceof GuardedString) {
 			try {
 				return (Value)new GuardedStringValue(ldapAttributeType, (GuardedString) icfAttributeValue);
