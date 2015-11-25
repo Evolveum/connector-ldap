@@ -475,6 +475,14 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 							+"; attributeType="+ldapAttributeType, e);
 				}				
 			}
+		} else if (icfAttributeValue instanceof Boolean) {
+			LOG.ok("Converting to LDAP: {0} ({1}): boolean", ldapAttributeType.getName(), syntaxOid);
+			try {
+				return (Value)new StringValue(ldapAttributeType, icfAttributeValue.toString().toUpperCase());
+			} catch (LdapInvalidAttributeValueException e) {
+				throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
+						+"; attributeType="+ldapAttributeType, e);
+			}
 		} else if (icfAttributeValue instanceof GuardedString) {
 			try {
 				return (Value)new GuardedStringValue(ldapAttributeType, (GuardedString) icfAttributeValue);
@@ -1087,7 +1095,7 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 		SYNTAX_MAP.put(SYNTAX_AD_DN_WITH_STRING_SYNTAX, String.class);
 		SYNTAX_MAP.put(SYNTAX_AD_DN_WITH_BINARY_SYNTAX, String.class);
 		SYNTAX_MAP.put(SYNTAX_AD_INTEGER8_SYNTAX, long.class);
-		SYNTAX_MAP.put(SYNTAX_AD_SECURITY_DESCRIPTOR_SYNTAX, String.class);
+		SYNTAX_MAP.put(SYNTAX_AD_SECURITY_DESCRIPTOR_SYNTAX, byte[].class);
 		
 		// AD strangeness
 		SYNTAX_MAP.put("OctetString", byte[].class);
