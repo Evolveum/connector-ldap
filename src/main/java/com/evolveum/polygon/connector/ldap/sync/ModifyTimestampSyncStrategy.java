@@ -75,11 +75,6 @@ import com.evolveum.polygon.connector.ldap.schema.SchemaTranslator;
  */
 public class ModifyTimestampSyncStrategy extends SyncStrategy {
 	
-	private static final String MODIFYTIMESTAMP_ATTRIBUTE = "modifyTimestamp";
-	private static final String MODIFIERSNAME_ATTRIBUTE = "modifiersName";
-	private static final String CREATETIMESTAMP_ATTRIBUTE = "createTimestamp";
-	private static final String CREATORSNAME_ATTRIBUTE = "creatorsName";
-	
 	private static final Log LOG = Log.getLog(ModifyTimestampSyncStrategy.class);
 
 
@@ -117,7 +112,9 @@ public class ModifyTimestampSyncStrategy extends SyncStrategy {
 		}
 		
 		String[] attributesToGet = LdapUtil.getAttributesToGet(ldapObjectClass, options, getConfiguration(), 
-				getSchemaTranslator(), MODIFYTIMESTAMP_ATTRIBUTE, CREATETIMESTAMP_ATTRIBUTE, MODIFIERSNAME_ATTRIBUTE, CREATORSNAME_ATTRIBUTE);
+				getSchemaTranslator(), AbstractLdapConfiguration.ATTRIBUTE_MODIFYTIMESTAMP_NAME, 
+				AbstractLdapConfiguration.ATTRIBUTE_CREATETIMESTAMP_NAME, AbstractLdapConfiguration.ATTRIBUTE_MODIFIERSNAME_NAME, 
+				AbstractLdapConfiguration.ATTRIBUTE_CREATORSNAME_NAME);
 		
 		String baseContext = getConfiguration().getBaseContext();
 		if (LOG.isOk()) {
@@ -139,10 +136,11 @@ public class ModifyTimestampSyncStrategy extends SyncStrategy {
 				LOG.ok("Found entry: {0}", entry);
 				numFoundEntries++;
 				
-				// TODO: filter out by modifiersName
-				
-				// TODO: filter out by object class
-				
+				if (!isAcceptableForSynchronization(entry, ldapObjectClass, 
+						getConfiguration().getModifiersNamesToFilterOut())) {
+					continue;
+				}
+								
 				SyncDeltaBuilder deltaBuilder = new SyncDeltaBuilder();
 				SyncDeltaType deltaType = SyncDeltaType.CREATE_OR_UPDATE;
 				
@@ -178,8 +176,8 @@ public class ModifyTimestampSyncStrategy extends SyncStrategy {
 		Value<String> ldapValue = new StringValue(fromTokenValue);
 		ExprNode filterNode =
 				new OrNode(
-						new GreaterEqNode<String>(MODIFYTIMESTAMP_ATTRIBUTE, ldapValue),
-						new GreaterEqNode<String>(CREATETIMESTAMP_ATTRIBUTE, ldapValue)
+						new GreaterEqNode<String>(AbstractLdapConfiguration.ATTRIBUTE_MODIFYTIMESTAMP_NAME, ldapValue),
+						new GreaterEqNode<String>(AbstractLdapConfiguration.ATTRIBUTE_CREATETIMESTAMP_NAME, ldapValue)
 				);
 		return filterNode.toString();
 	}
