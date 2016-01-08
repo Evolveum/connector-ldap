@@ -15,8 +15,10 @@
  */
 package com.evolveum.polygon.connector.ldap.sync;
 
+import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.schema.SchemaManager;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
+import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.framework.common.objects.ObjectClass;
 import org.identityconnectors.framework.common.objects.OperationOptions;
 import org.identityconnectors.framework.common.objects.SyncResultsHandler;
@@ -24,6 +26,7 @@ import org.identityconnectors.framework.common.objects.SyncToken;
 
 import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
 import com.evolveum.polygon.connector.ldap.LdapConfiguration;
+import com.evolveum.polygon.connector.ldap.LdapUtil;
 import com.evolveum.polygon.connector.ldap.schema.SchemaTranslator;
 
 /**
@@ -31,6 +34,8 @@ import com.evolveum.polygon.connector.ldap.schema.SchemaTranslator;
  *
  */
 public abstract class SyncStrategy {
+	
+	private static final Log LOG = Log.getLog(SyncStrategy.class);
 	
 	private AbstractLdapConfiguration configuration;
     private LdapNetworkConnection connection;
@@ -65,5 +70,23 @@ public abstract class SyncStrategy {
 	public abstract void sync(ObjectClass objectClass, SyncToken token, SyncResultsHandler handler, OperationOptions options);
 
 	public abstract SyncToken getLatestSyncToken(ObjectClass objectClass);
+	
+	protected boolean isAcceptableForSynchronization(Entry entry, 
+			org.apache.directory.api.ldap.model.schema.ObjectClass requiredldapObjectClass,
+			String[] modifiersNamesToFilterOut) {
+		if (requiredldapObjectClass != null) {
+			if (!LdapUtil.isObjectClass(entry, requiredldapObjectClass)) {
+				LOG.ok("Skipping synchronization of entry {0} because object class does not match", entry.getDn());
+				return false;
+			}
+		}
+		if (modifiersNamesToFilterOut != null && modifiersNamesToFilterOut.length > 0) {
+			if (!LdapUtil.hasModifierName(entry, modifiersNamesToFilterOut)) {
+				LOG.ok("Skipping synchronization of entry {0} because modifiers name is filtered out", entry.getDn());
+				return false;
+			}
+		}
+		return true;
+	}
 	
 }

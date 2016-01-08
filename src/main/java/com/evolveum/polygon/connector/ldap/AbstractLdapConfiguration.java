@@ -44,6 +44,10 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 	public static final String ATTRIBUTE_OBJECTCLASS_NAME = "objectClass";
 	public static final String ATTRIBUTE_ENTRYUUID_NAME = "entryUUID";
 	public static final String ATTRIBUTE_NSUNIQUEID_NAME = "nsUniqueId";
+	public static final String ATTRIBUTE_MODIFYTIMESTAMP_NAME = "modifyTimestamp";
+	public static final String ATTRIBUTE_MODIFIERSNAME_NAME = "modifiersName";
+	public static final String ATTRIBUTE_CREATETIMESTAMP_NAME = "createTimestamp";
+	public static final String ATTRIBUTE_CREATORSNAME_NAME = "creatorsName";
 	
 	public static final String ATTRIBUTE_389DS_FIRSTCHANGENUMBER = "firstchangenumber";
 	public static final String ATTRIBUTE_389DS_LASTCHANGENUMBER = "lastchangenumber";

@@ -458,7 +458,7 @@ public class LdapUtil {
 		}
 		Attribute objectClassAttribute = entry.get(LdapConfiguration.ATTRIBUTE_OBJECTCLASS_NAME); 
 		for (Value<?> objectClassVal: objectClassAttribute) {
-			if (ldapObjectClass.getName().equals(objectClassVal.getString())) {
+			if (ldapObjectClass.getName().equalsIgnoreCase(objectClassVal.getString())) {
 				return true;
 			}
 		}
@@ -483,4 +483,19 @@ public class LdapUtil {
 		return bytes;
 	}
 	
+	public static boolean hasModifierName(Entry entry, String[] modifiersNamesToFilterOut) {
+		org.apache.directory.api.ldap.model.entry.Attribute modifiersNameAttribute = entry.get(LdapConfiguration.ATTRIBUTE_MODIFIERSNAME_NAME);
+		if (modifiersNameAttribute == null) {
+			return false;
+		}
+		for (Value<?> modifiersNameVal: modifiersNameAttribute) {
+			for (String modifiersNameToFilterOut: modifiersNamesToFilterOut) {
+				if (modifiersNameToFilterOut.equals(modifiersNameVal.getString())) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
 }

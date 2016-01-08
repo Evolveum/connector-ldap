@@ -138,9 +138,10 @@ public class AdDirSyncStrategy extends SyncStrategy {
 						Entry targetEntry = LdapUtil.fetchEntryByUid(getConnection(), targetUid, ldapObjectClass, options, getConfiguration(), getSchemaTranslator());
 						LOG.ok("Got target entry based on dirSync:\n{0}", targetEntry);
 					
-						// TODO: filter out by modifiersName
-						
-						// TODO: filter out by object class
+						if (!isAcceptableForSynchronization(targetEntry, ldapObjectClass, 
+								getConfiguration().getModifiersNamesToFilterOut())) {
+							continue;
+						}
 						
 						ConnectorObject targetObject = getSchemaTranslator().toIcfObject(icfObjectClassInfo, targetEntry);
 						deltaBuilder.setObject(targetObject);

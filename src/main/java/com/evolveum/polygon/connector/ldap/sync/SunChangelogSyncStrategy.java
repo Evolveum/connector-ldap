@@ -56,6 +56,7 @@ import org.identityconnectors.framework.common.objects.SyncDeltaType;
 import org.identityconnectors.framework.common.objects.SyncResultsHandler;
 import org.identityconnectors.framework.common.objects.SyncToken;
 import org.identityconnectors.framework.common.objects.Uid;
+import org.identityconnectors.framework.spi.SyncTokenResultsHandler;
 
 import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
 import com.evolveum.polygon.connector.ldap.LdapConfiguration;
@@ -139,6 +140,7 @@ public class SunChangelogSyncStrategy extends SyncStrategy {
 				LOG.warn("Synchronization token is not integer, ignoring");
 			}
 		}
+		SyncToken finalToken = fromToken;
 		LOG.ok("Searching changelog {0} with {1}", changelogDn, changelogSearchFilter);
 		int numChangelogEntries = 0;
 		int numProcessedEntries = 0;
@@ -158,18 +160,17 @@ public class SunChangelogSyncStrategy extends SyncStrategy {
 				LOG.ok("Got changelog entry: {0}", entry);
 				numChangelogEntries++;
 				
-				// TODO: filter out by modifiersName
-				
-				
-				
-				SyncDeltaBuilder deltaBuilder = new SyncDeltaBuilder();
-				
 				SyncToken deltaToken = null;
 				Attribute changeNumberAttribute = entry.get(changeNumberAttributeName);
 				if (changeNumberAttribute != null) {
 					int changeNumber = Integer.parseInt(changeNumberAttribute.getString());
 					deltaToken = new SyncToken(changeNumber);
+					finalToken = deltaToken;
 				}
+				
+				// TODO: filter out by modifiersName
+				
+				SyncDeltaBuilder deltaBuilder = new SyncDeltaBuilder();
 				deltaBuilder.setToken(deltaToken);
 				
 				String targetDn = LdapUtil.getStringAttribute(entry, CHANGELOG_ATTRIBUTE_TARGET_DN);
@@ -295,6 +296,10 @@ public class SunChangelogSyncStrategy extends SyncStrategy {
 			throw new ConnectorIOException("Error searching changelog ("+changelogDn+"): "+e.getMessage(), e);
 		} catch (CursorException e) {
 			throw new ConnectorIOException("Error searching changelog ("+changelogDn+"): "+e.getMessage(), e);
+		}
+		
+		if (handler instanceof SyncTokenResultsHandler && finalToken != null) {
+			((SyncTokenResultsHandler)handler).handleResult(finalToken);
 		}
 				
 	}
