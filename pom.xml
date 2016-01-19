@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  ~ Copyright (c) 2015 Evolveum
+  ~ Copyright (c) 2015-2016 Evolveum
   ~
   ~ Licensed under the Apache License, Version 2.0 (the "License");
   ~ you may not use this file except in compliance with the License.
@@ -77,19 +77,31 @@
         </plugins>
     </build>
 
-    <dependencies>
-    
-	    <dependency>
-		    <groupId>org.apache.directory.api</groupId>
-		    <artifactId>api-all</artifactId>
-		    <version>1.0.0-M32-e1</version>
-		</dependency>
-		
+	<dependencies>
+
 		<dependency>
-	        <groupId>org.slf4j</groupId>
-	        <artifactId>slf4j-jdk14</artifactId>
-	        <version>1.7.7</version>
-	    </dependency>
+			<groupId>org.apache.directory.api</groupId>
+			<artifactId>api-all</artifactId>
+			<version>1.0.0-M34-SNAPSHOT</version>
+			<exclusions>
+				<!-- Exclude SLF4J API from the lib to avoid bundling it with the
+				     connector. The SLF4J is already part of midPoint.
+				     If it would be also bundled with the connector then we will
+				     have the same classes/interfaces loaded by two classloaders
+				     and that will cause problems. -->
+				<exclusion> 
+					<groupId>org.slf4j</groupId>
+					<artifactId>slf4j-api</artifactId>
+				</exclusion>
+			</exclusions>
+		</dependency>
+
+		<!-- Avoid dependency on slf4j-jdk14 SLF4J bridge.
+		     In midPoint the JUL is bridged back to SLF4J.
+		     Even though the connector should use JUL,
+		     bridge over a bridge is not a good idea. It causes
+		     problems. Therefore we rather be non-compliant
+		     than non-working. -->		
 		
 		<dependency>
 		    <groupId>com.evolveum.polygon</groupId>
