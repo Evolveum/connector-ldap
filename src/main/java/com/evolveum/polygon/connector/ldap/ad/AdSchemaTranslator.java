@@ -17,6 +17,7 @@ package com.evolveum.polygon.connector.ldap.ad;
 
 import java.io.UnsupportedEncodingException;
 
+import org.apache.commons.lang.ArrayUtils;
 import org.apache.directory.api.ldap.model.entry.BinaryValue;
 import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.entry.Value;
@@ -43,6 +44,14 @@ import com.evolveum.polygon.connector.ldap.schema.SchemaTranslator;
 public class AdSchemaTranslator extends SchemaTranslator<AdLdapConfiguration> {
 		
 	private static final Log LOG = Log.getLog(AdSchemaTranslator.class);
+	
+	private static final String[] OPERATIONAL_ATTRIBUTE_NAMES = {
+		"distinguishedname", "dscorepropagationdata", 
+		"allowedattributes", "allowedattributeseffective", 
+		"allowedchildclasses", "allowedchildclasseseffective",
+		"replpropertymetadata", 
+		"usnchanged", "usncreated",
+		"whenchanged", "whencreated"};
 	
 	public AdSchemaTranslator(SchemaManager schemaManager, AdLdapConfiguration configuration) {
 		super(schemaManager, configuration);
@@ -155,6 +164,38 @@ public class AdSchemaTranslator extends SchemaTranslator<AdLdapConfiguration> {
 		return super.isBinaryAttribute(attributeId);
 	}
 	
-	
+	public String formatGuidToDashedNotation(String uidValue) {
+		if (uidValue == null) {
+			return null;
+		}
+		StringBuilder sb = new StringBuilder();
+		sb.append(uidValue.substring(6, 8));
+		sb.append(uidValue.substring(4, 6));
+		sb.append(uidValue.substring(2, 4));
+		sb.append(uidValue.substring(0, 2));
+		sb.append('-');
+		sb.append(uidValue.substring(10, 12));
+		sb.append(uidValue.substring(8, 10));
+		sb.append('-');
+		sb.append(uidValue.substring(14, 16));
+		sb.append(uidValue.substring(12, 14));
+		sb.append('-');
+		sb.append(uidValue.substring(16, 20));
+		sb.append('-');
+		sb.append(uidValue.substring(20, 32));
+		return sb.toString();
+	}
+
+	@Override
+	protected boolean isOperational(AttributeType ldapAttribute) {
+		if (super.isOperational(ldapAttribute)) {
+			return true;
+		}
+		String attrName = ldapAttribute.getName().toLowerCase();
+		if (attrName.startsWith("msds-")) {
+			return true;
+		}
+		return ArrayUtils.contains(OPERATIONAL_ATTRIBUTE_NAMES, attrName);
+	}
 	
 }

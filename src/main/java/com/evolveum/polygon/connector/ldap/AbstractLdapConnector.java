@@ -359,7 +359,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		return false;
 	}
 
-	private SearchStrategy searchByDn(String dn, ObjectClass objectClass, org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
+	protected SearchStrategy searchByDn(String dn, ObjectClass objectClass, org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
 			ResultsHandler handler, OperationOptions options) {
 		// This translated to a base search.
 		// We know that this can return at most one object. Therefore always use simple search.
@@ -373,7 +373,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		return searchStrategy;
 	}
 	
-	private SearchStrategy searchByUid(String uidValue, ObjectClass objectClass, org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
+	protected SearchStrategy searchByUid(String uidValue, ObjectClass objectClass, org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
 			ResultsHandler handler, OperationOptions options) {
 		if (LdapUtil.isDnAttribute(configuration.getUidAttribute())) {
 			return searchByDn(uidValue, objectClass, ldapObjectClass, handler, options);
@@ -529,11 +529,11 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		}
 	}
 
-	private String[] getAttributesToGet(org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass, OperationOptions options) {
+	protected String[] getAttributesToGet(org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass, OperationOptions options) {
 		return LdapUtil.getAttributesToGet(ldapObjectClass, options, configuration, getSchemaTranslator());
 	}
 	
-	private SearchStrategy chooseSearchStrategy(ObjectClass objectClass, 
+	protected SearchStrategy chooseSearchStrategy(ObjectClass objectClass, 
 			org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass, 
 			ResultsHandler handler, OperationOptions options) {
 		SchemaTranslator<C> schemaTranslator = getSchemaTranslator();
@@ -605,7 +605,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		}
 	}
 
-	private SearchStrategy getDefaultSearchStrategy(ObjectClass objectClass, 
+	protected SearchStrategy getDefaultSearchStrategy(ObjectClass objectClass, 
 			org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
 			ResultsHandler handler, OperationOptions options) {
 		return new DefaultSearchStrategy(connection, configuration, getSchemaTranslator(), objectClass, ldapObjectClass, handler, options);
@@ -1086,11 +1086,13 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
     	connectionConfig.setTimeout(configuration.getConnectTimeout());
     	
     	String connectionSecurity = configuration.getConnectionSecurity();
-    	if (LdapConfiguration.CONNECTION_SECURITY_SSL.equals(connectionSecurity)) {
+    	if (connectionSecurity == null || LdapConfiguration.CONNECTION_SECURITY_NONE.equals(connectionSecurity)) {
+    		// Nothing to do
+    	} else if (LdapConfiguration.CONNECTION_SECURITY_SSL.equals(connectionSecurity)) {
     		connectionConfig.setUseSsl(true);
     	} else if (LdapConfiguration.CONNECTION_SECURITY_STARTTLS.equals(connectionSecurity)) {
     		connectionConfig.setUseTls(true);
-    	} else if (connectionSecurity != null) {
+    	} else {
     		throw new ConfigurationException("Unknown value for connectionSecurity: "+connectionSecurity);
     	}
     	
@@ -1115,6 +1117,10 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		connection = new LdapNetworkConnection(connectionConfig);
 		try {
 			LOG.info("Connecting to {0}:{1} as {2}", configuration.getHost(), configuration.getPort(), configuration.getBindDn());
+			if (LOG.isOk()) {
+				LOG.ok("Connection security: {0} (sslProtocol={1}, enabledSecurityProtocols={2}, enabledCipherSuites={3}",
+						connectionSecurity, connectionConfig.getEnabledProtocols(), connectionConfig.getEnabledCipherSuites());
+			}
 			boolean connected = connection.connect();
 			LOG.ok("Connected ({0})", connected);
 			if (!connected) {
