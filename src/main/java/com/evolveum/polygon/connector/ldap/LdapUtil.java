@@ -507,4 +507,16 @@ public class LdapUtil {
 		return false;
 	}
 
+	public static void logOperationReq(String format, Object... params) {
+		LOG.info(format, params);
+	}
+
+	public static void logOperationRes(String format, Object... params) {
+		LOG.info(format, params);
+	}
+
+	public static void logOperationErr(String format, Object... params) {
+		LOG.error(format, params);
+	}
+
 }

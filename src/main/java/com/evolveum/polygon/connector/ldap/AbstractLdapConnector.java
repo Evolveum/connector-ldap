@@ -159,8 +159,8 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 
 	@Override
     public void init(Configuration configuration) {
+		LOG.info("Initializing {0} connector instance {1}", this.getClass().getSimpleName(), this);
         this.configuration = (C)configuration;
-        LOG.info("Connector init");
         this.configuration.recompute();
         connect();
     }
@@ -224,10 +224,10 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
     		}
     		
     		try {
-				LOG.ok("Schema loaded, {0} schemas, {1} object classes, loader {2}",
+				LOG.info("Schema loaded, {0} schemas, {1} object classes, {2} errors",
 						schemaManager.getLoader().getAllSchemas(),
 						schemaManager.getObjectClassRegistry().size(),
-						schemaManager.getLoader());
+						schemaManager.getErrors().size());
 			} catch (Exception e) {
 				throw new RuntimeException(e.getMessage(),e);
 			}
@@ -748,11 +748,11 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 					// nothing to rename, just ignore
 				} else {
 					try {
-						LOG.ok("MoveAndRename REQ {0} -> {1}", oldDn, newDn);
+						LdapUtil.logOperationReq("MoveAndRename REQ {0} -> {1}", oldDn, newDn);
 						connection.moveAndRename(oldDn, newDn);
-						LOG.ok("MoveAndRename RES OK {0} -> {1}", oldDn, newDn);
+						LdapUtil.logOperationRes("MoveAndRename RES OK {0} -> {1}", oldDn, newDn);
 					} catch (LdapException e) {
-						LOG.error("MoveAndRename ERROR {0} -> {1}: {2}", oldDn, newDn, e.getMessage(), e);
+						LdapUtil.logOperationErr("MoveAndRename ERROR {0} -> {1}: {2}", oldDn, newDn, e.getMessage(), e);
 						throw LdapUtil.processLdapException("Rename/move of LDAP entry from "+oldDn+" to "+newDn+" failed", e);
 					}
 				}
@@ -858,15 +858,15 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 	protected void modify(String dn, List<Modification> modifications) {
 		try {
 			if (LOG.isOk()) {
-				LOG.ok("Modify REQ {0}: {1}", dn, dumpModifications(modifications));
+				LdapUtil.logOperationReq("Modify REQ {0}: {1}", dn, dumpModifications(modifications));
 			}
 			// processModificationsBeforeUpdate must happen after logging. Otherwise passwords might be logged.
 			connection.modify(dn, processModificationsBeforeUpdate(modifications));
 			if (LOG.isOk()) {
-				LOG.ok("Modify RES {0}: {1}", dn, dumpModifications(modifications));
+				LdapUtil.logOperationRes("Modify RES {0}: {1}", dn, dumpModifications(modifications));
 			}
 		} catch (LdapException e) {
-			LOG.error("Modify ERROR {0}: {1}: {2}", dn, dumpModifications(modifications), e.getMessage(), e);
+			LdapUtil.logOperationErr("Modify ERROR {0}: {1}: {2}", dn, dumpModifications(modifications), e.getMessage(), e);
 			throw LdapUtil.processLdapException("Error modifying entry "+dn, e);
 		}
 	}
@@ -1007,12 +1007,13 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		String dn = resolveDn(objectClass, uid, options);
 		
 		try {
-			LOG.ok("Delete REQ {0}", dn);
+			LdapUtil.logOperationReq("Delete REQ {0}", dn);
 			
 			connection.delete(dn);
 			
-			LOG.ok("Delete RES {0}", dn);
+			LdapUtil.logOperationRes("Delete RES {0}", dn);
 		} catch (LdapException e) {
+			LdapUtil.logOperationErr("Delete ERROR {0}: {1}", dn, e.getMessage(), e);
 			throw LdapUtil.processLdapException("Failed to delete entry with DN "+dn+" (UID="+uid+")", e);
 		}
 	}
@@ -1065,6 +1066,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 
 	@Override
     public void dispose() {
+		LOG.info("Disposing {0} connector instance {1}", this.getClass().getSimpleName(), this);
         configuration = null;
         if (connection != null) {
         	try {

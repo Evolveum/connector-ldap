@@ -43,6 +43,7 @@ import org.identityconnectors.framework.common.objects.SortKey;
 
 import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
 import com.evolveum.polygon.connector.ldap.LdapConfiguration;
+import com.evolveum.polygon.connector.ldap.LdapUtil;
 import com.evolveum.polygon.connector.ldap.schema.AttributeHandler;
 import com.evolveum.polygon.connector.ldap.schema.SchemaTranslator;
 
@@ -252,38 +253,38 @@ public abstract class SearchStrategy {
 				}
 				controls = sb.toString();
 			}
-			LOG.ok("Search REQ base={0}, filter={1}, scope={2}, attributes={3}, controls={4}",
+			LdapUtil.logOperationReq("Search REQ base={0}, filter={1}, scope={2}, attributes={3}, controls={4}",
 					req.getBase(), req.getFilter(), req.getScope(), req.getAttributes(), controls);
 		}
 	}
 
 	protected void logSearchRequest(SearchRequest req, String extra) {
 		if (LOG.isOk()) {
-			LOG.ok("Search REQ base={0}, filter={1}, scope={2}, attributes={3}, {4}",
+			LdapUtil.logOperationReq("Search REQ base={0}, filter={1}, scope={2}, attributes={3}, {4}",
 					req.getBase(), req.getFilter(), req.getScope(), req.getAttributes(), extra);
 		}
 	}
 
 	protected void logSearchResult(Entry entry) {
 		if (LOG.isOk()) {
-			LOG.ok("Search RES {0}", entry);
+			LdapUtil.logOperationRes("Search RES {0}", entry);
 		}
 	}
 	
 	protected void logSearchResult(String type, LdapResult ldapResult) {
 		if (LOG.isOk()) {
-			LOG.ok("Search RES {0}:\n{1}", type, ldapResult);
+			LdapUtil.logOperationRes("Search RES {0}:\n{1}", type, ldapResult);
 		}
 	}
 
 	protected void logSearchResult(String type, LdapResult ldapResult, String extra) {
 		if (LOG.isOk()) {
-			LOG.ok("Search RES {0}: {1}\n{2}", type, extra, ldapResult);
+			LdapUtil.logOperationRes("Search RES {0}: {1}\n{2}", type, extra, ldapResult);
 		}
 	}
 
 	protected void logSearchError(LdapException e) {
-		LOG.error("Search ERR {0}: {1}", e.getClass().getName(), e.getMessage(), e);
+		LdapUtil.logOperationErr("Search ERR {0}: {1}", e.getClass().getName(), e.getMessage(), e);
 	}
 	
 	protected boolean handleResult(Entry entry) {
