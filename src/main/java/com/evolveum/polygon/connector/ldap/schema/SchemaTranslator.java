@@ -635,8 +635,10 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 				}
 			} else if (SchemaConstants.BOOLEAN_SYNTAX.equals(syntaxOid)) {
 				return Boolean.parseBoolean(ldapValue.getString());
-			} else if (SchemaConstants.INTEGER_SYNTAX.equals(syntaxOid)) {
+			} else if (isIntegerSyntax(syntaxOid)) {
 				return Integer.parseInt(ldapValue.getString());
+			} else if (isLongSyntax(syntaxOid)) {
+				return Long.parseLong(ldapValue.getString());
 			} else if (isBinarySyntax(syntaxOid)) {
 				LOG.ok("Converting to ICF: {0} (syntax {1}, value {2}): explicit binary", ldapAttributeType.getName(), syntaxOid, ldapValue.getClass());
 				return ldapValue.getBytes();
@@ -654,7 +656,17 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 			}
 		}
 	}
+
+	protected boolean isIntegerSyntax(String syntaxOid) {
+		return SchemaConstants.INTEGER_SYNTAX.equals(syntaxOid);
+	}
 	
+	protected boolean isLongSyntax(String syntaxOid) {
+		return SchemaConstants.JAVA_LONG_SYNTAX.equals(syntaxOid) ||
+				SYNTAX_AD_INTEGER8_SYNTAX.equals(syntaxOid);
+	}
+
+
 	protected boolean isStringSyntax(String syntaxOid) {
 		return SchemaConstants.DIRECTORY_STRING_SYNTAX.equals(syntaxOid) 
 				|| SchemaConstants.IA5_STRING_SYNTAX.equals(syntaxOid)				
