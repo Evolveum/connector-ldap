@@ -148,7 +148,12 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
     private ConnectorBinaryAttributeDetector<C> binaryAttributeDetector = new ConnectorBinaryAttributeDetector<C>();
     private SyncStrategy syncStrategy = null;
 
-    @Override
+    public AbstractLdapConnector() {
+		super();
+		LOG.info("Creating {0} connector instance {1}", this.getClass().getSimpleName(), this);
+	}
+
+	@Override
     public C getConfiguration() {
         return configuration;
     }
@@ -167,17 +172,24 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
     
     @Override
 	public void test() {
-    	if (connection != null && connection.isConnected()) {
-        	try {
-        		LOG.ok("Closing connection ... to reopen it again");
-				connection.close();
-			} catch (IOException e) {
-				throw new ConnectorIOException(e.getMessage(), e);
-			}
-            connection = null;
-            schemaManager = null;
-            schemaTranslator = null;
+    	LOG.info("Test {0} connector instance {1}", this.getClass().getSimpleName(), this);
+    	if (connection != null) {
+    		if (connection.isConnected()) {
+	        	try {
+	        		LOG.ok("Closing connection ... to reopen it again");
+					connection.close();
+				} catch (IOException e) {
+					throw new ConnectorIOException(e.getMessage(), e);
+				}
+    		} else {
+    			LOG.ok("Not closing connection ... because it is not connected");
+    		}
+        } else {
+        	LOG.ok("Not closing connection because it is already null");
         }
+        connection = null;
+        schemaManager = null;
+        schemaTranslator = null;
     	connect();
     	checkAlive();
     	try {
@@ -1070,7 +1082,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
         configuration = null;
         if (connection != null) {
         	try {
-        		LOG.ok("Closing connection");
+        		LOG.ok("Closing connection (connected={0})", connection.isConnected());
 				connection.close();
 			} catch (IOException e) {
 				throw new ConnectorIOException(e.getMessage(), e);
@@ -1078,6 +1090,8 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
             connection = null;
             schemaManager = null;
             schemaTranslator = null;
+        } else {
+        	LOG.ok("Not closing connection because it is already null");
         }
     }
 
