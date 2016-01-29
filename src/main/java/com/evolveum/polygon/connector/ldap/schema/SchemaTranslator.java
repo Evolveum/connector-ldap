@@ -324,7 +324,7 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 			Class<?> icfType = toIcfType(ldapSyntax, icfAttributeName);
 			aib.setType(icfType);
 			aib.setNativeName(ldapAttribute.getName());
-			if (ldapAttribute.isOperational()) {
+			if (isOperational(ldapAttribute)) {
 				aib.setReturnedByDefault(false);
 			}
 			setAttributeMultiplicityAndPermissions(ldapAttribute, aib);
@@ -334,6 +334,10 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 		}
 	}
 	
+	protected boolean isOperational(AttributeType ldapAttribute) {
+		return ldapAttribute.isOperational();
+	}
+
 	private void setAttributeMultiplicityAndPermissions(AttributeType ldapAttributeType, AttributeInfoBuilder aib) {
 		if (ldapAttributeType.isSingleValued()) {
 			aib.setMultiValued(false);
@@ -631,8 +635,10 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 				}
 			} else if (SchemaConstants.BOOLEAN_SYNTAX.equals(syntaxOid)) {
 				return Boolean.parseBoolean(ldapValue.getString());
-			} else if (SchemaConstants.INTEGER_SYNTAX.equals(syntaxOid)) {
+			} else if (isIntegerSyntax(syntaxOid)) {
 				return Integer.parseInt(ldapValue.getString());
+			} else if (isLongSyntax(syntaxOid)) {
+				return Long.parseLong(ldapValue.getString());
 			} else if (isBinarySyntax(syntaxOid)) {
 				LOG.ok("Converting to ICF: {0} (syntax {1}, value {2}): explicit binary", ldapAttributeType.getName(), syntaxOid, ldapValue.getClass());
 				return ldapValue.getBytes();
@@ -650,7 +656,17 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 			}
 		}
 	}
+
+	protected boolean isIntegerSyntax(String syntaxOid) {
+		return SchemaConstants.INTEGER_SYNTAX.equals(syntaxOid);
+	}
 	
+	protected boolean isLongSyntax(String syntaxOid) {
+		return SchemaConstants.JAVA_LONG_SYNTAX.equals(syntaxOid) ||
+				SYNTAX_AD_INTEGER8_SYNTAX.equals(syntaxOid);
+	}
+
+
 	protected boolean isStringSyntax(String syntaxOid) {
 		return SchemaConstants.DIRECTORY_STRING_SYNTAX.equals(syntaxOid) 
 				|| SchemaConstants.IA5_STRING_SYNTAX.equals(syntaxOid)				
@@ -670,12 +686,13 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 	}
 	
 	public boolean isBinaryAttribute(String attributeId) {
-		AttributeType attributeType = schemaManager.getAttributeType(attributeId);
+		String ldapAttributeName = getLdapAttributeName(attributeId);
+		AttributeType attributeType = schemaManager.getAttributeType(ldapAttributeName);
 		if (attributeType == null) {
 			if (STRING_ATTRIBUTE_NAMES.contains(attributeId.toLowerCase())) {
 				return false;
 			}
-			LOG.warn("Uknown attribute ID {0}, cannot determine if it is binary", attributeId);
+			LOG.warn("Uknown attribute {0}, cannot determine if it is binary", ldapAttributeName);
 			return false;
 		}
 		LdapSyntax syntax = getSyntax(attributeType);
@@ -755,19 +772,23 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 		}
 	}
 
-	public ConnectorObject toIcfObject(ObjectClass icfObjectClass, Entry entry) {
+	public ConnectorObject toIcfObject(ObjectClass icfObjectClass, Entry entry, AttributeHandler attributeHandler) {
 		ObjectClassInfo icfObjectClassInfo = findObjectClassInfo(icfObjectClass);
 		if (icfObjectClassInfo == null) {
 			throw new InvalidAttributeValueException("No definition for object class "+icfObjectClass);
 		}
-		return toIcfObject(icfObjectClassInfo, entry);
+		return toIcfObject(icfObjectClassInfo, entry, null, attributeHandler);
 	}
 
 	public ConnectorObject toIcfObject(ObjectClassInfo icfStructuralObjectClassInfo, Entry entry) {
-		return toIcfObject(icfStructuralObjectClassInfo, entry, null);
+		return toIcfObject(icfStructuralObjectClassInfo, entry, null, null);
 	}
 	
 	public ConnectorObject toIcfObject(ObjectClassInfo icfStructuralObjectClassInfo, Entry entry, String dn) {
+		return toIcfObject(icfStructuralObjectClassInfo, entry, dn, null);
+	}
+	
+	public ConnectorObject toIcfObject(ObjectClassInfo icfStructuralObjectClassInfo, Entry entry, String dn, AttributeHandler attributeHandler) {
 		LdapObjectClasses ldapObjectClasses = processObjectClasses(entry);
 		if (icfStructuralObjectClassInfo == null) {
 			icfStructuralObjectClassInfo = icfSchema.findObjectClassInfo(ldapObjectClasses.getLdapLowestStructuralObjectClass().getName());
@@ -810,15 +831,19 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 		Iterator<org.apache.directory.api.ldap.model.entry.Attribute> iterator = entry.iterator();
 		while (iterator.hasNext()) {
 			org.apache.directory.api.ldap.model.entry.Attribute ldapAttribute = iterator.next();
-			if (!shouldTranslateAttribute(ldapAttribute.getId())) {
+			String ldapAttrName = getLdapAttributeName(ldapAttribute);
+			if (!shouldTranslateAttribute(ldapAttrName)) {
 				continue;
 			}
-			AttributeType attributeType = schemaManager.getAttributeType(ldapAttribute.getId());
+			AttributeType attributeType = schemaManager.getAttributeType(ldapAttrName);
+			if (attributeType == null) {
+				throw new InvalidAttributeValueException("Unknown attribute " + ldapAttrName);
+			}
 			String ldapAttributeName = attributeType.getName();
 			if (uidAttributeName.equals(ldapAttributeName)) {
 				continue;
 			}
-			Attribute icfAttribute = toIcfAttribute(ldapAttribute);
+			Attribute icfAttribute = toIcfAttribute(entry, ldapAttribute, attributeHandler);
 			if (icfAttribute == null) {
 				continue;
 			}
@@ -843,6 +868,18 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 		return cob.build();
 	}
 	
+	public String getLdapAttributeName(org.apache.directory.api.ldap.model.entry.Attribute ldapAttribute) {
+		return getLdapAttributeName(ldapAttribute.getId());
+	}
+	
+	public String getLdapAttributeName(String attributeId) {
+		int iSemicolon = attributeId.indexOf(';');
+		if (iSemicolon < 0) {
+			return attributeId;
+		}
+		return attributeId.substring(0, iSemicolon);
+	}
+
 	protected boolean shouldTranslateAttribute(String attrName) {
 		return true;
 	}
@@ -980,11 +1017,15 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
         return resSb.toString();
     }
 
-	private Attribute toIcfAttribute(org.apache.directory.api.ldap.model.entry.Attribute ldapAttribute) {
+	private Attribute toIcfAttribute(Entry entry, org.apache.directory.api.ldap.model.entry.Attribute ldapAttribute, AttributeHandler attributeHandler) {
 		AttributeBuilder ab = new AttributeBuilder();
-		AttributeType ldapAttributeType = schemaManager.getAttributeType(ldapAttribute.getId());
+		String ldapAttributeName = getLdapAttributeName(ldapAttribute);
+		AttributeType ldapAttributeType = schemaManager.getAttributeType(ldapAttributeName);
 		String icfAttributeName = toIcfAttributeName(ldapAttributeType.getName());
 		ab.setName(icfAttributeName);
+		if (attributeHandler != null) {
+			attributeHandler.handle(entry, ldapAttribute, ab);
+		}
 		Iterator<Value<?>> iterator = ldapAttribute.iterator();
 		boolean hasValidValue = false;
 		while (iterator.hasNext()) {
@@ -1002,7 +1043,7 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 		try {
 			return ab.build();
 		} catch (IllegalArgumentException e) {
-			throw new IllegalArgumentException(e.getMessage() + ", attribute "+icfAttributeName+" (ldap: "+ldapAttribute.getId()+")", e);
+			throw new IllegalArgumentException(e.getMessage() + ", attribute "+icfAttributeName+" (ldap: "+ldapAttributeName+")", e);
 		}
 	}
 

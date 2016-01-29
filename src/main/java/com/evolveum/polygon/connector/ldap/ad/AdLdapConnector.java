@@ -27,6 +27,8 @@ import org.apache.directory.api.ldap.model.entry.Modification;
 import org.apache.directory.api.ldap.model.entry.ModificationOperation;
 import org.apache.directory.api.ldap.model.exception.LdapException;
 import org.apache.directory.api.ldap.model.exception.LdapInvalidDnException;
+import org.apache.directory.api.ldap.model.filter.ExprNode;
+import org.apache.directory.api.ldap.model.message.SearchScope;
 import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.ldap.model.name.Rdn;
 import org.apache.directory.api.ldap.model.schema.AttributeType;
@@ -37,6 +39,7 @@ import org.identityconnectors.framework.common.objects.Attribute;
 import org.identityconnectors.framework.common.objects.AttributeBuilder;
 import org.identityconnectors.framework.common.objects.OperationOptions;
 import org.identityconnectors.framework.common.objects.OperationalAttributes;
+import org.identityconnectors.framework.common.objects.ResultsHandler;
 import org.identityconnectors.framework.common.objects.Uid;
 import org.identityconnectors.framework.spi.ConnectorClass;
 
@@ -45,6 +48,7 @@ import com.evolveum.polygon.connector.ldap.AbstractLdapConnector;
 import com.evolveum.polygon.connector.ldap.LdapUtil;
 import com.evolveum.polygon.connector.ldap.schema.LdapFilterTranslator;
 import com.evolveum.polygon.connector.ldap.schema.SchemaTranslator;
+import com.evolveum.polygon.connector.ldap.search.SearchStrategy;
 
 @ConnectorClass(displayNameKey = "connector.ldap.ad.display", configurationClass = AdLdapConfiguration.class)
 public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> {
@@ -98,6 +102,43 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 			return;
 		} else {
 			super.addAttributeModification(dn, modifications, ldapStructuralObjectClass, icfObjectClass, icfAttr, modOp);
+		}
+	}
+	
+	@Override
+	protected SearchStrategy chooseSearchStrategy(org.identityconnectors.framework.common.objects.ObjectClass objectClass,
+			ObjectClass ldapObjectClass, ResultsHandler handler, OperationOptions options) {
+		SearchStrategy searchStrategy = super.chooseSearchStrategy(objectClass, ldapObjectClass, handler, options);
+		searchStrategy.setAttributeHandler(new AdAttributeHandler(searchStrategy));
+		return searchStrategy;
+	}
+	
+	@Override
+	protected SearchStrategy getDefaultSearchStrategy(org.identityconnectors.framework.common.objects.ObjectClass objectClass,
+			ObjectClass ldapObjectClass, ResultsHandler handler, OperationOptions options) {
+		SearchStrategy searchStrategy =  super.getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
+		searchStrategy.setAttributeHandler(new AdAttributeHandler(searchStrategy));
+		return searchStrategy;
+
+	}
+
+	@Override
+	protected SearchStrategy searchByUid(String uidValue, org.identityconnectors.framework.common.objects.ObjectClass objectClass,
+			ObjectClass ldapObjectClass, ResultsHandler handler, OperationOptions options) {
+		if (LdapUtil.isDnAttribute(getConfiguration().getUidAttribute())) {
+			return searchByDn(uidValue, objectClass, ldapObjectClass, handler, options);
+		} else {
+			// We know that this can return at most one object. Therefore always use simple search.
+			SearchStrategy searchStrategy = getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
+			String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);			
+			String baseDn = "<GUID="+getSchemaTranslator().formatGuidToDashedNotation(uidValue)+">";
+			try {
+				searchStrategy.search(baseDn, LdapUtil.createAllSearchFilter(), SearchScope.OBJECT, attributesToGet);
+			} catch (LdapException e) {
+				throw LdapUtil.processLdapException("Error searching for GUID '"+uidValue+"'", e);
+			}
+			
+			return searchStrategy;
 		}
 	}
 	

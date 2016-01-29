@@ -148,7 +148,12 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
     private ConnectorBinaryAttributeDetector<C> binaryAttributeDetector = new ConnectorBinaryAttributeDetector<C>();
     private SyncStrategy syncStrategy = null;
 
-    @Override
+    public AbstractLdapConnector() {
+		super();
+		LOG.info("Creating {0} connector instance {1}", this.getClass().getSimpleName(), this);
+	}
+
+	@Override
     public C getConfiguration() {
         return configuration;
     }
@@ -159,25 +164,32 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 
 	@Override
     public void init(Configuration configuration) {
+		LOG.info("Initializing {0} connector instance {1}", this.getClass().getSimpleName(), this);
         this.configuration = (C)configuration;
-        LOG.info("Connector init");
         this.configuration.recompute();
         connect();
     }
     
     @Override
 	public void test() {
-    	if (connection != null && connection.isConnected()) {
-        	try {
-        		LOG.ok("Closing connection ... to reopen it again");
-				connection.close();
-			} catch (IOException e) {
-				throw new ConnectorIOException(e.getMessage(), e);
-			}
-            connection = null;
-            schemaManager = null;
-            schemaTranslator = null;
+    	LOG.info("Test {0} connector instance {1}", this.getClass().getSimpleName(), this);
+    	if (connection != null) {
+    		if (connection.isConnected()) {
+	        	try {
+	        		LOG.ok("Closing connection ... to reopen it again");
+					connection.close();
+				} catch (IOException e) {
+					throw new ConnectorIOException(e.getMessage(), e);
+				}
+    		} else {
+    			LOG.ok("Not closing connection ... because it is not connected");
+    		}
+        } else {
+        	LOG.ok("Not closing connection because it is already null");
         }
+        connection = null;
+        schemaManager = null;
+        schemaTranslator = null;
     	connect();
     	checkAlive();
     	try {
@@ -224,10 +236,10 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
     		}
     		
     		try {
-				LOG.ok("Schema loaded, {0} schemas, {1} object classes, loader {2}",
+				LOG.info("Schema loaded, {0} schemas, {1} object classes, {2} errors",
 						schemaManager.getLoader().getAllSchemas(),
 						schemaManager.getObjectClassRegistry().size(),
-						schemaManager.getLoader());
+						schemaManager.getErrors().size());
 			} catch (Exception e) {
 				throw new RuntimeException(e.getMessage(),e);
 			}
@@ -359,7 +371,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		return false;
 	}
 
-	private SearchStrategy searchByDn(String dn, ObjectClass objectClass, org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
+	protected SearchStrategy searchByDn(String dn, ObjectClass objectClass, org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
 			ResultsHandler handler, OperationOptions options) {
 		// This translated to a base search.
 		// We know that this can return at most one object. Therefore always use simple search.
@@ -373,7 +385,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		return searchStrategy;
 	}
 	
-	private SearchStrategy searchByUid(String uidValue, ObjectClass objectClass, org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
+	protected SearchStrategy searchByUid(String uidValue, ObjectClass objectClass, org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
 			ResultsHandler handler, OperationOptions options) {
 		if (LdapUtil.isDnAttribute(configuration.getUidAttribute())) {
 			return searchByDn(uidValue, objectClass, ldapObjectClass, handler, options);
@@ -529,11 +541,11 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		}
 	}
 
-	private String[] getAttributesToGet(org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass, OperationOptions options) {
+	protected String[] getAttributesToGet(org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass, OperationOptions options) {
 		return LdapUtil.getAttributesToGet(ldapObjectClass, options, configuration, getSchemaTranslator());
 	}
 	
-	private SearchStrategy chooseSearchStrategy(ObjectClass objectClass, 
+	protected SearchStrategy chooseSearchStrategy(ObjectClass objectClass, 
 			org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass, 
 			ResultsHandler handler, OperationOptions options) {
 		SchemaTranslator<C> schemaTranslator = getSchemaTranslator();
@@ -605,7 +617,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		}
 	}
 
-	private SearchStrategy getDefaultSearchStrategy(ObjectClass objectClass, 
+	protected SearchStrategy getDefaultSearchStrategy(ObjectClass objectClass, 
 			org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
 			ResultsHandler handler, OperationOptions options) {
 		return new DefaultSearchStrategy(connection, configuration, getSchemaTranslator(), objectClass, ldapObjectClass, handler, options);
@@ -748,11 +760,11 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 					// nothing to rename, just ignore
 				} else {
 					try {
-						LOG.ok("MoveAndRename REQ {0} -> {1}", oldDn, newDn);
+						LdapUtil.logOperationReq("MoveAndRename REQ {0} -> {1}", oldDn, newDn);
 						connection.moveAndRename(oldDn, newDn);
-						LOG.ok("MoveAndRename RES OK {0} -> {1}", oldDn, newDn);
+						LdapUtil.logOperationRes("MoveAndRename RES OK {0} -> {1}", oldDn, newDn);
 					} catch (LdapException e) {
-						LOG.error("MoveAndRename ERROR {0} -> {1}: {2}", oldDn, newDn, e.getMessage(), e);
+						LdapUtil.logOperationErr("MoveAndRename ERROR {0} -> {1}: {2}", oldDn, newDn, e.getMessage(), e);
 						throw LdapUtil.processLdapException("Rename/move of LDAP entry from "+oldDn+" to "+newDn+" failed", e);
 					}
 				}
@@ -858,15 +870,15 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 	protected void modify(String dn, List<Modification> modifications) {
 		try {
 			if (LOG.isOk()) {
-				LOG.ok("Modify REQ {0}: {1}", dn, dumpModifications(modifications));
+				LdapUtil.logOperationReq("Modify REQ {0}: {1}", dn, dumpModifications(modifications));
 			}
 			// processModificationsBeforeUpdate must happen after logging. Otherwise passwords might be logged.
 			connection.modify(dn, processModificationsBeforeUpdate(modifications));
 			if (LOG.isOk()) {
-				LOG.ok("Modify RES {0}: {1}", dn, dumpModifications(modifications));
+				LdapUtil.logOperationRes("Modify RES {0}: {1}", dn, dumpModifications(modifications));
 			}
 		} catch (LdapException e) {
-			LOG.error("Modify ERROR {0}: {1}: {2}", dn, dumpModifications(modifications), e.getMessage(), e);
+			LdapUtil.logOperationErr("Modify ERROR {0}: {1}: {2}", dn, dumpModifications(modifications), e.getMessage(), e);
 			throw LdapUtil.processLdapException("Error modifying entry "+dn, e);
 		}
 	}
@@ -1007,12 +1019,13 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		String dn = resolveDn(objectClass, uid, options);
 		
 		try {
-			LOG.ok("Delete REQ {0}", dn);
+			LdapUtil.logOperationReq("Delete REQ {0}", dn);
 			
 			connection.delete(dn);
 			
-			LOG.ok("Delete RES {0}", dn);
+			LdapUtil.logOperationRes("Delete RES {0}", dn);
 		} catch (LdapException e) {
+			LdapUtil.logOperationErr("Delete ERROR {0}: {1}", dn, e.getMessage(), e);
 			throw LdapUtil.processLdapException("Failed to delete entry with DN "+dn+" (UID="+uid+")", e);
 		}
 	}
@@ -1065,10 +1078,11 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 
 	@Override
     public void dispose() {
+		LOG.info("Disposing {0} connector instance {1}", this.getClass().getSimpleName(), this);
         configuration = null;
         if (connection != null) {
         	try {
-        		LOG.ok("Closing connection");
+        		LOG.ok("Closing connection (connected={0})", connection.isConnected());
 				connection.close();
 			} catch (IOException e) {
 				throw new ConnectorIOException(e.getMessage(), e);
@@ -1076,6 +1090,8 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
             connection = null;
             schemaManager = null;
             schemaTranslator = null;
+        } else {
+        	LOG.ok("Not closing connection because it is already null");
         }
     }
 
@@ -1086,11 +1102,13 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
     	connectionConfig.setTimeout(configuration.getConnectTimeout());
     	
     	String connectionSecurity = configuration.getConnectionSecurity();
-    	if (LdapConfiguration.CONNECTION_SECURITY_SSL.equals(connectionSecurity)) {
+    	if (connectionSecurity == null || LdapConfiguration.CONNECTION_SECURITY_NONE.equals(connectionSecurity)) {
+    		// Nothing to do
+    	} else if (LdapConfiguration.CONNECTION_SECURITY_SSL.equals(connectionSecurity)) {
     		connectionConfig.setUseSsl(true);
     	} else if (LdapConfiguration.CONNECTION_SECURITY_STARTTLS.equals(connectionSecurity)) {
     		connectionConfig.setUseTls(true);
-    	} else if (connectionSecurity != null) {
+    	} else {
     		throw new ConfigurationException("Unknown value for connectionSecurity: "+connectionSecurity);
     	}
     	
@@ -1115,6 +1133,10 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		connection = new LdapNetworkConnection(connectionConfig);
 		try {
 			LOG.info("Connecting to {0}:{1} as {2}", configuration.getHost(), configuration.getPort(), configuration.getBindDn());
+			if (LOG.isOk()) {
+				LOG.ok("Connection security: {0} (sslProtocol={1}, enabledSecurityProtocols={2}, enabledCipherSuites={3}",
+						connectionSecurity, connectionConfig.getEnabledProtocols(), connectionConfig.getEnabledCipherSuites());
+			}
 			boolean connected = connection.connect();
 			LOG.ok("Connected ({0})", connected);
 			if (!connected) {

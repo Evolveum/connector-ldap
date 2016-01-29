@@ -73,6 +73,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
      */
     private String connectionSecurity;
     
+    public static final String CONNECTION_SECURITY_NONE = "none";
     public static final String CONNECTION_SECURITY_SSL = "ssl";
     public static final String CONNECTION_SECURITY_STARTTLS = "starttls";
     
@@ -80,9 +81,16 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
      * The standard name of the SSL protocol.
      * This name is used to instantiate javax.net.ssl.SSLContext.
      * See the SSLContext section in the Java Cryptography Architecture Standard Algorithm Name Documentation.
+     * E.g. SSL, SSLv2, SSLv3, TLS, TLSv1, TLSv1.1, TLSv1.2
      */
     private String sslProtocol = null;
     
+    /**
+     * Set of security protocols that are acceptable for protocol negotiation.
+     * This name is used to set up SSLEngine.
+     * See the SSLContext section in the Java Cryptography Architecture Standard Algorithm Name Documentation.
+     * E.g. SSL, SSLv2, SSLv3, TLS, TLSv1, TLSv1.1, TLSv1.2
+     */
     private String[] enabledSecurityProtocols = null;
     
     private String[] enabledCipherSuites = null;

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015 Evolveum
+ * Copyright (c) 2015-2016 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,15 +15,12 @@
  */
 package com.evolveum.polygon.connector.ldap.search;
 
-import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import org.apache.directory.api.ldap.extras.controls.vlv.VirtualListViewRequest;
 import org.apache.directory.api.ldap.model.cursor.SearchCursor;
 import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.exception.LdapException;
-import org.apache.directory.api.ldap.model.exception.LdapInvalidDnException;
 import org.apache.directory.api.ldap.model.exception.LdapReferralException;
 import org.apache.directory.api.ldap.model.filter.ExprNode;
 import org.apache.directory.api.ldap.model.message.AliasDerefMode;
@@ -42,11 +39,12 @@ import org.identityconnectors.framework.common.exceptions.ConfigurationException
 import org.identityconnectors.framework.common.objects.ObjectClass;
 import org.identityconnectors.framework.common.objects.OperationOptions;
 import org.identityconnectors.framework.common.objects.ResultsHandler;
-import org.identityconnectors.framework.common.objects.SearchResult;
 import org.identityconnectors.framework.common.objects.SortKey;
 
 import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
 import com.evolveum.polygon.connector.ldap.LdapConfiguration;
+import com.evolveum.polygon.connector.ldap.LdapUtil;
+import com.evolveum.polygon.connector.ldap.schema.AttributeHandler;
 import com.evolveum.polygon.connector.ldap.schema.SchemaTranslator;
 
 /**
@@ -65,6 +63,7 @@ public abstract class SearchStrategy {
 	private ResultsHandler handler;
 	private OperationOptions options;
 	private boolean isCompleteResultSet = true;
+	private AttributeHandler attributeHandler;
 	
 	protected SearchStrategy(LdapNetworkConnection connection, AbstractLdapConfiguration configuration,
 			SchemaTranslator schemaTranslator, ObjectClass objectClass,
@@ -118,14 +117,36 @@ public abstract class SearchStrategy {
 		return isCompleteResultSet;
 	}
 	
-	protected void setCompleteResultSet(boolean isCompleteResultSet) {
+	public void setCompleteResultSet(boolean isCompleteResultSet) {
 		this.isCompleteResultSet = isCompleteResultSet;
 	}
 
+	public AttributeHandler getAttributeHandler() {
+		return attributeHandler;
+	}
+
+	public void setAttributeHandler(AttributeHandler attributeHandler) {
+		this.attributeHandler = attributeHandler;
+	}
+
+	public boolean allowPartialResults() {
+		if (options == null) {
+			return false;
+		}
+		return options.getAllowPartialResults() == Boolean.TRUE;
+	}
+	
+	public boolean allowPartialAttributeValues() {
+		if (options == null) {
+			return false;
+		}
+		return options.getAllowPartialAttributeValues() == Boolean.TRUE;
+	}
+	
 	protected int getDefaultPageSize() {
 		return configuration.getPagingBlockSize();
 	}
-
+	
 	protected void applyCommonConfiguration(SearchRequest req) {
 		String referralStrategy = configuration.getReferralStrategy();
 		if (referralStrategy == null) {
@@ -232,42 +253,42 @@ public abstract class SearchStrategy {
 				}
 				controls = sb.toString();
 			}
-			LOG.ok("Search REQ base={0}, filter={1}, scope={2}, attributes={3}, controls={4}",
+			LdapUtil.logOperationReq("Search REQ base={0}, filter={1}, scope={2}, attributes={3}, controls={4}",
 					req.getBase(), req.getFilter(), req.getScope(), req.getAttributes(), controls);
 		}
 	}
 
 	protected void logSearchRequest(SearchRequest req, String extra) {
 		if (LOG.isOk()) {
-			LOG.ok("Search REQ base={0}, filter={1}, scope={2}, attributes={3}, {4}",
+			LdapUtil.logOperationReq("Search REQ base={0}, filter={1}, scope={2}, attributes={3}, {4}",
 					req.getBase(), req.getFilter(), req.getScope(), req.getAttributes(), extra);
 		}
 	}
 
 	protected void logSearchResult(Entry entry) {
 		if (LOG.isOk()) {
-			LOG.ok("Search RES {0}", entry);
+			LdapUtil.logOperationRes("Search RES {0}", entry);
 		}
 	}
 	
 	protected void logSearchResult(String type, LdapResult ldapResult) {
 		if (LOG.isOk()) {
-			LOG.ok("Search RES {0}:\n{1}", type, ldapResult);
+			LdapUtil.logOperationRes("Search RES {0}:\n{1}", type, ldapResult);
 		}
 	}
 
 	protected void logSearchResult(String type, LdapResult ldapResult, String extra) {
 		if (LOG.isOk()) {
-			LOG.ok("Search RES {0}: {1}\n{2}", type, extra, ldapResult);
+			LdapUtil.logOperationRes("Search RES {0}: {1}\n{2}", type, extra, ldapResult);
 		}
 	}
 
 	protected void logSearchError(LdapException e) {
-		LOG.error("Search ERR {0}: {1}", e.getClass().getName(), e.getMessage(), e);
+		LdapUtil.logOperationErr("Search ERR {0}: {1}", e.getClass().getName(), e.getMessage(), e);
 	}
 	
 	protected boolean handleResult(Entry entry) {
-		return handler.handle(schemaTranslator.toIcfObject(objectClass, entry));
+		return handler.handle(schemaTranslator.toIcfObject(objectClass, entry, attributeHandler));
 	}
 
 	protected SortRequest createSortControl(String defaultSortLdapAttribute, String defaultSortOrderingRule) {
