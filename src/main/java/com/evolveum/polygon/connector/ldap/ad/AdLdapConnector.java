@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 Evolveum
+ * Copyright (c) 2015-2016 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,34 +16,23 @@
 
 package com.evolveum.polygon.connector.ldap.ad;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
-import org.apache.directory.api.ldap.model.entry.DefaultAttribute;
-import org.apache.directory.api.ldap.model.entry.DefaultModification;
 import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.entry.Modification;
 import org.apache.directory.api.ldap.model.entry.ModificationOperation;
 import org.apache.directory.api.ldap.model.exception.LdapException;
-import org.apache.directory.api.ldap.model.exception.LdapInvalidDnException;
-import org.apache.directory.api.ldap.model.filter.ExprNode;
 import org.apache.directory.api.ldap.model.message.SearchScope;
 import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.ldap.model.name.Rdn;
 import org.apache.directory.api.ldap.model.schema.AttributeType;
 import org.apache.directory.api.ldap.model.schema.ObjectClass;
 import org.identityconnectors.common.logging.Log;
-import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException;
 import org.identityconnectors.framework.common.objects.Attribute;
-import org.identityconnectors.framework.common.objects.AttributeBuilder;
 import org.identityconnectors.framework.common.objects.OperationOptions;
-import org.identityconnectors.framework.common.objects.OperationalAttributes;
 import org.identityconnectors.framework.common.objects.ResultsHandler;
-import org.identityconnectors.framework.common.objects.Uid;
 import org.identityconnectors.framework.spi.ConnectorClass;
 
-import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
 import com.evolveum.polygon.connector.ldap.AbstractLdapConnector;
 import com.evolveum.polygon.connector.ldap.LdapUtil;
 import com.evolveum.polygon.connector.ldap.schema.LdapFilterTranslator;
@@ -61,7 +50,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 	}
 
 	@Override
-	protected LdapFilterTranslator createLdapFilterTranslator(ObjectClass ldapObjectClass) {
+	protected LdapFilterTranslator<AdLdapConfiguration> createLdapFilterTranslator(ObjectClass ldapObjectClass) {
 		return new AdLdapFilterTranslator(getSchemaTranslator(), ldapObjectClass);
 	}
 
@@ -85,15 +74,9 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 	}
 
 	@Override
-	protected void addAttributeModification(String dn, List<Modification> modifications, ObjectClass ldapStructuralObjectClass,
+	protected void addAttributeModification(Dn dn, List<Modification> modifications, ObjectClass ldapStructuralObjectClass,
 			org.identityconnectors.framework.common.objects.ObjectClass icfObjectClass, Attribute icfAttr, ModificationOperation modOp) {
-		Dn dndn;
-		try {
-			dndn = new Dn(dn);
-		} catch (LdapInvalidDnException e) {
-			throw new IllegalArgumentException(e.getMessage(), e);
-		}
-		Rdn firstRdn = dndn.getRdns().get(0);
+		Rdn firstRdn = dn.getRdns().get(0);
 		String firstRdnAttrName = firstRdn.getAva().getType();
 		AttributeType modAttributeType = getSchemaTranslator().toLdapAttribute(ldapStructuralObjectClass, icfAttr.getName());
 		if (firstRdnAttrName.equalsIgnoreCase(modAttributeType.getName())) {
@@ -106,34 +89,34 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 	}
 	
 	@Override
-	protected SearchStrategy chooseSearchStrategy(org.identityconnectors.framework.common.objects.ObjectClass objectClass,
+	protected SearchStrategy<AdLdapConfiguration> chooseSearchStrategy(org.identityconnectors.framework.common.objects.ObjectClass objectClass,
 			ObjectClass ldapObjectClass, ResultsHandler handler, OperationOptions options) {
-		SearchStrategy searchStrategy = super.chooseSearchStrategy(objectClass, ldapObjectClass, handler, options);
+		SearchStrategy<AdLdapConfiguration> searchStrategy = super.chooseSearchStrategy(objectClass, ldapObjectClass, handler, options);
 		searchStrategy.setAttributeHandler(new AdAttributeHandler(searchStrategy));
 		return searchStrategy;
 	}
 	
 	@Override
-	protected SearchStrategy getDefaultSearchStrategy(org.identityconnectors.framework.common.objects.ObjectClass objectClass,
+	protected SearchStrategy<AdLdapConfiguration> getDefaultSearchStrategy(org.identityconnectors.framework.common.objects.ObjectClass objectClass,
 			ObjectClass ldapObjectClass, ResultsHandler handler, OperationOptions options) {
-		SearchStrategy searchStrategy =  super.getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
+		SearchStrategy<AdLdapConfiguration> searchStrategy =  super.getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
 		searchStrategy.setAttributeHandler(new AdAttributeHandler(searchStrategy));
 		return searchStrategy;
 
 	}
 
 	@Override
-	protected SearchStrategy searchByUid(String uidValue, org.identityconnectors.framework.common.objects.ObjectClass objectClass,
+	protected SearchStrategy<AdLdapConfiguration> searchByUid(String uidValue, org.identityconnectors.framework.common.objects.ObjectClass objectClass,
 			ObjectClass ldapObjectClass, ResultsHandler handler, OperationOptions options) {
 		if (LdapUtil.isDnAttribute(getConfiguration().getUidAttribute())) {
-			return searchByDn(uidValue, objectClass, ldapObjectClass, handler, options);
+			return searchByDn(LdapUtil.toDn(uidValue), objectClass, ldapObjectClass, handler, options);
 		} else {
 			// We know that this can return at most one object. Therefore always use simple search.
-			SearchStrategy searchStrategy = getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
+			SearchStrategy<AdLdapConfiguration> searchStrategy = getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
 			String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);			
 			String baseDn = "<GUID="+getSchemaTranslator().formatGuidToDashedNotation(uidValue)+">";
 			try {
-				searchStrategy.search(baseDn, LdapUtil.createAllSearchFilter(), SearchScope.OBJECT, attributesToGet);
+				searchStrategy.search(LdapUtil.toDn(baseDn), LdapUtil.createAllSearchFilter(), SearchScope.OBJECT, attributesToGet);
 			} catch (LdapException e) {
 				throw LdapUtil.processLdapException("Error searching for GUID '"+uidValue+"'", e);
 			}

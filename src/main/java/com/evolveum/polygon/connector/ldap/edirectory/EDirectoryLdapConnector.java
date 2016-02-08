@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 Evolveum
+ * Copyright (c) 2015-2016 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@ import org.apache.directory.api.ldap.model.entry.DefaultModification;
 import org.apache.directory.api.ldap.model.entry.Modification;
 import org.apache.directory.api.ldap.model.entry.ModificationOperation;
 import org.apache.directory.api.ldap.model.exception.LdapException;
+import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.ldap.model.schema.ObjectClass;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException;
@@ -51,7 +52,7 @@ public class EDirectoryLdapConnector extends AbstractLdapConnector<EDirectoryLda
 	}
 
 	@Override
-	protected LdapFilterTranslator createLdapFilterTranslator(ObjectClass ldapObjectClass) {
+	protected LdapFilterTranslator<EDirectoryLdapConfiguration> createLdapFilterTranslator(ObjectClass ldapObjectClass) {
 		return new EDirectoryLdapFilterTranslator(getSchemaTranslator(), ldapObjectClass);
 	}
 
@@ -61,7 +62,7 @@ public class EDirectoryLdapConnector extends AbstractLdapConnector<EDirectoryLda
 	}
 	
 	@Override
-	protected void addAttributeModification(String dn, List<Modification> modifications,
+	protected void addAttributeModification(Dn dn, List<Modification> modifications,
 			ObjectClass ldapStructuralObjectClass,
 			org.identityconnectors.framework.common.objects.ObjectClass icfObjectClass, Attribute icfAttr,
 			ModificationOperation modOp) {
@@ -114,7 +115,7 @@ public class EDirectoryLdapConnector extends AbstractLdapConnector<EDirectoryLda
 	@Override
 	protected void postUpdate(org.identityconnectors.framework.common.objects.ObjectClass icfObjectClass,
 			Uid uid, Set<Attribute> values, OperationOptions options, ModificationOperation modOp, 
-			String dn, org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass,
+			Dn dn, org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass,
 			List<Modification> modifications) {
 		super.postUpdate(icfObjectClass, uid, values, options, modOp, dn, ldapStructuralObjectClass, modifications);
 		if (!getConfiguration().isManageReciprocalGroupAttributes()) {
@@ -124,11 +125,11 @@ public class EDirectoryLdapConnector extends AbstractLdapConnector<EDirectoryLda
 			for (Attribute icfAttr: values) {
 				if (icfAttr.is(getConfiguration().getGroupObjectMemberAttribute())) {
 					for (Object val: icfAttr.getValue()) {
-						String memberDn = (String)val;
+						Dn memberDn = LdapUtil.toDn((String)val);
 						List<Modification> rModifications = new ArrayList<Modification>(2);
 						rModifications.add(
 								new DefaultModification(modOp, EDirectoryConstants.ATTRIBUTE_GROUP_MEMBERSHIP_NAME, 
-										dn));
+										dn.toString()));
 						// No need to update securityEquals. eDirectory is doing that by itself
 						// (the question is why it cannot do also to the groupMemberhip?)
 //						if (getConfiguration().isManageEquivalenceAttributes()) {

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015 Evolveum
+ * Copyright (c) 2015-2016 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ import org.apache.directory.api.ldap.model.filter.LessEqNode;
 import org.apache.directory.api.ldap.model.filter.NotNode;
 import org.apache.directory.api.ldap.model.filter.OrNode;
 import org.apache.directory.api.ldap.model.filter.SubstringNode;
+import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.ldap.model.schema.AttributeType;
 import org.apache.directory.api.ldap.model.schema.ObjectClass;
 import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException;
@@ -51,18 +52,20 @@ import org.identityconnectors.framework.common.objects.filter.OrFilter;
 import org.identityconnectors.framework.common.objects.filter.StartsWithFilter;
 
 import com.evolveum.polygon.common.SchemaUtil;
+import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
 import com.evolveum.polygon.connector.ldap.LdapConfiguration;
+import com.evolveum.polygon.connector.ldap.LdapUtil;
 
 /**
  * @author Radovan Semancik
  *
  */
-public class LdapFilterTranslator {
+public class LdapFilterTranslator<C extends AbstractLdapConfiguration> {
 
-	private SchemaTranslator schemaTranslator;
+	private SchemaTranslator<C> schemaTranslator;
 	private ObjectClass ldapObjectClass;
 	
-	public LdapFilterTranslator(SchemaTranslator schemaTranslator, ObjectClass ldapObjectClass) {
+	public LdapFilterTranslator(SchemaTranslator<C> schemaTranslator, ObjectClass ldapObjectClass) {
 		super();
 		this.schemaTranslator = schemaTranslator;
 		this.ldapObjectClass = ldapObjectClass;
@@ -106,7 +109,7 @@ public class LdapFilterTranslator {
 		if (icfFilter instanceof AndFilter) {
 			Collection<Filter> icfSubfilters = ((AndFilter)icfFilter).getFilters();
 			List<ExprNode> subNodes = new ArrayList<ExprNode>(icfSubfilters.size());
-			String baseDn = null;
+			Dn baseDn = null;
 			for (Filter icfSubFilter: icfSubfilters) {
 				ScopedFilter subNode = translate(icfSubFilter);
 				if (subNode.getBaseDn() != null) {
@@ -155,7 +158,7 @@ public class LdapFilterTranslator {
 			String icfAttributeName = icfAttribute.getName();
 			List<Object> icfAttributeValue = icfAttribute.getValue();
 			if (Name.NAME.equals(icfAttributeName)) {
-				String dn = SchemaUtil.getSingleStringNonBlankValue(icfAttribute);
+				Dn dn = LdapUtil.toDn(SchemaUtil.getSingleStringNonBlankValue(icfAttribute));
 				return new ScopedFilter(dn);
 			}
 			AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, icfAttributeName);
@@ -271,7 +274,7 @@ public class LdapFilterTranslator {
 		String icfAttributeName = icfAttribute.getName();
 		List<Object> icfAttributeValue = icfAttribute.getValue();
 		if (Name.NAME.equals(icfAttributeName)) {
-			String dn = SchemaUtil.getSingleStringNonBlankValue(icfAttribute);
+			Dn dn = LdapUtil.toDn(SchemaUtil.getSingleStringNonBlankValue(icfAttribute));
 			return new ScopedFilter(null, dn);
 		}
 		AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, icfAttributeName);

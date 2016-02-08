@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015 Evolveum
+ * Copyright (c) 2015-2016 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -59,6 +59,7 @@ import org.identityconnectors.framework.common.objects.Uid;
 import org.identityconnectors.framework.spi.SyncTokenResultsHandler;
 
 import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
+import com.evolveum.polygon.connector.ldap.ConnectionManager;
 import com.evolveum.polygon.connector.ldap.LdapConfiguration;
 import com.evolveum.polygon.connector.ldap.LdapConnector;
 import com.evolveum.polygon.connector.ldap.LdapUtil;
@@ -68,7 +69,7 @@ import com.evolveum.polygon.connector.ldap.schema.SchemaTranslator;
  * @author semancik
  *
  */
-public class SunChangelogSyncStrategy extends SyncStrategy {
+public class SunChangelogSyncStrategy<C extends AbstractLdapConfiguration> extends SyncStrategy<C> {
 	
 	public static final String ROOT_DSE_ATTRIBUTE_CHANGELOG_NAME = "changelog";
 	private static final String ROOT_DSE_ATTRIBUTE_FIRST_CHANGE_NUMBER_NAME = "firstChangeNumber";
@@ -95,8 +96,8 @@ public class SunChangelogSyncStrategy extends SyncStrategy {
 	private static final Object CHANGE_TYPE_MODRDN = "modrdn";
 	
 
-	public SunChangelogSyncStrategy(AbstractLdapConfiguration configuration, LdapNetworkConnection connection, 
-			SchemaManager schemaManager, SchemaTranslator schemaTranslator) {
+	public SunChangelogSyncStrategy(AbstractLdapConfiguration configuration, ConnectionManager<C> connection, 
+			SchemaManager schemaManager, SchemaTranslator<C> schemaTranslator) {
 		super(configuration, connection, schemaManager, schemaTranslator);
 	}
 
@@ -116,7 +117,7 @@ public class SunChangelogSyncStrategy extends SyncStrategy {
 			ldapObjectClass = getSchemaTranslator().toLdapObjectClass(icfObjectClass);
 		}
 		
-		Entry rootDse = LdapUtil.getRootDse(getConnection(), ROOT_DSE_ATTRIBUTE_CHANGELOG_NAME, ROOT_DSE_ATTRIBUTE_FIRST_CHANGE_NUMBER_NAME, ROOT_DSE_ATTRIBUTE_LAST_CHANGE_NUMBER_NAME);
+		Entry rootDse = LdapUtil.getRootDse(getConnectionManager(), ROOT_DSE_ATTRIBUTE_CHANGELOG_NAME, ROOT_DSE_ATTRIBUTE_FIRST_CHANGE_NUMBER_NAME, ROOT_DSE_ATTRIBUTE_LAST_CHANGE_NUMBER_NAME);
 		Attribute changelogAttribute = rootDse.get(ROOT_DSE_ATTRIBUTE_CHANGELOG_NAME);
 		if (changelogAttribute == null) {
 			throw new ConnectorException("Cannot locate changelog, the root DSE attribute "+ROOT_DSE_ATTRIBUTE_CHANGELOG_NAME+" is not present");
@@ -144,8 +145,9 @@ public class SunChangelogSyncStrategy extends SyncStrategy {
 		LOG.ok("Searching changelog {0} with {1}", changelogDn, changelogSearchFilter);
 		int numChangelogEntries = 0;
 		int numProcessedEntries = 0;
+		LdapNetworkConnection connection = getConnectionManager().getConnection(LdapUtil.toDn(changelogDn));
 		try {
-			EntryCursor searchCursor = getConnection().search(changelogDn, changelogSearchFilter, SearchScope.ONELEVEL, 
+			EntryCursor searchCursor = connection.search(changelogDn, changelogSearchFilter, SearchScope.ONELEVEL, 
 					changeNumberAttributeName,
 					CHANGELOG_ATTRIBUTE_TARGET_UNIQUE_ID,
 					CHANGELOG_ATTRIBUTE_TARGET_DN,
@@ -197,7 +199,7 @@ public class SunChangelogSyncStrategy extends SyncStrategy {
 						//						String changesString = LdapUtil.getStringAttribute(entry, CHANGELOG_ATTRIBUTE_CHANGES);
 //						LdifEntry ldifEntry = new LdifEntry(targetDn, changesString);
 //						List<Modification> modifications = ldifEntry.getModifications();
-						Entry targetEntry = LdapUtil.fetchEntry(getConnection(), targetDn, ldapObjectClass, options, getConfiguration(), getSchemaTranslator());
+						Entry targetEntry = LdapUtil.fetchEntry(connection, targetDn, ldapObjectClass, options, getConfiguration(), getSchemaTranslator());
 						if (targetEntry == null) {
 							LOG.warn("Changelog entry {0} refers to an entry {1} that no longer exists, ignoring", entry.getDn(), targetDn);
 							continue;
@@ -206,7 +208,7 @@ public class SunChangelogSyncStrategy extends SyncStrategy {
 							LOG.ok("Changelog entry {0} does not match object class, skipping", targetEntry.getDn());
 							continue;
 						}
-						ConnectorObject targetObject = getSchemaTranslator().toIcfObject(icfObjectClassInfo, targetEntry);
+						ConnectorObject targetObject = getSchemaTranslator().toIcfObject(connection, icfObjectClassInfo, targetEntry);
 						deltaBuilder.setObject(targetObject);
 						
 					} else if (CHANGE_TYPE_ADD.equals(changeType)) {
@@ -225,13 +227,13 @@ public class SunChangelogSyncStrategy extends SyncStrategy {
 						}
 						if (!getSchemaTranslator().hasUidAttribute(targetEntry)) {
 							// No UID attribute in the changelog entry. We need to re-read it explicitly.
-							targetEntry = LdapUtil.fetchEntry(getConnection(), targetDn.toString(), ldapObjectClass, options, getConfiguration(), getSchemaTranslator());
+							targetEntry = LdapUtil.fetchEntry(connection, targetDn.toString(), ldapObjectClass, options, getConfiguration(), getSchemaTranslator());
 							if (targetEntry == null) {
 								LOG.warn("Changelog entry {0} refers to an entry {1} that no longer exists, ignoring", entry.getDn(), targetDn);
 								continue;
 							}
 						}
-						ConnectorObject targetObject = getSchemaTranslator().toIcfObject(icfObjectClassInfo, targetEntry, targetDn);
+						ConnectorObject targetObject = getSchemaTranslator().toIcfObject(connection, icfObjectClassInfo, targetEntry, targetDn);
 						deltaBuilder.setObject(targetObject);
 						
 					} else if (CHANGE_TYPE_DELETE.equals(changeType)) {
@@ -255,7 +257,7 @@ public class SunChangelogSyncStrategy extends SyncStrategy {
 						newRdns[0] = new Rdn(newRdn);
 						Dn newDn = new Dn(newRdns);
 						LOG.ok("ModRdn (RDN: {0}) -> {1}", newRdn, newDn.toString());
-						Entry targetEntry = LdapUtil.fetchEntry(getConnection(), newDn.toString(), ldapObjectClass, options, getConfiguration(), getSchemaTranslator());
+						Entry targetEntry = LdapUtil.fetchEntry(connection, newDn.toString(), ldapObjectClass, options, getConfiguration(), getSchemaTranslator());
 						if (targetEntry == null) {
 							LOG.warn("Changelog entry {0} refers to an entry {1} that no longer exists, ignoring", entry.getDn(), newDn);
 							continue;
@@ -275,7 +277,7 @@ public class SunChangelogSyncStrategy extends SyncStrategy {
 							LOG.ok("Sending simulated delete delta for {0}", oldDn.getName());
 							handler.handle(deleteDeltaBuilder.build());
 						}
-						ConnectorObject targetObject = getSchemaTranslator().toIcfObject(icfObjectClassInfo, targetEntry);
+						ConnectorObject targetObject = getSchemaTranslator().toIcfObject(connection, icfObjectClassInfo, targetEntry);
 						deltaBuilder.setObject(targetObject);
 						LOG.ok("ModRdn Obj UID: {0},  changelog UID: {1}", targetObject.getUid(), oldUid);
 						
@@ -315,7 +317,7 @@ public class SunChangelogSyncStrategy extends SyncStrategy {
 	public SyncToken getLatestSyncToken(ObjectClass objectClass) {
 		Entry rootDse;
 		try {
-			rootDse = getConnection().getRootDse(ROOT_DSE_ATTRIBUTE_LAST_CHANGE_NUMBER_NAME);
+			rootDse = getConnectionManager().getDefaultConnection().getRootDse(ROOT_DSE_ATTRIBUTE_LAST_CHANGE_NUMBER_NAME);
 		} catch (LdapException e) {
 			throw new ConnectorIOException("Error getting latest sync token from root DSE: "+e.getMessage(), e);
 		}

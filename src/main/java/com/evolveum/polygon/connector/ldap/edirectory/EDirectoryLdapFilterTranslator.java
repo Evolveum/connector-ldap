@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015 Evolveum
+ * Copyright (c) 2015-2016 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -39,7 +39,7 @@ import com.evolveum.polygon.connector.ldap.schema.ScopedFilter;
  * @author semancik
  *
  */
-public class EDirectoryLdapFilterTranslator extends LdapFilterTranslator {
+public class EDirectoryLdapFilterTranslator extends LdapFilterTranslator<EDirectoryLdapConfiguration> {
 
 	public EDirectoryLdapFilterTranslator(SchemaTranslator schemaTranslator, ObjectClass ldapObjectClass) {
 		super(schemaTranslator, ldapObjectClass);

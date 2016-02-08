@@ -516,5 +516,17 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
     	}
     }
     
+    public boolean isReferralStrategyFollow() {
+    	return referralStrategy == null || REFERRAL_STRATEGY_FOLLOW.equals(referralStrategy);
+    }
+    
+    public boolean isReferralStrategyIgnore() {
+    	return REFERRAL_STRATEGY_IGNORE.equals(referralStrategy);
+    }
+
+    public boolean isReferralStrategyThrow() {
+    	return REFERRAL_STRATEGY_THROW.equals(referralStrategy);
+    }
+    
     // TODO: equals, hashCode
 }

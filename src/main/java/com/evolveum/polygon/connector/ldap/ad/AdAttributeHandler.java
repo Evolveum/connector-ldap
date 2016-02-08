@@ -24,6 +24,7 @@ import org.apache.directory.api.ldap.model.exception.LdapException;
 import org.apache.directory.api.ldap.model.exception.LdapInvalidAttributeValueException;
 import org.apache.directory.api.ldap.model.message.SearchScope;
 import org.apache.directory.api.ldap.model.name.Dn;
+import org.apache.directory.ldap.client.api.LdapNetworkConnection;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
 import org.identityconnectors.framework.common.objects.AttributeBuilder;
@@ -45,14 +46,14 @@ public class AdAttributeHandler implements AttributeHandler {
 	
 	private static final Log LOG = Log.getLog(AdAttributeHandler.class);
 	
-	private SearchStrategy searchStrategy;
+	private SearchStrategy<AdLdapConfiguration> searchStrategy;
 
-	public AdAttributeHandler(SearchStrategy searchStrategy) {
+	public AdAttributeHandler(SearchStrategy<AdLdapConfiguration> searchStrategy) {
 		this.searchStrategy = searchStrategy;
 	}
 
 	@Override
-	public void handle(Entry entry, Attribute ldapAttribute, AttributeBuilder ab) {
+	public void handle(LdapNetworkConnection connection, Entry entry, Attribute ldapAttribute, AttributeBuilder ab) {
 		int semicolonIndex = ldapAttribute.getId().indexOf(';');
 		if (semicolonIndex >= 0) {
 			String attrName = ldapAttribute.getId().substring(0, semicolonIndex);
@@ -71,7 +72,7 @@ public class AdAttributeHandler implements AttributeHandler {
 							LOG.ok("reached the top ({0}), breaking", attrOption);
 							break;
 						}
-						Attribute rangeAttribute = rangeSearch(entry, attrName, range.high);
+						Attribute rangeAttribute = rangeSearch(connection, entry, attrName, range.high);
 						if (rangeAttribute == null) {
 							LOG.ok("no range attribute returned in response, breaking", attrOption);
 							break;
@@ -99,14 +100,14 @@ public class AdAttributeHandler implements AttributeHandler {
 		}
 	}
 	
-	private Attribute rangeSearch(Entry previousEntry, String attrName, int high) {
+	private Attribute rangeSearch(LdapNetworkConnection connection, Entry previousEntry, String attrName, int high) {
 		Dn dn = previousEntry.getDn();
 		String attributesToGet = attrName + ";range=" + (high + 1) + "-*";
 		Entry entry = null;
-		LOG.ok("Search REQ base={0}, filter={1}, scope={2}, attributes={3}", 
+		LdapUtil.logOperationReq(connection, "Search REQ base={0}, filter={1}, scope={2}, attributes={3}", 
 				dn, AbstractLdapConfiguration.SEARCH_FILTER_ALL, SearchScope.OBJECT, attributesToGet);
 		try {
-			EntryCursor searchCursor = searchStrategy.getConnection().search(dn, 
+			EntryCursor searchCursor = connection.search(dn, 
 					AbstractLdapConfiguration.SEARCH_FILTER_ALL, SearchScope.OBJECT, attributesToGet);
 			if (searchCursor.next()) {
 				entry = searchCursor.get();
@@ -116,12 +117,12 @@ public class AdAttributeHandler implements AttributeHandler {
 			}
 			searchCursor.close();
 		} catch (LdapException e) {
-			LOG.error("Search ERR {0}: {1}", e.getClass().getName(), e.getMessage(), e);
+			LdapUtil.logOperationErr(connection, "Search ERR {0}: {1}", e.getClass().getName(), e.getMessage(), e);
 			throw LdapUtil.processLdapException("Range search for "+dn+" with "+attributesToGet+" failed", e);
 		} catch (CursorException e) {
 			throw new ConnectorIOException("Range search for "+dn+" with "+attributesToGet+" failed: "+e.getMessage(), e);
 		}
-		LOG.ok("Search RES {0}", entry);
+		LdapUtil.logOperationRes(connection, "Search RES {0}", entry);
 		return entry.get(attrName);
 	}
 

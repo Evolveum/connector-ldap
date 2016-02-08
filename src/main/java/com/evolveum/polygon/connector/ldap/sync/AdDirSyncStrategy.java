@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015 Evolveum
+ * Copyright (c) 2015-2016 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -51,6 +51,7 @@ import org.identityconnectors.framework.common.objects.Uid;
 import org.identityconnectors.framework.spi.SyncTokenResultsHandler;
 
 import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
+import com.evolveum.polygon.connector.ldap.ConnectionManager;
 import com.evolveum.polygon.connector.ldap.LdapConfiguration;
 import com.evolveum.polygon.connector.ldap.LdapUtil;
 import com.evolveum.polygon.connector.ldap.ad.AdConstants;
@@ -62,13 +63,13 @@ import com.evolveum.polygon.connector.ldap.schema.SchemaTranslator;
  * @author semancik
  *
  */
-public class AdDirSyncStrategy extends SyncStrategy {
+public class AdDirSyncStrategy<C extends AbstractLdapConfiguration> extends SyncStrategy<C> {
 	
 	private static final Log LOG = Log.getLog(AdDirSyncStrategy.class);
 
-	public AdDirSyncStrategy(AbstractLdapConfiguration configuration, LdapNetworkConnection connection, 
-			SchemaManager schemaManager, SchemaTranslator schemaTranslator) {
-		super(configuration, connection, schemaManager, schemaTranslator);
+	public AdDirSyncStrategy(AbstractLdapConfiguration configuration, ConnectionManager<C> connectionManager, 
+			SchemaManager schemaManager, SchemaTranslator<C> schemaTranslator) {
+		super(configuration, connectionManager, schemaManager, schemaTranslator);
 	}
 
 	@Override
@@ -99,8 +100,9 @@ public class AdDirSyncStrategy extends SyncStrategy {
 		int numProcessedEntries = 0;
 		byte[] lastEntryCookie = null;
 		
+		LdapNetworkConnection connection = getConnectionManager().getConnection(req.getBase());
 		try {
-			SearchCursor searchCursor = getConnection().search(req);
+			SearchCursor searchCursor = connection.search(req);
 			while (searchCursor.next()) {
 				Response response = searchCursor.get();
 				if (response instanceof SearchResultEntry) {
@@ -135,7 +137,7 @@ public class AdDirSyncStrategy extends SyncStrategy {
 						
 					} else {
 						deltaBuilder.setDeltaType(SyncDeltaType.CREATE_OR_UPDATE);
-						Entry targetEntry = LdapUtil.fetchEntryByUid(getConnection(), targetUid, ldapObjectClass, options, getConfiguration(), getSchemaTranslator());
+						Entry targetEntry = LdapUtil.fetchEntryByUid(connection, targetUid, ldapObjectClass, options, getConfiguration(), getSchemaTranslator());
 						LOG.ok("Got target entry based on dirSync:\n{0}", targetEntry);
 					
 						if (!isAcceptableForSynchronization(targetEntry, ldapObjectClass, 
@@ -143,7 +145,7 @@ public class AdDirSyncStrategy extends SyncStrategy {
 							continue;
 						}
 						
-						ConnectorObject targetObject = getSchemaTranslator().toIcfObject(icfObjectClassInfo, targetEntry);
+						ConnectorObject targetObject = getSchemaTranslator().toIcfObject(connection, icfObjectClassInfo, targetEntry);
 						deltaBuilder.setObject(targetObject);
 					}
 					
@@ -188,8 +190,9 @@ public class AdDirSyncStrategy extends SyncStrategy {
 	public SyncToken getLatestSyncToken(ObjectClass objectClass) {
 		byte[] cookie = null;
 		SearchRequest req = createSearchRequest("(cn=__entry_like_this_is_unlikely_to_exist__)", null);
+		LdapNetworkConnection connection = getConnectionManager().getConnection(req.getBase());
 		try {
-			SearchCursor searchCursor = getConnection().search(req);
+			SearchCursor searchCursor = connection.search(req);
 			while (searchCursor.next()) {
 				Response response = searchCursor.get();
 				if (response instanceof SearchResultEntry) {
