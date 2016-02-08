@@ -307,7 +307,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		SearchStrategy<C> searchStrategy;
 		if (isEqualsFilter(icfFilter, Name.NAME)) {
 			// Search by __NAME__, which means DN. This translated to a base search.
-			searchStrategy = searchByDn(LdapUtil.toDn(SchemaUtil.getSingleStringNonBlankValue(((EqualsFilter)icfFilter).getAttribute())),
+			searchStrategy = searchByDn(schemaTranslator.toDn(((EqualsFilter)icfFilter).getAttribute()),
 					objectClass, ldapObjectClass, handler, options);
 			
 		} else if (isEqualsFilter(icfFilter, Uid.NAME)) {
@@ -379,7 +379,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 	protected SearchStrategy<C> searchByUid(String uidValue, ObjectClass objectClass, org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
 			ResultsHandler handler, OperationOptions options) {
 		if (LdapUtil.isDnAttribute(configuration.getUidAttribute())) {
-			return searchByDn(LdapUtil.toDn(uidValue), objectClass, ldapObjectClass, handler, options);
+			return searchByDn(schemaTranslator.toDn(uidValue), objectClass, ldapObjectClass, handler, options);
 		} else {
 			// We know that this can return at most one object. Therefore always use simple search.
 			SearchStrategy<C> searchStrategy = getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
@@ -432,7 +432,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		
 		// Search by DN first. This is supposed to be more efficient.
 
-		Dn dn = LdapUtil.toDn(SchemaUtil.getSingleStringNonBlankValue(dnSubfilter.getAttribute()));
+		Dn dn = schemaTranslator.toDn(dnSubfilter.getAttribute());
 		try {
 			searchByDn(dn, objectClass, ldapObjectClass, innerHandler, options);
 		} catch (UnknownUidException e) {
@@ -510,9 +510,9 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			// do two LDAP searches instead of one in this case.
 			// So we deviate from the contract here. It is naughty, but it
 			// is efficient.
-			return LdapUtil.toDn(containerQUid.getUid().getUidValue());
+			return schemaTranslator.toDn(containerQUid.getUid());
 		} else {
-			return LdapUtil.toDn(configuration.getBaseContext());
+			return schemaTranslator.toDn(configuration.getBaseContext());
 		}
 	}
 
@@ -747,7 +747,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			if (icfAttr.is(Name.NAME)) {
 				// This is rename. Which means change of DN. This is a special operation
 				Dn oldDn = resolveDn(objectClass, uid, options);
-				newDn = LdapUtil.toDn(SchemaUtil.getSingleStringNonBlankValue(icfAttr));
+				newDn = getSchemaTranslator().toDn(icfAttr);
 				if (oldDn.equals(newDn)) {
 					// nothing to rename, just ignore
 				} else {
@@ -1029,7 +1029,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		Dn dn;
 		String uidAttributeName = configuration.getUidAttribute();
 		if (LdapUtil.isDnAttribute(uidAttributeName)) {
-			dn = LdapUtil.toDn(uid.getUidValue());
+			dn = getSchemaTranslator().toDn(uid);
 		} else {
 			Dn baseDn = getBaseDn(options);
 			SearchScope scope = getScope(options);
@@ -1059,6 +1059,8 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 				throw new ConnectorIOException("Error reading LDAP entry for UID "+uid+": "+e.getMessage(), e);
 			}
 		}
+		
+		dn = schemaTranslator.toDn(dn);
 		
 		return dn;
 	}

@@ -130,7 +130,7 @@ public class ModifyTimestampSyncStrategy<C extends AbstractLdapConfiguration> ex
 		int numFoundEntries = 0;
 		int numProcessedEntries = 0;
 		
-		LdapNetworkConnection connection = getConnectionManager().getConnection(LdapUtil.toDn(baseContext));
+		LdapNetworkConnection connection = getConnectionManager().getConnection(getSchemaTranslator().toDn(baseContext));
 		try {
 			EntryCursor searchCursor = connection.search(baseContext, searchFilter, SearchScope.SUBTREE, attributesToGet);
 			while (searchCursor.next()) {

@@ -42,8 +42,10 @@ import org.apache.directory.api.ldap.model.entry.StringValue;
 import org.apache.directory.api.ldap.model.entry.Value;
 import org.apache.directory.api.ldap.model.exception.LdapException;
 import org.apache.directory.api.ldap.model.exception.LdapInvalidAttributeValueException;
+import org.apache.directory.api.ldap.model.exception.LdapInvalidDnException;
 import org.apache.directory.api.ldap.model.message.controls.PagedResults;
 import org.apache.directory.api.ldap.model.message.controls.SortRequest;
+import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.ldap.model.schema.AttributeType;
 import org.apache.directory.api.ldap.model.schema.LdapSyntax;
 import org.apache.directory.api.ldap.model.schema.SchemaManager;
@@ -1046,6 +1048,47 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 		} catch (IllegalArgumentException e) {
 			throw new IllegalArgumentException(e.getMessage() + ", attribute "+icfAttributeName+" (ldap: "+ldapAttributeName+")", e);
 		}
+	}
+	
+	public Dn toDn(Attribute attribute) {
+		if (attribute == null) {
+			return null;
+		}
+		return toDn(SchemaUtil.getSingleStringNonBlankValue(attribute));
+	}
+	
+	public Dn toDn(Uid icfUid) {
+		if (icfUid == null) {
+			return null;
+		}
+		return toDn(icfUid.getUidValue());
+	}
+
+	public Dn toDn(String stringDn) {
+		if (stringDn == null) {
+			return null;
+		}
+		try {
+			return new Dn(schemaManager, stringDn);
+		} catch (LdapInvalidDnException e) {
+			throw new InvalidAttributeValueException("Invalid DN '"+stringDn+"': "+e.getMessage(), e);
+		}
+	}
+	
+	// This may seems strange. But it converts non-schema-aware DNs to schema-aware DNs.
+	public Dn toDn(Dn dn) {
+		if (dn == null) {
+			return null;
+		}
+		if (dn.isSchemaAware()) {
+			return dn;
+		}
+		try {
+			dn.apply(schemaManager);
+		} catch (LdapInvalidDnException e) {
+			throw new InvalidAttributeValueException("Invalid DN '"+dn+"': "+e.getMessage(), e);
+		}
+		return dn;
 	}
 
 	static {

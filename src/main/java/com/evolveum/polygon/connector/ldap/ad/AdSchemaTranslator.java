@@ -22,6 +22,7 @@ import org.apache.directory.api.ldap.model.entry.BinaryValue;
 import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.entry.Value;
 import org.apache.directory.api.ldap.model.exception.LdapInvalidAttributeValueException;
+import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.ldap.model.schema.AttributeType;
 import org.apache.directory.api.ldap.model.schema.LdapSyntax;
 import org.apache.directory.api.ldap.model.schema.SchemaManager;
@@ -162,6 +163,12 @@ public class AdSchemaTranslator extends SchemaTranslator<AdLdapConfiguration> {
 			return true;
 		}
 		return super.isBinaryAttribute(attributeId);
+	}
+	
+	public Dn getGuidDn(String uidValue) {
+		// Yes, this is really how Active Directory DNs looks like. Yes, they are really DNs.
+		// Insane, isn't it? Well, yes, it is AD after all.
+		return toDn("<GUID="+formatGuidToDashedNotation(uidValue)+">");
 	}
 	
 	public String formatGuidToDashedNotation(String uidValue) {

@@ -64,7 +64,9 @@ import org.apache.directory.api.ldap.model.message.SearchResultEntry;
 import org.apache.directory.api.ldap.model.message.SearchScope;
 import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.ldap.model.schema.AttributeType;
+import org.apache.directory.api.ldap.model.schema.SchemaManager;
 import org.apache.directory.api.util.GeneralizedTime;
+import org.apache.directory.ldap.client.api.LdapConnectionConfig;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
 import org.apache.directory.ldap.client.api.exception.InvalidConnectionException;
 import org.identityconnectors.common.logging.Log;
@@ -508,26 +510,44 @@ public class LdapUtil {
 	}
 
 	public static void logOperationReq(LdapNetworkConnection connection, String format, Object... params) {
-		LOG.info(format, params);
+		if (LOG.isInfo()) {
+			LOG.info(formatConnectionInfo(connection) + format, params);
+		}
 	}
 
 	public static void logOperationRes(LdapNetworkConnection connection, String format, Object... params) {
-		LOG.info(format, params);
+		if (LOG.isInfo()) {
+			LOG.info(formatConnectionInfo(connection) + format, params);
+		}
 	}
 
 	public static void logOperationErr(LdapNetworkConnection connection, String format, Object... params) {
-		LOG.error(format, params);
+		if (LOG.isInfo()) {
+			LOG.error(formatConnectionInfo(connection) + format, params);
+		}
 	}
 
-	public static Dn toDn(String stringDn) {
-		if (stringDn == null) {
-			return null;
+	private static String formatConnectionInfo(LdapNetworkConnection connection) {
+		StringBuilder sb = new StringBuilder();
+		LdapConnectionConfig config = connection.getConfig();
+		Integer port = null;
+		if (config.isUseSsl()) {
+			sb.append("ldaps://");
+			if (config.getLdapPort() != 636) {
+				port = config.getLdapPort();
+			}
+		} else {
+			sb.append("ldap://");
+			if (config.getLdapPort() != 389) {
+				port = config.getLdapPort();
+			}
 		}
-		try {
-			return new Dn(stringDn);
-		} catch (LdapInvalidDnException e) {
-			throw new InvalidAttributeValueException("Invalid DN '"+stringDn+"': "+e.getMessage(), e);
+		sb.append(config.getLdapHost());
+		if (port != null) {
+			sb.append(":").append(port);
 		}
+		sb.append("/ ");
+		return sb.toString();
 	}
 
 }

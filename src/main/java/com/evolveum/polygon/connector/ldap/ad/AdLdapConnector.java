@@ -109,14 +109,14 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 	protected SearchStrategy<AdLdapConfiguration> searchByUid(String uidValue, org.identityconnectors.framework.common.objects.ObjectClass objectClass,
 			ObjectClass ldapObjectClass, ResultsHandler handler, OperationOptions options) {
 		if (LdapUtil.isDnAttribute(getConfiguration().getUidAttribute())) {
-			return searchByDn(LdapUtil.toDn(uidValue), objectClass, ldapObjectClass, handler, options);
+			return searchByDn(getSchemaTranslator().toDn(uidValue), objectClass, ldapObjectClass, handler, options);
 		} else {
 			// We know that this can return at most one object. Therefore always use simple search.
 			SearchStrategy<AdLdapConfiguration> searchStrategy = getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
-			String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);			
-			String baseDn = "<GUID="+getSchemaTranslator().formatGuidToDashedNotation(uidValue)+">";
+			String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
+			Dn guidDn = getSchemaTranslator().getGuidDn(uidValue);
 			try {
-				searchStrategy.search(LdapUtil.toDn(baseDn), LdapUtil.createAllSearchFilter(), SearchScope.OBJECT, attributesToGet);
+				searchStrategy.search(guidDn, LdapUtil.createAllSearchFilter(), SearchScope.OBJECT, attributesToGet);
 			} catch (LdapException e) {
 				throw LdapUtil.processLdapException("Error searching for GUID '"+uidValue+"'", e);
 			}

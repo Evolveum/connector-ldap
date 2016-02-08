@@ -145,7 +145,7 @@ public class SunChangelogSyncStrategy<C extends AbstractLdapConfiguration> exten
 		LOG.ok("Searching changelog {0} with {1}", changelogDn, changelogSearchFilter);
 		int numChangelogEntries = 0;
 		int numProcessedEntries = 0;
-		LdapNetworkConnection connection = getConnectionManager().getConnection(LdapUtil.toDn(changelogDn));
+		LdapNetworkConnection connection = getConnectionManager().getConnection(getSchemaTranslator().toDn(changelogDn));
 		try {
 			EntryCursor searchCursor = connection.search(changelogDn, changelogSearchFilter, SearchScope.ONELEVEL, 
 					changeNumberAttributeName,

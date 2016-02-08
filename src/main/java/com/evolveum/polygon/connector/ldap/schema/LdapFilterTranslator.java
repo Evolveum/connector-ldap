@@ -158,7 +158,7 @@ public class LdapFilterTranslator<C extends AbstractLdapConfiguration> {
 			String icfAttributeName = icfAttribute.getName();
 			List<Object> icfAttributeValue = icfAttribute.getValue();
 			if (Name.NAME.equals(icfAttributeName)) {
-				Dn dn = LdapUtil.toDn(SchemaUtil.getSingleStringNonBlankValue(icfAttribute));
+				Dn dn = schemaTranslator.toDn(icfAttribute);
 				return new ScopedFilter(dn);
 			}
 			AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, icfAttributeName);
@@ -274,7 +274,7 @@ public class LdapFilterTranslator<C extends AbstractLdapConfiguration> {
 		String icfAttributeName = icfAttribute.getName();
 		List<Object> icfAttributeValue = icfAttribute.getValue();
 		if (Name.NAME.equals(icfAttributeName)) {
-			Dn dn = LdapUtil.toDn(SchemaUtil.getSingleStringNonBlankValue(icfAttribute));
+			Dn dn = schemaTranslator.toDn(icfAttribute);
 			return new ScopedFilter(null, dn);
 		}
 		AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, icfAttributeName);

@@ -125,7 +125,7 @@ public class EDirectoryLdapConnector extends AbstractLdapConnector<EDirectoryLda
 			for (Attribute icfAttr: values) {
 				if (icfAttr.is(getConfiguration().getGroupObjectMemberAttribute())) {
 					for (Object val: icfAttr.getValue()) {
-						Dn memberDn = LdapUtil.toDn((String)val);
+						Dn memberDn = getSchemaTranslator().toDn((String)val);
 						List<Modification> rModifications = new ArrayList<Modification>(2);
 						rModifications.add(
 								new DefaultModification(modOp, EDirectoryConstants.ATTRIBUTE_GROUP_MEMBERSHIP_NAME, 
