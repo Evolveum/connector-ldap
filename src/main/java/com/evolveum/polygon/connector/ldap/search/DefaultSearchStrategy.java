@@ -74,51 +74,71 @@ public class DefaultSearchStrategy<C extends AbstractLdapConfiguration> extends 
 		
 		LdapNetworkConnection connection = getConnectionManager().getConnection(baseDn);
 		
-		SearchCursor searchCursor = executeSearch(connection, req);
-		boolean proceed = true;
-		try {
-			while (proceed && searchCursor.next()) {
-				Response response = searchCursor.get();
-				if (response instanceof SearchResultEntry) {
-			        Entry entry = ((SearchResultEntry)response).getEntry();
-			        logSearchResult(connection, entry);
-			        proceed = handleResult(connection, entry);
-			        
-				} else {
-			    	LOG.warn("Got unexpected response: {0}", response);
-			    }
+		int numAttempts = 0;
+		while (true) {
+			numAttempts++;
+			if (numAttempts > getConfiguration().getMaximumNumberOfAttempts()) {
+				// TODO: better exception. Maybe re-throw exception from the last error?
+				throw new ConnectorIOException("Maximum number of attemps exceeded");
 			}
-			
-			SearchResultDone searchResultDone = searchCursor.getSearchResultDone();
-			if (searchResultDone != null) {
-				LdapResult ldapResult = searchResultDone.getLdapResult();
-		    	logSearchResult(connection, "Done", ldapResult);
-		    	
-		    	if (ldapResult.getResultCode() == ResultCodeEnum.REFERRAL && !getConfiguration().isReferralStrategyThrow()) {
-		    		Referral referral = ldapResult.getReferral();
-		    		if (getConfiguration().isReferralStrategyIgnore()) {
-		    			LOG.ok("Ignoring referral {0}", referral);
-		    		} else {
-		    			LOG.ok("Following referral {0}", referral);
-		    		}
-		    		
-		    	} else if (ldapResult.getResultCode() != ResultCodeEnum.SUCCESS) {
-					String msg = "LDAP error during search: "+LdapUtil.formatLdapMessage(ldapResult);
-					if (ldapResult.getResultCode() == ResultCodeEnum.SIZE_LIMIT_EXCEEDED && getOptions() != null && getOptions().getAllowPartialResults() != null && getOptions().getAllowPartialResults()) {
-						LOG.ok("{0} (allowed error)", msg);
-						setCompleteResultSet(false);
+		
+			SearchCursor searchCursor = executeSearch(connection, req);
+			boolean proceed = true;
+			try {
+				while (proceed && searchCursor.next()) {
+					Response response = searchCursor.get();
+					if (response instanceof SearchResultEntry) {
+				        Entry entry = ((SearchResultEntry)response).getEntry();
+				        logSearchResult(connection, entry);
+				        proceed = handleResult(connection, entry);
+				        
 					} else {
-						LOG.error("{0}", msg);
-						throw LdapUtil.processLdapResult("LDAP error during search", ldapResult);
-					}
+				    	LOG.warn("Got unexpected response: {0}", response);
+				    }
 				}
-		    	
+				
+				SearchResultDone searchResultDone = searchCursor.getSearchResultDone();
+				searchCursor.close();
+				
+				if (searchResultDone == null) {
+					break;
+				} else {
+					LdapResult ldapResult = searchResultDone.getLdapResult();
+			    	logSearchResult(connection, "Done", ldapResult);
+			    	
+			    	if (ldapResult.getResultCode() == ResultCodeEnum.REFERRAL && !getConfiguration().isReferralStrategyThrow()) {
+			    		Referral referral = ldapResult.getReferral();
+			    		if (getConfiguration().isReferralStrategyIgnore()) {
+			    			LOG.ok("Ignoring referral {0}", referral);
+			    		} else {
+			    			LOG.ok("Following referral {0}", referral);
+			    			connection = getConnectionManager().getConnection(baseDn, referral);
+			    			if (connection == null) {
+			    				throw new ConnectorIOException("Cannot get connection based on referral "+referral);
+			    			}
+			    		}
+			    		
+			    	} else if (ldapResult.getResultCode() == ResultCodeEnum.SUCCESS) {
+			    		break;
+			    		
+			    	} else {
+						String msg = "LDAP error during search: "+LdapUtil.formatLdapMessage(ldapResult);
+						if (ldapResult.getResultCode() == ResultCodeEnum.SIZE_LIMIT_EXCEEDED && getOptions() != null && getOptions().getAllowPartialResults() != null && getOptions().getAllowPartialResults()) {
+							LOG.ok("{0} (allowed error)", msg);
+							setCompleteResultSet(false);
+							break;
+						} else {
+							LOG.error("{0}", msg);
+							throw LdapUtil.processLdapResult("LDAP error during search", ldapResult);
+						}
+					}
+			    	
+				}
+				
+			} catch (CursorException e) {
+				// TODO: better error handling
+				throw new ConnectorIOException(e.getMessage(), e);
 			}
-			
-			searchCursor.close();
-		} catch (CursorException e) {
-			// TODO: better error handling
-			throw new ConnectorIOException(e.getMessage(), e);
 		}
 	}
 

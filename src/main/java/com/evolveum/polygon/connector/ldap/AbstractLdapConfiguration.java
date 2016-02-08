@@ -118,6 +118,13 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
     private long connectTimeout = 10000;
     
     /**
+     * Maximum number of attempts to retrieve the entry or to re-try the operation.
+     * This number is applicable in replicated topology when handling connection failures
+     * and re-trying on another server, when following referrals and in similar situations.
+     */
+    private int maximumNumberOfAttempts = 10;
+    
+    /**
      * The base DN that the connector will use if the base DN is not specified explicitly.
      */
     private String baseContext;
@@ -322,6 +329,14 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 
 	public void setConnectTimeout(long connectTimeout) {
 		this.connectTimeout = connectTimeout;
+	}
+
+	public int getMaximumNumberOfAttempts() {
+		return maximumNumberOfAttempts;
+	}
+
+	public void setMaximumNumberOfAttempts(int maximumNumberOfAttempts) {
+		this.maximumNumberOfAttempts = maximumNumberOfAttempts;
 	}
 
 	public String getBaseContext() {
