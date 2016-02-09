@@ -28,6 +28,7 @@ import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.exception.LdapException;
 import org.apache.directory.api.ldap.model.filter.ExprNode;
 import org.apache.directory.api.ldap.model.message.LdapResult;
+import org.apache.directory.api.ldap.model.message.Referral;
 import org.apache.directory.api.ldap.model.message.Response;
 import org.apache.directory.api.ldap.model.message.ResultCodeEnum;
 import org.apache.directory.api.ldap.model.message.SearchRequest;
@@ -85,7 +86,7 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
         	if (getOptions().getPagedResultsOffset() < 1) {
         		throw new UnsupportedOperationException("Offset "+getOptions().getPagedResultsOffset()+" is not supported when VLV is used");
         	}
-        	index = getOptions().getPagedResultsOffset() - 1;
+        	index = getOptions().getPagedResultsOffset();
         }
         Integer numberOfEntriesToReturn = null; // null means "as many as there are"
         if (getOptions() != null && getOptions().getPageSize() != null) {
@@ -105,6 +106,7 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
         
         Dn lastResultDn = null;
         int numberOfResutlsReturned = 0;
+        int referralAttempts = 0;
         while (proceed) {
         	
         	SearchRequest req = new SearchRequestImpl();
@@ -168,7 +170,11 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
     			}
     			
     			SearchResultDone searchResultDone = searchCursor.getSearchResultDone();
-    			if (searchResultDone != null) {
+    			searchCursor.close();
+    			
+    			if (searchResultDone == null) {
+					break;
+				} else {
     				LdapResult ldapResult = searchResultDone.getLdapResult();
 			    	// process VLV response
 			    	VirtualListViewResponse vlvResponseControl = (VirtualListViewResponse)searchResultDone.getControl(VirtualListViewResponse.OID);
@@ -195,21 +201,44 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
 			    		lastListSize = -1;
 			    	}
 			    	logSearchResult(connection, "Done", ldapResult, extra);
-			    	if (ldapResult.getResultCode() != ResultCodeEnum.SUCCESS) {
-    					String msg = "LDAP error during search: "+LdapUtil.formatLdapMessage(ldapResult);
-    					if (ldapResult.getResultCode() == ResultCodeEnum.SIZE_LIMIT_EXCEEDED && getOptions() != null && getOptions().getAllowPartialResults() != null && getOptions().getAllowPartialResults()) {
-    						LOG.ok("{0} (allowed error)", msg);
-    						setCompleteResultSet(false);
-    					} else {
-    						LOG.error("{0}", msg);
-    						throw LdapUtil.processLdapResult("LDAP error during search", ldapResult);
-    					}
-    					searchCursor.close();
-    					break;
-    				}
+			    	
+			    	if (ldapResult.getResultCode() == ResultCodeEnum.REFERRAL && !getConfiguration().isReferralStrategyThrow()) {
+			    		Referral referral = ldapResult.getReferral();
+			    		if (getConfiguration().isReferralStrategyIgnore()) {
+			    			LOG.ok("Ignoring referral {0}", referral);
+			    		} else {
+			    			LOG.ok("Following referral {0}", referral);
+			    			referralAttempts++;
+			    			if (referralAttempts > getConfiguration().getMaximumNumberOfAttempts()) {
+			    				// TODO: better exception. Maybe re-throw exception from the last error?
+			    				throw new ConnectorIOException("Maximum number of attemps exceeded");
+			    			}
+			    			connection = getConnectionManager().getConnection(baseDn, referral);
+			    			if (connection == null) {
+			    				throw new ConnectorIOException("Cannot get connection based on referral "+referral);
+			    			}
+			    			lastListSize = 0;
+			    	        cookie = null;
+			    			continue;
+			    		}
+			    		
+			    	} else if (ldapResult.getResultCode() == ResultCodeEnum.SUCCESS) {
+			    		// continue the loop
+			    		
+			    	} else {
+						String msg = "LDAP error during search: "+LdapUtil.formatLdapMessage(ldapResult);
+						if (ldapResult.getResultCode() == ResultCodeEnum.SIZE_LIMIT_EXCEEDED && getOptions() != null && getOptions().getAllowPartialResults() != null && getOptions().getAllowPartialResults()) {
+							LOG.ok("{0} (allowed error)", msg);
+							setCompleteResultSet(false);
+							break;
+						} else {
+							LOG.error("{0}", msg);
+							throw LdapUtil.processLdapResult("LDAP error during search", ldapResult);
+						}
+					}
+			    	
     			}
     			
-    			searchCursor.close();
     			
     		} catch (CursorException e) {
     			// TODO: better error handling

@@ -85,7 +85,7 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 		int index = rnd.nextInt(ldapUrls.size());
 		String urlString = null;
 		Iterator<String> iterator = ldapUrls.iterator();
-		for (int i=0; i<index; i++) {
+		for (int i=0; i<=index; i++) {
 			urlString = iterator.next();
 		}
 		LdapUrl ldapUrl;

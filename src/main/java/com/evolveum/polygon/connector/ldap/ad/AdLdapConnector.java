@@ -58,6 +58,12 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 	protected AdSchemaTranslator getSchemaTranslator() {
 		return (AdSchemaTranslator)super.getSchemaTranslator();
 	}
+	
+	@Override
+    protected boolean isLogSchemaErrors() {
+		// There are too many built-in schema errors in AD that this only pollutes the logs
+		return false;
+	}
 
 	@Override
 	protected void preCreate(org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass, Entry entry) {

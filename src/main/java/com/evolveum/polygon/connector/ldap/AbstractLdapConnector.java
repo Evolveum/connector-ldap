@@ -212,8 +212,10 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
     			if ( !defSchemaManager.getErrors().isEmpty() ) {
     				if (schemaQuirksMode) {
     					LOG.ok("There are {0} schema errors, but we are in quirks mode so we are ignoring them", defSchemaManager.getErrors().size());
-    					for (Throwable error: defSchemaManager.getErrors()) {
-    						LOG.ok("Schema error (ignored): {0}: {1}", error.getClass().getName(), error.getMessage());
+    					if (isLogSchemaErrors()) {
+	    					for (Throwable error: defSchemaManager.getErrors()) {
+	    						LOG.ok("Schema error (ignored): {0}: {1}", error.getClass().getName(), error.getMessage());
+	    					}
     					}
     				} else {
     					throw new ConnectorIOException("Errors loading schema "+defSchemaManager.getErrors());
@@ -228,7 +230,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
     		
     		try {
 				LOG.info("Schema loaded, {0} schemas, {1} object classes, {2} errors",
-						schemaManager.getLoader().getAllSchemas(),
+						schemaManager.getLoader().getAllSchemas().size(),
 						schemaManager.getObjectClassRegistry().size(),
 						schemaManager.getErrors().size());
 			} catch (Exception e) {
@@ -238,7 +240,11 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
     	return schemaManager;
     }
     
-    protected SchemaTranslator<C> getSchemaTranslator() {
+    protected boolean isLogSchemaErrors() {
+		return true;
+	}
+
+	protected SchemaTranslator<C> getSchemaTranslator() {
     	if (schemaTranslator == null) {
     		schemaTranslator = createSchemaTranslator();
     		connectionManager.getBinaryAttributeDetector().setSchemaTranslator(schemaTranslator);
@@ -754,7 +760,10 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 					LdapNetworkConnection connection = connectionManager.getConnection(oldDn);
 					try {
 						LdapUtil.logOperationReq(connection, "MoveAndRename REQ {0} -> {1}", oldDn, newDn);
-						connection.moveAndRename(oldDn, newDn);
+						// Make sure that DNs are passed in as (user-provided) strings. Otherwise the Directory API
+						// will convert it do OID=value notation. And some LDAP servers (such as OpenDJ) does not handle
+						// that well.
+						connection.moveAndRename(oldDn.getName(), newDn.getName());
 						LdapUtil.logOperationRes(connection, "MoveAndRename RES OK {0} -> {1}", oldDn, newDn);
 					} catch (LdapException e) {
 						LdapUtil.logOperationErr(connection, "MoveAndRename ERROR {0} -> {1}: {2}", oldDn, newDn, e.getMessage(), e);

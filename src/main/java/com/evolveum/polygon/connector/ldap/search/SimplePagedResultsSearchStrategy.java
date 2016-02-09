@@ -22,6 +22,7 @@ import org.apache.directory.api.ldap.model.exception.LdapException;
 import org.apache.directory.api.ldap.model.filter.ExprNode;
 import org.apache.directory.api.ldap.model.message.Control;
 import org.apache.directory.api.ldap.model.message.LdapResult;
+import org.apache.directory.api.ldap.model.message.Referral;
 import org.apache.directory.api.ldap.model.message.Response;
 import org.apache.directory.api.ldap.model.message.ResultCodeEnum;
 import org.apache.directory.api.ldap.model.message.SearchRequest;
@@ -94,6 +95,7 @@ public class SimplePagedResultsSearchStrategy<C extends AbstractLdapConfiguratio
 		boolean proceed = true;
 		int numberOfResutlsHandled = 0;
         int numberOfResultsSkipped = 0;
+        int referralAttempts = 0;
         
         LdapNetworkConnection connection = getConnectionManager().getConnection(baseDn);
         do {
@@ -151,7 +153,9 @@ public class SimplePagedResultsSearchStrategy<C extends AbstractLdapConfiguratio
     			}
     			
     			SearchResultDone searchResultDone = searchCursor.getSearchResultDone();
-    			if (searchResultDone != null) {
+    			searchCursor.close();
+    			
+				if (searchResultDone != null) {
     				LdapResult ldapResult = searchResultDone.getLdapResult();
 			    	PagedResults pagedResultsResponseControl = (PagedResults)searchResultDone.getControl(PagedResults.OID);
 			    	String extra = "no paged response control";
@@ -176,7 +180,31 @@ public class SimplePagedResultsSearchStrategy<C extends AbstractLdapConfiguratio
 			    		lastListSize = -1;
 			    	}
 			    	logSearchResult(connection, "Done", ldapResult, extra);
-    				if (ldapResult.getResultCode() != ResultCodeEnum.SUCCESS) {
+			    	
+			    	if (ldapResult.getResultCode() == ResultCodeEnum.REFERRAL && !getConfiguration().isReferralStrategyThrow()) {
+			    		Referral referral = ldapResult.getReferral();
+			    		if (getConfiguration().isReferralStrategyIgnore()) {
+			    			LOG.ok("Ignoring referral {0}", referral);
+			    		} else {
+			    			LOG.ok("Following referral {0}", referral);
+			    			referralAttempts++;
+			    			if (referralAttempts > getConfiguration().getMaximumNumberOfAttempts()) {
+			    				// TODO: better exception. Maybe re-throw exception from the last error?
+			    				throw new ConnectorIOException("Maximum number of attemps exceeded");
+			    			}
+			    			connection = getConnectionManager().getConnection(baseDn, referral);
+			    			if (connection == null) {
+			    				throw new ConnectorIOException("Cannot get connection based on referral "+referral);
+			    			}
+			    			lastListSize = -1;
+			    	        cookie = null;
+			    			continue;
+			    		}
+			    		
+			    	} else if (ldapResult.getResultCode() == ResultCodeEnum.SUCCESS) {
+			    		// continue the loop
+			    		
+			    	} else {
     					String msg = "LDAP error during search: "+LdapUtil.formatLdapMessage(ldapResult);
     					if (ldapResult.getResultCode() == ResultCodeEnum.SIZE_LIMIT_EXCEEDED && getOptions() != null && getOptions().getAllowPartialResults() != null && getOptions().getAllowPartialResults()) {
     						LOG.ok("{0} (allowed error)", msg);
@@ -185,12 +213,10 @@ public class SimplePagedResultsSearchStrategy<C extends AbstractLdapConfiguratio
     						LOG.error("{0}", msg);
     						throw LdapUtil.processLdapResult("LDAP error during search", ldapResult);
     					}
-    					searchCursor.close();
     					break;
     				}
     			}
     			
-    			searchCursor.close();
     		} catch (CursorException e) {
     			// TODO: better error handling
     			LOG.error("Error:", e);
