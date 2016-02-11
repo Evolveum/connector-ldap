@@ -26,6 +26,7 @@ import org.apache.commons.lang.ArrayUtils;
 import org.apache.directory.api.ldap.codec.api.BinaryAttributeDetector;
 import org.apache.directory.api.ldap.extras.controls.vlv.VirtualListViewRequest;
 import org.apache.directory.api.ldap.model.cursor.CursorException;
+import org.apache.directory.api.ldap.model.cursor.CursorLdapReferralException;
 import org.apache.directory.api.ldap.model.cursor.EntryCursor;
 import org.apache.directory.api.ldap.model.entry.DefaultAttribute;
 import org.apache.directory.api.ldap.model.entry.DefaultEntry;
@@ -57,6 +58,7 @@ import org.apache.directory.api.ldap.model.exception.LdapSchemaException;
 import org.apache.directory.api.ldap.model.exception.LdapSchemaViolationException;
 import org.apache.directory.api.ldap.model.exception.LdapServiceUnavailableException;
 import org.apache.directory.api.ldap.model.exception.LdapStrongAuthenticationRequiredException;
+import org.apache.directory.api.ldap.model.exception.LdapURLEncodingException;
 import org.apache.directory.api.ldap.model.exception.LdapUnwillingToPerformException;
 import org.apache.directory.api.ldap.model.filter.EqualityNode;
 import org.apache.directory.api.ldap.model.filter.ExprNode;
@@ -73,6 +75,7 @@ import org.apache.directory.api.ldap.model.message.controls.PagedResults;
 import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.ldap.model.schema.AttributeType;
 import org.apache.directory.api.ldap.model.schema.SchemaManager;
+import org.apache.directory.api.ldap.model.url.LdapUrl;
 import org.apache.directory.api.ldap.schema.manager.impl.DefaultSchemaManager;
 import org.apache.directory.ldap.client.api.DefaultSchemaLoader;
 import org.apache.directory.ldap.client.api.LdapConnectionConfig;
@@ -168,6 +171,9 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
         this.configuration.recompute();
         connectionManager = new ConnectionManager<>(this.configuration);
         connectionManager.connect();
+        if (LOG.isOk()) {
+        	LOG.ok("Servers:\n{0}", connectionManager.dumpServers());
+        }
     }
     
     @Override
@@ -236,6 +242,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			} catch (Exception e) {
 				throw new RuntimeException(e.getMessage(),e);
 			}
+    		connectionManager.apply(schemaManager);
     	}
     	return schemaManager;
     }
@@ -684,12 +691,28 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		AddRequest addRequest = new AddRequestImpl();
 		addRequest.setEntry(entry);
 		
+		Dn entryDn = addRequest.getEntryDn();
+		try {
+			entryDn.apply(schemaManager);
+		} catch (LdapInvalidDnException e) {
+			throw new InvalidAttributeValueException("Invalid entry DN '"+entryDn+"': "+e.getMessage(), e);
+		}
+		LdapNetworkConnection connection = connectionManager.getConnection(entryDn);
+		
+		LdapUtil.logOperationReq(connection, "Add REQ Entry:\n{0}" , entry);
+		
 		AddResponse addResponse;
 		try {
-			addResponse = connectionManager.getConnection(addRequest.getEntryDn()).add(addRequest);
+			
+			addResponse = connection.add(addRequest);
+			
 		} catch (LdapException e) {
+			LdapUtil.logOperationErr(connection, "Add ERROR {0}: {1}", dn, e.getMessage(), e);
 			throw LdapUtil.processLdapException("Error adding LDAP entry "+dn, e);
 		}
+		
+		LdapUtil.logOperationRes(connection, "Add RES {0}: {1}", dn, addResponse.getLdapResult());
+		
 		if (addResponse.getLdapResult().getResultCode() != ResultCodeEnum.SUCCESS) {
 			throw LdapUtil.processLdapResult("Error adding LDAP entry "+dn, addResponse.getLdapResult());
 		}
@@ -711,7 +734,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		
 		// read the entry back and return UID
 		try {
-			EntryCursor cursor = connectionManager.getConnection(new Dn(dn)).search(
+			EntryCursor cursor = connection.search(
 					dn, LdapConfiguration.SEARCH_FILTER_ALL, SearchScope.OBJECT, uidAttributeName);
 			if (cursor.next()) {
 				Entry entryRead = cursor.get();
@@ -1035,7 +1058,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 	}
 	
 	private Dn resolveDn(ObjectClass objectClass, Uid uid, OperationOptions options) {
-		Dn dn;
+		Dn dn = null;
 		String uidAttributeName = configuration.getUidAttribute();
 		if (LdapUtil.isDnAttribute(uidAttributeName)) {
 			dn = getSchemaTranslator().toDn(uid);
@@ -1052,21 +1075,59 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			}
 			Value<Object> ldapValue = getSchemaTranslator().toLdapIdentifierValue(ldapAttributeType, uid.getUidValue());
 			ExprNode filterNode = new EqualityNode<Object>(ldapAttributeType, ldapValue);
+			String filterString = filterNode.toString();
+			LOG.ok("Resolving DN for UID {0}", uid);
 			LdapNetworkConnection connection = connectionManager.getConnection(baseDn);
-			try {
-				EntryCursor cursor = connection.search(baseDn, filterNode.toString(), scope, uidAttributeName);
-				if (cursor.next()) {
-					Entry entry = cursor.get();
-					dn = entry.getDn();
-				} else {
-					// Something wrong happened, the entry was not created.
-					throw new UnknownUidException("Entry for UID "+uid+" was not found (therefore it cannot be deleted)");
+			
+			int referralAttempts = 0;
+			while (referralAttempts < configuration.getMaximumNumberOfAttempts()) {
+				referralAttempts++;
+				LdapUtil.logOperationReq(connection, "Search REQ base={0}, filter={1}, scope={2}, attributes={3}, controls=null",
+						baseDn, filterString, scope, uidAttributeName);
+				try {
+					EntryCursor cursor = connection.search(baseDn, filterString, scope, uidAttributeName);
+					if (cursor.next()) {
+						Entry entry = cursor.get();
+						if (LOG.isOk()) {
+							LdapUtil.logOperationRes(connection, "Search RES {0}", entry);
+						}
+						dn = entry.getDn();
+						break;
+					} else {
+						// Something wrong happened, the entry was not created.
+						throw new UnknownUidException("Entry for UID "+uid+" was not found (therefore it cannot be deleted)");
+					}
+				} catch (CursorLdapReferralException e) {
+					LOG.ok("Got cursor referral exception while resolving {0}: {1}", uid, e.getReferralInfo());
+					if (configuration.isReferralStrategyFollow()) {
+						LdapUrl referralUrl;
+						try {
+							referralUrl = new LdapUrl(e.getReferralInfo());
+						} catch (LdapURLEncodingException ee) {
+							throw new InvalidAttributeValueException("Invalid URL in referral '"+e.getReferralInfo()+": "+ee.getMessage(), ee);
+						}
+						connection = connectionManager.getConnection(baseDn, referralUrl);
+						if (referralUrl.getDn() != null) {
+							baseDn = referralUrl.getDn();
+						}
+						if (LOG.isOk()) {
+							LOG.ok("Following referral to {0} / {1}", LdapUtil.formatConnectionInfo(connection), baseDn);
+						}
+					} else if (configuration.isReferralStrategyIgnore()) {
+						// We cannot really "ignore" this referral otherwise we cannot resolve DN
+						throw new ConfigurationException("Got referral to "+e.getReferralInfo()+" while resolving DN. "
+								+ "The referral strategy is set to ignore therefore we cannot follow the referral and complete"
+								+ " DN resolving.");
+					} else {
+						throw new ConnectorIOException("Error reading LDAP entry for UID "+uid+": "+e.getMessage(), e);
+					}
+				} catch (LdapException e) {
+					throw LdapUtil.processLdapException("Error reading LDAP entry for UID "+uid, e);
+				} catch (CursorException e) {
+					throw new ConnectorIOException("Error reading LDAP entry for UID "+uid+": "+e.getMessage(), e);
 				}
-			} catch (LdapException e) {
-				throw LdapUtil.processLdapException("Error reading LDAP entry for UID "+uid, e);
-			} catch (CursorException e) {
-				throw new ConnectorIOException("Error reading LDAP entry for UID "+uid+": "+e.getMessage(), e);
 			}
+			
 		}
 		
 		dn = schemaTranslator.toDn(dn);

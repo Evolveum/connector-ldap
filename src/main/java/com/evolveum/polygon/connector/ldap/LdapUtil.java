@@ -527,7 +527,7 @@ public class LdapUtil {
 		}
 	}
 
-	private static String formatConnectionInfo(LdapNetworkConnection connection) {
+	public static String formatConnectionInfo(LdapNetworkConnection connection) {
 		StringBuilder sb = new StringBuilder();
 		LdapConnectionConfig config = connection.getConfig();
 		Integer port = null;

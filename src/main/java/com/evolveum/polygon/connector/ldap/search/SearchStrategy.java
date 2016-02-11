@@ -26,6 +26,7 @@ import org.apache.directory.api.ldap.model.filter.ExprNode;
 import org.apache.directory.api.ldap.model.message.AliasDerefMode;
 import org.apache.directory.api.ldap.model.message.Control;
 import org.apache.directory.api.ldap.model.message.LdapResult;
+import org.apache.directory.api.ldap.model.message.Referral;
 import org.apache.directory.api.ldap.model.message.SearchRequest;
 import org.apache.directory.api.ldap.model.message.SearchScope;
 import org.apache.directory.api.ldap.model.message.controls.PagedResults;
@@ -39,6 +40,7 @@ import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.framework.common.exceptions.ConfigurationException;
 import org.identityconnectors.framework.common.objects.ObjectClass;
 import org.identityconnectors.framework.common.objects.OperationOptions;
+import org.identityconnectors.framework.common.objects.QualifiedUid;
 import org.identityconnectors.framework.common.objects.ResultsHandler;
 import org.identityconnectors.framework.common.objects.SortKey;
 
@@ -307,5 +309,36 @@ public abstract class SearchStrategy<C extends AbstractLdapConfiguration> {
 			sortReqControl.addSortKey(ldapSortKey);
 		}
 		return sortReqControl;
-	}	
+	}
+	
+	protected LdapNetworkConnection getConnection(Dn base) {
+		return connectionManager.getConnection(getEffectiveBase(base));
+	}
+
+	protected LdapNetworkConnection getConnection(Dn base, Referral referral) {
+		return connectionManager.getConnection(getEffectiveBase(base), referral);
+	}
+
+	
+	private Dn getEffectiveBase(Dn origBase) {
+		if (origBase.isSchemaAware()) {
+			return origBase;
+		} else {
+			// Insanity such as <GUID=....>. No good using that to select
+			// the connection. Try to use the container from options instead.
+			if (options != null && options.getContainer() != null) {
+				QualifiedUid containerQUid = options.getContainer();
+				// HACK WARNING: this is a hack to overcome bad framework design.
+				// Even though this has to be Uid, we interpret it as a DN.
+				// The framework uses UID to identify everything. This is naive.
+				// Strictly following the framework contract would mean to always
+				// do two LDAP searches instead of one in this case.
+				// So we deviate from the contract here. It is naughty, but it
+				// is efficient.
+				return schemaTranslator.toDn(containerQUid.getUid());
+			} else {
+				return origBase;
+			}
+		}
+	}
 }
