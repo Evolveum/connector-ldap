@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015 Evolveum
+ * Copyright (c) 2015-2016 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 package com.evolveum.polygon.connector.ldap.schema;
 
 import org.apache.directory.api.ldap.model.filter.ExprNode;
+import org.apache.directory.api.ldap.model.name.Dn;
 
 /**
  * @author semancik
@@ -24,9 +25,9 @@ import org.apache.directory.api.ldap.model.filter.ExprNode;
 public class ScopedFilter {
 	
 	private ExprNode filter = null;
-	private String baseDn = null;
+	private Dn baseDn = null;
 	
-	public ScopedFilter(ExprNode filter, String baseDn) {
+	public ScopedFilter(ExprNode filter, Dn baseDn) {
 		super();
 		this.filter = filter;
 		this.baseDn = baseDn;
@@ -37,7 +38,7 @@ public class ScopedFilter {
 		this.filter = filter;
 	}
 
-	public ScopedFilter(String baseDn) {
+	public ScopedFilter(Dn baseDn) {
 		super();
 		this.baseDn = baseDn;
 	}
@@ -46,7 +47,7 @@ public class ScopedFilter {
 		return filter;
 	}
 
-	public String getBaseDn() {
+	public Dn getBaseDn() {
 		return baseDn;
 	}
 

@@ -21,6 +21,7 @@ import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.exception.LdapException;
 import org.apache.directory.api.ldap.model.filter.ExprNode;
 import org.apache.directory.api.ldap.model.message.LdapResult;
+import org.apache.directory.api.ldap.model.message.Referral;
 import org.apache.directory.api.ldap.model.message.Response;
 import org.apache.directory.api.ldap.model.message.ResultCodeEnum;
 import org.apache.directory.api.ldap.model.message.SearchRequest;
@@ -37,6 +38,7 @@ import org.identityconnectors.framework.common.objects.OperationOptions;
 import org.identityconnectors.framework.common.objects.ResultsHandler;
 
 import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
+import com.evolveum.polygon.connector.ldap.ConnectionManager;
 import com.evolveum.polygon.connector.ldap.LdapUtil;
 import com.evolveum.polygon.connector.ldap.schema.SchemaTranslator;
 
@@ -45,24 +47,24 @@ import com.evolveum.polygon.connector.ldap.schema.SchemaTranslator;
  * 
  * @author Radovan Semancik
  */
-public class DefaultSearchStrategy extends SearchStrategy {
+public class DefaultSearchStrategy<C extends AbstractLdapConfiguration> extends SearchStrategy<C> {
 	
 	private static final Log LOG = Log.getLog(DefaultSearchStrategy.class);
 
-	public DefaultSearchStrategy(LdapNetworkConnection connection, AbstractLdapConfiguration configuration,
-			SchemaTranslator schemaTranslator, ObjectClass objectClass,
+	public DefaultSearchStrategy(ConnectionManager<C> connectionManager, AbstractLdapConfiguration configuration,
+			SchemaTranslator<C> schemaTranslator, ObjectClass objectClass,
 			org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass, ResultsHandler handler,
 			OperationOptions options) {
-		super(connection, configuration, schemaTranslator, objectClass, ldapObjectClass, handler, options);
+		super(connectionManager, configuration, schemaTranslator, objectClass, ldapObjectClass, handler, options);
 	}
 
 	/* (non-Javadoc)
 	 * @see com.evolveum.polygon.connector.ldap.search.SearchStrategy#search(java.lang.String, org.apache.directory.api.ldap.model.filter.ExprNode, org.identityconnectors.framework.common.objects.ResultsHandler)
 	 */
 	@Override
-	public void search(String baseDn, ExprNode filterNode, SearchScope scope, String[] attributes) throws LdapException {
+	public void search(Dn baseDn, ExprNode filterNode, SearchScope scope, String[] attributes) throws LdapException {
 		SearchRequest req = new SearchRequestImpl();
-		req.setBase(new Dn(getSchemaTranslator().getSchemaManager(), baseDn));
+		req.setBase(baseDn);
 		req.setFilter(filterNode);
 		req.setScope(scope);
 		applyCommonConfiguration(req);
@@ -70,41 +72,73 @@ public class DefaultSearchStrategy extends SearchStrategy {
 			req.addAttributes(attributes);
 		};
 		
-		SearchCursor searchCursor = executeSearch(req);
-		boolean proceed = true;
-		try {
-			while (proceed && searchCursor.next()) {
-				Response response = searchCursor.get();
-				if (response instanceof SearchResultEntry) {
-			        Entry entry = ((SearchResultEntry)response).getEntry();
-			        logSearchResult(entry);
-			        proceed = handleResult(entry);
-			        
-				} else {
-			    	LOG.warn("Got unexpected response: {0}", response);
-			    }
+		LdapNetworkConnection connection = getConnectionManager().getConnection(baseDn);
+		
+		int numAttempts = 0;
+		while (true) {
+			numAttempts++;
+			if (numAttempts > getConfiguration().getMaximumNumberOfAttempts()) {
+				// TODO: better exception. Maybe re-throw exception from the last error?
+				throw new ConnectorIOException("Maximum number of attemps exceeded");
 			}
-			
-			SearchResultDone searchResultDone = searchCursor.getSearchResultDone();
-			if (searchResultDone != null) {
-				LdapResult ldapResult = searchResultDone.getLdapResult();
-		    	logSearchResult("Done", ldapResult);    				
-		    	if (ldapResult.getResultCode() != ResultCodeEnum.SUCCESS) {
-					String msg = "LDAP error during search: "+LdapUtil.formatLdapMessage(ldapResult);
-					if (ldapResult.getResultCode() == ResultCodeEnum.SIZE_LIMIT_EXCEEDED && getOptions() != null && getOptions().getAllowPartialResults() != null && getOptions().getAllowPartialResults()) {
-						LOG.ok("{0} (allowed error)", msg);
-						setCompleteResultSet(false);
+		
+			SearchCursor searchCursor = executeSearch(connection, req);
+			boolean proceed = true;
+			try {
+				while (proceed && searchCursor.next()) {
+					Response response = searchCursor.get();
+					if (response instanceof SearchResultEntry) {
+				        Entry entry = ((SearchResultEntry)response).getEntry();
+				        logSearchResult(connection, entry);
+				        proceed = handleResult(connection, entry);
+				        
 					} else {
-						LOG.error("{0}", msg);
-						throw LdapUtil.processLdapResult("LDAP error during search", ldapResult);
-					}
+				    	LOG.warn("Got unexpected response: {0}", response);
+				    }
 				}
+				
+				SearchResultDone searchResultDone = searchCursor.getSearchResultDone();
+				searchCursor.close();
+				
+				if (searchResultDone == null) {
+					break;
+				} else {
+					LdapResult ldapResult = searchResultDone.getLdapResult();
+			    	logSearchResult(connection, "Done", ldapResult);
+			    	
+			    	if (ldapResult.getResultCode() == ResultCodeEnum.REFERRAL && !getConfiguration().isReferralStrategyThrow()) {
+			    		Referral referral = ldapResult.getReferral();
+			    		if (getConfiguration().isReferralStrategyIgnore()) {
+			    			LOG.ok("Ignoring referral {0}", referral);
+			    		} else {
+			    			LOG.ok("Following referral {0}", referral);
+			    			connection = getConnectionManager().getConnection(baseDn, referral);
+			    			if (connection == null) {
+			    				throw new ConnectorIOException("Cannot get connection based on referral "+referral);
+			    			}
+			    		}
+			    		
+			    	} else if (ldapResult.getResultCode() == ResultCodeEnum.SUCCESS) {
+			    		break;
+			    		
+			    	} else {
+						String msg = "LDAP error during search: "+LdapUtil.formatLdapMessage(ldapResult);
+						if (ldapResult.getResultCode() == ResultCodeEnum.SIZE_LIMIT_EXCEEDED && getOptions() != null && getOptions().getAllowPartialResults() != null && getOptions().getAllowPartialResults()) {
+							LOG.ok("{0} (allowed error)", msg);
+							setCompleteResultSet(false);
+							break;
+						} else {
+							LOG.error("{0}", msg);
+							throw LdapUtil.processLdapResult("LDAP error during search", ldapResult);
+						}
+					}
+			    	
+				}
+				
+			} catch (CursorException e) {
+				// TODO: better error handling
+				throw new ConnectorIOException(e.getMessage(), e);
 			}
-			
-			searchCursor.close();
-		} catch (CursorException e) {
-			// TODO: better error handling
-			throw new ConnectorIOException(e.getMessage(), e);
 		}
 	}
 

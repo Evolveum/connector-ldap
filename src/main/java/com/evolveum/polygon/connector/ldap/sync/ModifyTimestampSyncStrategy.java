@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015 Evolveum
+ * Copyright (c) 2015-2016 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -64,6 +64,7 @@ import org.identityconnectors.framework.common.objects.Uid;
 import org.identityconnectors.framework.spi.SyncTokenResultsHandler;
 
 import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
+import com.evolveum.polygon.connector.ldap.ConnectionManager;
 import com.evolveum.polygon.connector.ldap.LdapConfiguration;
 import com.evolveum.polygon.connector.ldap.LdapConnector;
 import com.evolveum.polygon.connector.ldap.LdapUtil;
@@ -73,14 +74,14 @@ import com.evolveum.polygon.connector.ldap.schema.SchemaTranslator;
  * @author semancik
  *
  */
-public class ModifyTimestampSyncStrategy extends SyncStrategy {
+public class ModifyTimestampSyncStrategy<C extends AbstractLdapConfiguration> extends SyncStrategy<C> {
 	
 	private static final Log LOG = Log.getLog(ModifyTimestampSyncStrategy.class);
 
 
-	public ModifyTimestampSyncStrategy(AbstractLdapConfiguration configuration, LdapNetworkConnection connection, 
-			SchemaManager schemaManager, SchemaTranslator schemaTranslator) {
-		super(configuration, connection, schemaManager, schemaTranslator);
+	public ModifyTimestampSyncStrategy(AbstractLdapConfiguration configuration, ConnectionManager<C> connectionManager, 
+			SchemaManager schemaManager, SchemaTranslator<C> schemaTranslator) {
+		super(configuration, connectionManager, schemaManager, schemaTranslator);
 	}
 
 	@Override
@@ -129,8 +130,9 @@ public class ModifyTimestampSyncStrategy extends SyncStrategy {
 		int numFoundEntries = 0;
 		int numProcessedEntries = 0;
 		
+		LdapNetworkConnection connection = getConnectionManager().getConnection(getSchemaTranslator().toDn(baseContext));
 		try {
-			EntryCursor searchCursor = getConnection().search(baseContext, searchFilter, SearchScope.SUBTREE, attributesToGet);
+			EntryCursor searchCursor = connection.search(baseContext, searchFilter, SearchScope.SUBTREE, attributesToGet);
 			while (searchCursor.next()) {
 				Entry entry = searchCursor.get();
 				LOG.ok("Found entry: {0}", entry);
@@ -150,7 +152,7 @@ public class ModifyTimestampSyncStrategy extends SyncStrategy {
 				deltaBuilder.setToken(finalToken);
 				
 				deltaBuilder.setDeltaType(deltaType);
-				ConnectorObject targetObject = getSchemaTranslator().toIcfObject(icfObjectClassInfo, entry);
+				ConnectorObject targetObject = getSchemaTranslator().toIcfObject(connection, icfObjectClassInfo, entry);
 				deltaBuilder.setObject(targetObject);
 				
 				handler.handle(deltaBuilder.build());

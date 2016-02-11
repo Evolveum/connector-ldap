@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2014 Evolveum
+ * Copyright (c) 2014-2016 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -42,8 +42,10 @@ import org.apache.directory.api.ldap.model.entry.StringValue;
 import org.apache.directory.api.ldap.model.entry.Value;
 import org.apache.directory.api.ldap.model.exception.LdapException;
 import org.apache.directory.api.ldap.model.exception.LdapInvalidAttributeValueException;
+import org.apache.directory.api.ldap.model.exception.LdapInvalidDnException;
 import org.apache.directory.api.ldap.model.message.controls.PagedResults;
 import org.apache.directory.api.ldap.model.message.controls.SortRequest;
+import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.ldap.model.schema.AttributeType;
 import org.apache.directory.api.ldap.model.schema.LdapSyntax;
 import org.apache.directory.api.ldap.model.schema.SchemaManager;
@@ -82,6 +84,7 @@ import org.identityconnectors.framework.spi.operations.UpdateAttributeValuesOp;
 
 import com.evolveum.polygon.common.SchemaUtil;
 import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
+import com.evolveum.polygon.connector.ldap.ConnectionManager;
 import com.evolveum.polygon.connector.ldap.LdapConfiguration;
 import com.evolveum.polygon.connector.ldap.LdapConnector;
 import com.evolveum.polygon.connector.ldap.LdapUtil;
@@ -129,7 +132,7 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 		return configuration;
 	}
 
-	public Schema translateSchema(LdapNetworkConnection connection) throws InvalidConnectionException {
+	public Schema translateSchema(ConnectionManager<C> connection) throws InvalidConnectionException {
 		SchemaBuilder schemaBuilder = new SchemaBuilder(LdapConnector.class);
 		LOG.ok("Translating LDAP schema from {0}", schemaManager);
 		for (org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass: schemaManager.getObjectClassRegistry()) {
@@ -158,7 +161,7 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 		
 		List<String> supportedControls;
 		try {
-			supportedControls = connection.getSupportedControls();
+			supportedControls = connection.getDefaultConnection().getSupportedControls();
 		} catch (InvalidConnectionException e) {
 			throw e;
 		} catch (LdapException e) {
@@ -203,9 +206,9 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 	/**
 	 * Make sure that we have icfSchema  
 	 */
-	public void prepareIcfSchema(LdapNetworkConnection connection) throws InvalidConnectionException {
+	public void prepareIcfSchema(ConnectionManager<C> connectionManager) throws InvalidConnectionException {
 		if (icfSchema == null) {
-			translateSchema(connection);
+			translateSchema(connectionManager);
 		}
 	}
 	
@@ -772,23 +775,23 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 		}
 	}
 
-	public ConnectorObject toIcfObject(ObjectClass icfObjectClass, Entry entry, AttributeHandler attributeHandler) {
+	public ConnectorObject toIcfObject(LdapNetworkConnection connection, ObjectClass icfObjectClass, Entry entry, AttributeHandler attributeHandler) {
 		ObjectClassInfo icfObjectClassInfo = findObjectClassInfo(icfObjectClass);
 		if (icfObjectClassInfo == null) {
 			throw new InvalidAttributeValueException("No definition for object class "+icfObjectClass);
 		}
-		return toIcfObject(icfObjectClassInfo, entry, null, attributeHandler);
+		return toIcfObject(connection, icfObjectClassInfo, entry, null, attributeHandler);
 	}
 
-	public ConnectorObject toIcfObject(ObjectClassInfo icfStructuralObjectClassInfo, Entry entry) {
-		return toIcfObject(icfStructuralObjectClassInfo, entry, null, null);
+	public ConnectorObject toIcfObject(LdapNetworkConnection connection, ObjectClassInfo icfStructuralObjectClassInfo, Entry entry) {
+		return toIcfObject(connection, icfStructuralObjectClassInfo, entry, null, null);
 	}
 	
-	public ConnectorObject toIcfObject(ObjectClassInfo icfStructuralObjectClassInfo, Entry entry, String dn) {
-		return toIcfObject(icfStructuralObjectClassInfo, entry, dn, null);
+	public ConnectorObject toIcfObject(LdapNetworkConnection connection, ObjectClassInfo icfStructuralObjectClassInfo, Entry entry, String dn) {
+		return toIcfObject(connection, icfStructuralObjectClassInfo, entry, dn, null);
 	}
 	
-	public ConnectorObject toIcfObject(ObjectClassInfo icfStructuralObjectClassInfo, Entry entry, String dn, AttributeHandler attributeHandler) {
+	public ConnectorObject toIcfObject(LdapNetworkConnection connection, ObjectClassInfo icfStructuralObjectClassInfo, Entry entry, String dn, AttributeHandler attributeHandler) {
 		LdapObjectClasses ldapObjectClasses = processObjectClasses(entry);
 		if (icfStructuralObjectClassInfo == null) {
 			icfStructuralObjectClassInfo = icfSchema.findObjectClassInfo(ldapObjectClasses.getLdapLowestStructuralObjectClass().getName());
@@ -843,7 +846,7 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 			if (uidAttributeName.equals(ldapAttributeName)) {
 				continue;
 			}
-			Attribute icfAttribute = toIcfAttribute(entry, ldapAttribute, attributeHandler);
+			Attribute icfAttribute = toIcfAttribute(connection, entry, ldapAttribute, attributeHandler);
 			if (icfAttribute == null) {
 				continue;
 			}
@@ -1017,14 +1020,14 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
         return resSb.toString();
     }
 
-	private Attribute toIcfAttribute(Entry entry, org.apache.directory.api.ldap.model.entry.Attribute ldapAttribute, AttributeHandler attributeHandler) {
+	private Attribute toIcfAttribute(LdapNetworkConnection connection, Entry entry, org.apache.directory.api.ldap.model.entry.Attribute ldapAttribute, AttributeHandler attributeHandler) {
 		AttributeBuilder ab = new AttributeBuilder();
 		String ldapAttributeName = getLdapAttributeName(ldapAttribute);
 		AttributeType ldapAttributeType = schemaManager.getAttributeType(ldapAttributeName);
 		String icfAttributeName = toIcfAttributeName(ldapAttributeType.getName());
 		ab.setName(icfAttributeName);
 		if (attributeHandler != null) {
-			attributeHandler.handle(entry, ldapAttribute, ab);
+			attributeHandler.handle(connection, entry, ldapAttribute, ab);
 		}
 		Iterator<Value<?>> iterator = ldapAttribute.iterator();
 		boolean hasValidValue = false;
@@ -1045,6 +1048,47 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 		} catch (IllegalArgumentException e) {
 			throw new IllegalArgumentException(e.getMessage() + ", attribute "+icfAttributeName+" (ldap: "+ldapAttributeName+")", e);
 		}
+	}
+	
+	public Dn toDn(Attribute attribute) {
+		if (attribute == null) {
+			return null;
+		}
+		return toDn(SchemaUtil.getSingleStringNonBlankValue(attribute));
+	}
+	
+	public Dn toDn(Uid icfUid) {
+		if (icfUid == null) {
+			return null;
+		}
+		return toDn(icfUid.getUidValue());
+	}
+
+	public Dn toDn(String stringDn) {
+		if (stringDn == null) {
+			return null;
+		}
+		try {
+			return new Dn(schemaManager, stringDn);
+		} catch (LdapInvalidDnException e) {
+			throw new InvalidAttributeValueException("Invalid DN '"+stringDn+"': "+e.getMessage(), e);
+		}
+	}
+	
+	// This may seems strange. But it converts non-schema-aware DNs to schema-aware DNs.
+	public Dn toDn(Dn dn) {
+		if (dn == null) {
+			return null;
+		}
+		if (dn.isSchemaAware()) {
+			return dn;
+		}
+		try {
+			dn.apply(schemaManager);
+		} catch (LdapInvalidDnException e) {
+			throw new InvalidAttributeValueException("Invalid DN '"+dn+"': "+e.getMessage(), e);
+		}
+		return dn;
 	}
 
 	static {

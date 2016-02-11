@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015 Evolveum
+ * Copyright (c) 2015-2016 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ import org.identityconnectors.framework.common.objects.SyncResultsHandler;
 import org.identityconnectors.framework.common.objects.SyncToken;
 
 import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
+import com.evolveum.polygon.connector.ldap.ConnectionManager;
 import com.evolveum.polygon.connector.ldap.LdapConfiguration;
 import com.evolveum.polygon.connector.ldap.LdapUtil;
 import com.evolveum.polygon.connector.ldap.schema.SchemaTranslator;
@@ -33,20 +34,20 @@ import com.evolveum.polygon.connector.ldap.schema.SchemaTranslator;
  * @author semancik
  *
  */
-public abstract class SyncStrategy {
+public abstract class SyncStrategy<C extends AbstractLdapConfiguration> {
 	
 	private static final Log LOG = Log.getLog(SyncStrategy.class);
 	
 	private AbstractLdapConfiguration configuration;
-    private LdapNetworkConnection connection;
+    private ConnectionManager<C> connectionManager;
     private SchemaManager schemaManager;
-    private SchemaTranslator schemaTranslator;
+    private SchemaTranslator<C> schemaTranslator;
     
-	public SyncStrategy(AbstractLdapConfiguration configuration, LdapNetworkConnection connection, 
-			SchemaManager schemaManager, SchemaTranslator schemaTranslator) {
+	public SyncStrategy(AbstractLdapConfiguration configuration, ConnectionManager<C> connectionManager, 
+			SchemaManager schemaManager, SchemaTranslator<C> schemaTranslator) {
 		super();
 		this.configuration = configuration;
-		this.connection = connection;
+		this.connectionManager = connectionManager;
 		this.schemaManager = schemaManager;
 		this.schemaTranslator = schemaTranslator;
 	}
@@ -55,8 +56,8 @@ public abstract class SyncStrategy {
 		return configuration;
 	}
 
-	public LdapNetworkConnection getConnection() {
-		return connection;
+	public ConnectionManager<C> getConnectionManager() {
+		return connectionManager;
 	}
 	
 	public SchemaManager getSchemaManager() {

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2014 Evolveum
+ * Copyright (c) 2014-2016 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ import org.apache.directory.api.ldap.model.exception.LdapException;
 import org.apache.directory.api.ldap.model.filter.ExprNode;
 import org.apache.directory.api.ldap.model.message.Control;
 import org.apache.directory.api.ldap.model.message.LdapResult;
+import org.apache.directory.api.ldap.model.message.Referral;
 import org.apache.directory.api.ldap.model.message.Response;
 import org.apache.directory.api.ldap.model.message.ResultCodeEnum;
 import org.apache.directory.api.ldap.model.message.SearchRequest;
@@ -46,6 +47,7 @@ import org.identityconnectors.framework.common.objects.ResultsHandler;
 import org.identityconnectors.framework.common.objects.SortKey;
 
 import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
+import com.evolveum.polygon.connector.ldap.ConnectionManager;
 import com.evolveum.polygon.connector.ldap.LdapConfiguration;
 import com.evolveum.polygon.connector.ldap.LdapUtil;
 import com.evolveum.polygon.connector.ldap.schema.SchemaTranslator;
@@ -54,18 +56,18 @@ import com.evolveum.polygon.connector.ldap.schema.SchemaTranslator;
  * @author semancik
  *
  */
-public class SimplePagedResultsSearchStrategy extends SearchStrategy {
+public class SimplePagedResultsSearchStrategy<C extends AbstractLdapConfiguration> extends SearchStrategy<C> {
 	
 	private static final Log LOG = Log.getLog(SimplePagedResultsSearchStrategy.class);
 	
 	private int lastListSize = -1;
 	private byte[] cookie = null;
 
-	public SimplePagedResultsSearchStrategy(LdapNetworkConnection connection,
-			AbstractLdapConfiguration configuration, SchemaTranslator schemaTranslator, ObjectClass objectClass,
+	public SimplePagedResultsSearchStrategy(ConnectionManager<C> connectionManager,
+			AbstractLdapConfiguration configuration, SchemaTranslator<C> schemaTranslator, ObjectClass objectClass,
 			org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
 			ResultsHandler handler, OperationOptions options) {
-		super(connection, configuration, schemaTranslator, objectClass, ldapObjectClass, handler, options);
+		super(connectionManager, configuration, schemaTranslator, objectClass, ldapObjectClass, handler, options);
 		if (options != null && options.getPagedResultsCookie() != null) {
         	cookie = Base64.decode(options.getPagedResultsCookie());
         }
@@ -75,7 +77,7 @@ public class SimplePagedResultsSearchStrategy extends SearchStrategy {
 	 * @see com.evolveum.polygon.connector.ldap.search.SearchStrategy#search(java.lang.String, org.apache.directory.api.ldap.model.filter.ExprNode, org.apache.directory.api.ldap.model.message.SearchScope, java.lang.String[])
 	 */
 	@Override
-	public void search(String baseDn, ExprNode filterNode, SearchScope scope, String[] attributes)
+	public void search(Dn baseDn, ExprNode filterNode, SearchScope scope, String[] attributes)
 			throws LdapException {
 		
 		SortRequest sortReqControl = createSortControl(null, null);
@@ -93,10 +95,12 @@ public class SimplePagedResultsSearchStrategy extends SearchStrategy {
 		boolean proceed = true;
 		int numberOfResutlsHandled = 0;
         int numberOfResultsSkipped = 0;
+        int referralAttempts = 0;
         
+        LdapNetworkConnection connection = getConnectionManager().getConnection(baseDn);
         do {
         	SearchRequest req = new SearchRequestImpl();
-    		req.setBase(new Dn(baseDn));
+    		req.setBase(baseDn);
     		req.setFilter(filterNode);
     		req.setScope(scope);
     		applyCommonConfiguration(req);
@@ -124,7 +128,7 @@ public class SimplePagedResultsSearchStrategy extends SearchStrategy {
         	req.addControl(pagedResultsControl);
         	
         	int responseResultCount = 0;
-        	SearchCursor searchCursor = executeSearch(req);
+        	SearchCursor searchCursor = executeSearch(connection, req);
     		try {
     			while (proceed && searchCursor.next()) {
     				Response response = searchCursor.get();
@@ -136,8 +140,8 @@ public class SimplePagedResultsSearchStrategy extends SearchStrategy {
                     	} else {
                         	numberOfResutlsHandled++;
         			        Entry entry = ((SearchResultEntry)response).getEntry();
-        			        logSearchResult(entry);
-        			        proceed = handleResult(entry);
+        			        logSearchResult(connection, entry);
+        			        proceed = handleResult(connection, entry);
         			        if (!proceed) {
                             	LOG.ok("Ending search because handler returned false");
                             }
@@ -149,7 +153,9 @@ public class SimplePagedResultsSearchStrategy extends SearchStrategy {
     			}
     			
     			SearchResultDone searchResultDone = searchCursor.getSearchResultDone();
-    			if (searchResultDone != null) {
+    			searchCursor.close();
+    			
+				if (searchResultDone != null) {
     				LdapResult ldapResult = searchResultDone.getLdapResult();
 			    	PagedResults pagedResultsResponseControl = (PagedResults)searchResultDone.getControl(PagedResults.OID);
 			    	String extra = "no paged response control";
@@ -173,8 +179,32 @@ public class SimplePagedResultsSearchStrategy extends SearchStrategy {
 			    		cookie = null;
 			    		lastListSize = -1;
 			    	}
-			    	logSearchResult("Done", ldapResult, extra);
-    				if (ldapResult.getResultCode() != ResultCodeEnum.SUCCESS) {
+			    	logSearchResult(connection, "Done", ldapResult, extra);
+			    	
+			    	if (ldapResult.getResultCode() == ResultCodeEnum.REFERRAL && !getConfiguration().isReferralStrategyThrow()) {
+			    		Referral referral = ldapResult.getReferral();
+			    		if (getConfiguration().isReferralStrategyIgnore()) {
+			    			LOG.ok("Ignoring referral {0}", referral);
+			    		} else {
+			    			LOG.ok("Following referral {0}", referral);
+			    			referralAttempts++;
+			    			if (referralAttempts > getConfiguration().getMaximumNumberOfAttempts()) {
+			    				// TODO: better exception. Maybe re-throw exception from the last error?
+			    				throw new ConnectorIOException("Maximum number of attemps exceeded");
+			    			}
+			    			connection = getConnectionManager().getConnection(baseDn, referral);
+			    			if (connection == null) {
+			    				throw new ConnectorIOException("Cannot get connection based on referral "+referral);
+			    			}
+			    			lastListSize = -1;
+			    	        cookie = null;
+			    			continue;
+			    		}
+			    		
+			    	} else if (ldapResult.getResultCode() == ResultCodeEnum.SUCCESS) {
+			    		// continue the loop
+			    		
+			    	} else {
     					String msg = "LDAP error during search: "+LdapUtil.formatLdapMessage(ldapResult);
     					if (ldapResult.getResultCode() == ResultCodeEnum.SIZE_LIMIT_EXCEEDED && getOptions() != null && getOptions().getAllowPartialResults() != null && getOptions().getAllowPartialResults()) {
     						LOG.ok("{0} (allowed error)", msg);
@@ -183,12 +213,10 @@ public class SimplePagedResultsSearchStrategy extends SearchStrategy {
     						LOG.error("{0}", msg);
     						throw LdapUtil.processLdapResult("LDAP error during search", ldapResult);
     					}
-    					searchCursor.close();
     					break;
     				}
     			}
     			
-    			searchCursor.close();
     		} catch (CursorException e) {
     			// TODO: better error handling
     			LOG.error("Error:", e);

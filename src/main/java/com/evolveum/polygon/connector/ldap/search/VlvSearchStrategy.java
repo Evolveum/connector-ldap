@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2014-2015 Evolveum
+ * Copyright (c) 2014-2016 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.exception.LdapException;
 import org.apache.directory.api.ldap.model.filter.ExprNode;
 import org.apache.directory.api.ldap.model.message.LdapResult;
+import org.apache.directory.api.ldap.model.message.Referral;
 import org.apache.directory.api.ldap.model.message.Response;
 import org.apache.directory.api.ldap.model.message.ResultCodeEnum;
 import org.apache.directory.api.ldap.model.message.SearchRequest;
@@ -48,6 +49,7 @@ import org.identityconnectors.framework.common.objects.ResultsHandler;
 import org.identityconnectors.framework.common.objects.SortKey;
 
 import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
+import com.evolveum.polygon.connector.ldap.ConnectionManager;
 import com.evolveum.polygon.connector.ldap.LdapConfiguration;
 import com.evolveum.polygon.connector.ldap.LdapUtil;
 import com.evolveum.polygon.connector.ldap.schema.SchemaTranslator;
@@ -56,25 +58,25 @@ import com.evolveum.polygon.connector.ldap.schema.SchemaTranslator;
  * @author semancik
  *
  */
-public class VlvSearchStrategy extends SearchStrategy {
+public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends SearchStrategy<C> {
 	
 	private static final Log LOG = Log.getLog(VlvSearchStrategy.class);
 	
 	private int lastListSize = -1;
 	private byte[] cookie = null;
 	
-	public VlvSearchStrategy(LdapNetworkConnection connection, AbstractLdapConfiguration configuration,
-			SchemaTranslator schemaTranslator, ObjectClass objectClass,
+	public VlvSearchStrategy(ConnectionManager<C> connectionManager, AbstractLdapConfiguration configuration,
+			SchemaTranslator<C> schemaTranslator, ObjectClass objectClass,
 			org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass, ResultsHandler handler,
 			OperationOptions options) {
-		super(connection, configuration, schemaTranslator, objectClass, ldapObjectClass, handler, options);
+		super(connectionManager, configuration, schemaTranslator, objectClass, ldapObjectClass, handler, options);
 	}
 
 	/* (non-Javadoc)
 	 * @see com.evolveum.polygon.connector.ldap.search.SearchStrategy#search(java.lang.String, org.apache.directory.api.ldap.model.filter.ExprNode, org.apache.directory.api.ldap.model.message.SearchScope, java.lang.String[])
 	 */
 	@Override
-	public void search(String baseDn, ExprNode filterNode, SearchScope scope, String[] attributes)
+	public void search(Dn baseDn, ExprNode filterNode, SearchScope scope, String[] attributes)
 			throws LdapException {
 		
 		
@@ -84,7 +86,7 @@ public class VlvSearchStrategy extends SearchStrategy {
         	if (getOptions().getPagedResultsOffset() < 1) {
         		throw new UnsupportedOperationException("Offset "+getOptions().getPagedResultsOffset()+" is not supported when VLV is used");
         	}
-        	index = getOptions().getPagedResultsOffset() - 1;
+        	index = getOptions().getPagedResultsOffset();
         }
         Integer numberOfEntriesToReturn = null; // null means "as many as there are"
         if (getOptions() != null && getOptions().getPageSize() != null) {
@@ -99,13 +101,16 @@ public class VlvSearchStrategy extends SearchStrategy {
         if (getOptions() != null && getOptions().getPagedResultsCookie() != null) {
         	cookie = Base64.decode(getOptions().getPagedResultsCookie());
         }
-		        
+		
+        LdapNetworkConnection connection = getConnectionManager().getConnection(baseDn);
+        
         Dn lastResultDn = null;
         int numberOfResutlsReturned = 0;
+        int referralAttempts = 0;
         while (proceed) {
         	
         	SearchRequest req = new SearchRequestImpl();
-    		req.setBase(new Dn(baseDn));
+    		req.setBase(baseDn);
     		req.setFilter(filterNode);
     		req.setScope(scope);
     		applyCommonConfiguration(req);
@@ -132,14 +137,14 @@ public class VlvSearchStrategy extends SearchStrategy {
         	req.addControl(vlvReqControl);
         	
         	int responseResultCount = 0;
-        	SearchCursor searchCursor = executeSearch(req);
+        	SearchCursor searchCursor = executeSearch(connection, req);
     		try {
     			while (proceed && searchCursor.next()) {
     				Response response = searchCursor.get();
     				if (response instanceof SearchResultEntry) {
     					responseResultCount++;
     					Entry entry = ((SearchResultEntry)response).getEntry();
-    			        logSearchResult(entry);
+    			        logSearchResult(connection, entry);
     			        boolean overlap = false;
     			        if (lastResultDn != null) {
                             if (lastResultDn.equals(entry.getDn())) {
@@ -149,7 +154,7 @@ public class VlvSearchStrategy extends SearchStrategy {
                             lastResultDn = null;
     			        }
     			        if (!overlap) {
-    			        	proceed = handleResult(entry);
+    			        	proceed = handleResult(connection, entry);
     			        	numberOfResutlsReturned++;
     			        }
     			        index++;
@@ -165,7 +170,11 @@ public class VlvSearchStrategy extends SearchStrategy {
     			}
     			
     			SearchResultDone searchResultDone = searchCursor.getSearchResultDone();
-    			if (searchResultDone != null) {
+    			searchCursor.close();
+    			
+    			if (searchResultDone == null) {
+					break;
+				} else {
     				LdapResult ldapResult = searchResultDone.getLdapResult();
 			    	// process VLV response
 			    	VirtualListViewResponse vlvResponseControl = (VirtualListViewResponse)searchResultDone.getControl(VirtualListViewResponse.OID);
@@ -191,22 +200,45 @@ public class VlvSearchStrategy extends SearchStrategy {
 			    		cookie = null;
 			    		lastListSize = -1;
 			    	}
-			    	logSearchResult("Done", ldapResult, extra);
-			    	if (ldapResult.getResultCode() != ResultCodeEnum.SUCCESS) {
-    					String msg = "LDAP error during search: "+LdapUtil.formatLdapMessage(ldapResult);
-    					if (ldapResult.getResultCode() == ResultCodeEnum.SIZE_LIMIT_EXCEEDED && getOptions() != null && getOptions().getAllowPartialResults() != null && getOptions().getAllowPartialResults()) {
-    						LOG.ok("{0} (allowed error)", msg);
-    						setCompleteResultSet(false);
-    					} else {
-    						LOG.error("{0}", msg);
-    						throw LdapUtil.processLdapResult("LDAP error during search", ldapResult);
-    					}
-    					searchCursor.close();
-    					break;
-    				}
+			    	logSearchResult(connection, "Done", ldapResult, extra);
+			    	
+			    	if (ldapResult.getResultCode() == ResultCodeEnum.REFERRAL && !getConfiguration().isReferralStrategyThrow()) {
+			    		Referral referral = ldapResult.getReferral();
+			    		if (getConfiguration().isReferralStrategyIgnore()) {
+			    			LOG.ok("Ignoring referral {0}", referral);
+			    		} else {
+			    			LOG.ok("Following referral {0}", referral);
+			    			referralAttempts++;
+			    			if (referralAttempts > getConfiguration().getMaximumNumberOfAttempts()) {
+			    				// TODO: better exception. Maybe re-throw exception from the last error?
+			    				throw new ConnectorIOException("Maximum number of attemps exceeded");
+			    			}
+			    			connection = getConnectionManager().getConnection(baseDn, referral);
+			    			if (connection == null) {
+			    				throw new ConnectorIOException("Cannot get connection based on referral "+referral);
+			    			}
+			    			lastListSize = 0;
+			    	        cookie = null;
+			    			continue;
+			    		}
+			    		
+			    	} else if (ldapResult.getResultCode() == ResultCodeEnum.SUCCESS) {
+			    		// continue the loop
+			    		
+			    	} else {
+						String msg = "LDAP error during search: "+LdapUtil.formatLdapMessage(ldapResult);
+						if (ldapResult.getResultCode() == ResultCodeEnum.SIZE_LIMIT_EXCEEDED && getOptions() != null && getOptions().getAllowPartialResults() != null && getOptions().getAllowPartialResults()) {
+							LOG.ok("{0} (allowed error)", msg);
+							setCompleteResultSet(false);
+							break;
+						} else {
+							LOG.error("{0}", msg);
+							throw LdapUtil.processLdapResult("LDAP error during search", ldapResult);
+						}
+					}
+			    	
     			}
     			
-    			searchCursor.close();
     			
     		} catch (CursorException e) {
     			// TODO: better error handling

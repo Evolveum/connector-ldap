@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015 Evolveum
+ * Copyright (c) 2015-2016 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -64,7 +64,9 @@ import org.apache.directory.api.ldap.model.message.SearchResultEntry;
 import org.apache.directory.api.ldap.model.message.SearchScope;
 import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.ldap.model.schema.AttributeType;
+import org.apache.directory.api.ldap.model.schema.SchemaManager;
 import org.apache.directory.api.util.GeneralizedTime;
+import org.apache.directory.ldap.client.api.LdapConnectionConfig;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
 import org.apache.directory.ldap.client.api.exception.InvalidConnectionException;
 import org.identityconnectors.common.logging.Log;
@@ -452,9 +454,9 @@ public class LdapUtil {
 				": " + ldapResult.getDiagnosticMessage().replaceAll("\\p{C}", "?") + " ("+ ldapResult.getResultCode().getResultCode()+")";
 	}
 
-	public static Entry getRootDse(LdapNetworkConnection connection, String... attributesToGet) {
+	public static Entry getRootDse(ConnectionManager<? extends AbstractLdapConfiguration> connectionManager, String... attributesToGet) {
 		try {
-			return connection.getRootDse(attributesToGet);
+			return connectionManager.getDefaultConnection().getRootDse(attributesToGet);
 		} catch (LdapException e) {
 			throw new ConnectorIOException("Error getting changelog data from root DSE: "+e.getMessage(), e);
 		}
@@ -507,16 +509,45 @@ public class LdapUtil {
 		return false;
 	}
 
-	public static void logOperationReq(String format, Object... params) {
-		LOG.info(format, params);
+	public static void logOperationReq(LdapNetworkConnection connection, String format, Object... params) {
+		if (LOG.isInfo()) {
+			LOG.info(formatConnectionInfo(connection) + format, params);
+		}
 	}
 
-	public static void logOperationRes(String format, Object... params) {
-		LOG.info(format, params);
+	public static void logOperationRes(LdapNetworkConnection connection, String format, Object... params) {
+		if (LOG.isInfo()) {
+			LOG.info(formatConnectionInfo(connection) + format, params);
+		}
 	}
 
-	public static void logOperationErr(String format, Object... params) {
-		LOG.error(format, params);
+	public static void logOperationErr(LdapNetworkConnection connection, String format, Object... params) {
+		if (LOG.isInfo()) {
+			LOG.error(formatConnectionInfo(connection) + format, params);
+		}
+	}
+
+	private static String formatConnectionInfo(LdapNetworkConnection connection) {
+		StringBuilder sb = new StringBuilder();
+		LdapConnectionConfig config = connection.getConfig();
+		Integer port = null;
+		if (config.isUseSsl()) {
+			sb.append("ldaps://");
+			if (config.getLdapPort() != 636) {
+				port = config.getLdapPort();
+			}
+		} else {
+			sb.append("ldap://");
+			if (config.getLdapPort() != 389) {
+				port = config.getLdapPort();
+			}
+		}
+		sb.append(config.getLdapHost());
+		if (port != null) {
+			sb.append(":").append(port);
+		}
+		sb.append("/ ");
+		return sb.toString();
 	}
 
 }
