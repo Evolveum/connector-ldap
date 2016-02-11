@@ -47,7 +47,7 @@ import org.identityconnectors.framework.common.objects.SortKey;
 import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
 import com.evolveum.polygon.connector.ldap.ConnectionManager;
 import com.evolveum.polygon.connector.ldap.LdapConfiguration;
-import com.evolveum.polygon.connector.ldap.LdapUtil;
+import com.evolveum.polygon.connector.ldap.OperationLog;
 import com.evolveum.polygon.connector.ldap.schema.AttributeHandler;
 import com.evolveum.polygon.connector.ldap.schema.SchemaTranslator;
 
@@ -249,31 +249,31 @@ public abstract class SearchStrategy<C extends AbstractLdapConfiguration> {
 				}
 				controls = sb.toString();
 			}
-			LdapUtil.logOperationReq(connection, "Search REQ base={0}, filter={1}, scope={2}, attributes={3}, controls={4}",
+			OperationLog.logOperationReq(connection, "Search REQ base={0}, filter={1}, scope={2}, attributes={3}, controls={4}",
 					req.getBase(), req.getFilter(), req.getScope(), req.getAttributes(), controls);
 		}
 	}
 
 	protected void logSearchResult(LdapNetworkConnection connection, Entry entry) {
 		if (LOG.isOk()) {
-			LdapUtil.logOperationRes(connection, "Search RES {0}", entry);
+			OperationLog.logOperationRes(connection, "Search RES {0}", entry);
 		}
 	}
 	
 	protected void logSearchResult(LdapNetworkConnection connection, String type, LdapResult ldapResult) {
 		if (LOG.isOk()) {
-			LdapUtil.logOperationRes(connection, "Search RES {0}:\n{1}", type, ldapResult);
+			OperationLog.logOperationRes(connection, "Search RES {0}:\n{1}", type, ldapResult);
 		}
 	}
 
 	protected void logSearchResult(LdapNetworkConnection connection, String type, LdapResult ldapResult, String extra) {
 		if (LOG.isOk()) {
-			LdapUtil.logOperationRes(connection, "Search RES {0}: {1}\n{2}", type, extra, ldapResult);
+			OperationLog.logOperationRes(connection, "Search RES {0}: {1}\n{2}", type, extra, ldapResult);
 		}
 	}
 
 	protected void logSearchError(LdapNetworkConnection connection, LdapException e) {
-		LdapUtil.logOperationErr(connection, "Search ERR {0}: {1}", e.getClass().getName(), e.getMessage(), e);
+		OperationLog.logOperationErr(connection, "Search ERR {0}: {1}", e.getClass().getName(), e.getMessage(), e);
 	}
 	
 	protected boolean handleResult(LdapNetworkConnection connection, Entry entry) {

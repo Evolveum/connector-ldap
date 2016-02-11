@@ -699,7 +699,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		}
 		LdapNetworkConnection connection = connectionManager.getConnection(entryDn);
 		
-		LdapUtil.logOperationReq(connection, "Add REQ Entry:\n{0}" , entry);
+		OperationLog.logOperationReq(connection, "Add REQ Entry:\n{0}" , entry);
 		
 		AddResponse addResponse;
 		try {
@@ -707,11 +707,11 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			addResponse = connection.add(addRequest);
 			
 		} catch (LdapException e) {
-			LdapUtil.logOperationErr(connection, "Add ERROR {0}: {1}", dn, e.getMessage(), e);
+			OperationLog.logOperationErr(connection, "Add ERROR {0}: {1}", dn, e.getMessage(), e);
 			throw LdapUtil.processLdapException("Error adding LDAP entry "+dn, e);
 		}
 		
-		LdapUtil.logOperationRes(connection, "Add RES {0}: {1}", dn, addResponse.getLdapResult());
+		OperationLog.logOperationRes(connection, "Add RES {0}: {1}", dn, addResponse.getLdapResult());
 		
 		if (addResponse.getLdapResult().getResultCode() != ResultCodeEnum.SUCCESS) {
 			throw LdapUtil.processLdapResult("Error adding LDAP entry "+dn, addResponse.getLdapResult());
@@ -782,14 +782,14 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 				} else {
 					LdapNetworkConnection connection = connectionManager.getConnection(oldDn);
 					try {
-						LdapUtil.logOperationReq(connection, "MoveAndRename REQ {0} -> {1}", oldDn, newDn);
+						OperationLog.logOperationReq(connection, "MoveAndRename REQ {0} -> {1}", oldDn, newDn);
 						// Make sure that DNs are passed in as (user-provided) strings. Otherwise the Directory API
 						// will convert it do OID=value notation. And some LDAP servers (such as OpenDJ) does not handle
 						// that well.
 						connection.moveAndRename(oldDn.getName(), newDn.getName());
-						LdapUtil.logOperationRes(connection, "MoveAndRename RES OK {0} -> {1}", oldDn, newDn);
+						OperationLog.logOperationRes(connection, "MoveAndRename RES OK {0} -> {1}", oldDn, newDn);
 					} catch (LdapException e) {
-						LdapUtil.logOperationErr(connection, "MoveAndRename ERROR {0} -> {1}: {2}", oldDn, newDn, e.getMessage(), e);
+						OperationLog.logOperationErr(connection, "MoveAndRename ERROR {0} -> {1}: {2}", oldDn, newDn, e.getMessage(), e);
 						throw LdapUtil.processLdapException("Rename/move of LDAP entry from "+oldDn+" to "+newDn+" failed", e);
 					}
 				}
@@ -896,15 +896,15 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		LdapNetworkConnection connection = connectionManager.getConnection(dn);
 		try {
 			if (LOG.isOk()) {
-				LdapUtil.logOperationReq(connection, "Modify REQ {0}: {1}", dn, dumpModifications(modifications));
+				OperationLog.logOperationReq(connection, "Modify REQ {0}: {1}", dn, dumpModifications(modifications));
 			}
 			// processModificationsBeforeUpdate must happen after logging. Otherwise passwords might be logged.
 			connection.modify(dn, processModificationsBeforeUpdate(modifications));
 			if (LOG.isOk()) {
-				LdapUtil.logOperationRes(connection, "Modify RES {0}: {1}", dn, dumpModifications(modifications));
+				OperationLog.logOperationRes(connection, "Modify RES {0}: {1}", dn, dumpModifications(modifications));
 			}
 		} catch (LdapException e) {
-			LdapUtil.logOperationErr(connection, "Modify ERROR {0}: {1}: {2}", dn, dumpModifications(modifications), e.getMessage(), e);
+			OperationLog.logOperationErr(connection, "Modify ERROR {0}: {1}: {2}", dn, dumpModifications(modifications), e.getMessage(), e);
 			throw LdapUtil.processLdapException("Error modifying entry "+dn, e);
 		}
 	}
@@ -1046,13 +1046,13 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		LdapNetworkConnection connection = connectionManager.getConnection(dn);
 		
 		try {
-			LdapUtil.logOperationReq(connection, "Delete REQ {0}", dn);
+			OperationLog.logOperationReq(connection, "Delete REQ {0}", dn);
 			
 			connection.delete(dn);
 			
-			LdapUtil.logOperationRes(connection, "Delete RES {0}", dn);
+			OperationLog.logOperationRes(connection, "Delete RES {0}", dn);
 		} catch (LdapException e) {
-			LdapUtil.logOperationErr(connection, "Delete ERROR {0}: {1}", dn, e.getMessage(), e);
+			OperationLog.logOperationErr(connection, "Delete ERROR {0}: {1}", dn, e.getMessage(), e);
 			throw LdapUtil.processLdapException("Failed to delete entry with DN "+dn+" (UID="+uid+")", e);
 		}
 	}
@@ -1082,14 +1082,14 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			int referralAttempts = 0;
 			while (referralAttempts < configuration.getMaximumNumberOfAttempts()) {
 				referralAttempts++;
-				LdapUtil.logOperationReq(connection, "Search REQ base={0}, filter={1}, scope={2}, attributes={3}, controls=null",
+				OperationLog.logOperationReq(connection, "Search REQ base={0}, filter={1}, scope={2}, attributes={3}, controls=null",
 						baseDn, filterString, scope, uidAttributeName);
 				try {
 					EntryCursor cursor = connection.search(baseDn, filterString, scope, uidAttributeName);
 					if (cursor.next()) {
 						Entry entry = cursor.get();
 						if (LOG.isOk()) {
-							LdapUtil.logOperationRes(connection, "Search RES {0}", entry);
+							OperationLog.logOperationRes(connection, "Search RES {0}", entry);
 						}
 						dn = entry.getDn();
 						break;

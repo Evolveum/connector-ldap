@@ -509,24 +509,6 @@ public class LdapUtil {
 		return false;
 	}
 
-	public static void logOperationReq(LdapNetworkConnection connection, String format, Object... params) {
-		if (LOG.isInfo()) {
-			LOG.info(formatConnectionInfo(connection) + format, params);
-		}
-	}
-
-	public static void logOperationRes(LdapNetworkConnection connection, String format, Object... params) {
-		if (LOG.isInfo()) {
-			LOG.info(formatConnectionInfo(connection) + format, params);
-		}
-	}
-
-	public static void logOperationErr(LdapNetworkConnection connection, String format, Object... params) {
-		if (LOG.isInfo()) {
-			LOG.error(formatConnectionInfo(connection) + format, params);
-		}
-	}
-
 	public static String formatConnectionInfo(LdapNetworkConnection connection) {
 		StringBuilder sb = new StringBuilder();
 		LdapConnectionConfig config = connection.getConfig();
