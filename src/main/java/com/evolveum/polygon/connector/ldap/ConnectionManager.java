@@ -178,7 +178,7 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 		LOG.ok("Creating connection object");
 		LdapNetworkConnection connection = new LdapNetworkConnection(connectionConfig);
 		try {
-			LOG.info("Connecting to {0}:{1} as {2}", configuration.getHost(), configuration.getPort(), configuration.getBindDn());
+			LOG.info("Connecting to {0}:{1} as {2}", connectionConfig.getLdapHost(), connectionConfig.getLdapPort(), configuration.getBindDn());
 			if (LOG.isOk()) {
 				String connectionSecurity = "none";
 				if (connectionConfig.isUseSsl()) {
@@ -300,16 +300,21 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 		try {
 			bindResponse = connection.bind(bindRequest);
 		} catch (LdapException e) {
-			throw LdapUtil.processLdapException("Unable to bind to LDAP server "+configuration.getHost()+":"+configuration.getPort()+" as "+bindDn, e);
+			throw LdapUtil.processLdapException("Unable to bind to LDAP server "
+					+ connection.getConfig().getLdapHost() + ":" + connection.getConfig().getLdapPort() 
+					+ " as " + bindDn, e);
 		}
 		LdapResult ldapResult = bindResponse.getLdapResult();
 		if (ldapResult.getResultCode() != ResultCodeEnum.SUCCESS) {
-			String msg = "Unable to bind to LDAP server "+configuration.getHost()+":"+configuration.getPort()+" as "+bindDn
-					+": "+ldapResult.getResultCode().getMessage()+": "+ldapResult.getDiagnosticMessage()+" ("
-					+ldapResult.getResultCode().getResultCode()+")";
+			String msg = "Unable to bind to LDAP server " + connection.getConfig().getLdapHost() 
+					+ ":" + connection.getConfig().getLdapPort() + " as " + bindDn
+					+ ": " + ldapResult.getResultCode().getMessage() + ": " + ldapResult.getDiagnosticMessage() 
+					+ " (" + ldapResult.getResultCode().getResultCode() + ")";
 			throw new ConfigurationException(msg);
 		}
-		LOG.info("Bound to {0}: {1} ({2})", bindDn, ldapResult.getDiagnosticMessage(), ldapResult.getResultCode());
+		LOG.info("Bound to {0}:{1} as {2}: {3} ({4})", 
+				connection.getConfig().getLdapHost(), connection.getConfig().getLdapPort(), 
+				bindDn, ldapResult.getDiagnosticMessage(), ldapResult.getResultCode());
 	}
     	
 	public boolean isAlive() {
