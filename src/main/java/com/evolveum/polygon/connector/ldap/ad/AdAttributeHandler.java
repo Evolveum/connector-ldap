@@ -32,6 +32,7 @@ import org.identityconnectors.framework.common.objects.AttributeValueCompletenes
 
 import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
 import com.evolveum.polygon.connector.ldap.LdapUtil;
+import com.evolveum.polygon.connector.ldap.OperationLog;
 import com.evolveum.polygon.connector.ldap.schema.AttributeHandler;
 import com.evolveum.polygon.connector.ldap.search.SearchStrategy;
 
@@ -104,7 +105,7 @@ public class AdAttributeHandler implements AttributeHandler {
 		Dn dn = previousEntry.getDn();
 		String attributesToGet = attrName + ";range=" + (high + 1) + "-*";
 		Entry entry = null;
-		LdapUtil.logOperationReq(connection, "Search REQ base={0}, filter={1}, scope={2}, attributes={3}", 
+		OperationLog.logOperationReq(connection, "Search REQ base={0}, filter={1}, scope={2}, attributes={3}", 
 				dn, AbstractLdapConfiguration.SEARCH_FILTER_ALL, SearchScope.OBJECT, attributesToGet);
 		try {
 			EntryCursor searchCursor = connection.search(dn, 
@@ -117,12 +118,12 @@ public class AdAttributeHandler implements AttributeHandler {
 			}
 			searchCursor.close();
 		} catch (LdapException e) {
-			LdapUtil.logOperationErr(connection, "Search ERR {0}: {1}", e.getClass().getName(), e.getMessage(), e);
+			OperationLog.logOperationErr(connection, "Search ERR {0}: {1}", e.getClass().getName(), e.getMessage(), e);
 			throw LdapUtil.processLdapException("Range search for "+dn+" with "+attributesToGet+" failed", e);
 		} catch (CursorException e) {
 			throw new ConnectorIOException("Range search for "+dn+" with "+attributesToGet+" failed: "+e.getMessage(), e);
 		}
-		LdapUtil.logOperationRes(connection, "Search RES {0}", entry);
+		OperationLog.logOperationRes(connection, "Search RES {0}", entry);
 		return entry.get(attrName);
 	}
 

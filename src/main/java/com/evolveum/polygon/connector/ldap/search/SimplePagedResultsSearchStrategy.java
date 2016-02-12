@@ -97,7 +97,7 @@ public class SimplePagedResultsSearchStrategy<C extends AbstractLdapConfiguratio
         int numberOfResultsSkipped = 0;
         int referralAttempts = 0;
         
-        LdapNetworkConnection connection = getConnectionManager().getConnection(baseDn);
+        LdapNetworkConnection connection = getConnection(baseDn);
         do {
         	SearchRequest req = new SearchRequestImpl();
     		req.setBase(baseDn);
@@ -192,7 +192,7 @@ public class SimplePagedResultsSearchStrategy<C extends AbstractLdapConfiguratio
 			    				// TODO: better exception. Maybe re-throw exception from the last error?
 			    				throw new ConnectorIOException("Maximum number of attemps exceeded");
 			    			}
-			    			connection = getConnectionManager().getConnection(baseDn, referral);
+			    			connection = getConnection(baseDn, referral);
 			    			if (connection == null) {
 			    				throw new ConnectorIOException("Cannot get connection based on referral "+referral);
 			    			}

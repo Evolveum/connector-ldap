@@ -130,6 +130,27 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
     private String baseContext;
     
     /**
+     * Structured definition of a server in the directory topology.
+     * It contains attribute-value pairs that define each individual server.
+     * The names of configuration properties can be used, separated by equal
+     * signs and semicolons, such as this:
+     * 
+     * baseContext=dc=sub,dc=example,dc=com; host=sub.example.com; port=389
+     * 
+     * The server will be selected for each operation according to the baseContext
+     * that is specified in server definition. The most specific DN match will
+     * be used. If there are more multiple servers specified for the same
+     * baseContext then one of them will be selected randomly. The server
+     * which does not specify any baseContext is considered to be the default
+     * and that server will be used if the DN cannot be matched. This is equivalent
+     * to the server which is specified by ordinary configuration properties.
+     * 
+     *  The configuration properties that are not explicitly specified in the
+     *  server configuration line are taken from the ordinary configuration.
+     */
+    private String[] servers;
+    
+    /**
      * The referral handling strategy.
      * Possible values: "follow", "ignore" or "throw".
      * Default value: "follow"
@@ -345,6 +366,14 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 
 	public void setBaseContext(String baseContext) {
 		this.baseContext = baseContext;
+	}
+
+	public String[] getServers() {
+		return servers;
+	}
+
+	public void setServers(String[] servers) {
+		this.servers = servers;
 	}
 
 	public String getReferralStrategy() {

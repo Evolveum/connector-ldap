@@ -72,7 +72,7 @@ public class DefaultSearchStrategy<C extends AbstractLdapConfiguration> extends 
 			req.addAttributes(attributes);
 		};
 		
-		LdapNetworkConnection connection = getConnectionManager().getConnection(baseDn);
+		LdapNetworkConnection connection = getConnection(baseDn);
 		
 		int numAttempts = 0;
 		while (true) {
@@ -112,7 +112,7 @@ public class DefaultSearchStrategy<C extends AbstractLdapConfiguration> extends 
 			    			LOG.ok("Ignoring referral {0}", referral);
 			    		} else {
 			    			LOG.ok("Following referral {0}", referral);
-			    			connection = getConnectionManager().getConnection(baseDn, referral);
+			    			connection = getConnection(baseDn, referral);
 			    			if (connection == null) {
 			    				throw new ConnectorIOException("Cannot get connection based on referral "+referral);
 			    			}

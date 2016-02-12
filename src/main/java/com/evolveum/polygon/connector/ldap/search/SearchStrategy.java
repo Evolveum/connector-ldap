@@ -26,6 +26,7 @@ import org.apache.directory.api.ldap.model.filter.ExprNode;
 import org.apache.directory.api.ldap.model.message.AliasDerefMode;
 import org.apache.directory.api.ldap.model.message.Control;
 import org.apache.directory.api.ldap.model.message.LdapResult;
+import org.apache.directory.api.ldap.model.message.Referral;
 import org.apache.directory.api.ldap.model.message.SearchRequest;
 import org.apache.directory.api.ldap.model.message.SearchScope;
 import org.apache.directory.api.ldap.model.message.controls.PagedResults;
@@ -39,13 +40,14 @@ import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.framework.common.exceptions.ConfigurationException;
 import org.identityconnectors.framework.common.objects.ObjectClass;
 import org.identityconnectors.framework.common.objects.OperationOptions;
+import org.identityconnectors.framework.common.objects.QualifiedUid;
 import org.identityconnectors.framework.common.objects.ResultsHandler;
 import org.identityconnectors.framework.common.objects.SortKey;
 
 import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
 import com.evolveum.polygon.connector.ldap.ConnectionManager;
 import com.evolveum.polygon.connector.ldap.LdapConfiguration;
-import com.evolveum.polygon.connector.ldap.LdapUtil;
+import com.evolveum.polygon.connector.ldap.OperationLog;
 import com.evolveum.polygon.connector.ldap.schema.AttributeHandler;
 import com.evolveum.polygon.connector.ldap.schema.SchemaTranslator;
 
@@ -247,31 +249,31 @@ public abstract class SearchStrategy<C extends AbstractLdapConfiguration> {
 				}
 				controls = sb.toString();
 			}
-			LdapUtil.logOperationReq(connection, "Search REQ base={0}, filter={1}, scope={2}, attributes={3}, controls={4}",
+			OperationLog.logOperationReq(connection, "Search REQ base={0}, filter={1}, scope={2}, attributes={3}, controls={4}",
 					req.getBase(), req.getFilter(), req.getScope(), req.getAttributes(), controls);
 		}
 	}
 
 	protected void logSearchResult(LdapNetworkConnection connection, Entry entry) {
 		if (LOG.isOk()) {
-			LdapUtil.logOperationRes(connection, "Search RES {0}", entry);
+			OperationLog.logOperationRes(connection, "Search RES {0}", entry);
 		}
 	}
 	
 	protected void logSearchResult(LdapNetworkConnection connection, String type, LdapResult ldapResult) {
 		if (LOG.isOk()) {
-			LdapUtil.logOperationRes(connection, "Search RES {0}:\n{1}", type, ldapResult);
+			OperationLog.logOperationRes(connection, "Search RES {0}:\n{1}", type, ldapResult);
 		}
 	}
 
 	protected void logSearchResult(LdapNetworkConnection connection, String type, LdapResult ldapResult, String extra) {
 		if (LOG.isOk()) {
-			LdapUtil.logOperationRes(connection, "Search RES {0}: {1}\n{2}", type, extra, ldapResult);
+			OperationLog.logOperationRes(connection, "Search RES {0}: {1}\n{2}", type, extra, ldapResult);
 		}
 	}
 
 	protected void logSearchError(LdapNetworkConnection connection, LdapException e) {
-		LdapUtil.logOperationErr(connection, "Search ERR {0}: {1}", e.getClass().getName(), e.getMessage(), e);
+		OperationLog.logOperationErr(connection, "Search ERR {0}: {1}", e.getClass().getName(), e.getMessage(), e);
 	}
 	
 	protected boolean handleResult(LdapNetworkConnection connection, Entry entry) {
@@ -307,5 +309,36 @@ public abstract class SearchStrategy<C extends AbstractLdapConfiguration> {
 			sortReqControl.addSortKey(ldapSortKey);
 		}
 		return sortReqControl;
-	}	
+	}
+	
+	protected LdapNetworkConnection getConnection(Dn base) {
+		return connectionManager.getConnection(getEffectiveBase(base));
+	}
+
+	protected LdapNetworkConnection getConnection(Dn base, Referral referral) {
+		return connectionManager.getConnection(getEffectiveBase(base), referral);
+	}
+
+	
+	private Dn getEffectiveBase(Dn origBase) {
+		if (origBase.isSchemaAware()) {
+			return origBase;
+		} else {
+			// Insanity such as <GUID=....>. No good using that to select
+			// the connection. Try to use the container from options instead.
+			if (options != null && options.getContainer() != null) {
+				QualifiedUid containerQUid = options.getContainer();
+				// HACK WARNING: this is a hack to overcome bad framework design.
+				// Even though this has to be Uid, we interpret it as a DN.
+				// The framework uses UID to identify everything. This is naive.
+				// Strictly following the framework contract would mean to always
+				// do two LDAP searches instead of one in this case.
+				// So we deviate from the contract here. It is naughty, but it
+				// is efficient.
+				return schemaTranslator.toDn(containerQUid.getUid());
+			} else {
+				return origBase;
+			}
+		}
+	}
 }
