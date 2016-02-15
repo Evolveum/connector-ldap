@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015 Evolveum
+ * Copyright (c) 2015-2016 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -54,6 +54,14 @@ public class AdSchemaTranslator extends SchemaTranslator<AdLdapConfiguration> {
 		"usnchanged", "usncreated",
 		"whenchanged", "whencreated"};
 	
+	/**
+	 * List of attributes in the top object class that are specified as
+	 * mandatory but they are in fact optional.
+	 */
+	private static final String[] OPTIONAL_TOP_ATTRIBUTES = {
+			"ntsecuritydescriptor", "instancetype", "objectcategory"
+	};
+	
 	public AdSchemaTranslator(SchemaManager schemaManager, AdLdapConfiguration configuration) {
 		super(schemaManager, configuration);
 	}
@@ -73,6 +81,17 @@ public class AdSchemaTranslator extends SchemaTranslator<AdLdapConfiguration> {
 		ocib.addAttributeInfo(enableAb.build());
 	}
 	
+	
+	
+	@Override
+	protected void setAttributeMultiplicityAndPermissions(AttributeType ldapAttributeType,
+			AttributeInfoBuilder aib) {
+		super.setAttributeMultiplicityAndPermissions(ldapAttributeType, aib);
+		if (ArrayUtils.contains(OPTIONAL_TOP_ATTRIBUTES, ldapAttributeType.getName().toLowerCase())) {
+			aib.setRequired(false);
+		}
+	}
+
 	@Override
 	public AttributeType toLdapAttribute(
 			org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass, String icfAttributeName) {

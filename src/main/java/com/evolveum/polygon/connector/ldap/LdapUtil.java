@@ -531,5 +531,17 @@ public class LdapUtil {
 		sb.append("/ ");
 		return sb.toString();
 	}
+	
+	public static List<String> splitComma(String configValue) {
+		if (configValue == null) {
+			return null;
+		}
+		String[] splits = configValue.split(",");
+		List<String> list = new ArrayList<>(splits.length);
+		for (String split: splits) {
+			list.add(split.trim());
+		}
+		return list;
+	}
 
 }

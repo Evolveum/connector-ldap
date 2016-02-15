@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 Evolveum
+ * Copyright (c) 2015-2016 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -55,6 +55,8 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 	public static final String SEARCH_FILTER_ALL = "(objectClass=*)";
 	public static final String BOOLEAN_TRUE = "TRUE";
 	public static final String BOOLEAN_FALSE = "FALSE";
+	
+	public static final String OBJECTCLASS_TOP_NAME = "top";
 	
     /**
      * The LDAP server hostname.
@@ -192,6 +194,8 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
     
     /**
      * The attribute used for sorting for the VLV searches if no explicit sorting attribute was specified.
+     * It may also contain a comma-separated list of attribute names. The first attribute that is found
+     * in the applicable object class definition will be used for sorting.
      */
     private String vlvSortAttribute = null;
     

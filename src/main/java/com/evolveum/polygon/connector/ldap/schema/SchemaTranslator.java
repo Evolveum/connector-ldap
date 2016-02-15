@@ -341,7 +341,7 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 		return ldapAttribute.isOperational();
 	}
 
-	private void setAttributeMultiplicityAndPermissions(AttributeType ldapAttributeType, AttributeInfoBuilder aib) {
+	protected void setAttributeMultiplicityAndPermissions(AttributeType ldapAttributeType, AttributeInfoBuilder aib) {
 		if (ldapAttributeType.isSingleValued()) {
 			aib.setMultiValued(false);
 		} else {
@@ -1090,6 +1090,53 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 		}
 		return dn;
 	}
+
+	/**
+	 * Find an attribute that is part of the specified object class definition.
+	 * Returns the first attribute from the list of candidate attributes that matches.
+	 */
+	public String selectAttribute(org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
+			List<String> candidates) {
+		for (String candidate: candidates) {
+			if (hasAttribute(ldapObjectClass, candidate)) {
+				return candidate;
+			}
+		}
+		return null;
+	}
+
+	private boolean hasAttribute(org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
+			String attributeName) {
+		if (hasAttribute(ldapObjectClass.getMustAttributeTypes(), attributeName) ||
+				hasAttribute(ldapObjectClass.getMayAttributeTypes(), attributeName)) {
+			return true;
+		}
+		for (org.apache.directory.api.ldap.model.schema.ObjectClass superior: ldapObjectClass.getSuperiors()) {
+			if (superior.getName().equalsIgnoreCase(AbstractLdapConfiguration.OBJECTCLASS_TOP_NAME)) {
+				// Do not even try top object class. Standard top objectclass has nothing to offer.
+				// And some non-standard (e.g. AD) definitions will only screw everything up as they
+				// contain definition for attributes that are not really meaningful.
+				continue;
+			}
+			if (hasAttribute(superior, attributeName)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private boolean hasAttribute(List<AttributeType> attrTypeList, String attributeName) {
+		for (AttributeType attrType: attrTypeList) {
+			for (String name: attrType.getNames()) {
+				if (attributeName.equalsIgnoreCase(name)) {
+					return true;
+				}
+			}			
+		}
+		return false;
+	}
+
+
 
 	static {
 		SYNTAX_MAP.put(SchemaConstants.NAME_OR_NUMERIC_ID_SYNTAX, String.class);
