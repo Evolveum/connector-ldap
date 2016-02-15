@@ -1098,6 +1098,9 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 	public String selectAttribute(org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
 			List<String> candidates) {
 		for (String candidate: candidates) {
+			if (getConfiguration().getUidAttribute().equalsIgnoreCase(candidate)) {
+				return candidate;
+			}
 			if (hasAttribute(ldapObjectClass, candidate)) {
 				return candidate;
 			}
