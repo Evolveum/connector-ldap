@@ -158,7 +158,7 @@ public class ModifyTimestampSyncStrategy<C extends AbstractLdapConfiguration> ex
 				handler.handle(deltaBuilder.build());
 				numProcessedEntries++;
 			}
-			searchCursor.close();
+			LdapUtil.closeCursor(searchCursor);
 			LOG.ok("Search DN {0} with {1}: {2} entries, {3} processed", baseContext, searchFilter, numFoundEntries, numProcessedEntries);
 		} catch (LdapException e) {
 			throw new ConnectorIOException("Error searching for changes ("+searchFilter+"): "+e.getMessage(), e);

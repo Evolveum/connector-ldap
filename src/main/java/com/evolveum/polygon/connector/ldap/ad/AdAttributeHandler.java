@@ -15,6 +15,8 @@
  */
 package com.evolveum.polygon.connector.ldap.ad;
 
+import java.io.IOException;
+
 import org.apache.directory.api.ldap.model.cursor.CursorException;
 import org.apache.directory.api.ldap.model.cursor.EntryCursor;
 import org.apache.directory.api.ldap.model.entry.Attribute;
@@ -116,7 +118,7 @@ public class AdAttributeHandler implements AttributeHandler {
 			if (searchCursor.next()) {
 				throw new IllegalStateException("Impossible has happened, 'base' search for "+dn+" returned more than one entry");
 			}
-			searchCursor.close();
+			LdapUtil.closeCursor(searchCursor);
 		} catch (LdapException e) {
 			OperationLog.logOperationErr(connection, "Search ERR {0}: {1}", e.getClass().getName(), e.getMessage(), e);
 			throw LdapUtil.processLdapException("Range search for "+dn+" with "+attributesToGet+" failed", e);

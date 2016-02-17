@@ -98,7 +98,7 @@ public class DefaultSearchStrategy<C extends AbstractLdapConfiguration> extends 
 				}
 				
 				SearchResultDone searchResultDone = searchCursor.getSearchResultDone();
-				searchCursor.close();
+				LdapUtil.closeCursor(searchCursor);
 				
 				if (searchResultDone == null) {
 					break;

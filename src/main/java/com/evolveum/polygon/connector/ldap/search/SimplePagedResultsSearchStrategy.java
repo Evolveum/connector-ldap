@@ -15,6 +15,8 @@
  */
 package com.evolveum.polygon.connector.ldap.search;
 
+import java.io.IOException;
+
 import org.apache.directory.api.ldap.model.cursor.CursorException;
 import org.apache.directory.api.ldap.model.cursor.SearchCursor;
 import org.apache.directory.api.ldap.model.entry.Entry;
@@ -153,7 +155,7 @@ public class SimplePagedResultsSearchStrategy<C extends AbstractLdapConfiguratio
     			}
     			
     			SearchResultDone searchResultDone = searchCursor.getSearchResultDone();
-    			searchCursor.close();
+    			LdapUtil.closeCursor(searchCursor);
     			
 				if (searchResultDone != null) {
     				LdapResult ldapResult = searchResultDone.getLdapResult();

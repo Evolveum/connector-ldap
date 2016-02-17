@@ -232,11 +232,14 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 //    			connection.loadSchema(defSchemaManager);
     		} catch (LdapException e) {
     			throw new ConnectorIOException(e.getMessage(), e);
-    		}
+    		} catch (Exception e) {
+    			// Brutal. We cannot really do anything smarter here.
+				throw new ConnectorException(e.getMessage(), e);
+			}
     		
     		try {
 				LOG.info("Schema loaded, {0} schemas, {1} object classes, {2} errors",
-						schemaManager.getLoader().getAllSchemas().size(),
+						schemaManager.getAllSchemas().size(),
 						schemaManager.getObjectClassRegistry().size(),
 						schemaManager.getErrors().size());
 			} catch (Exception e) {
@@ -898,6 +901,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			if (LOG.isOk()) {
 				OperationLog.logOperationReq(connection, "Modify REQ {0}: {1}", dn, dumpModifications(modifications));
 			}
+			LOG.ok("DN name: {0}, norm: {1}", dn.getName(), dn.getNormName());
 			// processModificationsBeforeUpdate must happen after logging. Otherwise passwords might be logged.
 			connection.modify(dn, processModificationsBeforeUpdate(modifications));
 			if (LOG.isOk()) {
@@ -1130,7 +1134,9 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			
 		}
 		
+		LOG.ok("DN before: name: {0}, norm: {1}, RDNS: {2}", dn.getName(), dn.getNormName(), dn.getRdns());
 		dn = schemaTranslator.toDn(dn);
+		LOG.ok("DN after: name: {0}, norm: {1}, RDNS: {2}", dn.getName(), dn.getNormName(), dn.getRdns());
 		
 		return dn;
 	}
