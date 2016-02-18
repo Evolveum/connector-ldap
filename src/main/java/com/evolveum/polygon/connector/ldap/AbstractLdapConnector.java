@@ -1130,8 +1130,6 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			
 		}
 		
-		dn = schemaTranslator.toDn(dn);
-		
 		return dn;
 	}
  

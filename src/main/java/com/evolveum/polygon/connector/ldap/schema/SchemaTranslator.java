@@ -1069,6 +1069,31 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 			return null;
 		}
 		try {
+			return new Dn(stringDn);
+		} catch (LdapInvalidDnException e) {
+			throw new InvalidAttributeValueException("Invalid DN '"+stringDn+"': "+e.getMessage(), e);
+		}
+	}
+	
+	public Dn toSchemaAwareDn(Attribute attribute) {
+		if (attribute == null) {
+			return null;
+		}
+		return toSchemaAwareDn(SchemaUtil.getSingleStringNonBlankValue(attribute));
+	}
+	
+	public Dn toSchemaAwareDn(Uid icfUid) {
+		if (icfUid == null) {
+			return null;
+		}
+		return toSchemaAwareDn(icfUid.getUidValue());
+	}
+
+	public Dn toSchemaAwareDn(String stringDn) {
+		if (stringDn == null) {
+			return null;
+		}
+		try {
 			return new Dn(schemaManager, stringDn);
 		} catch (LdapInvalidDnException e) {
 			throw new InvalidAttributeValueException("Invalid DN '"+stringDn+"': "+e.getMessage(), e);
@@ -1076,7 +1101,7 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 	}
 	
 	// This may seems strange. But it converts non-schema-aware DNs to schema-aware DNs.
-	public Dn toDn(Dn dn) {
+	public Dn toSchemaAwareDn(Dn dn) {
 		if (dn == null) {
 			return null;
 		}

@@ -97,10 +97,6 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 	
 	public LdapNetworkConnection getConnection(Dn base) {
 		LOG.ok("Selecting server for {0} from servers:\n{1}", base, dumpServers());
-		if (!base.isSchemaAware() && !base.getName().startsWith("<")) { // The <GUID=...> DNs are never schema-aware
-			// to be on the safe side. Non-schema-aware DNs will not compare correctly
-			throw new IllegalArgumentException("DN is not schema aware");
-		}
 		ServerDefinition server = selectServer(base);
 		if (!server.isConnected()) {
 			connectServer(server);
@@ -132,10 +128,10 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 	}
 
 	private ServerDefinition selectServer(Dn dn) {
-		if (!dn.isSchemaAware()) {
-			// No dot even bother to choose. If the DN is not schema-aware at this point
-			// then it is a very strange thing such as the <GUID=...> insanity
-			// The selection will not work anyway
+		if (!Character.isAlphabetic(dn.getName().charAt(0))) {
+			// No dot even bother to choose. There are the strange
+			// things such as the <GUID=...> insanity.
+			// The selection will not work anyway.
 			return defaultServerDefinition;
 		}
 		Dn selectedBaseContext = null;

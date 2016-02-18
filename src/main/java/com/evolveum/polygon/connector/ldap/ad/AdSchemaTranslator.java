@@ -187,7 +187,10 @@ public class AdSchemaTranslator extends SchemaTranslator<AdLdapConfiguration> {
 	public Dn getGuidDn(String uidValue) {
 		// Yes, this is really how Active Directory DNs looks like. Yes, they are really DNs.
 		// Insane, isn't it? Well, yes, it is AD after all.
-		return toDn("<GUID="+formatGuidToDashedNotation(uidValue)+">");
+		// We need to create this as schema-aware even though it has nothing to do with the
+		// schema. But if the Dn parsing does not know about schemaManager it does not know
+		// that we are in relaxed mode and it will fail with these crazy DNs.
+		return toSchemaAwareDn("<GUID="+formatGuidToDashedNotation(uidValue)+">");
 	}
 	
 	public String formatGuidToDashedNotation(String uidValue) {
