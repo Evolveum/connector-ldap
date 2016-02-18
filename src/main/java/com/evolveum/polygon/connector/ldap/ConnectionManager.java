@@ -170,7 +170,9 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 							server.getHost(), dn, serverBaseContext, selectedBaseContext);
 				}
 			} else {
-				LOG.ok("SELECT: refusing {0} because {1} is not under {2}", server.getHost(), dn, serverBaseContext);
+				LOG.ok("SELECT: refusing {0} because {1} ({2}) is not under {3} ({4})", server.getHost(), 
+						dn, dn.isSchemaAware(), 
+						serverBaseContext, serverBaseContext.isSchemaAware());
 			}
 		}
 		LOG.ok("SELECT: selected base context: {0}", selectedBaseContext);

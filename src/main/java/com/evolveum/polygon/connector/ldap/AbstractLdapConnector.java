@@ -636,13 +636,13 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 	@Override
 	public Uid create(ObjectClass icfObjectClass, Set<Attribute> createAttributes, OperationOptions options) {
 		
-		String dn = null;
+		String dnStringFromName = null;
 		for (Attribute icfAttr: createAttributes) {
 			if (icfAttr.is(Name.NAME)) {
-				dn = SchemaUtil.getSingleStringNonBlankValue(icfAttr);
+				dnStringFromName = SchemaUtil.getSingleStringNonBlankValue(icfAttr);
 			}
 		}
-		if (dn == null) {
+		if (dnStringFromName == null) {
 			throw new InvalidAttributeValueException("Missing NAME attribute");
 		}
 		
@@ -665,9 +665,9 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		}
 		Entry entry;
 		try {
-			entry = new DefaultEntry(dn);
+			entry = new DefaultEntry(dnStringFromName);
 		} catch (LdapInvalidDnException e) {
-			throw new InvalidAttributeValueException("Wrong DN '"+dn+"': "+e.getMessage(), e);
+			throw new InvalidAttributeValueException("Wrong DN '"+dnStringFromName+"': "+e.getMessage(), e);
 		}
 		entry.put("objectClass", ldapObjectClassNames);
 		
@@ -698,11 +698,6 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		addRequest.setEntry(entry);
 		
 		Dn entryDn = addRequest.getEntryDn();
-		try {
-			entryDn.apply(schemaManager);
-		} catch (LdapInvalidDnException e) {
-			throw new InvalidAttributeValueException("Invalid entry DN '"+entryDn+"': "+e.getMessage(), e);
-		}
 		LdapNetworkConnection connection = connectionManager.getConnection(entryDn);
 		
 		OperationLog.logOperationReq(connection, "Add REQ Entry:\n{0}" , entry);
@@ -713,19 +708,19 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			addResponse = connection.add(addRequest);
 			
 		} catch (LdapException e) {
-			OperationLog.logOperationErr(connection, "Add ERROR {0}: {1}", dn, e.getMessage(), e);
-			throw LdapUtil.processLdapException("Error adding LDAP entry "+dn, e);
+			OperationLog.logOperationErr(connection, "Add ERROR {0}: {1}", dnStringFromName, e.getMessage(), e);
+			throw LdapUtil.processLdapException("Error adding LDAP entry "+dnStringFromName, e);
 		}
 		
-		OperationLog.logOperationRes(connection, "Add RES {0}: {1}", dn, addResponse.getLdapResult());
+		OperationLog.logOperationRes(connection, "Add RES {0}: {1}", dnStringFromName, addResponse.getLdapResult());
 		
 		if (addResponse.getLdapResult().getResultCode() != ResultCodeEnum.SUCCESS) {
-			throw LdapUtil.processLdapResult("Error adding LDAP entry "+dn, addResponse.getLdapResult());
+			throw LdapUtil.processLdapResult("Error adding LDAP entry "+dnStringFromName, addResponse.getLdapResult());
 		}
 
 		String uidAttributeName = configuration.getUidAttribute();
 		if (LdapUtil.isDnAttribute(uidAttributeName)) {
-			return new Uid(dn);
+			return new Uid(dnStringFromName);
 		}
 		
 		Uid uid = null;
@@ -741,29 +736,29 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		// read the entry back and return UID
 		try {
 			EntryCursor cursor = connection.search(
-					dn, LdapConfiguration.SEARCH_FILTER_ALL, SearchScope.OBJECT, uidAttributeName);
+					dnStringFromName, LdapConfiguration.SEARCH_FILTER_ALL, SearchScope.OBJECT, uidAttributeName);
 			if (cursor.next()) {
 				Entry entryRead = cursor.get();
 				org.apache.directory.api.ldap.model.entry.Attribute uidLdapAttribute = entryRead.get(uidAttributeName);
 				if (uidLdapAttribute == null) {
-					throw new InvalidAttributeValueException("No value for UID attribute "+uidAttributeName+" in object "+dn);
+					throw new InvalidAttributeValueException("No value for UID attribute "+uidAttributeName+" in object "+dnStringFromName);
 				}
 				if (uidLdapAttribute.size() == 0) {
-					throw new InvalidAttributeValueException("No value for UID attribute "+uidAttributeName+" in object "+dn);
+					throw new InvalidAttributeValueException("No value for UID attribute "+uidAttributeName+" in object "+dnStringFromName);
 				} else if (uidLdapAttribute.size() > 1) {
-					throw new InvalidAttributeValueException("More than one value ("+uidLdapAttribute.size()+") for UID attribute "+uidAttributeName+" in object "+dn);
+					throw new InvalidAttributeValueException("More than one value ("+uidLdapAttribute.size()+") for UID attribute "+uidAttributeName+" in object "+dnStringFromName);
 				}
 				Value<?> uidLdapAttributeValue = uidLdapAttribute.get();
 				AttributeType uidLdapAttributeType = getSchemaManager().getAttributeType(uidAttributeName);
 				uid = new Uid(getSchemaTranslator().toIcfIdentifierValue(uidLdapAttributeValue, uidLdapAttributeType));
 			} else {
 				// Something wrong happened, the entry was not created.
-				throw new UnknownUidException("Entry with dn "+dn+" was not found (right after it was created)");
+				throw new UnknownUidException("Entry with dn "+dnStringFromName+" was not found (right after it was created)");
 			}
 		} catch (LdapException e) {
-			throw LdapUtil.processLdapException("Error reading LDAP entry "+dn, e);
+			throw LdapUtil.processLdapException("Error reading LDAP entry "+dnStringFromName, e);
 		} catch (CursorException e) {
-			throw new ConnectorIOException("Error reading LDAP entry "+dn+": "+e.getMessage(), e);
+			throw new ConnectorIOException("Error reading LDAP entry "+dnStringFromName+": "+e.getMessage(), e);
 		}
 		
 		return uid;
