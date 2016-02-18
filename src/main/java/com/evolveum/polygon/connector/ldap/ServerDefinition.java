@@ -331,16 +331,6 @@ public class ServerDefinition {
 		return true;
 	}
 	
-	public void apply(SchemaManager schemaManager) {
-		if (baseContext != null) {
-			try {
-				baseContext.apply(schemaManager);
-			} catch (LdapInvalidDnException e) {
-				throw new InvalidAttributeValueException("Invalid DN '"+baseContext+"': "+e.getMessage(), e);
-			}
-		}
-	}
-	
 	@Override
 	public int hashCode() {
 		final int prime = 31;

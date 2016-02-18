@@ -28,21 +28,35 @@ import org.apache.directory.api.ldap.model.name.Rdn;
 import org.apache.directory.api.ldap.model.schema.AttributeType;
 import org.apache.directory.api.ldap.model.schema.ObjectClass;
 import org.identityconnectors.common.logging.Log;
+import org.identityconnectors.framework.common.exceptions.UnknownUidException;
 import org.identityconnectors.framework.common.objects.Attribute;
 import org.identityconnectors.framework.common.objects.OperationOptions;
 import org.identityconnectors.framework.common.objects.ResultsHandler;
+import org.identityconnectors.framework.common.objects.Uid;
+import org.identityconnectors.framework.spi.Configuration;
 import org.identityconnectors.framework.spi.ConnectorClass;
 
+import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
 import com.evolveum.polygon.connector.ldap.AbstractLdapConnector;
+import com.evolveum.polygon.connector.ldap.ConnectionManager;
 import com.evolveum.polygon.connector.ldap.LdapUtil;
 import com.evolveum.polygon.connector.ldap.schema.LdapFilterTranslator;
 import com.evolveum.polygon.connector.ldap.schema.SchemaTranslator;
+import com.evolveum.polygon.connector.ldap.search.DefaultSearchStrategy;
 import com.evolveum.polygon.connector.ldap.search.SearchStrategy;
 
 @ConnectorClass(displayNameKey = "connector.ldap.ad.display", configurationClass = AdLdapConfiguration.class)
 public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> {
 
     private static final Log LOG = Log.getLog(AdLdapConnector.class);
+    
+    private GlobalCatalogConnectionManager globalCatalogConnectionManager;
+
+	@Override
+	public void init(Configuration configuration) {
+		super.init(configuration);
+		globalCatalogConnectionManager = new GlobalCatalogConnectionManager(getConfiguration());
+	}
 
 	@Override
 	protected SchemaTranslator<AdLdapConfiguration> createSchemaTranslator() {
@@ -115,19 +129,78 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 	protected SearchStrategy<AdLdapConfiguration> searchByUid(String uidValue, org.identityconnectors.framework.common.objects.ObjectClass objectClass,
 			ObjectClass ldapObjectClass, ResultsHandler handler, OperationOptions options) {
 		if (LdapUtil.isDnAttribute(getConfiguration().getUidAttribute())) {
-			return searchByDn(getSchemaTranslator().toDn(uidValue), objectClass, ldapObjectClass, handler, options);
-		} else {
-			// We know that this can return at most one object. Therefore always use simple search.
-			SearchStrategy<AdLdapConfiguration> searchStrategy = getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
-			String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
-			Dn guidDn = getSchemaTranslator().getGuidDn(uidValue);
-			try {
-				searchStrategy.search(guidDn, LdapUtil.createAllSearchFilter(), SearchScope.OBJECT, attributesToGet);
-			} catch (LdapException e) {
-				throw LdapUtil.processLdapException("Error searching for GUID '"+uidValue+"'", e);
-			}
 			
-			return searchStrategy;
+			return searchByDn(getSchemaTranslator().toDn(uidValue), objectClass, ldapObjectClass, handler, options);
+		
+		} else {
+			
+			if (AdLdapConfiguration.GLOBAL_CATALOG_STRATEGY_NONE.equals(getConfiguration().getGlobalCatalogStrategy())) {
+				// Make search with <GUID=....> baseDn on default connection. Rely on referrals to point our head to
+				// the correct domain controller in multi-domain environment.
+				// We know that this can return at most one object. Therefore always use simple search.
+				SearchStrategy<AdLdapConfiguration> searchStrategy = getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
+				String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
+				Dn guidDn = getSchemaTranslator().getGuidDn(uidValue);
+				try {
+					searchStrategy.search(guidDn, LdapUtil.createAllSearchFilter(), SearchScope.OBJECT, attributesToGet);
+				} catch (LdapException e) {
+					throw LdapUtil.processLdapException("Error searching for GUID '"+uidValue+"'", e);
+				}
+				
+				return searchStrategy;
+
+			} else if (AdLdapConfiguration.GLOBAL_CATALOG_STRATEGY_READ.equals(getConfiguration().getGlobalCatalogStrategy())) {
+				// Make a search directly to the global catalog server. Present that as final result.
+				// We know that this can return at most one object. Therefore always use simple search.
+				SearchStrategy<AdLdapConfiguration> searchStrategy = new DefaultSearchStrategy<>(globalCatalogConnectionManager, 
+						getConfiguration(), getSchemaTranslator(), objectClass, ldapObjectClass, handler, options);
+				String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
+				Dn guidDn = getSchemaTranslator().getGuidDn(uidValue);
+				try {
+					searchStrategy.search(guidDn, LdapUtil.createAllSearchFilter(), SearchScope.OBJECT, attributesToGet);
+				} catch (LdapException e) {
+					throw LdapUtil.processLdapException("Error searching for GUID '"+uidValue+"'", e);
+				}
+				
+				return searchStrategy;
+				
+			} else if (AdLdapConfiguration.GLOBAL_CATALOG_STRATEGY_RESOLVE.equals(getConfiguration().getGlobalCatalogStrategy())) {
+				Dn guidDn = getSchemaTranslator().getGuidDn(uidValue);
+				Entry entry = searchSingleEntry(globalCatalogConnectionManager, guidDn, LdapUtil.createAllSearchFilter(), SearchScope.OBJECT,
+						new String[]{AbstractLdapConfiguration.PSEUDO_ATTRIBUTE_DN_NAME}, "global catalog entry for GUID "+uidValue);
+				if (entry == null) {
+					throw new UnknownUidException("Entry for GUID "+uidValue+" was not found in global catalog");
+				}
+				LOG.ok("Resolved GUID {0} in glogbal catalog to DN {1}", uidValue, entry.getDn());
+				
+				return searchByDn(entry.getDn(), objectClass, ldapObjectClass, handler, options);
+				
+			} else {
+				throw new IllegalStateException("Unknown global catalog strategy '"+getConfiguration().getGlobalCatalogStrategy()+"'");
+			}
+		}
+	}
+
+	@Override
+	protected Dn resolveDn(org.identityconnectors.framework.common.objects.ObjectClass objectClass, Uid uid, OperationOptions options) {
+		Dn guidDn = getSchemaTranslator().getGuidDn(uid.getUidValue());
+		
+		if (AdLdapConfiguration.GLOBAL_CATALOG_STRATEGY_NONE.equals(getConfiguration().getGlobalCatalogStrategy())) {
+			Entry entry = searchSingleEntry(getConnectionManager(), guidDn, LdapUtil.createAllSearchFilter(), SearchScope.OBJECT, 
+					new String[]{AbstractLdapConfiguration.PSEUDO_ATTRIBUTE_DN_NAME}, "LDAP entry for GUID "+uid.getUidValue());
+			if (entry == null) {
+				throw new UnknownUidException("Entry for GUID "+uid.getUidValue()+" was not found");
+			}
+			return entry.getDn();
+			
+		} else {
+			Entry entry = searchSingleEntry(globalCatalogConnectionManager, guidDn, LdapUtil.createAllSearchFilter(), SearchScope.OBJECT, 
+					new String[]{AbstractLdapConfiguration.PSEUDO_ATTRIBUTE_DN_NAME}, "LDAP entry for GUID "+uid.getUidValue());
+			if (entry == null) {
+				throw new UnknownUidException("Entry for GUID "+uid.getUidValue()+" was not found in global catalog");
+			}
+			LOG.ok("Resolved GUID {0} in glogbal catalog to DN {1}", uid.getUidValue(), entry.getDn());
+			return entry.getDn();
 		}
 	}
 	

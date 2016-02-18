@@ -44,4 +44,8 @@ public class OperationLog {
 		}
 	}
 
+	public static boolean isLogOperations() {
+		return LOG.isInfo();
+	}
+
 }
