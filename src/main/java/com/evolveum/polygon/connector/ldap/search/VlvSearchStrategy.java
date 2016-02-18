@@ -16,6 +16,7 @@
 package com.evolveum.polygon.connector.ldap.search;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import org.apache.commons.lang.BooleanUtils;
@@ -42,6 +43,7 @@ import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
 import org.identityconnectors.common.Base64;
 import org.identityconnectors.common.logging.Log;
+import org.identityconnectors.framework.common.exceptions.ConfigurationException;
 import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
 import org.identityconnectors.framework.common.objects.ObjectClass;
 import org.identityconnectors.framework.common.objects.OperationOptions;
@@ -93,7 +95,14 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
         	numberOfEntriesToReturn = getOptions().getPageSize();
         }
         
-        SortRequest sortReqControl = createSortControl(getConfiguration().getVlvSortAttribute(), getConfiguration().getVlvSortOrderingRule());
+        String vlvSortAttributeConfig = getConfiguration().getVlvSortAttribute();
+        List<String> vlvSortAttributeCandidateList = LdapUtil.splitComma(vlvSortAttributeConfig);
+        String vlvSortAttributeName = getSchemaTranslator().selectAttribute(getLdapObjectClass(), vlvSortAttributeCandidateList);
+        if (vlvSortAttributeName == null) {
+        	throw new ConfigurationException("Cannot find appropriate sort attribute for object class "+getLdapObjectClass().getName()
+        			+", tried "+vlvSortAttributeCandidateList + " ("+vlvSortAttributeConfig+")");
+        }
+        SortRequest sortReqControl = createSortControl(vlvSortAttributeName, getConfiguration().getVlvSortOrderingRule());
         sortReqControl.setCritical(true);
                 
         lastListSize = 0;

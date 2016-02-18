@@ -18,6 +18,7 @@ package com.evolveum.polygon.connector.ldap;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
@@ -242,7 +243,6 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			} catch (Exception e) {
 				throw new RuntimeException(e.getMessage(),e);
 			}
-    		connectionManager.apply(schemaManager);
     	}
     	return schemaManager;
     }
@@ -389,6 +389,12 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		return searchStrategy;
 	}
 	
+	/**
+	 * Returns a complete object based on ICF UID.
+	 * 
+	 * This is different from resolveDn() method in that it returns a complete object.
+	 * The resolveDn() method is supposed to be optimized to only return DN.
+	 */
 	protected SearchStrategy<C> searchByUid(String uidValue, ObjectClass objectClass, org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
 			ResultsHandler handler, OperationOptions options) {
 		if (LdapUtil.isDnAttribute(configuration.getUidAttribute())) {
@@ -1057,7 +1063,15 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		}
 	}
 	
-	private Dn resolveDn(ObjectClass objectClass, Uid uid, OperationOptions options) {
+	/**
+	 * Very efficient method that translates ICF UID to Dn. In case that the ICF UID is
+	 * entryUUID we need to make LDAP search to translate it do DN. DN is needed for operations
+	 * such as modify or delete.
+	 * 
+	 * This is different from searchByUid() method in that it returns only the dn. Therefore
+	 * the search may be optimized. The searchByUid() method has to retrieve a complete object.
+	 */
+	protected Dn resolveDn(ObjectClass objectClass, Uid uid, OperationOptions options) {
 		Dn dn = null;
 		String uidAttributeName = configuration.getUidAttribute();
 		if (LdapUtil.isDnAttribute(uidAttributeName)) {
@@ -1077,62 +1091,74 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			ExprNode filterNode = new EqualityNode<Object>(ldapAttributeType, ldapValue);
 			String filterString = filterNode.toString();
 			LOG.ok("Resolving DN for UID {0}", uid);
-			LdapNetworkConnection connection = connectionManager.getConnection(baseDn);
-			
-			int referralAttempts = 0;
-			while (referralAttempts < configuration.getMaximumNumberOfAttempts()) {
-				referralAttempts++;
-				OperationLog.logOperationReq(connection, "Search REQ base={0}, filter={1}, scope={2}, attributes={3}, controls=null",
-						baseDn, filterString, scope, uidAttributeName);
-				try {
-					EntryCursor cursor = connection.search(baseDn, filterString, scope, uidAttributeName);
-					if (cursor.next()) {
-						Entry entry = cursor.get();
-						if (LOG.isOk()) {
-							OperationLog.logOperationRes(connection, "Search RES {0}", entry);
-						}
-						dn = entry.getDn();
-						break;
-					} else {
-						// Something wrong happened, the entry was not created.
-						throw new UnknownUidException("Entry for UID "+uid+" was not found (therefore it cannot be deleted)");
-					}
-				} catch (CursorLdapReferralException e) {
-					LOG.ok("Got cursor referral exception while resolving {0}: {1}", uid, e.getReferralInfo());
-					if (configuration.isReferralStrategyFollow()) {
-						LdapUrl referralUrl;
-						try {
-							referralUrl = new LdapUrl(e.getReferralInfo());
-						} catch (LdapURLEncodingException ee) {
-							throw new InvalidAttributeValueException("Invalid URL in referral '"+e.getReferralInfo()+": "+ee.getMessage(), ee);
-						}
-						connection = connectionManager.getConnection(baseDn, referralUrl);
-						if (referralUrl.getDn() != null) {
-							baseDn = referralUrl.getDn();
-						}
-						if (LOG.isOk()) {
-							LOG.ok("Following referral to {0} / {1}", LdapUtil.formatConnectionInfo(connection), baseDn);
-						}
-					} else if (configuration.isReferralStrategyIgnore()) {
-						// We cannot really "ignore" this referral otherwise we cannot resolve DN
-						throw new ConfigurationException("Got referral to "+e.getReferralInfo()+" while resolving DN. "
-								+ "The referral strategy is set to ignore therefore we cannot follow the referral and complete"
-								+ " DN resolving.");
-					} else {
-						throw new ConnectorIOException("Error reading LDAP entry for UID "+uid+": "+e.getMessage(), e);
-					}
-				} catch (LdapException e) {
-					throw LdapUtil.processLdapException("Error reading LDAP entry for UID "+uid, e);
-				} catch (CursorException e) {
-					throw new ConnectorIOException("Error reading LDAP entry for UID "+uid+": "+e.getMessage(), e);
-				}
-			}
-			
+			Entry entry = searchSingleEntry(getConnectionManager(), baseDn, filterNode, scope,
+					new String[]{uidAttributeName}, "LDAP entry for UID "+uid);
+			dn = entry.getDn();
 		}
 		
-		dn = schemaTranslator.toDn(dn);
-		
 		return dn;
+	}
+	
+	/**
+	 * The most efficient simple search for a single entry. Follows referrals based on the configured strategy.
+	 */
+	protected Entry searchSingleEntry(ConnectionManager<C> connectionManager, Dn baseDn, ExprNode filterNode, 
+			SearchScope scope, String[] attributesToGet, String descMessage) {
+		
+		LdapNetworkConnection connection = connectionManager.getConnection(baseDn);
+		String filterString = filterNode.toString();
+		
+		Entry entry = null;
+		int referralAttempts = 0;
+		while (referralAttempts < configuration.getMaximumNumberOfAttempts()) {
+			referralAttempts++;
+			if (OperationLog.isLogOperations()) {
+				OperationLog.logOperationReq(connection, "Search REQ base={0}, filter={1}, scope={2}, attributes={3}, controls=null",
+					baseDn, filterString, scope, Arrays.toString(attributesToGet));
+			}
+			try {
+				EntryCursor cursor = connection.search(baseDn, filterString, scope, attributesToGet);
+				if (cursor.next()) {
+					entry = cursor.get();
+					if (OperationLog.isLogOperations()) {
+						OperationLog.logOperationRes(connection, "Search RES {0}", entry);
+					}
+					break;
+				} else {
+					// Something wrong happened, the entry was not created.
+					throw new UnknownUidException(descMessage + " was not found (therefore it cannot be deleted)");
+				}
+			} catch (CursorLdapReferralException e) {
+				LOG.ok("Got cursor referral exception while resolving {0}: {1}", descMessage, e.getReferralInfo());
+				if (configuration.isReferralStrategyFollow()) {
+					LdapUrl referralUrl;
+					try {
+						referralUrl = new LdapUrl(e.getReferralInfo());
+					} catch (LdapURLEncodingException ee) {
+						throw new InvalidAttributeValueException("Invalid URL in referral '"+e.getReferralInfo()+": "+ee.getMessage(), ee);
+					}
+					connection = connectionManager.getConnection(baseDn, referralUrl);
+					if (referralUrl.getDn() != null) {
+						baseDn = referralUrl.getDn();
+					}
+					if (LOG.isOk()) {
+						LOG.ok("Following referral to {0} / {1}", LdapUtil.formatConnectionInfo(connection), baseDn);
+					}
+				} else if (configuration.isReferralStrategyIgnore()) {
+					// We cannot really "ignore" this referral otherwise we cannot resolve DN
+					throw new ConfigurationException("Got referral to "+e.getReferralInfo()+" while resolving DN. "
+							+ "The referral strategy is set to ignore therefore we cannot follow the referral and complete"
+							+ " DN resolving.");
+				} else {
+					throw new ConnectorIOException("Error reading "+descMessage+": "+e.getMessage(), e);
+				}
+			} catch (LdapException e) {
+				throw LdapUtil.processLdapException("Error reading "+descMessage, e);
+			} catch (CursorException e) {
+				throw new ConnectorIOException("Error reading "+descMessage+": "+e.getMessage(), e);
+			}
+		}
+		return entry;
 	}
  
 	@Override

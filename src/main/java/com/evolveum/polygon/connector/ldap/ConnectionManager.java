@@ -60,35 +60,38 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 	private static final Random rnd = new Random();
 	
 	private C configuration;
-	private ServerDefinition defaultServerDefinition;
+	private String[] serversConfiguration;
+	private ServerDefinition defaultServerDefinition = null;
 	private List<ServerDefinition> servers;
 	private ConnectorBinaryAttributeDetector<C> binaryAttributeDetector = new ConnectorBinaryAttributeDetector<C>();
-	private SchemaManager schemaManager;
 
 	public ConnectionManager(C configuration) {
+		this(configuration, configuration.getServers(), true);
+	}
+	
+	public ConnectionManager(C configuration, String[] serversConfiguration, boolean useDefaultConnection) {
 		this.configuration = configuration;
-		buildServerList();
+		this.serversConfiguration = serversConfiguration;
+		buildServerList(useDefaultConnection);
 	}
 
-	private void buildServerList() {
+	private void buildServerList(boolean useDefaultConnection) {
 		servers = new ArrayList<>();
-		defaultServerDefinition = ServerDefinition.createDefaultDefinition(configuration); 
-		servers.add(defaultServerDefinition);
-		if (configuration.getServers() != null) {
-			for(int line = 0; line < configuration.getServers().length; line++) {
-				servers.add(ServerDefinition.parse(configuration, configuration.getServers()[line], line));
+		if (useDefaultConnection) {
+			defaultServerDefinition = ServerDefinition.createDefaultDefinition(configuration); 
+			servers.add(defaultServerDefinition);
+		}
+		if (serversConfiguration != null) {
+			for(int line = 0; line < serversConfiguration.length; line++) {
+				servers.add(ServerDefinition.parse(configuration, serversConfiguration[line], line));
 			}
 		}
 	}
 	
-	public void apply(SchemaManager schemaManager) {
-		this.schemaManager = schemaManager;
-		for (ServerDefinition server: servers) {
-			server.apply(schemaManager);
-		}
-	}
-
 	public LdapNetworkConnection getDefaultConnection() {
+		if (defaultServerDefinition == null) {
+			throw new IllegalStateException("No default connection in this connection manager");
+		}
 		if (defaultServerDefinition.getConnection() == null) {
 			connect();
 		}
@@ -97,10 +100,6 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 	
 	public LdapNetworkConnection getConnection(Dn base) {
 		LOG.ok("Selecting server for {0} from servers:\n{1}", base, dumpServers());
-		if (!base.isSchemaAware() && !base.getName().startsWith("<")) { // The <GUID=...> DNs are never schema-aware
-			// to be on the safe side. Non-schema-aware DNs will not compare correctly
-			throw new IllegalArgumentException("DN is not schema aware");
-		}
 		ServerDefinition server = selectServer(base);
 		if (!server.isConnected()) {
 			connectServer(server);
@@ -130,12 +129,23 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 		}
 		return server.getConnection();		
 	}
+	
+	public LdapNetworkConnection getRandomConnection() {
+		ServerDefinition server = selectRandomServer();
+		if (!server.isConnected()) {
+			connectServer(server);
+		}
+		return server.getConnection();		
+	}
 
 	private ServerDefinition selectServer(Dn dn) {
-		if (!dn.isSchemaAware()) {
-			// No dot even bother to choose. If the DN is not schema-aware at this point
-			// then it is a very strange thing such as the <GUID=...> insanity
-			// The selection will not work anyway
+		if (!Character.isAlphabetic(dn.getName().charAt(0))) {
+			// No dot even bother to choose. There are the strange
+			// things such as the <GUID=...> insanity.
+			// The selection will not work anyway.
+			if (defaultServerDefinition == null) {
+				throw new IllegalStateException("No default connection in this connection manager");
+			}
 			return defaultServerDefinition;
 		}
 		Dn selectedBaseContext = null;
@@ -186,6 +196,9 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 		ServerDefinition selectedServer = selectRandomItem(selectedServers);
 		if (selectedServer == null) {
 			LOG.ok("SELECT: selected default for {1}", dn);
+			if (defaultServerDefinition == null) {
+				throw new IllegalStateException("No default connection in this connection manager");
+			}
 			return defaultServerDefinition;
 		} else {
 			LOG.ok("SELECT: selected {0} for {1}", selectedServer.getHost(), dn);
@@ -204,12 +217,18 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 		return server;
 	}
 
+	private ServerDefinition selectRandomServer() {
+		return selectRandomItem(servers);
+	}
 	
 	public ConnectorBinaryAttributeDetector<C> getBinaryAttributeDetector() {
 		return binaryAttributeDetector;
 	}
 
 	public boolean isConnected() {
+		if (defaultServerDefinition == null) {
+			throw new IllegalStateException("No default connection in this connection manager");
+		}
 		return defaultServerDefinition.getConnection() != null && defaultServerDefinition.getConnection().isConnected();
 	}
 	
@@ -240,7 +259,9 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 	}
 	
 	public void connect() {
-		connectServer(defaultServerDefinition);
+		if (defaultServerDefinition != null) {
+			connectServer(defaultServerDefinition);
+		}
     }
 	
 	private LdapConnectionConfig createLdapConnectionConfig(ServerDefinition serverDefinition) {
@@ -356,6 +377,10 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 	}
     	
 	public boolean isAlive() {
+		if (defaultServerDefinition == null) {
+			throw new IllegalStateException("No default connection in this connection manager");
+		}
+
 		if (defaultServerDefinition.getConnection() == null) {
 			return false;
 		}

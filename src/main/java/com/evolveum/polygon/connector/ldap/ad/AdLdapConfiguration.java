@@ -16,6 +16,8 @@
 
 package com.evolveum.polygon.connector.ldap.ad;
 
+import org.identityconnectors.common.logging.Log;
+
 import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
 
 /**
@@ -25,6 +27,8 @@ import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
  *
  */
 public class AdLdapConfiguration extends AbstractLdapConfiguration {
+	
+	private static final Log LOG = Log.getLog(AdLdapConfiguration.class);
 
 	public static final String ATTRIBUTE_OBJECT_GUID_NAME = "objectGUID";
 	public static final String ATTRIBUTE_UNICODE_PWD_NAME = "unicodePwd";
@@ -38,6 +42,36 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
     private String userContainerDn;
     
     private String groupContainerDn;
+    
+    /**
+     * Specification of global catalog servers. If left empty then the
+     * connector will try to determine the host and port automatically.
+     * The definition has the same format as "servers" definition.
+     */
+    private String[] globalCatalogServers;
+    
+    private String globalCatalogStrategy = GLOBAL_CATALOG_STRATEGY_NONE;
+    
+    /**
+     * Do not use global catalog explicitly. The global catalog will only
+     * be used when following the referrals.
+     */
+    public static final String GLOBAL_CATALOG_STRATEGY_NONE = "none";
+    
+    /**
+     * The global catalog will be used to resolve DNs. Other entry data from
+     * global catalog will be ignored. Explicit read to an authoritative server
+     * will be used to retrieve the data.
+     */
+    public static final String GLOBAL_CATALOG_STRATEGY_RESOLVE = "resolve";
+    
+    /**
+     * The global catalog will be used to resolve DNs. Only the attributes
+     * that are stored in global catalog will be returned when object is
+     * retrieved. This provides incomplete data, but it avoids additional
+     * round-trip to an authoritative server.
+     */
+    public static final String GLOBAL_CATALOG_STRATEGY_READ = "read";
         
 	public String getUserObjectClass() {
 		return userObjectClass;
@@ -79,6 +113,22 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.groupContainerDn = groupContainerDn;
 	}
 
+	public String[] getGlobalCatalogServers() {
+		return globalCatalogServers;
+	}
+
+	public void setGlobalCatalogServers(String[] globalCatalogServers) {
+		this.globalCatalogServers = globalCatalogServers;
+	}
+
+	public String getGlobalCatalogStrategy() {
+		return globalCatalogStrategy;
+	}
+
+	public void setGlobalCatalogStrategy(String globalCatalogStrategy) {
+		this.globalCatalogStrategy = globalCatalogStrategy;
+	}
+
 	@Override
 	public void recompute() {
 		if (getPasswordAttribute() == null) {
@@ -97,7 +147,25 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
     		setSynchronizationStrategy(SYNCHRONIZATION_STRATEGY_AD_DIR_SYNC);
     	}
 		if (getVlvSortAttribute() == null) {
-			setVlvSortAttribute("cn");
+			setVlvSortAttribute("cn,ou,dc");
+		}
+		if (globalCatalogServers == null) {
+			String gcHost;
+			String host = getHost();
+			int dotIndex = host.indexOf(".");
+			if (dotIndex > 0) {
+				String domain = host.substring(dotIndex + 1);
+				gcHost = "gc._msdcs."+domain;
+			} else {
+				gcHost = "gc._msdcs";
+			}
+			int gcPort = 3268;
+			if (CONNECTION_SECURITY_SSL.equals(getConnectionSecurity())) {
+				gcPort = 3269;
+			}
+			String configLine = "host=" + gcHost +"; port=" + gcPort;
+			LOG.ok("Automatically determined global catalog configuration: {0}", configLine);
+			globalCatalogServers = new String[] { configLine };
 		}
 		super.recompute();
 	}
