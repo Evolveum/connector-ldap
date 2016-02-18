@@ -118,6 +118,27 @@ public class AdSchemaTranslator extends SchemaTranslator<AdLdapConfiguration> {
 	}
 	
 	@Override
+	public Value<Object> toLdapIdentifierValue(AttributeType ldapAttributeType, String icfAttributeValue) {
+		if (isGuid(ldapAttributeType)) {
+			icfAttributeValue = parseGuidFromDashedNotation(icfAttributeValue);
+		}
+		return super.toLdapIdentifierValue(ldapAttributeType, icfAttributeValue);
+	}
+
+	@Override
+	public String toIcfIdentifierValue(Value<?> ldapValue, AttributeType ldapAttributeType) {
+		String icfIdentifierValue = super.toIcfIdentifierValue(ldapValue, ldapAttributeType);
+		if (isGuid(ldapAttributeType)) {
+			icfIdentifierValue = formatGuidToDashedNotation(icfIdentifierValue);
+		}
+		return icfIdentifierValue;
+	}
+
+	private boolean isGuid(AttributeType ldapAttributeType) {
+		return ldapAttributeType.getName().equalsIgnoreCase(AdLdapConfiguration.ATTRIBUTE_OBJECT_GUID_NAME);
+	}
+
+	@Override
 	protected void extendConnectorObject(ConnectorObjectBuilder cob, Entry entry, String objectClassName) {
 		super.extendConnectorObject(cob, entry, objectClassName);
 		Integer userAccountControl = LdapUtil.getIntegerAttribute(entry, AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME, null);
@@ -190,31 +211,61 @@ public class AdSchemaTranslator extends SchemaTranslator<AdLdapConfiguration> {
 		// We need to create this as schema-aware even though it has nothing to do with the
 		// schema. But if the Dn parsing does not know about schemaManager it does not know
 		// that we are in relaxed mode and it will fail with these crazy DNs.
-		return toSchemaAwareDn("<GUID="+formatGuidToDashedNotation(uidValue)+">");
+		return toSchemaAwareDn("<GUID="+uidValue+">");
 	}
 	
-	public String formatGuidToDashedNotation(String uidValue) {
-		if (uidValue == null) {
+	/**
+	 * Returns dashed GUID notation formatted from simple hex-encoded binary.
+	 * 
+	 * E.g. "2f01c06bb1d0414e9a69dd3841a13506" -> "6bc0012f-d0b1-4e41-9a69-dd3841a13506"
+	 */
+	public String formatGuidToDashedNotation(String hexValue) {
+		if (hexValue == null) {
 			return null;
 		}
 		StringBuilder sb = new StringBuilder();
-		sb.append(uidValue.substring(6, 8));
-		sb.append(uidValue.substring(4, 6));
-		sb.append(uidValue.substring(2, 4));
-		sb.append(uidValue.substring(0, 2));
+		sb.append(hexValue.substring(6, 8));
+		sb.append(hexValue.substring(4, 6));
+		sb.append(hexValue.substring(2, 4));
+		sb.append(hexValue.substring(0, 2));
 		sb.append('-');
-		sb.append(uidValue.substring(10, 12));
-		sb.append(uidValue.substring(8, 10));
+		sb.append(hexValue.substring(10, 12));
+		sb.append(hexValue.substring(8, 10));
 		sb.append('-');
-		sb.append(uidValue.substring(14, 16));
-		sb.append(uidValue.substring(12, 14));
+		sb.append(hexValue.substring(14, 16));
+		sb.append(hexValue.substring(12, 14));
 		sb.append('-');
-		sb.append(uidValue.substring(16, 20));
+		sb.append(hexValue.substring(16, 20));
 		sb.append('-');
-		sb.append(uidValue.substring(20, 32));
+		sb.append(hexValue.substring(20, 32));
 		return sb.toString();
 	}
 
+	/**
+	 * Returns simple hex-encoded string parsed from dashed GUID notation.
+	 * 
+	 * E.g. "6bc0012f-d0b1-4e41-9a69-dd3841a13506" -> "2f01c06bb1d0414e9a69dd3841a13506"
+	 */
+	public String parseGuidFromDashedNotation(String guidDashedNotation) {
+		if (guidDashedNotation == null) {
+			return null;
+		}
+		StringBuilder sb = new StringBuilder();
+		sb.append(guidDashedNotation.substring(6, 8));
+		sb.append(guidDashedNotation.substring(4, 6));
+		sb.append(guidDashedNotation.substring(2, 4));
+		sb.append(guidDashedNotation.substring(0, 2));
+		sb.append(guidDashedNotation.substring(11, 13));
+		sb.append(guidDashedNotation.substring(9, 11));
+		sb.append(guidDashedNotation.substring(16, 18));
+		sb.append(guidDashedNotation.substring(14, 16));
+		sb.append(guidDashedNotation.substring(19, 23));
+		sb.append(guidDashedNotation.substring(24, 36));
+		return sb.toString();
+	}
+
+	
+	
 	@Override
 	protected boolean isOperational(AttributeType ldapAttribute) {
 		if (super.isOperational(ldapAttribute)) {
