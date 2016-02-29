@@ -297,7 +297,7 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 		if (sslProtocol != null) {
 			connectionConfig.setSslProtocol(sslProtocol);
 		}
-    	
+		
     	connectionConfig.setBinaryAttributeDetector(binaryAttributeDetector);
 
 		return connectionConfig;

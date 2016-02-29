@@ -29,6 +29,7 @@ import org.apache.directory.api.ldap.extras.controls.vlv.VirtualListViewRequest;
 import org.apache.directory.api.ldap.model.cursor.CursorException;
 import org.apache.directory.api.ldap.model.cursor.CursorLdapReferralException;
 import org.apache.directory.api.ldap.model.cursor.EntryCursor;
+import org.apache.directory.api.ldap.model.cursor.SearchCursor;
 import org.apache.directory.api.ldap.model.entry.DefaultAttribute;
 import org.apache.directory.api.ldap.model.entry.DefaultEntry;
 import org.apache.directory.api.ldap.model.entry.DefaultModification;
@@ -66,11 +67,16 @@ import org.apache.directory.api.ldap.model.filter.ExprNode;
 import org.apache.directory.api.ldap.model.message.AddRequest;
 import org.apache.directory.api.ldap.model.message.AddRequestImpl;
 import org.apache.directory.api.ldap.model.message.AddResponse;
+import org.apache.directory.api.ldap.model.message.AliasDerefMode;
 import org.apache.directory.api.ldap.model.message.BindRequest;
 import org.apache.directory.api.ldap.model.message.BindRequestImpl;
 import org.apache.directory.api.ldap.model.message.BindResponse;
 import org.apache.directory.api.ldap.model.message.LdapResult;
+import org.apache.directory.api.ldap.model.message.Response;
 import org.apache.directory.api.ldap.model.message.ResultCodeEnum;
+import org.apache.directory.api.ldap.model.message.SearchRequest;
+import org.apache.directory.api.ldap.model.message.SearchRequestImpl;
+import org.apache.directory.api.ldap.model.message.SearchResultEntry;
 import org.apache.directory.api.ldap.model.message.SearchScope;
 import org.apache.directory.api.ldap.model.message.controls.PagedResults;
 import org.apache.directory.api.ldap.model.name.Dn;
@@ -734,32 +740,21 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		}
 		
 		// read the entry back and return UID
-		try {
-			EntryCursor cursor = connection.search(
-					dnStringFromName, LdapConfiguration.SEARCH_FILTER_ALL, SearchScope.OBJECT, uidAttributeName);
-			if (cursor.next()) {
-				Entry entryRead = cursor.get();
-				org.apache.directory.api.ldap.model.entry.Attribute uidLdapAttribute = entryRead.get(uidAttributeName);
-				if (uidLdapAttribute == null) {
-					throw new InvalidAttributeValueException("No value for UID attribute "+uidAttributeName+" in object "+dnStringFromName);
-				}
-				if (uidLdapAttribute.size() == 0) {
-					throw new InvalidAttributeValueException("No value for UID attribute "+uidAttributeName+" in object "+dnStringFromName);
-				} else if (uidLdapAttribute.size() > 1) {
-					throw new InvalidAttributeValueException("More than one value ("+uidLdapAttribute.size()+") for UID attribute "+uidAttributeName+" in object "+dnStringFromName);
-				}
-				Value<?> uidLdapAttributeValue = uidLdapAttribute.get();
-				AttributeType uidLdapAttributeType = getSchemaManager().getAttributeType(uidAttributeName);
-				uid = new Uid(getSchemaTranslator().toIcfIdentifierValue(uidLdapAttributeValue, uidLdapAttributeType));
-			} else {
-				// Something wrong happened, the entry was not created.
-				throw new UnknownUidException("Entry with dn "+dnStringFromName+" was not found (right after it was created)");
-			}
-		} catch (LdapException e) {
-			throw LdapUtil.processLdapException("Error reading LDAP entry "+dnStringFromName, e);
-		} catch (CursorException e) {
-			throw new ConnectorIOException("Error reading LDAP entry "+dnStringFromName+": "+e.getMessage(), e);
+		
+		Entry entryRead = searchSingleEntry(connectionManager, entry.getDn(), LdapUtil.createAllSearchFilter(), SearchScope.OBJECT, 
+				new String[]{ uidAttributeName }, "re-reading entry to get UID");
+		org.apache.directory.api.ldap.model.entry.Attribute uidLdapAttribute = entryRead.get(uidAttributeName);
+		if (uidLdapAttribute == null) {
+			throw new InvalidAttributeValueException("No value for UID attribute "+uidAttributeName+" in object "+dnStringFromName);
 		}
+		if (uidLdapAttribute.size() == 0) {
+			throw new InvalidAttributeValueException("No value for UID attribute "+uidAttributeName+" in object "+dnStringFromName);
+		} else if (uidLdapAttribute.size() > 1) {
+			throw new InvalidAttributeValueException("More than one value ("+uidLdapAttribute.size()+") for UID attribute "+uidAttributeName+" in object "+dnStringFromName);
+		}
+		Value<?> uidLdapAttributeValue = uidLdapAttribute.get();
+		AttributeType uidLdapAttributeType = getSchemaManager().getAttributeType(uidAttributeName);
+		uid = new Uid(getSchemaTranslator().toIcfIdentifierValue(uidLdapAttributeValue, uidLdapAttributeType));
 		
 		return uid;
 	}
@@ -1111,14 +1106,26 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 				OperationLog.logOperationReq(connection, "Search REQ base={0}, filter={1}, scope={2}, attributes={3}, controls=null",
 					baseDn, filterString, scope, Arrays.toString(attributesToGet));
 			}
+			
+			SearchRequest searchReq = new SearchRequestImpl();
+			searchReq.setBase(baseDn);
+			searchReq.setFilter(filterNode);
+			searchReq.setScope(scope);
+			searchReq.addAttributes(attributesToGet);
+			searchReq.setDerefAliases(AliasDerefMode.NEVER_DEREF_ALIASES);
+			
+			SearchCursor cursor = null;
 			try {
-				EntryCursor cursor = connection.search(baseDn, filterString, scope, attributesToGet);
+				cursor = connection.search(searchReq);
 				if (cursor.next()) {
-					entry = cursor.get();
-					if (OperationLog.isLogOperations()) {
-						OperationLog.logOperationRes(connection, "Search RES {0}", entry);
+					Response response = cursor.get();
+					if (response instanceof SearchResultEntry) {
+						entry = ((SearchResultEntry)response).getEntry();
+						if (OperationLog.isLogOperations()) {
+							OperationLog.logOperationRes(connection, "Search RES {0}", entry);
+						}
+						break;
 					}
-					break;
 				} else {
 					// Something wrong happened, the entry was not created.
 					throw new UnknownUidException(descMessage + " was not found (therefore it cannot be deleted)");
@@ -1151,6 +1158,8 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 				throw LdapUtil.processLdapException("Error reading "+descMessage, e);
 			} catch (CursorException e) {
 				throw new ConnectorIOException("Error reading "+descMessage+": "+e.getMessage(), e);
+			} finally {
+				cursor.close();
 			}
 		}
 		return entry;
