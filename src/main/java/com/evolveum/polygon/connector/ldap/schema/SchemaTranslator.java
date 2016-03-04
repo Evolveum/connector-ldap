@@ -621,20 +621,23 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 		return toLdapValue(ldapAttributeType, icfAttributeValues.get(0));
 	}
 	
-	private Object toIcfValue(String icfAttributeName, Value<?> ldapValue, AttributeType ldapAttributeType) {
+	private Object toIcfValue(String icfAttributeName, Value<?> ldapValue, String ldapAttributeName, AttributeType ldapAttributeType) {
 		if (ldapValue == null) {
 			return null;
 		}
 		if (OperationalAttributeInfos.PASSWORD.is(icfAttributeName)) {
 			return new GuardedString(ldapValue.getString().toCharArray());
 		} else {
-			String syntaxOid = ldapAttributeType.getSyntaxOid();
+			String syntaxOid = null;
+			if (ldapAttributeType != null) {
+				syntaxOid = ldapAttributeType.getSyntaxOid();
+			}
 			if (SchemaConstants.GENERALIZED_TIME_SYNTAX.equals(syntaxOid)) {
 				try {
 					GeneralizedTime gt = new GeneralizedTime(ldapValue.getString());
 					return gt.getCalendar().getTimeInMillis();
 				} catch (ParseException e) {
-					throw new InvalidAttributeValueException("Wrong generalized time format in LDAP attribute "+ldapAttributeType.getName()+": "+e.getMessage(), e);
+					throw new InvalidAttributeValueException("Wrong generalized time format in LDAP attribute "+ldapAttributeName+": "+e.getMessage(), e);
 				}
 			} else if (SchemaConstants.BOOLEAN_SYNTAX.equals(syntaxOid)) {
 				return Boolean.parseBoolean(ldapValue.getString());
@@ -643,17 +646,17 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 			} else if (isLongSyntax(syntaxOid)) {
 				return Long.parseLong(ldapValue.getString());
 			} else if (isBinarySyntax(syntaxOid)) {
-				LOG.ok("Converting to ICF: {0} (syntax {1}, value {2}): explicit binary", ldapAttributeType.getName(), syntaxOid, ldapValue.getClass());
+				LOG.ok("Converting to ICF: {0} (syntax {1}, value {2}): explicit binary", ldapAttributeName, syntaxOid, ldapValue.getClass());
 				return ldapValue.getBytes();
 			} else if (isStringSyntax(syntaxOid)) {
-				LOG.ok("Converting to ICF: {0} (syntax {1}, value {2}): explicit string", ldapAttributeType.getName(), syntaxOid, ldapValue.getClass());
+				LOG.ok("Converting to ICF: {0} (syntax {1}, value {2}): explicit string", ldapAttributeName, syntaxOid, ldapValue.getClass());
 				return ldapValue.getString();
 			} else {
 				if (ldapValue instanceof StringValue) {
-					LOG.ok("Converting to ICF: {0} (syntax {1}, value {2}): detected string", ldapAttributeType.getName(), syntaxOid, ldapValue.getClass());
+					LOG.ok("Converting to ICF: {0} (syntax {1}, value {2}): detected string", ldapAttributeName, syntaxOid, ldapValue.getClass());
 					return ldapValue.getString();
 				} else {
-					LOG.ok("Converting to ICF: {0} (syntax {1}, value {2}): detected binary", ldapAttributeType.getName(), syntaxOid, ldapValue.getClass());
+					LOG.ok("Converting to ICF: {0} (syntax {1}, value {2}): detected binary", ldapAttributeName, syntaxOid, ldapValue.getClass());
 					return ldapValue.getBytes();
 				}
 			}
@@ -1036,7 +1039,17 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 		AttributeBuilder ab = new AttributeBuilder();
 		String ldapAttributeName = getLdapAttributeName(ldapAttribute);
 		AttributeType ldapAttributeType = schemaManager.getAttributeType(ldapAttributeName);
-		String icfAttributeName = toIcfAttributeName(ldapAttributeType.getName());
+		String ldapAttributeNameFromSchema;
+		if (ldapAttributeType == null) {
+			if (configuration.isAllowUnknownAttributes()) {
+				ldapAttributeNameFromSchema = ldapAttributeName;
+			} else {
+				throw new InvalidAttributeValueException("Unknown LDAP attribute " + ldapAttributeName + " (not present in LDAP schema)");
+			}
+		} else {
+			ldapAttributeNameFromSchema = ldapAttributeType.getName();
+		}
+		String icfAttributeName = toIcfAttributeName(ldapAttributeNameFromSchema);
 		ab.setName(icfAttributeName);
 		if (attributeHandler != null) {
 			attributeHandler.handle(connection, entry, ldapAttribute, ab);
@@ -1045,7 +1058,7 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 		boolean hasValidValue = false;
 		while (iterator.hasNext()) {
 			Value<?> ldapValue = iterator.next();
-			Object icfValue = toIcfValue(icfAttributeName, ldapValue, ldapAttributeType);
+			Object icfValue = toIcfValue(icfAttributeName, ldapValue, ldapAttributeNameFromSchema, ldapAttributeType);
 			if (icfValue != null) {
 				ab.addValue(icfValue);
 				hasValidValue = true;
