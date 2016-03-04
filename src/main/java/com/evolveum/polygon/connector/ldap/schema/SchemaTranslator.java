@@ -731,7 +731,12 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 			return null;
 		}
 		String syntaxOid = null;
-		if (ldapAttributeType != null) { // E.g. ancient OpenLDAP does not have entryUUID in schema 
+		if (ldapAttributeType == null) {
+			// E.g. ancient OpenLDAP does not have entryUUID in schema
+			if (!configuration.isAllowUnknownAttributes()) {
+				throw new InvalidAttributeValueException("Unknown LDAP attribute "+ldapAttributeName + " (not present in LDAP schema)");
+			}
+		} else {  
 			syntaxOid = ldapAttributeType.getSyntaxOid();
 		}
 		if (isBinarySyntax(syntaxOid)) {
@@ -842,11 +847,15 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 				continue;
 			}
 			AttributeType attributeType = schemaManager.getAttributeType(ldapAttrName);
+			String ldapAttributeNameFromSchema = ldapAttrName;
 			if (attributeType == null) {
-				throw new InvalidAttributeValueException("Unknown attribute " + ldapAttrName);
+				if (!configuration.isAllowUnknownAttributes()) {
+					throw new InvalidAttributeValueException("Unknown LDAP attribute " + ldapAttrName + " (not present in LDAP schema)");
+				}
+			} else {
+				ldapAttributeNameFromSchema = attributeType.getName();
 			}
-			String ldapAttributeName = attributeType.getName();
-			if (uidAttributeName.equals(ldapAttributeName)) {
+			if (uidAttributeName.equals(ldapAttributeNameFromSchema)) {
 				continue;
 			}
 			Attribute icfAttribute = toIcfAttribute(connection, entry, ldapAttribute, attributeHandler);
