@@ -754,7 +754,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		}
 		Value<?> uidLdapAttributeValue = uidLdapAttribute.get();
 		AttributeType uidLdapAttributeType = getSchemaManager().getAttributeType(uidAttributeName);
-		uid = new Uid(getSchemaTranslator().toIcfIdentifierValue(uidLdapAttributeValue, uidLdapAttributeType));
+		uid = new Uid(getSchemaTranslator().toIcfIdentifierValue(uidLdapAttributeValue, uidAttributeName, uidLdapAttributeType));
 		
 		return uid;
 	}

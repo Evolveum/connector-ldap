@@ -726,13 +726,16 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 	/**
 	 * Used to format __UID__ and __NAME__.
 	 */
-	public String toIcfIdentifierValue(Value<?> ldapValue, AttributeType ldapAttributeType) {
+	public String toIcfIdentifierValue(Value<?> ldapValue, String ldapAttributeName, AttributeType ldapAttributeType) {
 		if (ldapValue == null) {
 			return null;
 		}
-		String syntaxOid = ldapAttributeType.getSyntaxOid();
+		String syntaxOid = null;
+		if (ldapAttributeType != null) { // E.g. ancient OpenLDAP does not have entryUUID in schema 
+			syntaxOid = ldapAttributeType.getSyntaxOid();
+		}
 		if (isBinarySyntax(syntaxOid)) {
-			LOG.ok("Converting identifier to ICF: {0} (syntax {1}, value {2}): explicit binary", ldapAttributeType.getName(), syntaxOid, ldapValue.getClass());
+			LOG.ok("Converting identifier to ICF: {0} (syntax {1}, value {2}): explicit binary", ldapAttributeName, syntaxOid, ldapValue.getClass());
 			byte[] bytes;
 			if (ldapValue instanceof BinaryValue) {
 				bytes = ldapValue.getBytes();
@@ -756,7 +759,7 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 			// Assume that identifiers are short. It is more readable to use hex representation than base64.
 			return LdapUtil.binaryToHex(bytes);
 		} else {
-			LOG.ok("Converting identifier to ICF: {0} (syntax {1}, value {2}): implicit string", ldapAttributeType.getName(), syntaxOid, ldapValue.getClass());
+			LOG.ok("Converting identifier to ICF: {0} (syntax {1}, value {2}): implicit string", ldapAttributeName, syntaxOid, ldapValue.getClass());
 			return ldapValue.getString();
 		}
 	}
@@ -827,7 +830,7 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 				throw new IllegalArgumentException("LDAP entry "+dn+" has more than one value for UID attribute "+uidAttributeName);
 			}
 			AttributeType attributeType = schemaManager.getAttributeType(uidAttribute.getId());
-			uid = toIcfIdentifierValue(uidAttribute.get(), attributeType);
+			uid = toIcfIdentifierValue(uidAttribute.get(), uidAttribute.getId(), attributeType);
 		}
 		cob.setUid(uid);
 		
