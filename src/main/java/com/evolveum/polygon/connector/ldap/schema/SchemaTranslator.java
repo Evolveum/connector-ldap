@@ -409,10 +409,10 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 			String attributeOid = schemaManager.getAttributeTypeRegistry().getOidByName(ldapAttributeName);
 			return schemaManager.getAttributeTypeRegistry().lookup(attributeOid);
 		} catch (LdapException e) {
-			if (ArrayUtils.contains(configuration.getOperationalAttributes(), ldapAttributeName)) {
+			if (ArrayUtils.contains(configuration.getOperationalAttributes(), ldapAttributeName) || configuration.isAllowUnknownAttributes()) {
 				return null;
 			} else {
-				throw new IllegalArgumentException("Unknown LDAP attribute "+ldapAttributeName+" (translated from ICF attribute "+icfAttributeName+")");
+				throw new IllegalArgumentException("Unknown LDAP attribute "+ldapAttributeName+" (translated from ICF attribute "+icfAttributeName+")", e);
 			}
 		}
 	}
