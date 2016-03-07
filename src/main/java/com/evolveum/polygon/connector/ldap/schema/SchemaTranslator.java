@@ -465,30 +465,22 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 	private boolean hasEqualityMatching(AttributeType ldapAttribute, String matchingRuleName,
 			String matchingRuleOid) {
 		if (ldapAttribute == null) {
-			LOG.ok("EQQ Attr no ldapAttrType");
 			return false;
 		}
-		LOG.ok("EQQ Attr {0}: {1}" , ldapAttribute.getName(), ldapAttribute);
 		if (ldapAttribute.getEquality() != null && matchingRuleOid.equals(ldapAttribute.getEquality().getOid())) {
-			LOG.ok("EQQ Attr {0}: {1} getEquality() matched" , ldapAttribute.getName(), matchingRuleOid);
 			return true;
 		}
 		if (matchingRuleOid.equals(ldapAttribute.getEqualityOid())) {
-			LOG.ok("EQQ Attr {0}: {1} getEqualityOid() matched" , ldapAttribute.getName(), matchingRuleOid);
 			return true;
 		}
 		if (matchingRuleName.equals(ldapAttribute.getEqualityName())) {
-			LOG.ok("EQQ Attr {0}: {1} getEqualityName() matched" , ldapAttribute.getName(), matchingRuleName);
 			return true;
 		}
 		if (ldapAttribute.getSuperior() != null) {
-			LOG.ok("EQQ Attr {0}: going to superior" , ldapAttribute.getName(), matchingRuleName);
 			if (hasEqualityMatching(ldapAttribute.getSuperior(), matchingRuleName, matchingRuleOid)) {
-				LOG.ok("EQQ Attr {0}: superior matched" , ldapAttribute.getName(), matchingRuleName);
 				return true;
 			}
 		}
-		LOG.ok("EQQ Attr {0}: NOT MATCHED {1} {2}" , ldapAttribute.getName(), matchingRuleName, matchingRuleOid);
 		return false;
 	}
 
