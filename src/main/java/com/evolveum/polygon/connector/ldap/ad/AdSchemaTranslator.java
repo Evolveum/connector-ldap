@@ -126,8 +126,8 @@ public class AdSchemaTranslator extends SchemaTranslator<AdLdapConfiguration> {
 	}
 
 	@Override
-	public String toIcfIdentifierValue(Value<?> ldapValue, AttributeType ldapAttributeType) {
-		String icfIdentifierValue = super.toIcfIdentifierValue(ldapValue, ldapAttributeType);
+	public String toIcfIdentifierValue(Value<?> ldapValue, String ldapAttributeName, AttributeType ldapAttributeType) {
+		String icfIdentifierValue = super.toIcfIdentifierValue(ldapValue, ldapAttributeName, ldapAttributeType);
 		if (isGuid(ldapAttributeType)) {
 			icfIdentifierValue = formatGuidToDashedNotation(icfIdentifierValue);
 		}

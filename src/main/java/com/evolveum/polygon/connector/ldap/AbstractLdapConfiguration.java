@@ -227,6 +227,12 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
     private boolean schemaQuirksMode = true;
     
     /**
+     * Accept also attributes that are not defined in schema.
+     * Single-value string is assumed as the attribute type.
+     */
+    private boolean allowUnknownAttributes = false;
+    
+    /**
      * Synchronization strategy to detect changes in real time.
      * Possible values: "none", "auto", ... TODO
      * Default value: auto
@@ -466,6 +472,14 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 
 	public void setSchemaQuirksMode(boolean schemaQuirksMode) {
 		this.schemaQuirksMode = schemaQuirksMode;
+	}
+
+	public boolean isAllowUnknownAttributes() {
+		return allowUnknownAttributes;
+	}
+
+	public void setAllowUnknownAttributes(boolean allowUnknownAttributes) {
+		this.allowUnknownAttributes = allowUnknownAttributes;
 	}
 
 	public String getSynchronizationStrategy() {

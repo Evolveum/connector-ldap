@@ -754,7 +754,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		}
 		Value<?> uidLdapAttributeValue = uidLdapAttribute.get();
 		AttributeType uidLdapAttributeType = getSchemaManager().getAttributeType(uidAttributeName);
-		uid = new Uid(getSchemaTranslator().toIcfIdentifierValue(uidLdapAttributeValue, uidLdapAttributeType));
+		uid = new Uid(getSchemaTranslator().toIcfIdentifierValue(uidLdapAttributeValue, uidAttributeName, uidLdapAttributeType));
 		
 		return uid;
 	}
@@ -910,7 +910,8 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			ObjectClass icfObjectClass, Attribute icfAttr, ModificationOperation modOp) {
 		SchemaTranslator<C> schemaTranslator = getSchemaTranslator();
 		AttributeType attributeType = schemaTranslator.toLdapAttribute(ldapStructuralObjectClass, icfAttr.getName());
-		if (attributeType == null && !ArrayUtils.contains(configuration.getOperationalAttributes(), icfAttr.getName())) {
+		if (attributeType == null && !configuration.isAllowUnknownAttributes() 
+				&& !ArrayUtils.contains(configuration.getOperationalAttributes(), icfAttr.getName())) {
 			throw new InvalidAttributeValueException("Unknown attribute "+icfAttr.getName()+" in object class "+icfObjectClass);
 		}
 		List<Value<Object>> ldapValues = schemaTranslator.toLdapValues(attributeType, icfAttr.getValue());

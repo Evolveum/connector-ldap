@@ -326,7 +326,7 @@ public class LdapUtil {
 		}
 		Attribute uidAttribute = entry.get(configuration.getUidAttribute());
 		AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, Uid.NAME);
-		return schemaTranslator.toIcfIdentifierValue(uidAttribute.get(), ldapAttributeType);
+		return schemaTranslator.toIcfIdentifierValue(uidAttribute.get(), uidAttribute.getUpId(), ldapAttributeType);
 	}
 	
 	
