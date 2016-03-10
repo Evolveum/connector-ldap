@@ -430,7 +430,8 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 			// Therefore syntax may be null. Fall back to default in that case.
 			return String.class;
 		}
-    	Class<?> type = SYNTAX_MAP.get(syntax.getName()).type;
+    	Class<?> type = null;
+    	if (SYNTAX_MAP.get(syntax.getName()) != null) type = SYNTAX_MAP.get(syntax.getName()).type;
     	if (type == null) {
     		LOG.warn("No type mapping for syntax {0}, using string", syntax.getName());
     		return String.class;
@@ -459,7 +460,11 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 		if (syntaxOid == null) {
 			return null;
 		} 
-    	return SYNTAX_MAP.get(syntaxOid).subtype;
+		if (SYNTAX_MAP.get(syntaxOid) == null){
+			LOG.warn("No subtype mapping for syntax {0}, using syntaxOid", syntaxOid);
+			return AttributeInfo.Subtypes.STRING_CASE_IGNORE.toString();
+		}
+		return SYNTAX_MAP.get(syntaxOid).subtype;
 	}
 
 	private boolean hasEqualityMatching(AttributeType ldapAttribute, String matchingRuleName,
