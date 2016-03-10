@@ -102,7 +102,8 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 	private static final String SYNTAX_NIS_BOOT_PARAMETER_SYNTAX = "1.3.6.1.1.1.0.1";
 	private static final String SYNTAX_AD_DN_WITH_BINARY_SYNTAX = "1.2.840.113556.1.4.903";
 	private static final String SYNTAX_AD_DN_WITH_STRING_SYNTAX = "1.2.840.113556.1.4.904";
-	private static final String SYNTAX_AD_CASE_IGNORE_STRING_SYNTAX = "1.2.840.113556.1.4.905";
+	private static final String SYNTAX_AD_CASE_IGNORE_STRING_TELETEX_SYNTAX = "1.2.840.113556.1.4.905";
+	private static final String SYNTAX_AD_CASE_IGNORE_STRING_SYNTAX = "1.2.840.113556.1.4.1221";
 	private static final String SYNTAX_AD_INTEGER8_SYNTAX = "1.2.840.113556.1.4.906";
 	private static final String SYNTAX_AD_SECURITY_DESCRIPTOR_SYNTAX = "1.2.840.113556.1.4.907";
 	
@@ -1351,6 +1352,7 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 		addToSyntaxMap(SYNTAX_SUN_DEFINED_ACCESS_CONTROL_INFORMATION, String.class);
 		addToSyntaxMap(SYNTAX_NIS_NETGROUP_TRIPLE_SYNTAX, String.class);
 		addToSyntaxMap(SYNTAX_NIS_BOOT_PARAMETER_SYNTAX, String.class);
+		addToSyntaxMap(SYNTAX_AD_CASE_IGNORE_STRING_TELETEX_SYNTAX, String.class, AttributeInfo.Subtypes.STRING_CASE_IGNORE);
 		addToSyntaxMap(SYNTAX_AD_CASE_IGNORE_STRING_SYNTAX, String.class, AttributeInfo.Subtypes.STRING_CASE_IGNORE);
 		addToSyntaxMap(SYNTAX_AD_DN_WITH_STRING_SYNTAX, String.class);
 		addToSyntaxMap(SYNTAX_AD_DN_WITH_BINARY_SYNTAX, String.class);
