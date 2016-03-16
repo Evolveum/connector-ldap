@@ -179,7 +179,7 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
     			}
     			
     			SearchResultDone searchResultDone = searchCursor.getSearchResultDone();
-    			searchCursor.close();
+    			LdapUtil.closeCursor(searchCursor);
     			
     			if (searchResultDone == null) {
 					break;

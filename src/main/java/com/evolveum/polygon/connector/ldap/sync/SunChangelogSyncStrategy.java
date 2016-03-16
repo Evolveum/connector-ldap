@@ -298,6 +298,8 @@ public class SunChangelogSyncStrategy<C extends AbstractLdapConfiguration> exten
 			throw new ConnectorIOException("Error searching changelog ("+changelogDn+"): "+e.getMessage(), e);
 		} catch (CursorException e) {
 			throw new ConnectorIOException("Error searching changelog ("+changelogDn+"): "+e.getMessage(), e);
+		} catch (IOException e) {
+			throw new ConnectorIOException("Error searching changelog ("+changelogDn+"): "+e.getMessage(), e);
 		}
 		
 		if (handler instanceof SyncTokenResultsHandler && finalToken != null) {

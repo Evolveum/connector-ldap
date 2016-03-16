@@ -15,6 +15,7 @@
  */
 package com.evolveum.polygon.connector.ldap;
 
+import java.io.IOException;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Date;
@@ -253,7 +254,7 @@ public class LdapUtil {
 			if (searchCursor.next()) {
 				throw new IllegalStateException("Impossible has happened, 'base' search for "+dn+" returned more than one entry");
 			}
-			searchCursor.close();
+			closeCursor(searchCursor);
 		} catch (LdapException e) {
 			LOG.error("Search ERR {0}: {1}", e.getClass().getName(), e.getMessage(), e);
 			throw processLdapException("Search for "+dn+" failed", e);
@@ -299,7 +300,7 @@ public class LdapUtil {
 					entry = ((SearchResultEntry)response).getEntry();
 				}
 			}
-			searchCursor.close();
+			closeCursor(searchCursor);
 		} catch (LdapException e) {
 			throw processLdapException("Search for "+filter+" in "+baseDn+" failed", e);
 		} catch (CursorException e) {
@@ -542,6 +543,26 @@ public class LdapUtil {
 			list.add(split.trim());
 		}
 		return list;
+	}
+
+	public static void closeCursor(SearchCursor cursor) {
+		try {
+			cursor.close();
+		} catch (IOException e) {
+			// Log the error, but otherwise ignore it. This is unlikely to cause
+			// any serious harm for the operation.
+			LOG.warn("Error closing the search cursor (continuing the operation anyway):", e);
+		}
+	}
+
+	public static void closeCursor(EntryCursor cursor) {
+		try {
+			cursor.close();
+		} catch (IOException e) {
+			// Log the error, but otherwise ignore it. This is unlikely to cause
+			// any serious harm for the operation.
+			LOG.warn("Error closing the search cursor (continuing the operation anyway):", e);
+		}		
 	}
 
 }

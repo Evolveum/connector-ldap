@@ -169,7 +169,7 @@ public class AdDirSyncStrategy<C extends AbstractLdapConfiguration> extends Sync
 				}
 			}
 			
-			searchCursor.close();
+			LdapUtil.closeCursor(searchCursor);
 			LOG.ok("Search DN {0} with {1}: {2} entries, {3} processed", req.getBase(), req.getFilter(), numFoundEntries, numProcessedEntries);
 		} catch (LdapException e) {
 			throw new ConnectorIOException("Error searching for changes ("+req.getFilter()+"): "+e.getMessage(), e);
@@ -213,7 +213,7 @@ public class AdDirSyncStrategy<C extends AbstractLdapConfiguration> extends Sync
 					}
 				}
 			}			
-			searchCursor.close();
+			LdapUtil.closeCursor(searchCursor);
 		} catch (LdapException e) {
 			throw new ConnectorIOException("Error searching for changes ("+req.getFilter()+"): "+e.getMessage(), e);
 		} catch (CursorException e) {
