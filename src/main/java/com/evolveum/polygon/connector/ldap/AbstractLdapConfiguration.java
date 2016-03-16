@@ -232,6 +232,12 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
      */
     private boolean allowUnknownAttributes = false;
     
+    private String usePermissiveModify = USE_PERMISSIVE_MODIFY_AUTO;
+
+    public static final String USE_PERMISSIVE_MODIFY_NEVER = "never";
+    public static final String USE_PERMISSIVE_MODIFY_AUTO = "auto";
+    public static final String USE_PERMISSIVE_MODIFY_ALWAYS = "always";
+    		
     /**
      * Synchronization strategy to detect changes in real time.
      * Possible values: "none", "auto", ... TODO
@@ -480,6 +486,14 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 
 	public void setAllowUnknownAttributes(boolean allowUnknownAttributes) {
 		this.allowUnknownAttributes = allowUnknownAttributes;
+	}
+
+	public String getUsePermissiveModify() {
+		return usePermissiveModify;
+	}
+
+	public void setUsePermissiveModify(String usePermissiveModify) {
+		this.usePermissiveModify = usePermissiveModify;
 	}
 
 	public String getSynchronizationStrategy() {

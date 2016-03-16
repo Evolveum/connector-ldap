@@ -25,6 +25,7 @@ import java.util.Set;
 
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.directory.api.ldap.codec.api.BinaryAttributeDetector;
+import org.apache.directory.api.ldap.extras.controls.permissiveModify.PermissiveModify;
 import org.apache.directory.api.ldap.extras.controls.vlv.VirtualListViewRequest;
 import org.apache.directory.api.ldap.model.cursor.CursorException;
 import org.apache.directory.api.ldap.model.cursor.CursorLdapReferralException;
@@ -156,6 +157,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
     private SchemaManager schemaManager = null;
     private SchemaTranslator<C> schemaTranslator = null;
     private SyncStrategy<C> syncStrategy = null;
+    private Boolean useEaseModifyRestrictions = null;
 
     public AbstractLdapConnector() {
 		super();
@@ -301,6 +303,22 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			} catch (InvalidConnectionException e1) {
 				throw new ConnectorException("Reconnect error: "+e.getMessage(), e);
 			}
+    	}
+    }
+    
+    protected boolean isUsePermissiveModify() {
+    	if (useEaseModifyRestrictions == null) {
+    		switch (configuration.getUsePermissiveModify()) {
+    			case AbstractLdapConfiguration.USE_PERMISSIVE_MODIFY_ALWAYS:
+    				useEaseModifyRestrictions = true;
+    				break;
+    			case AbstractLdapConfiguration.USE_PERMISSIVE_MODIFY_NEVER:
+    				useEaseModifyRestrictions = false;
+    				break;
+    			case AbstractLdapConfiguration.USE_PERMISSIVE_MODIFY_AUTO:
+    				Entry rootDse = connectionManager.getDefaultConnection().getRootDse();
+    				connectionManager.getDefaultConnection().isControlSupported(PermissiveModify.OID);
+    		}
     	}
     }
 
