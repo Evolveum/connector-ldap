@@ -19,8 +19,11 @@ import java.io.IOException;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
+import org.apache.directory.api.ldap.extras.controls.vlv.VirtualListViewRequest;
 import org.apache.directory.api.ldap.model.cursor.CursorException;
 import org.apache.directory.api.ldap.model.cursor.EntryCursor;
 import org.apache.directory.api.ldap.model.cursor.SearchCursor;
@@ -56,6 +59,7 @@ import org.apache.directory.api.ldap.model.exception.LdapUnwillingToPerformExcep
 import org.apache.directory.api.ldap.model.filter.EqualityNode;
 import org.apache.directory.api.ldap.model.filter.ExprNode;
 import org.apache.directory.api.ldap.model.filter.PresenceNode;
+import org.apache.directory.api.ldap.model.message.Control;
 import org.apache.directory.api.ldap.model.message.LdapResult;
 import org.apache.directory.api.ldap.model.message.Response;
 import org.apache.directory.api.ldap.model.message.ResultCodeEnum;
@@ -63,6 +67,8 @@ import org.apache.directory.api.ldap.model.message.SearchRequest;
 import org.apache.directory.api.ldap.model.message.SearchRequestImpl;
 import org.apache.directory.api.ldap.model.message.SearchResultEntry;
 import org.apache.directory.api.ldap.model.message.SearchScope;
+import org.apache.directory.api.ldap.model.message.controls.PagedResults;
+import org.apache.directory.api.ldap.model.message.controls.SortRequest;
 import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.ldap.model.schema.AttributeType;
 import org.apache.directory.api.ldap.model.schema.SchemaManager;
@@ -70,6 +76,7 @@ import org.apache.directory.api.util.GeneralizedTime;
 import org.apache.directory.ldap.client.api.LdapConnectionConfig;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
 import org.apache.directory.ldap.client.api.exception.InvalidConnectionException;
+import org.identityconnectors.common.Base64;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.framework.common.exceptions.AlreadyExistsException;
 import org.identityconnectors.framework.common.exceptions.ConfigurationException;
@@ -564,5 +571,97 @@ public class LdapUtil {
 			LOG.warn("Error closing the search cursor (continuing the operation anyway):", e);
 		}		
 	}
+	
+	public static String toShortString(Map<String, Control> controlsMap) {
+		if (controlsMap != null && !controlsMap.isEmpty()) {
+			StringBuilder sb = new StringBuilder();
+			// We want just a short list here. toString methods of control implementations are too long. Avoid them.
+			Iterator<java.util.Map.Entry<String, Control>> iterator = controlsMap.entrySet().iterator();
+			while (iterator.hasNext()) {
+				Control control = iterator.next().getValue();
+				toShortString(sb, control);
+				if (iterator.hasNext()) {
+					sb.append(",");
+				}
+			}
+			return sb.toString();
+		}
+		return null;
+	}
 
+	public static String toShortString(Control control) {
+		if (control == null) {
+			return null;
+		}
+		StringBuilder sb = new StringBuilder();
+		toShortString(sb, control);
+		return sb.toString();
+	}
+	
+	public static void toShortString(StringBuilder sb, Control control) {
+		if (control == null) {
+			return;
+		}
+		if (control instanceof PagedResults) {
+			sb.append("PagedResults(size=");
+			sb.append(((PagedResults)control).getSize());
+			sb.append(", cookie=");
+			byte[] cookie = ((PagedResults)control).getCookie();
+			if (cookie == null) {
+				sb.append("null");
+			} else {
+				sb.append(Base64.encode(cookie));
+			}
+			sb.append("),");
+		} else if (control instanceof VirtualListViewRequest) {
+			sb.append("VLV(beforeCount=");
+			sb.append(((VirtualListViewRequest)control).getBeforeCount());
+			sb.append(", afterCount=");
+			sb.append(((VirtualListViewRequest)control).getAfterCount());
+			sb.append(", offset=");
+			sb.append(((VirtualListViewRequest)control).getOffset());
+			sb.append(", contentCount=");
+			sb.append(((VirtualListViewRequest)control).getContentCount());
+			sb.append(", contextID=");
+			byte[] contextId = ((VirtualListViewRequest)control).getContextId();
+			if (contextId == null) {
+				sb.append("null");
+			} else {
+				sb.append(Base64.encode(contextId));
+			}
+			sb.append("),");
+		} else if (control instanceof SortRequest) {
+			sb.append("Sort(");
+			for (org.apache.directory.api.ldap.model.message.controls.SortKey sortKey: ((SortRequest)control).getSortKeys()) {
+				sb.append(sortKey.getAttributeTypeDesc());
+				sb.append(":");
+				sb.append(sortKey.getMatchingRuleId());
+				sb.append(":");
+				if (sortKey.isReverseOrder()) {
+					sb.append("D");
+				} else {
+					sb.append("A");
+				}
+				sb.append("),");
+			}
+		} else {
+			String controlDesc = null;
+			Class<? extends Control> controlClass = control.getClass();
+			Class<?>[] interfaces = controlClass.getInterfaces();
+			if (interfaces != null) {
+				for (Class<?> iface: interfaces) {
+					if (iface.getPackage().getName().startsWith("org.apache.directory.api")) {
+						controlDesc = iface.getSimpleName();
+						break;
+					}
+				}
+			}
+			if (controlDesc == null) {
+				controlDesc = controlClass.getName();
+			}
+			sb.append(controlDesc);
+		}
+	}
+
+	
 }

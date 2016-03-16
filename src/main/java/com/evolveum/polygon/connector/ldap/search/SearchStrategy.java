@@ -47,6 +47,7 @@ import org.identityconnectors.framework.common.objects.SortKey;
 import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
 import com.evolveum.polygon.connector.ldap.ConnectionManager;
 import com.evolveum.polygon.connector.ldap.LdapConfiguration;
+import com.evolveum.polygon.connector.ldap.LdapUtil;
 import com.evolveum.polygon.connector.ldap.OperationLog;
 import com.evolveum.polygon.connector.ldap.schema.AttributeHandler;
 import com.evolveum.polygon.connector.ldap.schema.SchemaTranslator;
@@ -193,64 +194,8 @@ public abstract class SearchStrategy<C extends AbstractLdapConfiguration> {
 	
 	protected void logSearchRequest(LdapNetworkConnection connection, SearchRequest req) {
 		if (LOG.isOk()) {
-			String controls = null;
-			Map<String, Control> controlsMap = req.getControls();
-			if (controlsMap != null && !controlsMap.isEmpty()) {
-				StringBuilder sb = new StringBuilder();
-				// We want just a short list here. toString methods of control implementations are too long. Avoid them.
-				for (java.util.Map.Entry<String, Control> entry: controlsMap.entrySet()) {
-					Control control = entry.getValue();
-					if (control instanceof PagedResults) {
-						sb.append("PagedResults(size=");
-						sb.append(((PagedResults)control).getSize());
-						sb.append(", cookie=");
-						byte[] cookie = ((PagedResults)control).getCookie();
-						if (cookie == null) {
-							sb.append("null");
-						} else {
-							sb.append(Base64.encode(cookie));
-						}
-						sb.append("),");
-					} else if (control instanceof VirtualListViewRequest) {
-						sb.append("VLV(beforeCount=");
-						sb.append(((VirtualListViewRequest)control).getBeforeCount());
-						sb.append(", afterCount=");
-						sb.append(((VirtualListViewRequest)control).getAfterCount());
-						sb.append(", offset=");
-						sb.append(((VirtualListViewRequest)control).getOffset());
-						sb.append(", contentCount=");
-						sb.append(((VirtualListViewRequest)control).getContentCount());
-						sb.append(", contextID=");
-						byte[] contextId = ((VirtualListViewRequest)control).getContextId();
-						if (contextId == null) {
-							sb.append("null");
-						} else {
-							sb.append(Base64.encode(contextId));
-						}
-						sb.append("),");
-					} else if (control instanceof SortRequest) {
-						sb.append("Sort(");
-						for (org.apache.directory.api.ldap.model.message.controls.SortKey sortKey: ((SortRequest)control).getSortKeys()) {
-							sb.append(sortKey.getAttributeTypeDesc());
-							sb.append(":");
-							sb.append(sortKey.getMatchingRuleId());
-							sb.append(":");
-							if (sortKey.isReverseOrder()) {
-								sb.append("D");
-							} else {
-								sb.append("A");
-							}
-							sb.append("),");
-						}
-					} else {
-						sb.append(control.getClass().getName());
-						sb.append(",");
-					}
-				}
-				controls = sb.toString();
-			}
 			OperationLog.logOperationReq(connection, "Search REQ base={0}, filter={1}, scope={2}, attributes={3}, controls={4}",
-					req.getBase(), req.getFilter(), req.getScope(), req.getAttributes(), controls);
+					req.getBase(), req.getFilter(), req.getScope(), req.getAttributes(), LdapUtil.toShortString(req.getControls()));
 		}
 	}
 

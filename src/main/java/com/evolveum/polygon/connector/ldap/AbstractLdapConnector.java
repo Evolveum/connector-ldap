@@ -19,17 +19,15 @@ package com.evolveum.polygon.connector.ldap;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 
 import org.apache.commons.lang.ArrayUtils;
-import org.apache.directory.api.ldap.codec.api.BinaryAttributeDetector;
 import org.apache.directory.api.ldap.extras.controls.permissiveModify.PermissiveModify;
+import org.apache.directory.api.ldap.extras.controls.permissiveModify.PermissiveModifyImpl;
 import org.apache.directory.api.ldap.extras.controls.vlv.VirtualListViewRequest;
 import org.apache.directory.api.ldap.model.cursor.CursorException;
 import org.apache.directory.api.ldap.model.cursor.CursorLdapReferralException;
-import org.apache.directory.api.ldap.model.cursor.EntryCursor;
 import org.apache.directory.api.ldap.model.cursor.SearchCursor;
 import org.apache.directory.api.ldap.model.entry.DefaultAttribute;
 import org.apache.directory.api.ldap.model.entry.DefaultEntry;
@@ -38,41 +36,20 @@ import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.entry.Modification;
 import org.apache.directory.api.ldap.model.entry.ModificationOperation;
 import org.apache.directory.api.ldap.model.entry.Value;
-import org.apache.directory.api.ldap.model.exception.LdapAdminLimitExceededException;
-import org.apache.directory.api.ldap.model.exception.LdapAffectMultipleDsaException;
-import org.apache.directory.api.ldap.model.exception.LdapAliasDereferencingException;
-import org.apache.directory.api.ldap.model.exception.LdapAliasException;
-import org.apache.directory.api.ldap.model.exception.LdapAttributeInUseException;
-import org.apache.directory.api.ldap.model.exception.LdapAuthenticationException;
-import org.apache.directory.api.ldap.model.exception.LdapAuthenticationNotSupportedException;
-import org.apache.directory.api.ldap.model.exception.LdapConfigurationException;
-import org.apache.directory.api.ldap.model.exception.LdapContextNotEmptyException;
-import org.apache.directory.api.ldap.model.exception.LdapEntryAlreadyExistsException;
 import org.apache.directory.api.ldap.model.exception.LdapException;
-import org.apache.directory.api.ldap.model.exception.LdapInvalidAttributeTypeException;
 import org.apache.directory.api.ldap.model.exception.LdapInvalidAttributeValueException;
 import org.apache.directory.api.ldap.model.exception.LdapInvalidDnException;
-import org.apache.directory.api.ldap.model.exception.LdapInvalidSearchFilterException;
-import org.apache.directory.api.ldap.model.exception.LdapLoopDetectedException;
-import org.apache.directory.api.ldap.model.exception.LdapNoPermissionException;
-import org.apache.directory.api.ldap.model.exception.LdapNoSuchAttributeException;
-import org.apache.directory.api.ldap.model.exception.LdapNoSuchObjectException;
-import org.apache.directory.api.ldap.model.exception.LdapSchemaException;
-import org.apache.directory.api.ldap.model.exception.LdapSchemaViolationException;
-import org.apache.directory.api.ldap.model.exception.LdapServiceUnavailableException;
-import org.apache.directory.api.ldap.model.exception.LdapStrongAuthenticationRequiredException;
 import org.apache.directory.api.ldap.model.exception.LdapURLEncodingException;
-import org.apache.directory.api.ldap.model.exception.LdapUnwillingToPerformException;
 import org.apache.directory.api.ldap.model.filter.EqualityNode;
 import org.apache.directory.api.ldap.model.filter.ExprNode;
 import org.apache.directory.api.ldap.model.message.AddRequest;
 import org.apache.directory.api.ldap.model.message.AddRequestImpl;
 import org.apache.directory.api.ldap.model.message.AddResponse;
 import org.apache.directory.api.ldap.model.message.AliasDerefMode;
-import org.apache.directory.api.ldap.model.message.BindRequest;
-import org.apache.directory.api.ldap.model.message.BindRequestImpl;
-import org.apache.directory.api.ldap.model.message.BindResponse;
-import org.apache.directory.api.ldap.model.message.LdapResult;
+import org.apache.directory.api.ldap.model.message.Control;
+import org.apache.directory.api.ldap.model.message.ModifyRequest;
+import org.apache.directory.api.ldap.model.message.ModifyRequestImpl;
+import org.apache.directory.api.ldap.model.message.ModifyResponse;
 import org.apache.directory.api.ldap.model.message.Response;
 import org.apache.directory.api.ldap.model.message.ResultCodeEnum;
 import org.apache.directory.api.ldap.model.message.SearchRequest;
@@ -86,27 +63,20 @@ import org.apache.directory.api.ldap.model.schema.SchemaManager;
 import org.apache.directory.api.ldap.model.url.LdapUrl;
 import org.apache.directory.api.ldap.schema.manager.impl.DefaultSchemaManager;
 import org.apache.directory.ldap.client.api.DefaultSchemaLoader;
-import org.apache.directory.ldap.client.api.LdapConnectionConfig;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
 import org.apache.directory.ldap.client.api.exception.InvalidConnectionException;
-import org.identityconnectors.common.Base64;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.common.security.GuardedString;
-import org.identityconnectors.framework.common.exceptions.AlreadyExistsException;
 import org.identityconnectors.framework.common.exceptions.ConfigurationException;
-import org.identityconnectors.framework.common.exceptions.ConnectionFailedException;
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
 import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
-import org.identityconnectors.framework.common.exceptions.ConnectorSecurityException;
 import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException;
-import org.identityconnectors.framework.common.exceptions.PermissionDeniedException;
 import org.identityconnectors.framework.common.exceptions.UnknownUidException;
 import org.identityconnectors.framework.common.objects.Attribute;
 import org.identityconnectors.framework.common.objects.ConnectorObject;
 import org.identityconnectors.framework.common.objects.Name;
 import org.identityconnectors.framework.common.objects.ObjectClass;
 import org.identityconnectors.framework.common.objects.OperationOptions;
-import org.identityconnectors.framework.common.objects.OperationalAttributes;
 import org.identityconnectors.framework.common.objects.PredefinedAttributes;
 import org.identityconnectors.framework.common.objects.QualifiedUid;
 import org.identityconnectors.framework.common.objects.ResultsHandler;
@@ -121,7 +91,6 @@ import org.identityconnectors.framework.common.objects.filter.Filter;
 import org.identityconnectors.framework.common.objects.filter.FilterTranslator;
 import org.identityconnectors.framework.common.objects.filter.OrFilter;
 import org.identityconnectors.framework.spi.Configuration;
-import org.identityconnectors.framework.spi.ConnectorClass;
 import org.identityconnectors.framework.spi.PoolableConnector;
 import org.identityconnectors.framework.spi.SearchResultsHandler;
 import org.identityconnectors.framework.spi.operations.CreateOp;
@@ -132,7 +101,6 @@ import org.identityconnectors.framework.spi.operations.SyncOp;
 import org.identityconnectors.framework.spi.operations.TestOp;
 import org.identityconnectors.framework.spi.operations.UpdateAttributeValuesOp;
 
-import com.evolveum.polygon.common.GuardedStringAccessor;
 import com.evolveum.polygon.common.SchemaUtil;
 import com.evolveum.polygon.connector.ldap.schema.GuardedStringValue;
 import com.evolveum.polygon.connector.ldap.schema.LdapFilterTranslator;
@@ -157,7 +125,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
     private SchemaManager schemaManager = null;
     private SchemaTranslator<C> schemaTranslator = null;
     private SyncStrategy<C> syncStrategy = null;
-    private Boolean useEaseModifyRestrictions = null;
+    private Boolean usePermissiveModify = null;
 
     public AbstractLdapConnector() {
 		super();
@@ -309,20 +277,23 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
     	}
     }
     
-    protected boolean isUsePermissiveModify() {
-    	if (useEaseModifyRestrictions == null) {
+    protected boolean isUsePermissiveModify() throws LdapException {
+    	if (usePermissiveModify == null) {
     		switch (configuration.getUsePermissiveModify()) {
     			case AbstractLdapConfiguration.USE_PERMISSIVE_MODIFY_ALWAYS:
-    				useEaseModifyRestrictions = true;
+    				usePermissiveModify = true;
     				break;
     			case AbstractLdapConfiguration.USE_PERMISSIVE_MODIFY_NEVER:
-    				useEaseModifyRestrictions = false;
+    				usePermissiveModify = false;
     				break;
     			case AbstractLdapConfiguration.USE_PERMISSIVE_MODIFY_AUTO:
-    				Entry rootDse = connectionManager.getDefaultConnection().getRootDse();
-    				connectionManager.getDefaultConnection().isControlSupported(PermissiveModify.OID);
+    				usePermissiveModify = connectionManager.getDefaultConnection().isControlSupported(PermissiveModify.OID);
+    				break;
+    			default:
+    				throw new ConfigurationException("Unknown usePermissiveModify value "+configuration.getUsePermissiveModify());
     		}
     	}
+    	return usePermissiveModify;
     }
 
 	@Override
@@ -912,14 +883,31 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 	protected void modify(Dn dn, List<Modification> modifications) {
 		LdapNetworkConnection connection = connectionManager.getConnection(dn);
 		try {
-			if (LOG.isOk()) {
-				OperationLog.logOperationReq(connection, "Modify REQ {0}: {1}", dn, dumpModifications(modifications));
+			PermissiveModify permissiveModifyControl = null;
+			if (isUsePermissiveModify()) {
+				permissiveModifyControl = new PermissiveModifyImpl();
 			}
-			LOG.ok("DN name: {0}, norm: {1}", dn.getName(), dn.getNormName());
-			// processModificationsBeforeUpdate must happen after logging. Otherwise passwords might be logged.
-			connection.modify(dn, processModificationsBeforeUpdate(modifications));
 			if (LOG.isOk()) {
-				OperationLog.logOperationRes(connection, "Modify RES {0}: {1}", dn, dumpModifications(modifications));
+				OperationLog.logOperationReq(connection, "Modify REQ {0}: {1}, control={2}", dn, dumpModifications(modifications), 
+						LdapUtil.toShortString(permissiveModifyControl));
+			}
+			ModifyRequest modRequest = new ModifyRequestImpl();
+			modRequest.setName(dn);
+			if (permissiveModifyControl != null) {
+				modRequest.addControl(permissiveModifyControl);
+			}
+			// processModificationsBeforeUpdate must happen after logging. Otherwise passwords might be logged.
+			for (Modification mod: processModificationsBeforeUpdate(modifications)) {
+				modRequest.addModification(mod);
+			}
+			ModifyResponse modifyResponse = connection.modify(modRequest);
+			
+			if (LOG.isOk()) {
+				OperationLog.logOperationRes(connection, "Modify RES {0}: {1}", dn, modifyResponse.getLdapResult());
+			}
+			
+			if (modifyResponse.getLdapResult().getResultCode() != ResultCodeEnum.SUCCESS) {
+				throw LdapUtil.processLdapResult("Error modifying LDAP entry "+dn+": "+dumpModifications(modifications), modifyResponse.getLdapResult());
 			}
 		} catch (LdapException e) {
 			OperationLog.logOperationErr(connection, "Modify ERROR {0}: {1}: {2}", dn, dumpModifications(modifications), e.getMessage(), e);
@@ -1182,7 +1170,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			} catch (CursorException e) {
 				throw new ConnectorIOException("Error reading "+descMessage+": "+e.getMessage(), e);
 			} finally {
-				cursor.close();
+				LdapUtil.closeCursor(cursor);
 			}
 		}
 		return entry;
