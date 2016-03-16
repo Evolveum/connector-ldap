@@ -225,9 +225,13 @@ public abstract class SearchStrategy<C extends AbstractLdapConfiguration> {
 		return handler.handle(schemaTranslator.toIcfObject(connection, objectClass, entry, attributeHandler));
 	}
 
+	protected boolean hasSortOption() {
+		return getOptions() != null && getOptions().getSortKeys() != null && getOptions().getSortKeys().length > 0;
+	}
+	
 	protected SortRequest createSortControl(String defaultSortLdapAttribute, String defaultSortOrderingRule) {
 		SortRequest sortReqControl = null;
-		if (getOptions() != null && getOptions().getSortKeys() != null && getOptions().getSortKeys().length > 0) {
+		if (hasSortOption()) {
 			sortReqControl = new SortRequestControlImpl();
 			sortReqControl.setCritical(true);
 			for (SortKey icfSortKey: getOptions().getSortKeys()) {

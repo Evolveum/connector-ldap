@@ -95,12 +95,16 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
         	numberOfEntriesToReturn = getOptions().getPageSize();
         }
         
-        String vlvSortAttributeConfig = getConfiguration().getVlvSortAttribute();
-        List<String> vlvSortAttributeCandidateList = LdapUtil.splitComma(vlvSortAttributeConfig);
-        String vlvSortAttributeName = getSchemaTranslator().selectAttribute(getLdapObjectClass(), vlvSortAttributeCandidateList);
-        if (vlvSortAttributeName == null) {
-        	throw new ConfigurationException("Cannot find appropriate sort attribute for object class "+getLdapObjectClass().getName()
-        			+", tried "+vlvSortAttributeCandidateList + " ("+vlvSortAttributeConfig+")");
+        String vlvSortAttributeName = null;
+        if (!hasSortOption()) {
+        	// Do not even try to do this if there is explicit sort option. This saves times and avoid some failures.
+	        String vlvSortAttributeConfig = getConfiguration().getVlvSortAttribute();
+	        List<String> vlvSortAttributeCandidateList = LdapUtil.splitComma(vlvSortAttributeConfig);
+	        vlvSortAttributeName = getSchemaTranslator().selectAttribute(getLdapObjectClass(), vlvSortAttributeCandidateList);
+	        if (vlvSortAttributeName == null) {
+	        	throw new ConfigurationException("Cannot find appropriate sort attribute for object class "+getLdapObjectClass().getName()
+	        			+", tried "+vlvSortAttributeCandidateList + " ("+vlvSortAttributeConfig+")");
+	        }
         }
         SortRequest sortReqControl = createSortControl(vlvSortAttributeName, getConfiguration().getVlvSortOrderingRule());
         sortReqControl.setCritical(true);
