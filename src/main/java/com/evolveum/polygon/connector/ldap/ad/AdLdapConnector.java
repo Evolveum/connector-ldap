@@ -82,7 +82,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 	@Override
 	protected void preCreate(org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass, Entry entry) {
 		super.preCreate(ldapStructuralObjectClass, entry);
-		if (getSchemaTranslator().isUserObjectClass(ldapStructuralObjectClass.getName())) {
+		if (getSchemaTranslator().isUserObjectClass(ldapStructuralObjectClass.getName()) && !getConfiguration().isRawUserAccountControlAttribute()) {
 			if (entry.get(AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME) == null) {
 				try {
 					entry.add(AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME, Integer.toString(AdConstants.USER_ACCOUNT_CONTROL_NORMAL));

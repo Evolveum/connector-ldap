@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 Evolveum
+ * Copyright (c) 2015-2016 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -42,7 +42,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
     private String userContainerDn;
     
     private String groupContainerDn;
-    
+        
     /**
      * Specification of global catalog servers. If left empty then the
      * connector will try to determine the host and port automatically.
@@ -72,6 +72,15 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
      * round-trip to an authoritative server.
      */
     public static final String GLOBAL_CATALOG_STRATEGY_READ = "read";
+    
+    /**
+     * If set to false then the connector will interpret the content of
+     * userAccountControl attribute and will decompose it to pseudo-attributes
+     * for enabled state, lockout, etc.
+     * If set to true then the connector will NOT do any interpretation and
+     * the userAccountControl will be exposed as a simple attribute.
+     */
+    private boolean rawUserAccountControlAttribute = false;
         
 	public String getUserObjectClass() {
 		return userObjectClass;
@@ -127,6 +136,14 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 
 	public void setGlobalCatalogStrategy(String globalCatalogStrategy) {
 		this.globalCatalogStrategy = globalCatalogStrategy;
+	}
+
+	public boolean isRawUserAccountControlAttribute() {
+		return rawUserAccountControlAttribute;
+	}
+
+	public void setRawUserAccountControlAttribute(boolean rawUserAccountControlAttribute) {
+		this.rawUserAccountControlAttribute = rawUserAccountControlAttribute;
 	}
 
 	@Override

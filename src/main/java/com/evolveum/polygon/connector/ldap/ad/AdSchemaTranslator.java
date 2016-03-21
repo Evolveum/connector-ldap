@@ -76,9 +76,11 @@ public class AdSchemaTranslator extends SchemaTranslator<AdLdapConfiguration> {
 			ocib.addAttributeInfo(samAccountNameAttr.build());
 		}
 		
-		AttributeInfoBuilder enableAb = new AttributeInfoBuilder(OperationalAttributes.ENABLE_NAME);
-		enableAb.setType(boolean.class);
-		ocib.addAttributeInfo(enableAb.build());
+		if (!getConfiguration().isRawUserAccountControlAttribute()) {
+			AttributeInfoBuilder enableAb = new AttributeInfoBuilder(OperationalAttributes.ENABLE_NAME);
+			enableAb.setType(boolean.class);
+			ocib.addAttributeInfo(enableAb.build());
+		}
 	}
 	
 	
@@ -95,7 +97,7 @@ public class AdSchemaTranslator extends SchemaTranslator<AdLdapConfiguration> {
 	@Override
 	public AttributeType toLdapAttribute(
 			org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass, String icfAttributeName) {
-		if (icfAttributeName.equals(OperationalAttributes.ENABLE_NAME)) {
+		if (!getConfiguration().isRawUserAccountControlAttribute() && icfAttributeName.equals(OperationalAttributes.ENABLE_NAME)) {
 			return super.toLdapAttribute(ldapObjectClass, AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME);
 		} else {
 			return super.toLdapAttribute(ldapObjectClass, icfAttributeName);
@@ -104,7 +106,7 @@ public class AdSchemaTranslator extends SchemaTranslator<AdLdapConfiguration> {
 	
 	@Override
 	public Value<Object> toLdapValue(AttributeType ldapAttributeType, Object icfAttributeValue) {
-		if (AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME.equals(ldapAttributeType.getName())) {
+		if (!getConfiguration().isRawUserAccountControlAttribute() && AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME.equals(ldapAttributeType.getName())) {
 			if (((Boolean)icfAttributeValue)) {
 				// ENABLED
 				return super.toLdapValue(ldapAttributeType, Integer.toString(AdConstants.USER_ACCOUNT_CONTROL_NORMAL));
@@ -141,16 +143,18 @@ public class AdSchemaTranslator extends SchemaTranslator<AdLdapConfiguration> {
 	@Override
 	protected void extendConnectorObject(ConnectorObjectBuilder cob, Entry entry, String objectClassName) {
 		super.extendConnectorObject(cob, entry, objectClassName);
-		Integer userAccountControl = LdapUtil.getIntegerAttribute(entry, AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME, null);
-		if (userAccountControl == null) {
-			if (isUserObjectClass(objectClassName)) {
-				cob.addAttribute(OperationalAttributes.ENABLE_NAME, Boolean.FALSE);
-			}
-		} else {
-			if ((userAccountControl & AdConstants.USER_ACCOUNT_CONTROL_DISABLED) == 0) {
-				cob.addAttribute(OperationalAttributes.ENABLE_NAME, Boolean.TRUE);
+		if (!getConfiguration().isRawUserAccountControlAttribute()) {
+			Integer userAccountControl = LdapUtil.getIntegerAttribute(entry, AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME, null);
+			if (userAccountControl == null) {
+				if (isUserObjectClass(objectClassName)) {
+					cob.addAttribute(OperationalAttributes.ENABLE_NAME, Boolean.FALSE);
+				}
 			} else {
-				cob.addAttribute(OperationalAttributes.ENABLE_NAME, Boolean.FALSE);
+				if ((userAccountControl & AdConstants.USER_ACCOUNT_CONTROL_DISABLED) == 0) {
+					cob.addAttribute(OperationalAttributes.ENABLE_NAME, Boolean.TRUE);
+				} else {
+					cob.addAttribute(OperationalAttributes.ENABLE_NAME, Boolean.FALSE);
+				}
 			}
 		}
 	}
