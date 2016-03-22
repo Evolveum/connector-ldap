@@ -139,9 +139,10 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 	}
 
 	private ServerDefinition selectServer(Dn dn) {
-		if (!Character.isAlphabetic(dn.getName().charAt(0))) {
-			// No dot even bother to choose. There are the strange
-			// things such as the <GUID=...> insanity.
+		String stringDn = dn.getName();
+		if (StringUtils.isBlank(stringDn) || !Character.isAlphabetic(stringDn.charAt(0))) {
+			// Do not even bother to choose. There are the strange
+			// things such as empty DN or the <GUID=...> insanity.
 			// The selection will not work anyway.
 			if (defaultServerDefinition == null) {
 				throw new IllegalStateException("No default connection in this connection manager");
