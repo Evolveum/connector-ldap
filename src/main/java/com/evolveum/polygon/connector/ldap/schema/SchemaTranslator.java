@@ -421,7 +421,10 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 			return attributeType;
 		} catch (LdapException e) {
 			if (ArrayUtils.contains(configuration.getOperationalAttributes(), ldapAttributeName) || configuration.isAllowUnknownAttributes()) {
-				return null;
+				// Create fake attribute type
+				AttributeType attributeType = new AttributeType(ldapAttributeName);
+				attributeType.setNames(ldapAttributeName);
+				return attributeType;
 			} else {
 				throw new IllegalArgumentException("Unknown LDAP attribute "+ldapAttributeName+" (translated from ICF attribute "+icfAttributeName+")", e);
 			}
