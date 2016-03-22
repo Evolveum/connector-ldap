@@ -81,6 +81,7 @@ import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.framework.common.exceptions.AlreadyExistsException;
 import org.identityconnectors.framework.common.exceptions.ConfigurationException;
 import org.identityconnectors.framework.common.exceptions.ConnectionFailedException;
+import org.identityconnectors.framework.common.exceptions.ConnectorException;
 import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
 import org.identityconnectors.framework.common.exceptions.ConnectorSecurityException;
 import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException;
@@ -448,6 +449,10 @@ public class LdapUtil {
 			re =  new PermissionDeniedException(message + ": " + formatLdapMessage(ldapResult));
 		} else if (resultCode == ResultCodeEnum.NO_SUCH_OBJECT) {
 			re =  new UnknownUidException(message + ": " + formatLdapMessage(ldapResult));
+		} else if (resultCode == ResultCodeEnum.PROTOCOL_ERROR) {
+			// Do not classify this as IO exception. The IO exception often means network error and therefore it is
+			// the IDM will re-try. There is no point in re-try if there is a protocol error.
+			re =  new ConnectorException(message + ": " + formatLdapMessage(ldapResult));
 		} else {
 			re =  new ConnectorIOException(message + ": " + formatLdapMessage(ldapResult));
 		}
