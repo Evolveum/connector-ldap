@@ -412,7 +412,13 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 		}
 		try {
 			String attributeOid = schemaManager.getAttributeTypeRegistry().getOidByName(ldapAttributeName);
-			return schemaManager.getAttributeTypeRegistry().lookup(attributeOid);
+			AttributeType attributeType = schemaManager.getAttributeTypeRegistry().lookup(attributeOid);
+			if (attributeType == null && configuration.isAllowUnknownAttributes()) {
+				// Create fake attribute type
+				attributeType = new AttributeType(ldapAttributeName);
+				attributeType.setNames(ldapAttributeName);
+			}
+			return attributeType;
 		} catch (LdapException e) {
 			if (ArrayUtils.contains(configuration.getOperationalAttributes(), ldapAttributeName) || configuration.isAllowUnknownAttributes()) {
 				return null;
