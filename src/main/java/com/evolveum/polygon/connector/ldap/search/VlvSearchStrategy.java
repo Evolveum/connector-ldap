@@ -23,6 +23,7 @@ import org.apache.commons.lang.BooleanUtils;
 import org.apache.directory.api.ldap.extras.controls.vlv.VirtualListViewRequest;
 import org.apache.directory.api.ldap.extras.controls.vlv.VirtualListViewRequestImpl;
 import org.apache.directory.api.ldap.extras.controls.vlv.VirtualListViewResponse;
+import org.apache.directory.api.ldap.extras.controls.vlv.VirtualListViewResultCode;
 import org.apache.directory.api.ldap.model.cursor.CursorException;
 import org.apache.directory.api.ldap.model.cursor.SearchCursor;
 import org.apache.directory.api.ldap.model.entry.Entry;
@@ -199,8 +200,15 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
 			    		sb.append(", contentCount=");
 			    		sb.append(vlvResponseControl.getContentCount());
 			    		if (vlvResponseControl.getContextId() != null) {
-			    			sb.append(" contextID=");
+			    			sb.append(", contextID=");
 			    			sb.append(Base64.encode(vlvResponseControl.getContextId()));
+			    		}
+			    		sb.append(", result=");
+			    		if (vlvResponseControl.getVirtualListViewResult() == null) {
+			    			sb.append("null");
+			    		} else {
+			    			sb.append(vlvResponseControl.getVirtualListViewResult().name());
+			    			sb.append("(").append(vlvResponseControl.getVirtualListViewResult().getValue()).append(")");
 			    		}
 			    		extra = sb.toString();
 			    		cookie = vlvResponseControl.getContextId();
@@ -208,6 +216,12 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
 			    			lastListSize = -1;
 			    		} else {
 			    			lastListSize = vlvResponseControl.getContentCount();
+			    		}
+			    		if (vlvResponseControl.getVirtualListViewResult() == VirtualListViewResultCode.OFFSETRANGEERROR 
+			    				|| vlvResponseControl.getVirtualListViewResult() == VirtualListViewResultCode.OPENLDAP_RANGEERRROR) {
+			    			// The offset is out of range. Do not indicate that as an error. Just return empty search results.
+			    			LOG.ok("Ending search because VLV response indicated offset out of range (resultCode={0})", vlvResponseControl.getVirtualListViewResult().getValue());
+                        	break;
 			    		}
 			    	} else {
 			    		cookie = null;
