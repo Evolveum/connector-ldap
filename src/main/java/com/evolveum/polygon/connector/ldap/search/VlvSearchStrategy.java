@@ -238,6 +238,18 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
 			    	} else if (ldapResult.getResultCode() == ResultCodeEnum.SUCCESS) {
 			    		// continue the loop
 			    		
+			    	} else if (ldapResult.getResultCode() == ResultCodeEnum.BUSY) {
+			    		// OpenLDAP gives this error when the server SSS/VLV resources are depleted. It looks like there is no
+			    		// better way how to clean that up than to drop connection and reconnect.
+			    		LOG.ok("Got BUSY response after VLV search. reconnecting and retrying");
+			    		connection = getConnectionReconnect(baseDn);
+			    		if (connection == null) {
+		    				throw new ConnectorIOException("Cannot reconnect (baseDn="+baseDn+")");
+		    			}
+			    		lastListSize = 0;
+		    	        cookie = null;
+		    			continue;
+			    		
 			    	} else {
 						String msg = "LDAP error during search: "+LdapUtil.formatLdapMessage(ldapResult);
 						if (ldapResult.getResultCode() == ResultCodeEnum.SIZE_LIMIT_EXCEEDED && getOptions() != null && getOptions().getAllowPartialResults() != null && getOptions().getAllowPartialResults()) {

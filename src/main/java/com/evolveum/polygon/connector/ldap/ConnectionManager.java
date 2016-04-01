@@ -107,6 +107,21 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 		return server.getConnection();
 	}
 	
+	public LdapNetworkConnection getConnectionReconnect(Dn base) {
+		ServerDefinition server = selectServer(base);
+		LOG.ok("Reconnecting server {0}", server);
+		if (server.isConnected()) {
+			try {
+				closeConnection(server);
+			} catch (IOException e) {
+				LOG.error("Error closing conection {0}: {1}", server, e.getMessage(), e);
+				// Otherwise ignore the error and reconnect anyway
+			}
+		}
+		connectServer(server);
+		return server.getConnection();
+	}
+	
 	public LdapNetworkConnection getConnection(Dn base, Referral referral) {
 		Collection<String> ldapUrls = referral.getLdapUrls();
 		if (ldapUrls == null || ldapUrls.isEmpty()) {
@@ -304,7 +319,7 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 		return connectionConfig;
 	}
 	
-	public void connectServer(ServerDefinition server) {
+	private void connectServer(ServerDefinition server) {
 		final LdapConnectionConfig connectionConfig = createLdapConnectionConfig(server);
 		LdapNetworkConnection connection = connectConnection(connectionConfig);
 		bind(connection, server);

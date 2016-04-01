@@ -267,7 +267,10 @@ public abstract class SearchStrategy<C extends AbstractLdapConfiguration> {
 	protected LdapNetworkConnection getConnection(Dn base, Referral referral) {
 		return connectionManager.getConnection(getEffectiveBase(base), referral);
 	}
-
+	
+	protected LdapNetworkConnection getConnectionReconnect(Dn base) {
+		return connectionManager.getConnectionReconnect(getEffectiveBase(base));
+	}
 	
 	private Dn getEffectiveBase(Dn origBase) {
 		if (origBase.isSchemaAware()) {
