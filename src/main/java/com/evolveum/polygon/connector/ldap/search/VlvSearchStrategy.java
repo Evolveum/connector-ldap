@@ -119,7 +119,7 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
         
         Dn lastResultDn = null;
         int numberOfResutlsReturned = 0;
-        int referralAttempts = 0;
+        int retryAttempts = 0;
         while (proceed) {
         	
         	SearchRequest req = new SearchRequestImpl();
@@ -221,8 +221,8 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
 			    			LOG.ok("Ignoring referral {0}", referral);
 			    		} else {
 			    			LOG.ok("Following referral {0}", referral);
-			    			referralAttempts++;
-			    			if (referralAttempts > getConfiguration().getMaximumNumberOfAttempts()) {
+			    			retryAttempts++;
+			    			if (retryAttempts > getConfiguration().getMaximumNumberOfAttempts()) {
 			    				// TODO: better exception. Maybe re-throw exception from the last error?
 			    				throw new ConnectorIOException("Maximum number of attemps exceeded");
 			    			}
@@ -241,6 +241,11 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
 			    	} else if (ldapResult.getResultCode() == ResultCodeEnum.BUSY) {
 			    		// OpenLDAP gives this error when the server SSS/VLV resources are depleted. It looks like there is no
 			    		// better way how to clean that up than to drop connection and reconnect.
+			    		retryAttempts++;
+		    			if (retryAttempts > getConfiguration().getMaximumNumberOfAttempts()) {
+		    				// TODO: better exception. Maybe re-throw exception from the last error?
+		    				throw new ConnectorIOException("Maximum number of attemps exceeded");
+		    			}
 			    		LOG.ok("Got BUSY response after VLV search. reconnecting and retrying");
 			    		connection = getConnectionReconnect(baseDn);
 			    		if (connection == null) {
