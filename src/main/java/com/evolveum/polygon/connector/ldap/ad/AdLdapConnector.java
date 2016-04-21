@@ -27,6 +27,7 @@ import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.ldap.model.name.Rdn;
 import org.apache.directory.api.ldap.model.schema.AttributeType;
 import org.apache.directory.api.ldap.model.schema.ObjectClass;
+import org.apache.directory.ldap.client.api.LdapNetworkConnection;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.framework.common.exceptions.UnknownUidException;
 import org.identityconnectors.framework.common.objects.Attribute;
@@ -172,8 +173,25 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 					throw new UnknownUidException("Entry for GUID "+uidValue+" was not found in global catalog");
 				}
 				LOG.ok("Resolved GUID {0} in glogbal catalog to DN {1}", uidValue, entry.getDn());
+				Dn dn = entry.getDn();
 				
-				return searchByDn(entry.getDn(), objectClass, ldapObjectClass, handler, options);
+				SearchStrategy<AdLdapConfiguration> searchStrategy = getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
+				// We need to force the use of explicit connection here. The search is still using the <GUID=..> dn
+				// The search strategy cannot use that to select a connection. So we need to select a connection
+				// based on the DN returned from global catalog explicitly.
+				// We also cannot use the DN from the global catalog as the base DN for the search.
+				// The global catalog may not be replicated yet and it may not have the correct DN
+				// (e.g. the case of quick read after rename)
+				LdapNetworkConnection connection = getConnectionManager().getConnection(dn);
+				searchStrategy.setExplicitConnection(connection);
+				
+				String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
+				try {
+					searchStrategy.search(guidDn, null, SearchScope.OBJECT, attributesToGet);
+				} catch (LdapException e) {
+					throw LdapUtil.processLdapException("Error searching for DN '"+guidDn+"'", e);
+				}
+				return searchStrategy;
 				
 			} else {
 				throw new IllegalStateException("Unknown global catalog strategy '"+getConfiguration().getGlobalCatalogStrategy()+"'");

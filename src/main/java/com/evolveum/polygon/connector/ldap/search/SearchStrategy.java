@@ -15,27 +15,21 @@
  */
 package com.evolveum.polygon.connector.ldap.search;
 
-import java.util.Map;
-
-import org.apache.directory.api.ldap.extras.controls.vlv.VirtualListViewRequest;
 import org.apache.directory.api.ldap.model.cursor.SearchCursor;
 import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.exception.LdapException;
 import org.apache.directory.api.ldap.model.exception.LdapReferralException;
 import org.apache.directory.api.ldap.model.filter.ExprNode;
 import org.apache.directory.api.ldap.model.message.AliasDerefMode;
-import org.apache.directory.api.ldap.model.message.Control;
 import org.apache.directory.api.ldap.model.message.LdapResult;
 import org.apache.directory.api.ldap.model.message.Referral;
 import org.apache.directory.api.ldap.model.message.SearchRequest;
 import org.apache.directory.api.ldap.model.message.SearchScope;
-import org.apache.directory.api.ldap.model.message.controls.PagedResults;
 import org.apache.directory.api.ldap.model.message.controls.SortRequest;
 import org.apache.directory.api.ldap.model.message.controls.SortRequestControlImpl;
 import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.ldap.model.schema.AttributeType;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
-import org.identityconnectors.common.Base64;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.framework.common.exceptions.ConfigurationException;
 import org.identityconnectors.framework.common.objects.ObjectClass;
@@ -69,6 +63,7 @@ public abstract class SearchStrategy<C extends AbstractLdapConfiguration> {
 	private OperationOptions options;
 	private boolean isCompleteResultSet = true;
 	private AttributeHandler attributeHandler;
+	private LdapNetworkConnection explicitConnection = null;
 	
 	protected SearchStrategy(ConnectionManager<C> connectionManager, AbstractLdapConfiguration configuration,
 			SchemaTranslator<C> schemaTranslator, ObjectClass objectClass,
@@ -152,6 +147,14 @@ public abstract class SearchStrategy<C extends AbstractLdapConfiguration> {
 		return configuration.getPagingBlockSize();
 	}
 	
+	public LdapNetworkConnection getExplicitConnection() {
+		return explicitConnection;
+	}
+
+	public void setExplicitConnection(LdapNetworkConnection explicitConnection) {
+		this.explicitConnection = explicitConnection;
+	}
+
 	protected void applyCommonConfiguration(SearchRequest req) {
 		if (configuration.isReferralStrategyFollow()) {
 			req.followReferrals();
@@ -261,14 +264,23 @@ public abstract class SearchStrategy<C extends AbstractLdapConfiguration> {
 	}
 	
 	protected LdapNetworkConnection getConnection(Dn base) {
+		if (explicitConnection != null) {
+			return explicitConnection;
+		}
 		return connectionManager.getConnection(getEffectiveBase(base));
 	}
 
 	protected LdapNetworkConnection getConnection(Dn base, Referral referral) {
+		if (explicitConnection != null) {
+			return explicitConnection;
+		}
 		return connectionManager.getConnection(getEffectiveBase(base), referral);
 	}
 	
 	protected LdapNetworkConnection getConnectionReconnect(Dn base) {
+		if (explicitConnection != null) {
+			return explicitConnection;
+		}
 		return connectionManager.getConnectionReconnect(getEffectiveBase(base));
 	}
 	
