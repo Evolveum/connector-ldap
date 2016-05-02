@@ -270,14 +270,14 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
 		    			continue;
 			    		
 			    	} else {
-						String msg = "LDAP error during search: "+LdapUtil.formatLdapMessage(ldapResult);
+						String msg = "LDAP error during search in "+baseDn+": "+LdapUtil.formatLdapMessage(ldapResult);
 						if (ldapResult.getResultCode() == ResultCodeEnum.SIZE_LIMIT_EXCEEDED && getOptions() != null && getOptions().getAllowPartialResults() != null && getOptions().getAllowPartialResults()) {
 							LOG.ok("{0} (allowed error)", msg);
 							setCompleteResultSet(false);
 							break;
 						} else {
 							LOG.error("{0}", msg);
-							throw LdapUtil.processLdapResult("LDAP error during search", ldapResult);
+							throw LdapUtil.processLdapResult("LDAP error during search in "+baseDn, ldapResult);
 						}
 					}
 			    	

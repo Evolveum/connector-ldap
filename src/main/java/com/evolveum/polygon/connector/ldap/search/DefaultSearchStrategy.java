@@ -129,7 +129,7 @@ public class DefaultSearchStrategy<C extends AbstractLdapConfiguration> extends 
 							break;
 						} else {
 							LOG.error("{0}", msg);
-							throw LdapUtil.processLdapResult("LDAP error during search", ldapResult);
+							throw LdapUtil.processLdapResult("LDAP error during search in "+baseDn, ldapResult);
 						}
 					}
 			    	
