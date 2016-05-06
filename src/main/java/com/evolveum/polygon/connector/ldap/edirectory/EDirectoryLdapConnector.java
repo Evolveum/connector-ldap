@@ -41,7 +41,7 @@ import com.evolveum.polygon.connector.ldap.LdapUtil;
 import com.evolveum.polygon.connector.ldap.schema.LdapFilterTranslator;
 import com.evolveum.polygon.connector.ldap.schema.SchemaTranslator;
 
-@ConnectorClass(displayNameKey = "connector.ldap.edir.display", configurationClass = EDirectoryLdapConfiguration.class)
+@ConnectorClass(displayNameKey = "connector.ldap.edirectory.display", configurationClass = EDirectoryLdapConfiguration.class)
 public class EDirectoryLdapConnector extends AbstractLdapConnector<EDirectoryLdapConfiguration> {
 
     private static final Log LOG = Log.getLog(EDirectoryLdapConnector.class);

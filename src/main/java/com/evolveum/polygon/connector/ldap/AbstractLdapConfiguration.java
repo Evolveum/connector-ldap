@@ -232,6 +232,11 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
      */
     private boolean allowUnknownAttributes = false;
     
+    /**
+     * Use permissive modify LDAP control for modify operations.
+     * Possible values: "never", "auto", "always"
+     * Default value: auto
+     */
     private String usePermissiveModify = USE_PERMISSIVE_MODIFY_AUTO;
 
     public static final String USE_PERMISSIVE_MODIFY_NEVER = "never";
@@ -288,6 +293,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
     // MAYBE TODO: respectResourcePasswordPolicyChangeAfterReset? filterWithOrInsteadOfAnd? 
     //			   removeLogEntryObjectClassFromFilter? synchronizePasswords? passwordAttributeToSynchronize?
 
+	@ConfigurationProperty(required = true, order = 1)
     public String getHost() {
 		return host;
 	}
@@ -296,6 +302,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 		this.host = host;
 	}
 
+	@ConfigurationProperty(order = 2)
 	public int getPort() {
 		return port;
 	}
@@ -304,6 +311,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 		this.port = port;
 	}
 
+	@ConfigurationProperty(order = 3)
 	public String getConnectionSecurity() {
 		return connectionSecurity;
 	}
@@ -312,6 +320,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 		this.connectionSecurity = connectionSecurity;
 	}
 
+	@ConfigurationProperty(order = 4)
 	public String getSslProtocol() {
 		return sslProtocol;
 	}
@@ -320,6 +329,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 		this.sslProtocol = sslProtocol;
 	}
 
+	@ConfigurationProperty(order = 5)
 	public String[] getEnabledSecurityProtocols() {
 		return enabledSecurityProtocols;
 	}
@@ -328,6 +338,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 		this.enabledSecurityProtocols = enabledSecurityProtocols;
 	}
 
+	@ConfigurationProperty(order = 6)
 	public String[] getEnabledCipherSuites() {
 		return enabledCipherSuites;
 	}
@@ -336,6 +347,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 		this.enabledCipherSuites = enabledCipherSuites;
 	}
 
+	@ConfigurationProperty(order = 7)
 	public String getAuthenticationType() {
 		return authenticationType;
 	}
@@ -344,6 +356,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 		this.authenticationType = authenticationType;
 	}
 
+	@ConfigurationProperty(order = 8)
 	public String getBindDn() {
 		return bindDn;
 	}
@@ -352,6 +365,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 		this.bindDn = bindDn;
 	}
 
+	@ConfigurationProperty(order = 9)
 	public GuardedString getBindPassword() {
 		return bindPassword;
 	}
@@ -360,6 +374,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 		this.bindPassword = bindPassword;
 	}
 
+	@ConfigurationProperty(order = 10)
 	public long getConnectTimeout() {
 		return connectTimeout;
 	}
@@ -368,6 +383,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 		this.connectTimeout = connectTimeout;
 	}
 
+	@ConfigurationProperty(order = 11)
 	public int getMaximumNumberOfAttempts() {
 		return maximumNumberOfAttempts;
 	}
@@ -376,6 +392,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 		this.maximumNumberOfAttempts = maximumNumberOfAttempts;
 	}
 
+	@ConfigurationProperty(order = 12)
 	public String getBaseContext() {
 		return baseContext;
 	}
@@ -384,6 +401,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 		this.baseContext = baseContext;
 	}
 
+	@ConfigurationProperty(order = 13)
 	public String[] getServers() {
 		return servers;
 	}
@@ -392,6 +410,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 		this.servers = servers;
 	}
 
+	@ConfigurationProperty(order = 14)
 	public String getReferralStrategy() {
 		return referralStrategy;
 	}
@@ -400,6 +419,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 		this.referralStrategy = referralStrategy;
 	}
 
+	@ConfigurationProperty(order = 15)
 	public String getPasswordAttribute() {
 		return passwordAttribute;
 	}
@@ -408,6 +428,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 		this.passwordAttribute = passwordAttribute;
 	}
 
+	@ConfigurationProperty(order = 16)
 	public String getPasswordHashAlgorithm() {
 		return passwordHashAlgorithm;
 	}
@@ -416,6 +437,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 		this.passwordHashAlgorithm = passwordHashAlgorithm;
 	}
 
+	@ConfigurationProperty(order = 17)
 	public String getPagingStrategy() {
 		return pagingStrategy;
 	}
@@ -424,6 +446,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 		this.pagingStrategy = pagingStrategy;
 	}
 
+	@ConfigurationProperty(order = 18)
 	public int getPagingBlockSize() {
 		return pagingBlockSize;
 	}
@@ -432,6 +455,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 		this.pagingBlockSize = pagingBlockSize;
 	}
 
+	@ConfigurationProperty(order = 19)
 	public String getVlvSortAttribute() {
 		return vlvSortAttribute;
 	}
@@ -440,6 +464,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 		this.vlvSortAttribute = vlvSortAttribute;
 	}
 
+	@ConfigurationProperty(order = 20)
 	public String getVlvSortOrderingRule() {
 		return vlvSortOrderingRule;
 	}
@@ -448,6 +473,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 		this.vlvSortOrderingRule = vlvSortOrderingRule;
 	}
 
+	@ConfigurationProperty(order = 21)
 	public String getUidAttribute() {
 		return uidAttribute;
 	}
@@ -456,6 +482,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 		this.uidAttribute = uidAttribute;
 	}
 
+	@ConfigurationProperty(order = 22)
 	public String[] getOperationalAttributes() {
 		return operationalAttributes;
 	}
@@ -464,6 +491,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 		this.operationalAttributes = operationalAttributes;
 	}
 
+	@ConfigurationProperty(order = 23)
 	public boolean isReadSchema() {
 		return readSchema;
 	}
@@ -472,6 +500,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 		this.readSchema = readSchema;
 	}
 
+	@ConfigurationProperty(order = 24)
 	public boolean isSchemaQuirksMode() {
 		return schemaQuirksMode;
 	}
@@ -480,6 +509,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 		this.schemaQuirksMode = schemaQuirksMode;
 	}
 
+	@ConfigurationProperty(order = 25)
 	public boolean isAllowUnknownAttributes() {
 		return allowUnknownAttributes;
 	}
@@ -488,6 +518,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 		this.allowUnknownAttributes = allowUnknownAttributes;
 	}
 
+	@ConfigurationProperty(order = 26)
 	public String getUsePermissiveModify() {
 		return usePermissiveModify;
 	}
@@ -496,6 +527,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 		this.usePermissiveModify = usePermissiveModify;
 	}
 
+	@ConfigurationProperty(order = 27)
 	public String getSynchronizationStrategy() {
 		return synchronizationStrategy;
 	}
@@ -504,6 +536,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 		this.synchronizationStrategy = synchronizationStrategy;
 	}
 
+	@ConfigurationProperty(order = 28)
 	public String[] getBaseContextsToSynchronize() {
 		return baseContextsToSynchronize;
 	}
@@ -512,6 +545,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 		this.baseContextsToSynchronize = baseContextsToSynchronize;
 	}
 
+	@ConfigurationProperty(order = 29)
 	public String[] getObjectClassesToSynchronize() {
 		return objectClassesToSynchronize;
 	}
@@ -520,6 +554,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 		this.objectClassesToSynchronize = objectClassesToSynchronize;
 	}
 
+	@ConfigurationProperty(order = 30)
 	public String[] getAttributesToSynchronize() {
 		return attributesToSynchronize;
 	}
@@ -528,6 +563,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 		this.attributesToSynchronize = attributesToSynchronize;
 	}
 
+	@ConfigurationProperty(order = 31)
 	public String[] getModifiersNamesToFilterOut() {
 		return modifiersNamesToFilterOut;
 	}
@@ -536,6 +572,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 		this.modifiersNamesToFilterOut = modifiersNamesToFilterOut;
 	}
 
+	@ConfigurationProperty(order = 32)
 	public int getChangeLogBlockSize() {
 		return changeLogBlockSize;
 	}
@@ -544,6 +581,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 		this.changeLogBlockSize = changeLogBlockSize;
 	}
 
+	@ConfigurationProperty(order = 33)
 	public String getChangeNumberAttribute() {
 		return changeNumberAttribute;
 	}

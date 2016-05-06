@@ -17,6 +17,7 @@
 package com.evolveum.polygon.connector.ldap.ad;
 
 import org.identityconnectors.common.logging.Log;
+import org.identityconnectors.framework.spi.ConfigurationProperty;
 
 import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
 
@@ -33,16 +34,21 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 	public static final String ATTRIBUTE_OBJECT_GUID_NAME = "objectGUID";
 	public static final String ATTRIBUTE_UNICODE_PWD_NAME = "unicodePwd";
     
+	/**
+	 * Object class to use for user accounts. Default: user
+	 */
     private String userObjectClass = "user";
     
+    /**
+     * Object class to use for user accounts. Default: group
+     */
     private String groupObjectClass = "group";
     
+    /**
+     * Group member attribute name. Default: member
+     */
     private String groupObjectMemberAttribute = "member";
     
-    private String userContainerDn;
-    
-    private String groupContainerDn;
-        
     /**
      * Specification of global catalog servers. If left empty then the
      * connector will try to determine the host and port automatically.
@@ -50,6 +56,9 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
      */
     private String[] globalCatalogServers;
     
+    /**
+     * Strategy of global catalog usage.
+     */
     private String globalCatalogStrategy = GLOBAL_CATALOG_STRATEGY_NONE;
     
     /**
@@ -81,7 +90,8 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
      * the userAccountControl will be exposed as a simple attribute.
      */
     private boolean rawUserAccountControlAttribute = false;
-        
+    
+    @ConfigurationProperty(order = 100)
 	public String getUserObjectClass() {
 		return userObjectClass;
 	}
@@ -90,6 +100,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.userObjectClass = userObjectClass;
 	}
 
+	@ConfigurationProperty(order = 101)
 	public String getGroupObjectClass() {
 		return groupObjectClass;
 	}
@@ -98,6 +109,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.groupObjectClass = groupObjectClass;
 	}
 
+	@ConfigurationProperty(order = 102)
 	public String getGroupObjectMemberAttribute() {
 		return groupObjectMemberAttribute;
 	}
@@ -106,22 +118,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.groupObjectMemberAttribute = groupObjectMemberAttribute;
 	}
 
-	public String getUserContainerDn() {
-		return userContainerDn;
-	}
-
-	public void setUserContainerDn(String userContainerDn) {
-		this.userContainerDn = userContainerDn;
-	}
-
-	public String getGroupContainerDn() {
-		return groupContainerDn;
-	}
-
-	public void setGroupContainerDn(String groupContainerDn) {
-		this.groupContainerDn = groupContainerDn;
-	}
-
+	@ConfigurationProperty(order = 103)
 	public String[] getGlobalCatalogServers() {
 		return globalCatalogServers;
 	}
@@ -130,6 +127,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.globalCatalogServers = globalCatalogServers;
 	}
 
+	@ConfigurationProperty(order = 104)
 	public String getGlobalCatalogStrategy() {
 		return globalCatalogStrategy;
 	}
@@ -138,6 +136,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.globalCatalogStrategy = globalCatalogStrategy;
 	}
 
+	@ConfigurationProperty(order = 105)
 	public boolean isRawUserAccountControlAttribute() {
 		return rawUserAccountControlAttribute;
 	}
@@ -150,12 +149,6 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 	public void recompute() {
 		if (getPasswordAttribute() == null) {
 			setPasswordAttribute(ATTRIBUTE_UNICODE_PWD_NAME);
-		}
-		if (userContainerDn == null) {
-			userContainerDn = "CN=Users,"+getBaseContext();
-		}
-		if (groupContainerDn == null) {
-			groupContainerDn = "CN=Users,"+getBaseContext();
 		}
 		if (getUidAttribute() == null) {
 			setUidAttribute(ATTRIBUTE_OBJECT_GUID_NAME);

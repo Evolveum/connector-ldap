@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 Evolveum
+ * Copyright (c) 2015-2016 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,6 +15,8 @@
  */
 
 package com.evolveum.polygon.connector.ldap.edirectory;
+
+import org.identityconnectors.framework.spi.ConfigurationProperty;
 
 import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
 
@@ -34,14 +36,11 @@ public class EDirectoryLdapConfiguration extends AbstractLdapConfiguration {
     
     private String groupObjectMemberAttribute = "member";
     
-    private String userContainerDn;
-    
-    private String groupContainerDn;
-    
     private boolean manageReciprocalGroupAttributes = true;
     
     private boolean manageEquivalenceAttributes = true;
     
+    @ConfigurationProperty(order = 100)
 	public String getUserObjectClass() {
 		return userObjectClass;
 	}
@@ -50,6 +49,7 @@ public class EDirectoryLdapConfiguration extends AbstractLdapConfiguration {
 		this.userObjectClass = userObjectClass;
 	}
 
+	@ConfigurationProperty(order = 101)
 	public String getGroupObjectClass() {
 		return groupObjectClass;
 	}
@@ -58,6 +58,7 @@ public class EDirectoryLdapConfiguration extends AbstractLdapConfiguration {
 		this.groupObjectClass = groupObjectClass;
 	}
 
+	@ConfigurationProperty(order = 102)
 	public String getGroupObjectMemberAttribute() {
 		return groupObjectMemberAttribute;
 	}
@@ -66,22 +67,7 @@ public class EDirectoryLdapConfiguration extends AbstractLdapConfiguration {
 		this.groupObjectMemberAttribute = groupObjectMemberAttribute;
 	}
 
-	public String getUserContainerDn() {
-		return userContainerDn;
-	}
-
-	public void setUserContainerDn(String userContainerDn) {
-		this.userContainerDn = userContainerDn;
-	}
-
-	public String getGroupContainerDn() {
-		return groupContainerDn;
-	}
-
-	public void setGroupContainerDn(String groupContainerDn) {
-		this.groupContainerDn = groupContainerDn;
-	}
-
+	@ConfigurationProperty(order = 103)
 	public boolean isManageReciprocalGroupAttributes() {
 		return manageReciprocalGroupAttributes;
 	}
@@ -90,6 +76,7 @@ public class EDirectoryLdapConfiguration extends AbstractLdapConfiguration {
 		this.manageReciprocalGroupAttributes = manageReciprocalGroupAttributes;
 	}
 
+	@ConfigurationProperty(order = 104)
 	public boolean isManageEquivalenceAttributes() {
 		return manageEquivalenceAttributes;
 	}
@@ -100,12 +87,6 @@ public class EDirectoryLdapConfiguration extends AbstractLdapConfiguration {
 
 	@Override
 	public void recompute() {
-		if (userContainerDn == null) {
-			userContainerDn = "ou=People,"+getBaseContext();
-		}
-		if (groupContainerDn == null) {
-			groupContainerDn = "ou=Groups,"+getBaseContext();
-		}
 		if (getUidAttribute() == null) {
 			setUidAttribute(ATTRIBUTE_GUID_NAME);
 		}
