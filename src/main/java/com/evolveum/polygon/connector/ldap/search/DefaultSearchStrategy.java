@@ -85,7 +85,15 @@ public class DefaultSearchStrategy<C extends AbstractLdapConfiguration> extends 
 			SearchCursor searchCursor = executeSearch(connection, req);
 			boolean proceed = true;
 			try {
-				while (proceed && searchCursor.next()) {
+				while (proceed) {
+					try {
+						boolean hasNext = searchCursor.next();
+						if (hasNext) {
+							break;
+						}
+					} catch (LdapException e) {
+						e.get  todo
+					}
 					Response response = searchCursor.get();
 					if (response instanceof SearchResultEntry) {
 				        Entry entry = ((SearchResultEntry)response).getEntry();
