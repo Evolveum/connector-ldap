@@ -31,6 +31,8 @@ import org.apache.directory.api.ldap.model.entry.StringValue;
 import org.apache.directory.api.ldap.model.entry.Value;
 import org.apache.directory.api.ldap.model.exception.LdapException;
 import org.apache.directory.api.ldap.model.exception.LdapInvalidAttributeValueException;
+import org.apache.directory.api.ldap.model.filter.AndNode;
+import org.apache.directory.api.ldap.model.filter.EqualityNode;
 import org.apache.directory.api.ldap.model.filter.ExprNode;
 import org.apache.directory.api.ldap.model.filter.GreaterEqNode;
 import org.apache.directory.api.ldap.model.filter.OrNode;
@@ -101,13 +103,13 @@ public class ModifyTimestampSyncStrategy<C extends AbstractLdapConfiguration> ex
 			ldapObjectClass = getSchemaTranslator().toLdapObjectClass(icfObjectClass);
 		}
 		
-		String searchFilter = LdapConfiguration.SEARCH_FILTER_ALL;
+		String searchFilter;
 		if (fromToken == null) {
 			fromToken = getLatestSyncToken(icfObjectClass);
 		}
 		Object fromTokenValue = fromToken.getValue();
 		if (fromTokenValue instanceof String) {
-			searchFilter = createSeachFilter((String)fromTokenValue);
+			searchFilter = createSeachFilter((String)fromTokenValue, ldapObjectClass);
 		} else {
 			throw new IllegalArgumentException("Synchronization token is not string, it is "+fromToken.getClass());
 		}
@@ -174,13 +176,17 @@ public class ModifyTimestampSyncStrategy<C extends AbstractLdapConfiguration> ex
 		}
 	}
 
-	private String createSeachFilter(String fromTokenValue) {
+	private String createSeachFilter(String fromTokenValue, org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
 		Value<String> ldapValue = new StringValue(fromTokenValue);
 		ExprNode filterNode =
 				new OrNode(
 						new GreaterEqNode<String>(AbstractLdapConfiguration.ATTRIBUTE_MODIFYTIMESTAMP_NAME, ldapValue),
 						new GreaterEqNode<String>(AbstractLdapConfiguration.ATTRIBUTE_CREATETIMESTAMP_NAME, ldapValue)
 				);
+		if (ldapObjectClass != null) {
+			filterNode = new AndNode(new EqualityNode<String>(AbstractLdapConfiguration.ATTRIBUTE_OBJECTCLASS_NAME, 
+					new StringValue(ldapObjectClass.getName())), filterNode);
+		}
 		return filterNode.toString();
 	}
 
