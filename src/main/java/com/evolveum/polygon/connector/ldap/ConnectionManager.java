@@ -108,7 +108,12 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 	}
 	
 	public LdapNetworkConnection getConnectionReconnect(Dn base) {
-		ServerDefinition server = selectServer(base);
+		return getConnectionReconnect(base, null);
+	}
+	
+	public LdapNetworkConnection getConnectionReconnect(Dn base, Referral referral) {
+		LdapUrl ldapUrl = getLdapUrl(referral);
+		ServerDefinition server = selectServer(base, ldapUrl);
 		LOG.ok("Reconnecting server {0}", server);
 		if (server.isConnected()) {
 			try {
@@ -123,6 +128,13 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 	}
 	
 	public LdapNetworkConnection getConnection(Dn base, Referral referral) {
+		return getConnection(base, getLdapUrl(referral));
+	}
+	
+	private LdapUrl getLdapUrl(Referral referral) {
+		if (referral == null) {
+			return null;
+		}
 		Collection<String> ldapUrls = referral.getLdapUrls();
 		if (ldapUrls == null || ldapUrls.isEmpty()) {
 			return null;
@@ -134,7 +146,7 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 		} catch (LdapURLEncodingException e) {
 			throw new IllegalArgumentException("Wrong LDAP URL '"+urlString+"': "+e.getMessage());
 		}
-		return getConnection(base, ldapUrl);
+		return ldapUrl;
 	}
 
 	public LdapNetworkConnection getConnection(Dn base, LdapUrl url) {
@@ -225,6 +237,9 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 	}
 
 	private ServerDefinition selectServer(Dn dn, LdapUrl url) {
+		if (url == null) {
+			return selectServer(dn);
+		}
 		for (ServerDefinition server: servers) {
 			if (server.matches(url)) {
 				return server;

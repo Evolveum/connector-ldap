@@ -39,6 +39,7 @@ import org.apache.directory.api.ldap.model.message.controls.SortRequestControlIm
 import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.ldap.model.schema.AttributeType;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
+import org.apache.directory.ldap.client.api.exception.LdapConnectionTimeOutException;
 import org.identityconnectors.common.Base64;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.framework.common.exceptions.ConfigurationException;
@@ -97,10 +98,12 @@ public class SimplePagedResultsSearchStrategy<C extends AbstractLdapConfiguratio
 		boolean proceed = true;
 		int numberOfResutlsHandled = 0;
         int numberOfResultsSkipped = 0;
-        int referralAttempts = 0;
+        int retryAttempts = 0;
         
         LdapNetworkConnection connection = getConnection(baseDn);
-        do {
+        Referral referral = null; // remember this in case we need a reconnect
+        
+        OUTER: do {
         	SearchRequest req = new SearchRequestImpl();
     		req.setBase(baseDn);
     		req.setFilter(filterNode);
@@ -132,7 +135,25 @@ public class SimplePagedResultsSearchStrategy<C extends AbstractLdapConfiguratio
         	int responseResultCount = 0;
         	SearchCursor searchCursor = executeSearch(connection, req);
     		try {
-    			while (proceed && searchCursor.next()) {
+    			while (proceed) {
+    				try {
+						boolean hasNext = searchCursor.next();
+						if (!hasNext) {
+							break;
+						}
+					} catch (LdapConnectionTimeOutException e) {
+						// Server disconnected. And by some miracle this was not caught be
+						// checkAlive or connection manager.
+						LOG.ok("Connection timeout ({0}), reconnecting", e.getMessage(), e);
+						LdapUtil.closeCursor(searchCursor);
+						connection = getConnectionReconnect(baseDn, referral);
+						retryAttempts++;
+		    			if (retryAttempts > getConfiguration().getMaximumNumberOfAttempts()) {
+		    				// TODO: better exception. Maybe re-throw exception from the last error?
+		    				throw new ConnectorIOException("Maximum number of attemps exceeded");
+		    			}
+						continue OUTER;
+					}
     				Response response = searchCursor.get();
     				if (response instanceof SearchResultEntry) {
     					responseResultCount++;
@@ -184,13 +205,13 @@ public class SimplePagedResultsSearchStrategy<C extends AbstractLdapConfiguratio
 			    	logSearchResult(connection, "Done", ldapResult, extra);
 			    	
 			    	if (ldapResult.getResultCode() == ResultCodeEnum.REFERRAL && !getConfiguration().isReferralStrategyThrow()) {
-			    		Referral referral = ldapResult.getReferral();
+			    		referral = ldapResult.getReferral();
 			    		if (getConfiguration().isReferralStrategyIgnore()) {
 			    			LOG.ok("Ignoring referral {0}", referral);
 			    		} else {
 			    			LOG.ok("Following referral {0}", referral);
-			    			referralAttempts++;
-			    			if (referralAttempts > getConfiguration().getMaximumNumberOfAttempts()) {
+			    			retryAttempts++;
+			    			if (retryAttempts > getConfiguration().getMaximumNumberOfAttempts()) {
 			    				// TODO: better exception. Maybe re-throw exception from the last error?
 			    				throw new ConnectorIOException("Maximum number of attemps exceeded");
 			    			}

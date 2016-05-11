@@ -31,6 +31,7 @@ import org.apache.directory.api.ldap.model.message.SearchResultEntry;
 import org.apache.directory.api.ldap.model.message.SearchScope;
 import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
+import org.apache.directory.ldap.client.api.exception.LdapConnectionTimeOutException;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
 import org.identityconnectors.framework.common.objects.ObjectClass;
@@ -73,6 +74,7 @@ public class DefaultSearchStrategy<C extends AbstractLdapConfiguration> extends 
 		};
 		
 		LdapNetworkConnection connection = getConnection(baseDn);
+		Referral referral = null; // remember this in case we need a reconnect
 		
 		int numAttempts = 0;
 		while (true) {
@@ -88,11 +90,16 @@ public class DefaultSearchStrategy<C extends AbstractLdapConfiguration> extends 
 				while (proceed) {
 					try {
 						boolean hasNext = searchCursor.next();
-						if (hasNext) {
+						if (!hasNext) {
 							break;
 						}
-					} catch (LdapException e) {
-						e.get  todo
+					} catch (LdapConnectionTimeOutException e) {
+						// Server disconnected. And by some miracle this was not caught be
+						// checkAlive or connection manager.
+						LOG.ok("Connection timeout ({0}), reconnecting", e.getMessage(), e);
+						LdapUtil.closeCursor(searchCursor);
+						connection = getConnectionReconnect(baseDn, referral);
+						continue;
 					}
 					Response response = searchCursor.get();
 					if (response instanceof SearchResultEntry) {
@@ -115,7 +122,7 @@ public class DefaultSearchStrategy<C extends AbstractLdapConfiguration> extends 
 			    	logSearchResult(connection, "Done", ldapResult);
 			    	
 			    	if (ldapResult.getResultCode() == ResultCodeEnum.REFERRAL && !getConfiguration().isReferralStrategyThrow()) {
-			    		Referral referral = ldapResult.getReferral();
+			    		referral = ldapResult.getReferral();
 			    		if (getConfiguration().isReferralStrategyIgnore()) {
 			    			LOG.ok("Ignoring referral {0}", referral);
 			    		} else {

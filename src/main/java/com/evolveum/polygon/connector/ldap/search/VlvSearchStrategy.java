@@ -42,6 +42,7 @@ import org.apache.directory.api.ldap.model.message.controls.PagedResults;
 import org.apache.directory.api.ldap.model.message.controls.SortRequest;
 import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
+import org.apache.directory.ldap.client.api.exception.LdapConnectionTimeOutException;
 import org.identityconnectors.common.Base64;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.framework.common.exceptions.ConfigurationException;
@@ -117,11 +118,12 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
         }
 		
         LdapNetworkConnection connection = getConnection(baseDn);
+        Referral referral = null; // remember this in case we need a reconnect
         
         Dn lastResultDn = null;
         int numberOfResutlsReturned = 0;
         int retryAttempts = 0;
-        while (proceed) {
+        OUTER: while (proceed) {
         	
         	SearchRequest req = new SearchRequestImpl();
     		req.setBase(baseDn);
@@ -153,7 +155,25 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
         	int responseResultCount = 0;
         	SearchCursor searchCursor = executeSearch(connection, req);
     		try {
-    			while (proceed && searchCursor.next()) {
+    			while (proceed) {
+    				try {
+						boolean hasNext = searchCursor.next();
+						if (!hasNext) {
+							break;
+						}
+					} catch (LdapConnectionTimeOutException e) {
+						// Server disconnected. And by some miracle this was not caught be
+						// checkAlive or connection manager.
+						LOG.ok("Connection timeout ({0}), reconnecting", e.getMessage(), e);
+						LdapUtil.closeCursor(searchCursor);
+						connection = getConnectionReconnect(baseDn, referral);
+						retryAttempts++;
+		    			if (retryAttempts > getConfiguration().getMaximumNumberOfAttempts()) {
+		    				// TODO: better exception. Maybe re-throw exception from the last error?
+		    				throw new ConnectorIOException("Maximum number of attemps exceeded");
+		    			}
+						continue OUTER;
+					}
     				Response response = searchCursor.get();
     				if (response instanceof SearchResultEntry) {
     					responseResultCount++;
@@ -230,7 +250,7 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
 			    	logSearchResult(connection, "Done", ldapResult, extra);
 			    	
 			    	if (ldapResult.getResultCode() == ResultCodeEnum.REFERRAL && !getConfiguration().isReferralStrategyThrow()) {
-			    		Referral referral = ldapResult.getReferral();
+			    		referral = ldapResult.getReferral();
 			    		if (getConfiguration().isReferralStrategyIgnore()) {
 			    			LOG.ok("Ignoring referral {0}", referral);
 			    		} else {
