@@ -911,18 +911,22 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			}
 			
 			if (modifyResponse.getLdapResult().getResultCode() != ResultCodeEnum.SUCCESS) {
-				throw LdapUtil.processLdapResult("Error modifying LDAP entry "+dn+": "+dumpModifications(modifications), modifyResponse.getLdapResult());
+				throw processModifyResult(dn, modifications, modifyResponse);
 			}
 		} catch (LdapException e) {
 			OperationLog.logOperationErr(connection, "Modify ERROR {0}: {1}: {2}", dn, dumpModifications(modifications), e.getMessage(), e);
-			throw processModifyResult(dn.toString(), e);
+			throw processModifyResult(dn.toString(), modifications, e);
 		}
 	}
 
-	protected RuntimeException processModifyResult(String dn, LdapException e) {
+	protected RuntimeException processModifyResult(Dn dn, List<Modification> modifications, ModifyResponse modifyResponse) {
+		return LdapUtil.processLdapResult("Error modifying LDAP entry "+dn+": "+dumpModifications(modifications), modifyResponse.getLdapResult());
+	}
+
+	protected RuntimeException processModifyResult(String dn, List<Modification> modifications, LdapException e) {
 		return LdapUtil.processLdapException("Error modifying LDAP entry "+dn, e);
 	}
-	
+		
 	protected void addAttributeModification(Dn dn, List<Modification> modifications,
 			org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass,
 			ObjectClass icfObjectClass, Attribute icfAttr, ModificationOperation modOp) {
@@ -992,7 +996,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		
 	}
 
-	private String dumpModifications(List<Modification> modifications) {
+	protected String dumpModifications(List<Modification> modifications) {
 		if (modifications == null) {
 			return null;
 		}
