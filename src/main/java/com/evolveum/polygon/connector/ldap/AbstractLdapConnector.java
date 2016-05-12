@@ -1002,11 +1002,21 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		}
 		StringBuilder sb = new StringBuilder("[");
 		for (Modification mod: modifications) {
-			sb.append(mod.getOperation()).append(":").append(mod.getAttribute());
+			sb.append(mod.getOperation()).append(":");
+			if (isSensitiveAttribute(mod.getAttribute())) {
+				sb.append(mod.getAttribute().getUpId()).append("=");
+				sb.append("..hidden.value..");
+			} else {
+				sb.append(mod.getAttribute());
+			}
 			sb.append(",");
 		}
 		sb.append("]");
 		return sb.toString();
+	}
+
+	private boolean isSensitiveAttribute(org.apache.directory.api.ldap.model.entry.Attribute attribute) {
+		return attribute.getId().equalsIgnoreCase(getConfiguration().getPasswordAttribute());
 	}
 
 	@Override
