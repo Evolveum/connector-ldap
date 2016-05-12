@@ -713,7 +713,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		OperationLog.logOperationRes(connection, "Add RES {0}: {1}", dnStringFromName, addResponse.getLdapResult());
 		
 		if (addResponse.getLdapResult().getResultCode() != ResultCodeEnum.SUCCESS) {
-			throw LdapUtil.processLdapResult("Error adding LDAP entry "+dnStringFromName, addResponse.getLdapResult());
+			throw processCreateResult(dnStringFromName, addResponse);
 		}
 
 		String uidAttributeName = configuration.getUidAttribute();
@@ -749,6 +749,10 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		uid = new Uid(getSchemaTranslator().toIcfIdentifierValue(uidLdapAttributeValue, uidAttributeName, uidLdapAttributeType));
 		
 		return uid;
+	}
+
+	protected RuntimeException processCreateResult(String dn, AddResponse addResponse) {
+		 return LdapUtil.processLdapResult("Error adding LDAP entry " + dn, addResponse.getLdapResult());
 	}
 
 	protected void preCreate(org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass, Entry entry) {
@@ -911,10 +915,14 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			}
 		} catch (LdapException e) {
 			OperationLog.logOperationErr(connection, "Modify ERROR {0}: {1}: {2}", dn, dumpModifications(modifications), e.getMessage(), e);
-			throw LdapUtil.processLdapException("Error modifying entry "+dn, e);
+			throw processModifyResult(dn.toString(), e);
 		}
 	}
 
+	protected RuntimeException processModifyResult(String dn, LdapException e) {
+		return LdapUtil.processLdapException("Error modifying LDAP entry "+dn, e);
+	}
+	
 	protected void addAttributeModification(Dn dn, List<Modification> modifications,
 			org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass,
 			ObjectClass icfObjectClass, Attribute icfAttr, ModificationOperation modOp) {

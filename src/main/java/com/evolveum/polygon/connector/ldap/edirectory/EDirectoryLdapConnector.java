@@ -24,10 +24,14 @@ import org.apache.directory.api.ldap.model.entry.DefaultModification;
 import org.apache.directory.api.ldap.model.entry.Modification;
 import org.apache.directory.api.ldap.model.entry.ModificationOperation;
 import org.apache.directory.api.ldap.model.exception.LdapException;
+import org.apache.directory.api.ldap.model.exception.LdapInvalidAttributeValueException;
+import org.apache.directory.api.ldap.model.message.AddResponse;
+import org.apache.directory.api.ldap.model.message.ResultCodeEnum;
 import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.ldap.model.schema.ObjectClass;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException;
+import org.identityconnectors.framework.common.exceptions.InvalidPasswordException;
 import org.identityconnectors.framework.common.objects.Attribute;
 import org.identityconnectors.framework.common.objects.AttributeBuilder;
 import org.identityconnectors.framework.common.objects.OperationOptions;
@@ -110,6 +114,24 @@ public class EDirectoryLdapConnector extends AbstractLdapConnector<EDirectoryLda
 		} else {
 			super.addAttributeModification(dn, modifications, ldapStructuralObjectClass, icfObjectClass, icfAttr, modOp);
 		}
+	}
+	
+	@Override
+	protected RuntimeException processCreateResult(String dn, AddResponse addResponse) {
+		if (addResponse.getLdapResult().getResultCode() == ResultCodeEnum.CONSTRAINT_VIOLATION &&
+				addResponse.getLdapResult().getDiagnosticMessage().contains("password")) {
+			return new InvalidPasswordException("Error adding LDAP entry " + dn + ": " + addResponse.getLdapResult().getDiagnosticMessage());
+		}
+		return super.processCreateResult(dn, addResponse);
+	}
+	
+	@Override
+	protected RuntimeException processModifyResult(String dn, LdapException e) {
+		if ((e instanceof LdapInvalidAttributeValueException) && 
+		((LdapInvalidAttributeValueException)e).getResultCode() == ResultCodeEnum.CONSTRAINT_VIOLATION && e.getMessage().contains("password")) {
+			return new InvalidPasswordException("Error modifying LDAP entry " + dn + ": " + e.getMessage(), e);
+		}
+		return super.processModifyResult(dn, e);
 	}
 
 	@Override
