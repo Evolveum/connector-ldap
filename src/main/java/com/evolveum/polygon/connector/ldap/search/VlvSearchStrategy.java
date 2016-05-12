@@ -162,6 +162,7 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
 							break;
 						}
 					} catch (LdapConnectionTimeOutException e) {
+						logSearchError(connection, e);
 						// Server disconnected. And by some miracle this was not caught be
 						// checkAlive or connection manager.
 						LOG.ok("Connection timeout ({0}), reconnecting", e.getMessage(), e);

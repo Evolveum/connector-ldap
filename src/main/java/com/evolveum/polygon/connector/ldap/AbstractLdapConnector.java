@@ -233,7 +233,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 	protected SchemaTranslator<C> getSchemaTranslator() {
     	if (schemaTranslator == null) {
     		schemaTranslator = createSchemaTranslator();
-    		connectionManager.getBinaryAttributeDetector().setSchemaTranslator(schemaTranslator);
+    		connectionManager.setSchemaTranslator(schemaTranslator);
     	}
     	return schemaTranslator;
     }

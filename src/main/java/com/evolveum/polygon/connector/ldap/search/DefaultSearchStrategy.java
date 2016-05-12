@@ -77,7 +77,7 @@ public class DefaultSearchStrategy<C extends AbstractLdapConfiguration> extends 
 		Referral referral = null; // remember this in case we need a reconnect
 		
 		int numAttempts = 0;
-		while (true) {
+		OUTER: while (true) {
 			numAttempts++;
 			if (numAttempts > getConfiguration().getMaximumNumberOfAttempts()) {
 				// TODO: better exception. Maybe re-throw exception from the last error?
@@ -94,12 +94,13 @@ public class DefaultSearchStrategy<C extends AbstractLdapConfiguration> extends 
 							break;
 						}
 					} catch (LdapConnectionTimeOutException e) {
+						logSearchError(connection, e);
 						// Server disconnected. And by some miracle this was not caught be
 						// checkAlive or connection manager.
 						LOG.ok("Connection timeout ({0}), reconnecting", e.getMessage(), e);
 						LdapUtil.closeCursor(searchCursor);
 						connection = getConnectionReconnect(baseDn, referral);
-						continue;
+						continue OUTER;
 					}
 					Response response = searchCursor.get();
 					if (response instanceof SearchResultEntry) {

@@ -668,5 +668,27 @@ public class LdapUtil {
 		}
 	}
 
+	public static boolean isAncestorOf(Dn upper, Dn lower, SchemaTranslator<?> schemaTranslator) {
+		// We have two non-schema-aware DNs here. So simple upper.isAncestorOf(lower) will
+		// not really do because there may be DN capitalization issues. So just we need to
+		// create schema-aware versions and compare these.
+		
+		Dn upperSA;
+		try {
+			upperSA = new Dn(schemaTranslator.getSchemaManager(), upper.toString());
+		} catch (LdapInvalidDnException e) {
+			throw new InvalidAttributeValueException("Invalid DN: " + upper.toString() + ": " + e.getMessage(), e);
+		}
+
+		Dn lowerSA;
+		try {
+			lowerSA = new Dn(schemaTranslator.getSchemaManager(), lower.toString());
+		} catch (LdapInvalidDnException e) {
+			throw new InvalidAttributeValueException("Invalid DN: " + lower.toString() + ": " + e.getMessage(), e);
+		}
+		
+		return upperSA.isAncestorOf(lowerSA);
+	}
+
 	
 }

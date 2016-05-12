@@ -49,6 +49,7 @@ import org.identityconnectors.framework.common.exceptions.ConnectionFailedExcept
 
 import com.evolveum.polygon.common.GuardedStringAccessor;
 import com.evolveum.polygon.connector.ldap.ServerDefinition.Origin;
+import com.evolveum.polygon.connector.ldap.schema.SchemaTranslator;
 
 /**
  * @author Radovan Semancik
@@ -63,6 +64,7 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 	private String[] serversConfiguration;
 	private ServerDefinition defaultServerDefinition = null;
 	private List<ServerDefinition> servers;
+	private SchemaTranslator<C> schemaTranslator;
 	private ConnectorBinaryAttributeDetector<C> binaryAttributeDetector = new ConnectorBinaryAttributeDetector<C>();
 
 	public ConnectionManager(C configuration) {
@@ -88,6 +90,15 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 		}
 	}
 	
+	public SchemaTranslator<C> getSchemaTranslator() {
+		return schemaTranslator;
+	}
+
+	public void setSchemaTranslator(SchemaTranslator<C> schemaTranslator) {
+		this.schemaTranslator = schemaTranslator;
+		binaryAttributeDetector.setSchemaTranslator(schemaTranslator);
+	}
+
 	public LdapNetworkConnection getDefaultConnection() {
 		if (defaultServerDefinition == null) {
 			throw new IllegalStateException("No default connection in this connection manager");
@@ -189,7 +200,7 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 				LOG.ok("SELECT: accepting {0} because {1} is an exact match", server.getHost(), serverBaseContext);
 				break;
 			}
-			if (serverBaseContext.isAncestorOf(dn)) {
+			if (LdapUtil.isAncestorOf(serverBaseContext, dn, schemaTranslator)) {
 				if (serverBaseContext == null || serverBaseContext.isDescendantOf(selectedBaseContext)) {
 					LOG.ok("SELECT: accepting {0} because {1} is under {2} and it is the best we have", server.getHost(), dn, serverBaseContext);
 					selectedBaseContext = serverBaseContext;
@@ -225,7 +236,7 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 		LOG.ok("SELECT: selected server list: {0}", selectedServers);
 		ServerDefinition selectedServer = selectRandomItem(selectedServers);
 		if (selectedServer == null) {
-			LOG.ok("SELECT: selected default for {1}", dn);
+			LOG.ok("SELECT: selected default for {0}", dn);
 			if (defaultServerDefinition == null) {
 				throw new IllegalStateException("No default connection in this connection manager");
 			}
@@ -354,7 +365,8 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 					connectionSecurity = "tls";
 				}
 				LOG.ok("Connection security: {0} (sslProtocol={1}, enabledSecurityProtocols={2}, enabledCipherSuites={3}",
-						connectionSecurity, connectionConfig.getEnabledProtocols(), connectionConfig.getEnabledCipherSuites());
+						connectionSecurity, connectionConfig.getSslProtocol(),
+						connectionConfig.getEnabledProtocols(), connectionConfig.getEnabledCipherSuites());
 			}
 			boolean connected = connection.connect();
 			LOG.ok("Connected ({0})", connected);

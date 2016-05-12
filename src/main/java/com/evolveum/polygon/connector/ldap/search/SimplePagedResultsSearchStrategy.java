@@ -142,6 +142,7 @@ public class SimplePagedResultsSearchStrategy<C extends AbstractLdapConfiguratio
 							break;
 						}
 					} catch (LdapConnectionTimeOutException e) {
+						logSearchError(connection, e);
 						// Server disconnected. And by some miracle this was not caught be
 						// checkAlive or connection manager.
 						LOG.ok("Connection timeout ({0}), reconnecting", e.getMessage(), e);
