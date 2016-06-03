@@ -46,6 +46,7 @@ import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.common.exceptions.ConfigurationException;
 import org.identityconnectors.framework.common.exceptions.ConnectionFailedException;
+import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
 
 import com.evolveum.polygon.common.GuardedStringAccessor;
 import com.evolveum.polygon.connector.ldap.ServerDefinition.Origin;
@@ -294,11 +295,16 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 	}
 	
 	private void closeConnection(ServerDefinition serverDef) throws IOException {
-		if (serverDef.isConnected()) {
+		// Checking for isConnected() is not enough here.
+		// Even if the connection is NOT connected it still
+		// maintains some resources (pipes) and needs to be
+		// explicitly closed from the client side.
+		if (serverDef.getConnection() != null) {
 			LOG.ok("Closing connection {0}", serverDef);
 			serverDef.getConnection().close();
-		}else {
-			LOG.ok("Not closing connection {0} because it is not connected", serverDef);
+			serverDef.setConnection(null);
+		} else {
+			LOG.ok("Not closing connection {0} because there is no connection", serverDef);
 		}
 	}
 	
@@ -346,9 +352,25 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 	}
 	
 	private void connectServer(ServerDefinition server) {
+		if (server.getConnection() != null) {
+			try {
+				closeConnection(server);
+			} catch (IOException e) {
+				throw new ConnectorIOException("Error closing connection to "+server+": "+e.getMessage(), e);
+			}
+		}
 		final LdapConnectionConfig connectionConfig = createLdapConnectionConfig(server);
 		LdapNetworkConnection connection = connectConnection(connectionConfig);
-		bind(connection, server);
+		try {
+			bind(connection, server);
+		} catch (RuntimeException e) {
+			try {
+				connection.close();
+			} catch (IOException e1) {
+				LOG.error("Error closing conection (error handling of a bind of a new connection): {1}", e.getMessage(), e);
+			}
+			throw e;
+		}
 		server.setConnection(connection);
     }
 	
@@ -374,6 +396,11 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 				throw new ConnectionFailedException("Unable to connect to LDAP server "+configuration.getHost()+":"+configuration.getPort()+" due to unknown reasons");
 			}
 		} catch (LdapException e) {
+			try {
+				connection.close();
+			} catch (IOException e1) {
+				LOG.error("Error closing conection (handling error during creation of a new connection): {1}", e.getMessage(), e);
+			}
 			throw LdapUtil.processLdapException("Unable to connect to LDAP server "+configuration.getHost()+":"+configuration.getPort(), e);
 		}
 		
