@@ -27,7 +27,7 @@
     </parent>
 
     <artifactId>connector-ldap</artifactId>
-    <version>1.4.3.0-SNAPSHOT</version>
+    <version>1.4.2.16</version>
     <packaging>jar</packaging>
 
     <name>LDAP Connector</name>
@@ -81,7 +81,7 @@
 		<dependency>
 			<groupId>org.apache.directory.api</groupId>
 			<artifactId>api-all</artifactId>
-			<version>1.0.0-M34-SNAPSHOT</version>
+			<version>1.0.0-M33-e4</version>
 			<exclusions>
 				<!-- Exclude SLF4J API from the lib to avoid bundling it with the
 				     connector. The SLF4J is already part of midPoint.
