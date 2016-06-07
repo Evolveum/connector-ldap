@@ -231,7 +231,7 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 		if (uidAttributeLdapType != null) {
 			// UID must be string. It is hardcoded in the framework.
 			uidAib.setType(String.class);
-			uidAib.setSubtype(toIcfSubtype(uidAttributeLdapType, Uid.NAME));
+			uidAib.setSubtype(toIcfSubtype(String.class, uidAttributeLdapType, Uid.NAME));
 			setAttributeMultiplicityAndPermissions(uidAttributeLdapType, uidAib);
 		} else {
 			uidAib.setType(String.class);
@@ -274,8 +274,9 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 			}
 			
 			if (attributeType != null) {
-				aib.setType(toIcfType(attributeType.getSyntax(), operationalAttributeLdapName));
-				aib.setSubtype(toIcfSubtype(attributeType, operationalAttributeLdapName));
+				Class<?> icfType = toIcfType(attributeType.getSyntax(), operationalAttributeLdapName);
+				aib.setType(icfType);
+				aib.setSubtype(toIcfSubtype(icfType, attributeType, operationalAttributeLdapName));
 				setAttributeMultiplicityAndPermissions(attributeType, aib);
 			} else {
 				aib.setType(String.class);
@@ -330,7 +331,7 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 			
 			Class<?> icfType = toIcfType(ldapSyntax, icfAttributeName);
 			aib.setType(icfType);
-			aib.setSubtype(toIcfSubtype(ldapAttribute, icfAttributeName));
+			aib.setSubtype(toIcfSubtype(icfType, ldapAttribute, icfAttributeName));
 			aib.setNativeName(ldapAttribute.getName());
 			if (isOperational(ldapAttribute)) {
 				aib.setReturnedByDefault(false);
@@ -450,7 +451,7 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
     	}
 	}
 	
-	public String toIcfSubtype(AttributeType ldapAttribute, String icfAttributeName) {
+	public String toIcfSubtype(Class<?> icfType, AttributeType ldapAttribute, String icfAttributeName) {
 		if (OperationalAttributeInfos.PASSWORD.is(icfAttributeName)) {
 			return null;
 		}
@@ -470,9 +471,12 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 		if (syntaxOid == null) {
 			return null;
 		} 
-		if (SYNTAX_MAP.get(syntaxOid) == null){
-			LOG.warn("No subtype mapping for syntax {0}, using syntaxOid", syntaxOid);
-			return AttributeInfo.Subtypes.STRING_CASE_IGNORE.toString();
+		if (SYNTAX_MAP.get(syntaxOid) == null) {
+			if (icfType == String.class) {
+				return AttributeInfo.Subtypes.STRING_CASE_IGNORE.toString();
+			} else {
+				return null;
+			}
 		}
 		return SYNTAX_MAP.get(syntaxOid).subtype;
 	}
