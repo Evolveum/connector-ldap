@@ -91,7 +91,7 @@ import org.identityconnectors.framework.common.objects.Name;
 import org.identityconnectors.framework.common.objects.OperationOptions;
 import org.identityconnectors.framework.common.objects.Uid;
 
-import com.evolveum.polygon.connector.ldap.schema.SchemaTranslator;
+import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
 
 /**
  * @author semancik
@@ -181,12 +181,12 @@ public class LdapUtil {
 	}
 	
 	public static String[] getAttributesToGet(org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass, 
-			OperationOptions options, AbstractLdapConfiguration configuration, SchemaTranslator schemaTranslator, String... additionalAttributes) {
-		String[] operationalAttributes = configuration.getOperationalAttributes();
+			OperationOptions options, AbstractSchemaTranslator schemaTranslator, String... additionalAttributes) {
+		String[] operationalAttributes = schemaTranslator.getOperationalAttributes();
 		if (options == null || options.getAttributesToGet() == null) {
 			String[] ldapAttrs = new String[2 + operationalAttributes.length + additionalAttributes.length];
 			ldapAttrs[0] = "*";
-			ldapAttrs[1] = configuration.getUidAttribute();
+			ldapAttrs[1] = schemaTranslator.getUidAttribute();
 			int i = 2;
 			for (String operationalAttribute: operationalAttributes) {
 				ldapAttrs[i] = operationalAttribute;
@@ -214,7 +214,7 @@ public class LdapUtil {
 			AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, icfAttr);
 			if (ldapAttributeType == null) {
 				// No definition for this attribute. It is most likely operational attribute that is not in the schema.
-				if (isOperationalAttribute(configuration, icfAttr)) {
+				if (isOperationalAttribute(schemaTranslator, icfAttr)) {
 					ldapAttrs.add(icfAttr);
 				} else {
 					throw new InvalidAttributeValueException("Unknown attribute '"+icfAttr+"' (in attributesToGet)");
@@ -229,13 +229,13 @@ public class LdapUtil {
 		for (String additionalAttribute: additionalAttributes) {
 			ldapAttrs.add(additionalAttribute);
 		}
-		ldapAttrs.add(configuration.getUidAttribute());
+		ldapAttrs.add(schemaTranslator.getUidAttribute());
 		ldapAttrs.add(LdapConfiguration.ATTRIBUTE_OBJECTCLASS_NAME);
 		return ldapAttrs.toArray(new String[ldapAttrs.size()]);
 	}
 
-	public static boolean isOperationalAttribute(AbstractLdapConfiguration configuration, String icfAttr) {
-		String[] operationalAttributes = configuration.getOperationalAttributes();
+	public static boolean isOperationalAttribute(AbstractSchemaTranslator schemaTranslator, String icfAttr) {
+		String[] operationalAttributes = schemaTranslator.getOperationalAttributes();
 		if (operationalAttributes == null) {
 			return false;
 		}
@@ -249,8 +249,8 @@ public class LdapUtil {
 
 	public static Entry fetchEntry(LdapNetworkConnection connection, String dn, 
 			org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass, 
-			OperationOptions options, AbstractLdapConfiguration configuration, SchemaTranslator schemaTranslator) {
-		String[] attributesToGet = getAttributesToGet(ldapObjectClass, options, configuration, schemaTranslator);
+			OperationOptions options, AbstractSchemaTranslator schemaTranslator) {
+		String[] attributesToGet = getAttributesToGet(ldapObjectClass, options, schemaTranslator);
 		Entry entry = null;
 		LOG.ok("Search REQ base={0}, filter={1}, scope={2}, attributes={3}", 
 				dn, AbstractLdapConfiguration.SEARCH_FILTER_ALL, SearchScope.OBJECT, attributesToGet);
@@ -275,8 +275,8 @@ public class LdapUtil {
 	
 	public static Entry fetchEntryByUid(LdapNetworkConnection connection, String uid, 
 			org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass, 
-			OperationOptions options, AbstractLdapConfiguration configuration, SchemaTranslator schemaTranslator) {
-		String[] attributesToGet = getAttributesToGet(ldapObjectClass, options, configuration, schemaTranslator);
+			OperationOptions options, AbstractLdapConfiguration configuration, AbstractSchemaTranslator schemaTranslator) {
+		String[] attributesToGet = getAttributesToGet(ldapObjectClass, options, schemaTranslator);
 		ExprNode filter = createUidSearchFilter(uid, ldapObjectClass, schemaTranslator);
 		return searchSingleEntry(connection, configuration.getBaseContext(), SearchScope.SUBTREE, filter, attributesToGet);
 	}
@@ -322,14 +322,14 @@ public class LdapUtil {
 	}
 	
 	public static ExprNode createUidSearchFilter(String uidValue, 
-			org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass, SchemaTranslator schemaTranslator) {
+			org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass, AbstractSchemaTranslator schemaTranslator) {
 		AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, Uid.NAME);
 		Value<Object> ldapValue = schemaTranslator.toLdapIdentifierValue(ldapAttributeType, uidValue);
 		return new EqualityNode<>(ldapAttributeType, ldapValue);
 	}
 
 	public static String getUidValue(Entry entry, org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
-			AbstractLdapConfiguration configuration, SchemaTranslator schemaTranslator) {
+			AbstractLdapConfiguration configuration, AbstractSchemaTranslator schemaTranslator) {
 		if (isDnAttribute(configuration.getUidAttribute())) {
 			return entry.getDn().toString();
 		}
@@ -342,7 +342,10 @@ public class LdapUtil {
 	public static RuntimeException processLdapException(String message, LdapException ldapException) {
 		// AD returns non-printable chars in the message. Remove them, otherwise we will havve problems
 		// displaying the message in upper layers
-		String exceptionMessage = ldapException.getMessage().replaceAll("\\p{C}", "?");
+		String exceptionMessage = null;
+		if (ldapException.getMessage() != null) {
+			exceptionMessage = ldapException.getMessage().replaceAll("\\p{C}", "?");
+		}
     	if (message == null) {
     		message = "";
     	} else {
@@ -668,7 +671,7 @@ public class LdapUtil {
 		}
 	}
 
-	public static boolean isAncestorOf(Dn upper, Dn lower, SchemaTranslator<?> schemaTranslator) {
+	public static boolean isAncestorOf(Dn upper, Dn lower, AbstractSchemaTranslator<?> schemaTranslator) {
 		// We have two non-schema-aware DNs here. So simple upper.isAncestorOf(lower) will
 		// not really do because there may be DN capitalization issues. So just we need to
 		// create schema-aware versions and compare these.

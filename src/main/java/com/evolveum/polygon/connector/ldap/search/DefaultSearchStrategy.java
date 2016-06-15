@@ -41,7 +41,7 @@ import org.identityconnectors.framework.common.objects.ResultsHandler;
 import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
 import com.evolveum.polygon.connector.ldap.ConnectionManager;
 import com.evolveum.polygon.connector.ldap.LdapUtil;
-import com.evolveum.polygon.connector.ldap.schema.SchemaTranslator;
+import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
 
 /**
  * Very simple search without any controls (paging). The most efficient thing to do.
@@ -53,7 +53,7 @@ public class DefaultSearchStrategy<C extends AbstractLdapConfiguration> extends 
 	private static final Log LOG = Log.getLog(DefaultSearchStrategy.class);
 
 	public DefaultSearchStrategy(ConnectionManager<C> connectionManager, AbstractLdapConfiguration configuration,
-			SchemaTranslator<C> schemaTranslator, ObjectClass objectClass,
+			AbstractSchemaTranslator<C> schemaTranslator, ObjectClass objectClass,
 			org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass, ResultsHandler handler,
 			OperationOptions options) {
 		super(connectionManager, configuration, schemaTranslator, objectClass, ldapObjectClass, handler, options);

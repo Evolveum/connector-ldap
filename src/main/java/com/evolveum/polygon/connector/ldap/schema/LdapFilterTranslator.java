@@ -62,10 +62,10 @@ import com.evolveum.polygon.connector.ldap.LdapUtil;
  */
 public class LdapFilterTranslator<C extends AbstractLdapConfiguration> {
 
-	private SchemaTranslator<C> schemaTranslator;
+	private AbstractSchemaTranslator<C> schemaTranslator;
 	private ObjectClass ldapObjectClass;
 	
-	public LdapFilterTranslator(SchemaTranslator<C> schemaTranslator, ObjectClass ldapObjectClass) {
+	public LdapFilterTranslator(AbstractSchemaTranslator<C> schemaTranslator, ObjectClass ldapObjectClass) {
 		super();
 		this.schemaTranslator = schemaTranslator;
 		this.ldapObjectClass = ldapObjectClass;

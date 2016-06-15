@@ -44,7 +44,7 @@ import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
 import com.evolveum.polygon.connector.ldap.AbstractLdapConnector;
 import com.evolveum.polygon.connector.ldap.LdapUtil;
 import com.evolveum.polygon.connector.ldap.schema.LdapFilterTranslator;
-import com.evolveum.polygon.connector.ldap.schema.SchemaTranslator;
+import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
 
 @ConnectorClass(displayNameKey = "connector.ldap.edirectory.display", configurationClass = EDirectoryLdapConfiguration.class)
 public class EDirectoryLdapConnector extends AbstractLdapConnector<EDirectoryLdapConfiguration> {
@@ -52,7 +52,7 @@ public class EDirectoryLdapConnector extends AbstractLdapConnector<EDirectoryLda
     private static final Log LOG = Log.getLog(EDirectoryLdapConnector.class);
 
 	@Override
-	protected SchemaTranslator<EDirectoryLdapConfiguration> createSchemaTranslator() {
+	protected AbstractSchemaTranslator<EDirectoryLdapConfiguration> createSchemaTranslator() {
 		return new EDirectorySchemaTranslator(getSchemaManager(), getConfiguration());
 	}
 

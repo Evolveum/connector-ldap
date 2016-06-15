@@ -93,7 +93,7 @@ import com.evolveum.polygon.connector.ldap.LdapUtil;
  * @author semancik
  *
  */
-public class SchemaTranslator<C extends AbstractLdapConfiguration> {
+public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfiguration> {
 	
 	public static final String SYNTAX_AUTH_PASSWORD = "1.3.6.1.4.1.4203.1.1.2";
 	public static final String SYNTAX_SUN_DEFINED_ACCESS_CONTROL_INFORMATION = "1.3.6.1.4.1.26027.1.3.4";
@@ -107,7 +107,7 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 	private static final String SYNTAX_AD_INTEGER8_SYNTAX = "1.2.840.113556.1.4.906";
 	private static final String SYNTAX_AD_SECURITY_DESCRIPTOR_SYNTAX = "1.2.840.113556.1.4.907";
 	
-	private static final Log LOG = Log.getLog(SchemaTranslator.class);
+	private static final Log LOG = Log.getLog(AbstractSchemaTranslator.class);
 	private static final Map<String, TypeSubType> SYNTAX_MAP = new HashMap<>();
 	private static final Collection<String> STRING_ATTRIBUTE_NAMES = new ArrayList<String>();
 	
@@ -115,7 +115,7 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 	private C configuration;
 	private Schema icfSchema = null;
 	
-	public SchemaTranslator(SchemaManager schemaManager, C configuration) {
+	public AbstractSchemaTranslator(SchemaManager schemaManager, C configuration) {
 		super();
 		this.schemaManager = schemaManager;
 		this.configuration = configuration;
@@ -1255,6 +1255,14 @@ public class SchemaTranslator<C extends AbstractLdapConfiguration> {
 			}			
 		}
 		return false;
+	}
+	
+	public String[] getOperationalAttributes() {
+		return configuration.getOperationalAttributes();
+	}
+	
+	public String getUidAttribute() {
+		return configuration.getUidAttribute();
 	}
 
 	private static class TypeSubType {

@@ -55,7 +55,7 @@ import com.evolveum.polygon.connector.ldap.ConnectionManager;
 import com.evolveum.polygon.connector.ldap.LdapConfiguration;
 import com.evolveum.polygon.connector.ldap.LdapUtil;
 import com.evolveum.polygon.connector.ldap.ad.AdConstants;
-import com.evolveum.polygon.connector.ldap.schema.SchemaTranslator;
+import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
 
 /**
  * Active Directory synchronization using the DirSync control.
@@ -68,7 +68,7 @@ public class AdDirSyncStrategy<C extends AbstractLdapConfiguration> extends Sync
 	private static final Log LOG = Log.getLog(AdDirSyncStrategy.class);
 
 	public AdDirSyncStrategy(AbstractLdapConfiguration configuration, ConnectionManager<C> connectionManager, 
-			SchemaManager schemaManager, SchemaTranslator<C> schemaTranslator) {
+			SchemaManager schemaManager, AbstractSchemaTranslator<C> schemaTranslator) {
 		super(configuration, connectionManager, schemaManager, schemaTranslator);
 	}
 
@@ -89,8 +89,7 @@ public class AdDirSyncStrategy<C extends AbstractLdapConfiguration> extends Sync
 			ldapObjectClass = getSchemaTranslator().toLdapObjectClass(icfObjectClass);
 		}
 		
-		String[] attributesToGet = LdapUtil.getAttributesToGet(ldapObjectClass, options, getConfiguration(), 
-				getSchemaTranslator());
+		String[] attributesToGet = LdapUtil.getAttributesToGet(ldapObjectClass, options, getSchemaTranslator());
 		
 		SearchRequest req = createSearchRequest(LdapConfiguration.SEARCH_FILTER_ALL, fromToken);
 		AdShowDeleted showDeletedReqControl = new AdShowDeletedImpl();

@@ -70,7 +70,7 @@ import com.evolveum.polygon.connector.ldap.ConnectionManager;
 import com.evolveum.polygon.connector.ldap.LdapConfiguration;
 import com.evolveum.polygon.connector.ldap.LdapConnector;
 import com.evolveum.polygon.connector.ldap.LdapUtil;
-import com.evolveum.polygon.connector.ldap.schema.SchemaTranslator;
+import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
 
 /**
  * @author semancik
@@ -82,7 +82,7 @@ public class ModifyTimestampSyncStrategy<C extends AbstractLdapConfiguration> ex
 
 
 	public ModifyTimestampSyncStrategy(AbstractLdapConfiguration configuration, ConnectionManager<C> connectionManager, 
-			SchemaManager schemaManager, SchemaTranslator<C> schemaTranslator) {
+			SchemaManager schemaManager, AbstractSchemaTranslator<C> schemaTranslator) {
 		super(configuration, connectionManager, schemaManager, schemaTranslator);
 	}
 
@@ -114,7 +114,7 @@ public class ModifyTimestampSyncStrategy<C extends AbstractLdapConfiguration> ex
 			throw new IllegalArgumentException("Synchronization token is not string, it is "+fromToken.getClass());
 		}
 		
-		String[] attributesToGet = LdapUtil.getAttributesToGet(ldapObjectClass, options, getConfiguration(), 
+		String[] attributesToGet = LdapUtil.getAttributesToGet(ldapObjectClass, options, 
 				getSchemaTranslator(), AbstractLdapConfiguration.ATTRIBUTE_MODIFYTIMESTAMP_NAME, 
 				AbstractLdapConfiguration.ATTRIBUTE_CREATETIMESTAMP_NAME, AbstractLdapConfiguration.ATTRIBUTE_MODIFIERSNAME_NAME, 
 				AbstractLdapConfiguration.ATTRIBUTE_CREATORSNAME_NAME);

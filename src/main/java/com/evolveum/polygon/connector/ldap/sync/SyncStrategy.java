@@ -28,7 +28,7 @@ import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
 import com.evolveum.polygon.connector.ldap.ConnectionManager;
 import com.evolveum.polygon.connector.ldap.LdapConfiguration;
 import com.evolveum.polygon.connector.ldap.LdapUtil;
-import com.evolveum.polygon.connector.ldap.schema.SchemaTranslator;
+import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
 
 /**
  * @author semancik
@@ -41,10 +41,10 @@ public abstract class SyncStrategy<C extends AbstractLdapConfiguration> {
 	private AbstractLdapConfiguration configuration;
     private ConnectionManager<C> connectionManager;
     private SchemaManager schemaManager;
-    private SchemaTranslator<C> schemaTranslator;
+    private AbstractSchemaTranslator<C> schemaTranslator;
     
 	public SyncStrategy(AbstractLdapConfiguration configuration, ConnectionManager<C> connectionManager, 
-			SchemaManager schemaManager, SchemaTranslator<C> schemaTranslator) {
+			SchemaManager schemaManager, AbstractSchemaTranslator<C> schemaTranslator) {
 		super();
 		this.configuration = configuration;
 		this.connectionManager = connectionManager;
@@ -64,7 +64,7 @@ public abstract class SyncStrategy<C extends AbstractLdapConfiguration> {
 		return schemaManager;
 	}
 
-	public SchemaTranslator getSchemaTranslator() {
+	public AbstractSchemaTranslator getSchemaTranslator() {
 		return schemaTranslator;
 	}
 

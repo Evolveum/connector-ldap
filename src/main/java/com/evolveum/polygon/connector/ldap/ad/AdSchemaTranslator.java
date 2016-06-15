@@ -36,13 +36,13 @@ import org.identityconnectors.framework.common.objects.ObjectClassInfoBuilder;
 import org.identityconnectors.framework.common.objects.OperationalAttributes;
 
 import com.evolveum.polygon.connector.ldap.LdapUtil;
-import com.evolveum.polygon.connector.ldap.schema.SchemaTranslator;
+import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
 
 /**
  * @author semancik
  *
  */
-public class AdSchemaTranslator extends SchemaTranslator<AdLdapConfiguration> {
+public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfiguration> {
 		
 	private static final Log LOG = Log.getLog(AdSchemaTranslator.class);
 	

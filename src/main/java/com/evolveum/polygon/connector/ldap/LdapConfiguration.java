@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 Evolveum
+ * Copyright (c) 2015-2016 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,12 +16,7 @@
 
 package com.evolveum.polygon.connector.ldap;
 
-import static org.identityconnectors.common.StringUtil.isBlank;
-
-import org.identityconnectors.framework.common.exceptions.ConfigurationException;
-import org.identityconnectors.framework.spi.AbstractConfiguration;
 import org.identityconnectors.common.logging.Log;
-import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.spi.ConfigurationProperty;
 
 /**
@@ -32,9 +27,27 @@ import org.identityconnectors.framework.spi.ConfigurationProperty;
  */
 public class LdapConfiguration extends AbstractLdapConfiguration {
 
-    private static final Log LOG = Log.getLog(LdapConfiguration.class);
+	private static final Log LOG = Log.getLog(LdapConfiguration.class);
+	
+	/**
+     * Specifies strategy of handling account lockouts.
+     * Please note that the "openldap" lockout strategy is EXPERIMENTAL.
+     * Possible values: "none", "openldap"
+     * Default value: "none"
+     */
+    private String lockoutStrategy = LOCKOUT_STRATEGY_NONE;
+    
+    public static final String LOCKOUT_STRATEGY_NONE = "none";
+    public static final String LOCKOUT_STRATEGY_OPENLDAP = "openldap";
 
-    // Nothing to add
+    @ConfigurationProperty(order = 100)
+	public String getLockoutStrategy() {
+		return lockoutStrategy;
+	}
+
+	public void setLockoutStrategy(String lockoutStrategy) {
+		this.lockoutStrategy = lockoutStrategy;
+	}
 
 	@Override
 	public void recompute() {

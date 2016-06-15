@@ -56,7 +56,7 @@ import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
 import com.evolveum.polygon.connector.ldap.ConnectionManager;
 import com.evolveum.polygon.connector.ldap.LdapConfiguration;
 import com.evolveum.polygon.connector.ldap.LdapUtil;
-import com.evolveum.polygon.connector.ldap.schema.SchemaTranslator;
+import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
 
 /**
  * @author semancik
@@ -70,7 +70,7 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
 	private byte[] cookie = null;
 	
 	public VlvSearchStrategy(ConnectionManager<C> connectionManager, AbstractLdapConfiguration configuration,
-			SchemaTranslator<C> schemaTranslator, ObjectClass objectClass,
+			AbstractSchemaTranslator<C> schemaTranslator, ObjectClass objectClass,
 			org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass, ResultsHandler handler,
 			OperationOptions options) {
 		super(connectionManager, configuration, schemaTranslator, objectClass, ldapObjectClass, handler, options);

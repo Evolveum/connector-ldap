@@ -17,7 +17,7 @@ package com.evolveum.polygon.connector.ldap;
 
 import org.apache.directory.api.ldap.codec.api.BinaryAttributeDetector;
 
-import com.evolveum.polygon.connector.ldap.schema.SchemaTranslator;
+import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
 
 /**
  * @author semancik
@@ -25,9 +25,9 @@ import com.evolveum.polygon.connector.ldap.schema.SchemaTranslator;
  */
 public class ConnectorBinaryAttributeDetector<C extends AbstractLdapConfiguration> implements BinaryAttributeDetector {
 
-	private SchemaTranslator<C> schemaTranslator;
+	private AbstractSchemaTranslator<C> schemaTranslator;
 	
-	public void setSchemaTranslator(SchemaTranslator<C> schemaTranslator) {
+	public void setSchemaTranslator(AbstractSchemaTranslator<C> schemaTranslator) {
 		this.schemaTranslator = schemaTranslator;
 	}
 

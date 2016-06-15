@@ -32,7 +32,7 @@ import org.identityconnectors.framework.common.objects.filter.EqualsFilter;
 import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
 import com.evolveum.polygon.connector.ldap.LdapUtil;
 import com.evolveum.polygon.connector.ldap.schema.LdapFilterTranslator;
-import com.evolveum.polygon.connector.ldap.schema.SchemaTranslator;
+import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
 import com.evolveum.polygon.connector.ldap.schema.ScopedFilter;
 
 /**
@@ -41,7 +41,7 @@ import com.evolveum.polygon.connector.ldap.schema.ScopedFilter;
  */
 public class AdLdapFilterTranslator extends LdapFilterTranslator<AdLdapConfiguration> {
 
-	public AdLdapFilterTranslator(SchemaTranslator<AdLdapConfiguration> schemaTranslator, ObjectClass ldapObjectClass) {
+	public AdLdapFilterTranslator(AbstractSchemaTranslator<AdLdapConfiguration> schemaTranslator, ObjectClass ldapObjectClass) {
 		super(schemaTranslator, ldapObjectClass);
 	}
 	

@@ -50,7 +50,7 @@ import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
 
 import com.evolveum.polygon.common.GuardedStringAccessor;
 import com.evolveum.polygon.connector.ldap.ServerDefinition.Origin;
-import com.evolveum.polygon.connector.ldap.schema.SchemaTranslator;
+import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
 
 /**
  * @author Radovan Semancik
@@ -65,7 +65,7 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 	private String[] serversConfiguration;
 	private ServerDefinition defaultServerDefinition = null;
 	private List<ServerDefinition> servers;
-	private SchemaTranslator<C> schemaTranslator;
+	private AbstractSchemaTranslator<C> schemaTranslator;
 	private ConnectorBinaryAttributeDetector<C> binaryAttributeDetector = new ConnectorBinaryAttributeDetector<C>();
 
 	public ConnectionManager(C configuration) {
@@ -91,11 +91,11 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 		}
 	}
 	
-	public SchemaTranslator<C> getSchemaTranslator() {
+	public AbstractSchemaTranslator<C> getSchemaTranslator() {
 		return schemaTranslator;
 	}
 
-	public void setSchemaTranslator(SchemaTranslator<C> schemaTranslator) {
+	public void setSchemaTranslator(AbstractSchemaTranslator<C> schemaTranslator) {
 		this.schemaTranslator = schemaTranslator;
 		binaryAttributeDetector.setSchemaTranslator(schemaTranslator);
 	}

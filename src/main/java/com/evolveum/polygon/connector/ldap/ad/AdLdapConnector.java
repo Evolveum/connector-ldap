@@ -42,7 +42,7 @@ import com.evolveum.polygon.connector.ldap.AbstractLdapConnector;
 import com.evolveum.polygon.connector.ldap.ConnectionManager;
 import com.evolveum.polygon.connector.ldap.LdapUtil;
 import com.evolveum.polygon.connector.ldap.schema.LdapFilterTranslator;
-import com.evolveum.polygon.connector.ldap.schema.SchemaTranslator;
+import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
 import com.evolveum.polygon.connector.ldap.search.DefaultSearchStrategy;
 import com.evolveum.polygon.connector.ldap.search.SearchStrategy;
 
@@ -60,7 +60,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 	}
 
 	@Override
-	protected SchemaTranslator<AdLdapConfiguration> createSchemaTranslator() {
+	protected AbstractSchemaTranslator<AdLdapConfiguration> createSchemaTranslator() {
 		return new AdSchemaTranslator(getSchemaManager(), getConfiguration());
 	}
 

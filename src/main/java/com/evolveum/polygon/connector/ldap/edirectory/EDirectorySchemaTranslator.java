@@ -30,13 +30,13 @@ import org.identityconnectors.framework.common.objects.ObjectClassInfoBuilder;
 import org.identityconnectors.framework.common.objects.OperationalAttributes;
 
 import com.evolveum.polygon.connector.ldap.LdapUtil;
-import com.evolveum.polygon.connector.ldap.schema.SchemaTranslator;
+import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
 
 /**
  * @author semancik
  *
  */
-public class EDirectorySchemaTranslator extends SchemaTranslator<EDirectoryLdapConfiguration> {
+public class EDirectorySchemaTranslator extends AbstractSchemaTranslator<EDirectoryLdapConfiguration> {
 		
 	private static final Log LOG = Log.getLog(EDirectorySchemaTranslator.class);
 	

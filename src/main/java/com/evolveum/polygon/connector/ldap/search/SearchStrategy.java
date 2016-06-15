@@ -44,7 +44,7 @@ import com.evolveum.polygon.connector.ldap.LdapConfiguration;
 import com.evolveum.polygon.connector.ldap.LdapUtil;
 import com.evolveum.polygon.connector.ldap.OperationLog;
 import com.evolveum.polygon.connector.ldap.schema.AttributeHandler;
-import com.evolveum.polygon.connector.ldap.schema.SchemaTranslator;
+import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
 
 /**
  * @author Radovan Semancik
@@ -56,7 +56,7 @@ public abstract class SearchStrategy<C extends AbstractLdapConfiguration> {
 	
 	private ConnectionManager<C> connectionManager;
 	private AbstractLdapConfiguration configuration;
-	private SchemaTranslator<C> schemaTranslator;
+	private AbstractSchemaTranslator<C> schemaTranslator;
 	private ObjectClass objectClass;
 	private org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass;
 	private ResultsHandler handler;
@@ -66,7 +66,7 @@ public abstract class SearchStrategy<C extends AbstractLdapConfiguration> {
 	private LdapNetworkConnection explicitConnection = null;
 	
 	protected SearchStrategy(ConnectionManager<C> connectionManager, AbstractLdapConfiguration configuration,
-			SchemaTranslator<C> schemaTranslator, ObjectClass objectClass,
+			AbstractSchemaTranslator<C> schemaTranslator, ObjectClass objectClass,
 			org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
 			ResultsHandler handler, OperationOptions options) {
 		super();
@@ -91,7 +91,7 @@ public abstract class SearchStrategy<C extends AbstractLdapConfiguration> {
 		return options;
 	}
 
-	public SchemaTranslator getSchemaTranslator() {
+	public AbstractSchemaTranslator getSchemaTranslator() {
 		return schemaTranslator;
 	}
 	

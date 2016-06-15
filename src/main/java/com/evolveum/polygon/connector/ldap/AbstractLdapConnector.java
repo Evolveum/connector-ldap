@@ -104,7 +104,7 @@ import org.identityconnectors.framework.spi.operations.UpdateAttributeValuesOp;
 import com.evolveum.polygon.common.SchemaUtil;
 import com.evolveum.polygon.connector.ldap.schema.GuardedStringValue;
 import com.evolveum.polygon.connector.ldap.schema.LdapFilterTranslator;
-import com.evolveum.polygon.connector.ldap.schema.SchemaTranslator;
+import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
 import com.evolveum.polygon.connector.ldap.schema.ScopedFilter;
 import com.evolveum.polygon.connector.ldap.search.DefaultSearchStrategy;
 import com.evolveum.polygon.connector.ldap.search.SearchStrategy;
@@ -123,7 +123,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
     private C configuration;
     private ConnectionManager<C> connectionManager;
     private SchemaManager schemaManager = null;
-    private SchemaTranslator<C> schemaTranslator = null;
+    private AbstractSchemaTranslator<C> schemaTranslator = null;
     private SyncStrategy<C> syncStrategy = null;
     private Boolean usePermissiveModify = null;
 
@@ -230,7 +230,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		return true;
 	}
 
-	protected SchemaTranslator<C> getSchemaTranslator() {
+	protected AbstractSchemaTranslator<C> getSchemaTranslator() {
     	if (schemaTranslator == null) {
     		schemaTranslator = createSchemaTranslator();
     		connectionManager.setSchemaTranslator(schemaTranslator);
@@ -238,9 +238,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
     	return schemaTranslator;
     }
     
-    protected SchemaTranslator<C> createSchemaTranslator() {
-    	return new SchemaTranslator<>(getSchemaManager(), configuration);
-    }
+    protected abstract AbstractSchemaTranslator<C> createSchemaTranslator();
     
     @Override
 	public Schema schema() {
@@ -550,13 +548,13 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 	}
 
 	protected String[] getAttributesToGet(org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass, OperationOptions options) {
-		return LdapUtil.getAttributesToGet(ldapObjectClass, options, configuration, getSchemaTranslator());
+		return LdapUtil.getAttributesToGet(ldapObjectClass, options, getSchemaTranslator());
 	}
 	
 	protected SearchStrategy<C> chooseSearchStrategy(ObjectClass objectClass, 
 			org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass, 
 			ResultsHandler handler, OperationOptions options) {
-		SchemaTranslator<C> schemaTranslator = getSchemaTranslator();
+		AbstractSchemaTranslator<C> schemaTranslator = getSchemaTranslator();
 		String pagingStrategy = configuration.getPagingStrategy();
 		if (pagingStrategy == null) {
 			pagingStrategy = LdapConfiguration.PAGING_STRATEGY_AUTO;
@@ -644,7 +642,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			throw new InvalidAttributeValueException("Missing NAME attribute");
 		}
 		
-		SchemaTranslator<C> shcemaTranslator = getSchemaTranslator();
+		AbstractSchemaTranslator<C> shcemaTranslator = getSchemaTranslator();
 		org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass = shcemaTranslator.toLdapObjectClass(icfObjectClass);
 		
 		List<org.apache.directory.api.ldap.model.schema.ObjectClass> ldapAuxiliaryObjectClasses = new ArrayList<>();
@@ -930,7 +928,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 	protected void addAttributeModification(Dn dn, List<Modification> modifications,
 			org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass,
 			ObjectClass icfObjectClass, Attribute icfAttr, ModificationOperation modOp) {
-		SchemaTranslator<C> schemaTranslator = getSchemaTranslator();
+		AbstractSchemaTranslator<C> schemaTranslator = getSchemaTranslator();
 		AttributeType attributeType = schemaTranslator.toLdapAttribute(ldapStructuralObjectClass, icfAttr.getName());
 		if (attributeType == null && !configuration.isAllowUnknownAttributes() 
 				&& !ArrayUtils.contains(configuration.getOperationalAttributes(), icfAttr.getName())) {
