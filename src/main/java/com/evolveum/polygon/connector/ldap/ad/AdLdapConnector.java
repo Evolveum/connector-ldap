@@ -17,6 +17,8 @@
 package com.evolveum.polygon.connector.ldap.ad;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.entry.Modification;
@@ -28,35 +30,54 @@ import org.apache.directory.api.ldap.model.name.Rdn;
 import org.apache.directory.api.ldap.model.schema.AttributeType;
 import org.apache.directory.api.ldap.model.schema.ObjectClass;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
+import org.apache.http.client.config.AuthSchemes;
 import org.identityconnectors.common.logging.Log;
+import org.identityconnectors.common.security.GuardedString;
+import org.identityconnectors.framework.common.exceptions.ConnectorException;
 import org.identityconnectors.framework.common.exceptions.UnknownUidException;
 import org.identityconnectors.framework.common.objects.Attribute;
 import org.identityconnectors.framework.common.objects.OperationOptions;
 import org.identityconnectors.framework.common.objects.ResultsHandler;
+import org.identityconnectors.framework.common.objects.ScriptContext;
 import org.identityconnectors.framework.common.objects.Uid;
 import org.identityconnectors.framework.spi.Configuration;
 import org.identityconnectors.framework.spi.ConnectorClass;
+import org.identityconnectors.framework.spi.operations.ScriptOnResourceOp;
 
+import com.evolveum.polygon.common.GuardedStringAccessor;
 import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
 import com.evolveum.polygon.connector.ldap.AbstractLdapConnector;
 import com.evolveum.polygon.connector.ldap.ConnectionManager;
 import com.evolveum.polygon.connector.ldap.LdapUtil;
+import com.evolveum.polygon.connector.ldap.OperationLog;
 import com.evolveum.polygon.connector.ldap.schema.LdapFilterTranslator;
 import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
 import com.evolveum.polygon.connector.ldap.search.DefaultSearchStrategy;
 import com.evolveum.polygon.connector.ldap.search.SearchStrategy;
 
+import io.cloudsoft.winrm4j.winrm.WinRmTool;
+import io.cloudsoft.winrm4j.winrm.WinRmToolResponse;
+
+import org.apache.commons.lang.StringUtils;
+import org.apache.cxf.Bus;
+import org.apache.cxf.BusFactory;
+
 @ConnectorClass(displayNameKey = "connector.ldap.ad.display", configurationClass = AdLdapConfiguration.class)
-public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> {
+public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> implements ScriptOnResourceOp {
 
     private static final Log LOG = Log.getLog(AdLdapConnector.class);
     
     private GlobalCatalogConnectionManager globalCatalogConnectionManager;
+    private String winRmUsername;
+    private String winRmHost;
+    private WinRmTool winRmTool;
 
 	@Override
 	public void init(Configuration configuration) {
 		super.init(configuration);
 		globalCatalogConnectionManager = new GlobalCatalogConnectionManager(getConfiguration());
+		
+		initWinRm();
 	}
 
 	@Override
@@ -222,6 +243,90 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 		}
 	}
 	
+	private void initWinRm() {
+		winRmUsername = getWinRmUsername();
+		winRmHost = getConfiguration().getHost();
+		WinRmTool.Builder builder = WinRmTool.Builder.builder(winRmHost, 
+				winRmUsername, getWinRmPassword());
+		builder.setAuthenticationScheme(AuthSchemes.NTLM);
+		builder.port(getConfiguration().getWinRmPort());
+		builder.useHttps(getConfiguration().isWinRmUseHttps());
+		winRmTool =  builder.build();
+	}
+
+	private String getWinRmUsername() {
+		if (getConfiguration().getWinRmUsername() != null) {
+			return getConfiguration().getWinRmUsername();
+		}
+		return getConfiguration().getBindDn();
+	}
+	
+	private String getWinRmPassword() {
+		GuardedString winRmPassword = getConfiguration().getWinRmPassword();
+		if (winRmPassword == null) {
+			winRmPassword = getConfiguration().getBindPassword();
+		}
+		if (winRmPassword == null) {
+			return null;
+		}
+		GuardedStringAccessor accessor = new GuardedStringAccessor();
+		winRmPassword.access(accessor);
+		return new String(accessor.getClearChars());
+	}
+
+	@Override
+	public Object runScriptOnResource(ScriptContext scriptCtx, OperationOptions options) {
+		
+		String scriptLanguage = scriptCtx.getScriptLanguage();
+		String command = getScriptCommand(scriptCtx);
+		WinRmToolResponse response;
+		if (scriptLanguage == null || scriptLanguage.equals(AdLdapConfiguration.SCRIPT_LANGUAGE_POWERSHELL)) {
+			OperationLog.log("{0} Script REQ powershell: {1}", winRmHost, command);
+			LOG.ok("Executing powershell script on {0} as {1}: {2}", winRmHost, winRmUsername, command);
+			response = winRmTool.executePs(command);
+			
+		} else if (scriptLanguage.equals(AdLdapConfiguration.SCRIPT_LANGUAGE_CMD)) {
+			OperationLog.log("{0} Script REQ cmd: {1}", winRmHost, command);
+			LOG.ok("Executing cmd script on {0} as {1}: {2}", winRmHost, winRmUsername, command);
+			response = winRmTool.executeCommand(command);
+			
+		} else {
+			throw new IllegalArgumentException("Unknown script language '"+scriptLanguage+"'");
+		}
+		
+		OperationLog.log("{0} Script RES status={1}", winRmHost, response.getStatusCode());
+		LOG.ok("Script returned status {0}\nSTDOUT:\n{1}\nSTDERR:\n{2}", response.getStatusCode(), response.getStdOut(), response.getStdErr());
+		
+		if (response.getStatusCode() != 0) {
+			String errorMessage = getScriptError(response);
+			throw new ConnectorException("Script execution failed (status code "+response.getStatusCode()+"): "+errorMessage);
+		}
+		
+		return response.getStdOut();
+	}
+
+	private String getScriptCommand(ScriptContext scriptCtx) {
+		Map<String, Object> scriptArguments = scriptCtx.getScriptArguments();
+		if (scriptArguments == null || scriptArguments.isEmpty()) {
+			scriptCtx.getScriptText();
+		}
+		StringBuilder cmdSb = new StringBuilder(scriptCtx.getScriptText());
+		for (java.util.Map.Entry<String,Object> argEntry: scriptArguments.entrySet()) {
+			cmdSb.append(" -");
+			cmdSb.append(argEntry.getKey());
+			cmdSb.append(" ");
+			cmdSb.append(argEntry.getValue());
+		}
+		return cmdSb.toString();
+	}
+	
+	private String getScriptError(WinRmToolResponse response) {
+		String stdErr = response.getStdErr();
+		if (stdErr == null) {
+			return null;
+		}
+		return stdErr;
+	}
 	
 	    
 }

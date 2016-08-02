@@ -17,6 +17,7 @@
 package com.evolveum.polygon.connector.ldap.ad;
 
 import org.identityconnectors.common.logging.Log;
+import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.spi.ConfigurationProperty;
 
 import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
@@ -33,6 +34,9 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 
 	public static final String ATTRIBUTE_OBJECT_GUID_NAME = "objectGUID";
 	public static final String ATTRIBUTE_UNICODE_PWD_NAME = "unicodePwd";
+	
+	public static final String SCRIPT_LANGUAGE_POWERSHELL = "powershell";
+	public static final String SCRIPT_LANGUAGE_CMD = "cmd";
     
 	/**
 	 * Object class to use for user accounts. Default: user
@@ -91,6 +95,14 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
      */
     private boolean rawUserAccountControlAttribute = false;
     
+    private String winRmUsername = null;
+    
+    private GuardedString winRmPassword = null;
+    
+    private int winRmPort = 5985;
+    
+    private boolean winRmUseHttps = false;
+    
     @ConfigurationProperty(order = 100)
 	public String getUserObjectClass() {
 		return userObjectClass;
@@ -143,6 +155,38 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 
 	public void setRawUserAccountControlAttribute(boolean rawUserAccountControlAttribute) {
 		this.rawUserAccountControlAttribute = rawUserAccountControlAttribute;
+	}
+
+	public String getWinRmUsername() {
+		return winRmUsername;
+	}
+
+	public void setWinRmUsername(String winRmUsername) {
+		this.winRmUsername = winRmUsername;
+	}
+
+	public GuardedString getWinRmPassword() {
+		return winRmPassword;
+	}
+
+	public void setWinRmPassword(GuardedString winRmPassword) {
+		this.winRmPassword = winRmPassword;
+	}
+
+	public int getWinRmPort() {
+		return winRmPort;
+	}
+
+	public void setWinRmPort(int winRmPort) {
+		this.winRmPort = winRmPort;
+	}
+
+	public boolean isWinRmUseHttps() {
+		return winRmUseHttps;
+	}
+
+	public void setWinRmUseHttps(boolean winRmUseHttps) {
+		this.winRmUseHttps = winRmUseHttps;
 	}
 
 	@Override

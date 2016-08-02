@@ -92,6 +92,10 @@
 					<groupId>org.slf4j</groupId>
 					<artifactId>slf4j-api</artifactId>
 				</exclusion>
+				<exclusion> 
+					<groupId>xml-apis</groupId>
+					<artifactId>xml-apis</artifactId>
+				</exclusion>
 			</exclusions>
 		</dependency>
 
@@ -107,6 +111,60 @@
 		    <artifactId>connector-common</artifactId>
 			<version>1.4.2.14</version>
 		</dependency>
+		
+		<!-- WinRM client needed to run powershell scripts -->
+		<dependency>
+		  <groupId>io.cloudsoft.windows</groupId>
+		  <artifactId>winrm4j</artifactId>
+		  <version>0.3.5</version>
+		  <exclusions>
+				<!-- Exclude SLF4J API from the lib to avoid bundling it with the
+				     connector. The SLF4J is already part of midPoint.
+				     If it would be also bundled with the connector then we will
+				     have the same classes/interfaces loaded by two classloaders
+				     and that will cause problems. -->
+				<exclusion> 
+					<groupId>org.slf4j</groupId>
+					<artifactId>slf4j-api</artifactId>
+				</exclusion>
+			</exclusions>
+		</dependency>
+
+		<dependency>
+		  <groupId>org.apache.httpcomponents</groupId>
+		  <artifactId>httpclient</artifactId>
+		  <version>4.4.1</version>
+		</dependency>
+
+		<dependency>
+		  <groupId>org.apache.cxf</groupId>
+		  <artifactId>cxf-core</artifactId>
+		  <version>3.1.4</version>
+		  <exclusions>
+				<!-- Exclude SLF4J API from the lib to avoid bundling it with the
+				     connector. The SLF4J is already part of midPoint.
+				     If it would be also bundled with the connector then we will
+				     have the same classes/interfaces loaded by two classloaders
+				     and that will cause problems. -->
+				<exclusion> 
+					<groupId>org.slf4j</groupId>
+					<artifactId>slf4j-api</artifactId>
+				</exclusion>
+			</exclusions>
+		</dependency>
+
+<!-- 		<dependency>
+				<groupId>xml-apis</groupId>
+				<artifactId>xml-apis</artifactId>
+				<version>3.1.4</version>
+		</dependency>  -->
+
+<!-- 		
+ 		<dependency>
+		  <groupId>org.apache.cxf</groupId>
+		  <artifactId>cxf-rt-wsdl</artifactId>
+		  <version>3.1.4</version>
+		</dependency>  -->
 
     </dependencies>
 </project>

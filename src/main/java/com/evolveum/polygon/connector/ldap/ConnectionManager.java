@@ -38,8 +38,32 @@ import org.apache.directory.api.ldap.model.message.LdapResult;
 import org.apache.directory.api.ldap.model.message.Referral;
 import org.apache.directory.api.ldap.model.message.ResultCodeEnum;
 import org.apache.directory.api.ldap.model.name.Dn;
+import org.apache.directory.api.ldap.model.schema.AttributeType;
+import org.apache.directory.api.ldap.model.schema.LdapComparator;
+import org.apache.directory.api.ldap.model.schema.LdapSyntax;
+import org.apache.directory.api.ldap.model.schema.MatchingRule;
+import org.apache.directory.api.ldap.model.schema.Normalizer;
+import org.apache.directory.api.ldap.model.schema.ObjectClass;
 import org.apache.directory.api.ldap.model.schema.SchemaManager;
+import org.apache.directory.api.ldap.model.schema.SchemaObject;
+import org.apache.directory.api.ldap.model.schema.SyntaxChecker;
+import org.apache.directory.api.ldap.model.schema.normalizers.OidNormalizer;
+import org.apache.directory.api.ldap.model.schema.registries.AttributeTypeRegistry;
+import org.apache.directory.api.ldap.model.schema.registries.ComparatorRegistry;
+import org.apache.directory.api.ldap.model.schema.registries.DitContentRuleRegistry;
+import org.apache.directory.api.ldap.model.schema.registries.DitStructureRuleRegistry;
+import org.apache.directory.api.ldap.model.schema.registries.LdapSyntaxRegistry;
+import org.apache.directory.api.ldap.model.schema.registries.MatchingRuleRegistry;
+import org.apache.directory.api.ldap.model.schema.registries.MatchingRuleUseRegistry;
+import org.apache.directory.api.ldap.model.schema.registries.NameFormRegistry;
+import org.apache.directory.api.ldap.model.schema.registries.NormalizerRegistry;
+import org.apache.directory.api.ldap.model.schema.registries.ObjectClassRegistry;
+import org.apache.directory.api.ldap.model.schema.registries.OidRegistry;
+import org.apache.directory.api.ldap.model.schema.registries.Registries;
+import org.apache.directory.api.ldap.model.schema.registries.Schema;
+import org.apache.directory.api.ldap.model.schema.registries.SyntaxCheckerRegistry;
 import org.apache.directory.api.ldap.model.url.LdapUrl;
+import org.apache.directory.api.ldap.schema.manager.impl.DefaultSchemaManager;
 import org.apache.directory.ldap.client.api.LdapConnectionConfig;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
 import org.identityconnectors.common.logging.Log;
@@ -411,7 +435,7 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 		final BindRequest bindRequest = new BindRequestImpl();
 		String bindDn = server.getBindDn();
 		try {
-			bindRequest.setDn(new Dn(bindDn));
+			bindRequest.setDn(new Dn(createBindSchemaManager(), bindDn));
 		} catch (LdapInvalidDnException e) {
 			throw new ConfigurationException("bindDn is not in DN format: "+e.getMessage(), e);
 		}
@@ -448,6 +472,16 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 				bindDn, ldapResult.getDiagnosticMessage(), ldapResult.getResultCode());
 	}
     	
+	private SchemaManager createBindSchemaManager() {
+		if (schemaTranslator != null && schemaTranslator.getSchemaManager() != null) {
+			return schemaTranslator.getSchemaManager();
+		}
+		Collection<Schema> emptySchemaCollection = new ArrayList<>(0);
+		DefaultSchemaManager schemaManager = new DefaultSchemaManager(emptySchemaCollection);
+		schemaManager.setRelaxed();
+		return schemaManager;
+	}
+
 	public boolean isAlive() {
 		if (defaultServerDefinition == null) {
 			throw new IllegalStateException("No default connection in this connection manager");

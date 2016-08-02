@@ -43,6 +43,10 @@ public class OperationLog {
 			LOG.error(LdapUtil.formatConnectionInfo(connection) + format, params);
 		}
 	}
+	
+	public static void log(String format, Object... params) {
+		LOG.info(format, params);
+	}
 
 	public static boolean isLogOperations() {
 		return LOG.isInfo();
