@@ -74,6 +74,8 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
     private String winRmUsername;
     private String winRmHost;
     private WinRmTool winRmTool;
+    
+    private static int busUsageCount = 0;
 
 	@Override
 	public void init(Configuration configuration) {
@@ -81,6 +83,12 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 		globalCatalogConnectionManager = new GlobalCatalogConnectionManager(getConfiguration());
 		
 		initWinRm();
+	}
+	
+	@Override
+    public void dispose() {
+		super.dispose();
+		disposeWinRm();
 	}
 
 	@Override
@@ -247,6 +255,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 	}
 	
 	private void initWinRm() {
+		initBus();
 		winRmUsername = getWinRmUsername();
 		winRmHost = getConfiguration().getHost();
 		WinRmTool.Builder builder = WinRmTool.Builder.builder(winRmHost, 
@@ -260,6 +269,40 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 		builder.hostnameVerifier(hostnameVerifier);
 		winRmTool =  builder.build();
 	}
+	
+	private void disposeWinRm() {
+		disposeBus();
+	}
+
+	/*
+	 * Init and dispose methods for the CXF bus. These are based on static usage
+	 * counter and static default bus. Which means that the bus will be reused by
+	 * all the connector instances (even those that have different configuration).
+	 * But as  WinRmTool tool creates new WinRmClient for each invocation which 
+	 * in turn creates a new CXF service then this approach should be safe.
+	 * This is the best that we can do as ConnId does not provide any
+	 * connector context that we could use to store per-resource bus instance.
+	 */
+	private static synchronized void initBus() {
+		busUsageCount++;
+		LOG.ok("bus init (usage count = {0})", busUsageCount);
+		// make sure that the bus is created here while we are synchronized
+		BusFactory.getDefaultBus(true);
+	}
+
+	private static synchronized void disposeBus() {
+		busUsageCount--;
+		LOG.ok("bus dispose (usage count = {0})", busUsageCount);
+		if (busUsageCount == 0) {
+			Bus bus = BusFactory.getDefaultBus(false);
+			if (bus != null) {
+				LOG.ok("Shutting down WinRm CXF bus {0}", bus);
+				bus.shutdown(true);
+				LOG.ok("Bus shut down");
+			}
+		}
+	}
+
 
 	private String getWinRmUsername() {
 		if (getConfiguration().getWinRmUsername() != null) {
