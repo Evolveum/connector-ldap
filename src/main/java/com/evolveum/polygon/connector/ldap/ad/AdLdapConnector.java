@@ -20,6 +20,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import javax.net.ssl.HostnameVerifier;
+
 import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.entry.Modification;
 import org.apache.directory.api.ldap.model.entry.ModificationOperation;
@@ -61,6 +63,7 @@ import io.cloudsoft.winrm4j.winrm.WinRmToolResponse;
 import org.apache.commons.lang.StringUtils;
 import org.apache.cxf.Bus;
 import org.apache.cxf.BusFactory;
+import org.apache.cxf.transport.https.httpclient.DefaultHostnameVerifier;
 
 @ConnectorClass(displayNameKey = "connector.ldap.ad.display", configurationClass = AdLdapConfiguration.class)
 public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> implements ScriptOnResourceOp {
@@ -251,6 +254,10 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 		builder.setAuthenticationScheme(AuthSchemes.NTLM);
 		builder.port(getConfiguration().getWinRmPort());
 		builder.useHttps(getConfiguration().isWinRmUseHttps());
+		// No suffix matcher here. The suffix matcher is problematic. E.g. it will
+		// cause mismatch between chimera.ad.evolveum.com and chimera.ad.evolveum.com
+		HostnameVerifier hostnameVerifier = new DefaultHostnameVerifier(null);
+		builder.hostnameVerifier(hostnameVerifier);
 		winRmTool =  builder.build();
 	}
 
