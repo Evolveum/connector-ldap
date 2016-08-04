@@ -95,12 +95,24 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
      */
     private boolean rawUserAccountControlAttribute = false;
     
+    /**
+     * Username used for WinRM authentication. If not set the bind DN will be used.
+     */
     private String winRmUsername = null;
     
+    /**
+     * Password used for WinRM authentication. If not set the bind password will be used.
+     */
     private GuardedString winRmPassword = null;
     
+    /**
+     * Port number of the WinRM service.
+     */
     private int winRmPort = 5985;
     
+    /**
+     * If set to true then the WinRM client will use HTTPS. Otherwise HTTP will be used.
+     */
     private boolean winRmUseHttps = false;
     
     @ConfigurationProperty(order = 100)
@@ -157,6 +169,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.rawUserAccountControlAttribute = rawUserAccountControlAttribute;
 	}
 
+	@ConfigurationProperty(order = 106)
 	public String getWinRmUsername() {
 		return winRmUsername;
 	}
@@ -165,6 +178,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.winRmUsername = winRmUsername;
 	}
 
+	@ConfigurationProperty(order = 107)
 	public GuardedString getWinRmPassword() {
 		return winRmPassword;
 	}
@@ -173,6 +187,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.winRmPassword = winRmPassword;
 	}
 
+	@ConfigurationProperty(order = 108)
 	public int getWinRmPort() {
 		return winRmPort;
 	}
@@ -181,6 +196,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.winRmPort = winRmPort;
 	}
 
+	@ConfigurationProperty(order = 109)
 	public boolean isWinRmUseHttps() {
 		return winRmUseHttps;
 	}
