@@ -257,7 +257,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 	private void initWinRm() {
 		initBus();
 		winRmUsername = getWinRmUsername();
-		winRmHost = getConfiguration().getHost();
+		winRmHost = getWinRmHost();
 		WinRmTool.Builder builder = WinRmTool.Builder.builder(winRmHost, 
 				winRmUsername, getWinRmPassword());
 		builder.setAuthenticationScheme(AuthSchemes.NTLM);
@@ -269,7 +269,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 		builder.hostnameVerifier(hostnameVerifier);
 		winRmTool =  builder.build();
 	}
-	
+
 	private void disposeWinRm() {
 		disposeBus();
 	}
@@ -303,6 +303,12 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 		}
 	}
 
+	private String getWinRmHost() {
+		if (getConfiguration().getWinRmHost() != null) {
+			return getConfiguration().getWinRmHost();
+		}
+		return getConfiguration().getHost();
+	}
 
 	private String getWinRmUsername() {
 		if (getConfiguration().getWinRmUsername() != null) {

@@ -96,6 +96,11 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
     private boolean rawUserAccountControlAttribute = false;
     
     /**
+     * Hostname of the WinRM server. If not set the ordinary host will be used.
+     */
+    private String winRmHost = null;
+    
+    /**
      * Username used for WinRM authentication. If not set the bind DN will be used.
      */
     private String winRmUsername = null;
@@ -170,6 +175,15 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 	}
 
 	@ConfigurationProperty(order = 106)
+	public String getWinRmHost() {
+		return winRmHost;
+	}
+
+	public void setWinRmHost(String winRmHost) {
+		this.winRmHost = winRmHost;
+	}
+
+	@ConfigurationProperty(order = 107)
 	public String getWinRmUsername() {
 		return winRmUsername;
 	}
@@ -178,7 +192,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.winRmUsername = winRmUsername;
 	}
 
-	@ConfigurationProperty(order = 107)
+	@ConfigurationProperty(order = 108)
 	public GuardedString getWinRmPassword() {
 		return winRmPassword;
 	}
@@ -187,7 +201,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.winRmPassword = winRmPassword;
 	}
 
-	@ConfigurationProperty(order = 108)
+	@ConfigurationProperty(order = 109)
 	public int getWinRmPort() {
 		return winRmPort;
 	}
@@ -196,7 +210,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.winRmPort = winRmPort;
 	}
 
-	@ConfigurationProperty(order = 109)
+	@ConfigurationProperty(order = 110)
 	public boolean isWinRmUseHttps() {
 		return winRmUseHttps;
 	}
