@@ -202,7 +202,7 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 	}
 
 	private ServerDefinition selectServer(Dn dn) {
-		String stringDn = dn.getName();
+		String stringDn = dn != null ? dn.getName() : null;
 		if (StringUtils.isBlank(stringDn) || !Character.isAlphabetic(stringDn.charAt(0))) {
 			// Do not even bother to choose. There are the strange
 			// things such as empty DN or the <GUID=...> insanity.

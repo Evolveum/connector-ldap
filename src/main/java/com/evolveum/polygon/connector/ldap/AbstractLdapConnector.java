@@ -402,6 +402,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			SearchScope scope = getScope(options);			
 			ExprNode filterNode = LdapUtil.createUidSearchFilter(uidValue, ldapObjectClass, getSchemaTranslator());
 			Dn baseDn = getBaseDn(options);
+			checkBaseDnPresent(baseDn);
 			try {
 				searchStrategy.search(baseDn, filterNode, scope, attributesToGet);
 			} catch (LdapException e) {
@@ -465,6 +466,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
 		SearchScope scope = getScope(options);
 		Dn baseDn = getBaseDn(options);
+		checkBaseDnPresent(baseDn);
 		try {
 			searchStrategy.search(baseDn, filterNode, scope, attributesToGet);
 		} catch (LdapException e) {
@@ -474,7 +476,13 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		return searchStrategy;
 				
 	}
-	
+
+	private void checkBaseDnPresent(Dn baseDn) {
+		if (baseDn == null) {
+			throw new ConfigurationException("No base DN present. Are you sure you have set up the base context in connector configuration?");
+		}
+	}
+
 	private SearchStrategy<C> searchUsual(Filter icfFilter, ObjectClass objectClass, org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
 			ResultsHandler handler, OperationOptions options) {
 		Dn baseDn = getBaseDn(options);
@@ -500,6 +508,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			// This is the real (usual) search
 			searchStrategy = chooseSearchStrategy(objectClass, ldapObjectClass, handler, options);
 			SearchScope scope = getScope(options);
+			checkBaseDnPresent(baseDn);
 			try {
 				searchStrategy.search(baseDn, filterNode, scope, attributesToGet);
 			} catch (LdapException e) {
@@ -1093,12 +1102,13 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 	 * the search may be optimized. The searchByUid() method has to retrieve a complete object.
 	 */
 	protected Dn resolveDn(ObjectClass objectClass, Uid uid, OperationOptions options) {
-		Dn dn = null;
+		Dn dn;
 		String uidAttributeName = configuration.getUidAttribute();
 		if (LdapUtil.isDnAttribute(uidAttributeName)) {
 			dn = getSchemaTranslator().toDn(uid);
 		} else {
 			Dn baseDn = getBaseDn(options);
+			checkBaseDnPresent(baseDn);
 			SearchScope scope = getScope(options);
 			AttributeType ldapAttributeType;
 			SchemaManager schemaManager = getSchemaManager();
@@ -1190,7 +1200,9 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			} catch (CursorException e) {
 				throw new ConnectorIOException("Error reading "+descMessage+": "+e.getMessage(), e);
 			} finally {
-				LdapUtil.closeCursor(cursor);
+				if (cursor != null) {
+					LdapUtil.closeCursor(cursor);
+				}
 			}
 		}
 		return entry;
