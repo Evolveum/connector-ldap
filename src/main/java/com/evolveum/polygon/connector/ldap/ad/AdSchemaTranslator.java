@@ -77,12 +77,6 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
 				samAccountNameAttr.setType(String.class);
 				ocib.addAttributeInfo(samAccountNameAttr.build());
 			}
-			// Groups often use cn attribute for naming. But it is not in the declared schema.
-			if (isGroupObjectClass(ldapObjectClass.getName())) {
-				AttributeInfoBuilder cnAttr = new AttributeInfoBuilder(AdConstants.ATTRIBUTE_CN_NAME);
-				cnAttr.setType(String.class);
-				ocib.addAttributeInfo(cnAttr.build());
-			}
 		}
 		
 		if (!getConfiguration().isRawUserAccountControlAttribute()) {

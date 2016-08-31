@@ -1223,6 +1223,12 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 				return candidate;
 			}
 		}
+		for(org.apache.directory.api.ldap.model.schema.ObjectClass superClass: ldapObjectClass.getSuperiors()) {
+			String selectedAttribute = selectAttribute(superClass, candidates);
+			if (selectedAttribute != null) {
+				return selectedAttribute;
+			}
+		}
 		return null;
 	}
 
