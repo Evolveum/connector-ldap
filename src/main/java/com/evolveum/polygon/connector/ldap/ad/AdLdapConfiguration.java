@@ -130,6 +130,16 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
      */
     private boolean winRmUseHttps = false;
     
+    /**
+     * Style of argument processing when invoking powesrhell scripts. If set to 'dashed' (default), then
+     * the arguments will be appended to the command in the -arg1 val1 -arg2 val2 form. If set to 'variables'
+     * then the arguments will be placed in powershell variables before the command is executed.
+     */
+    private String powershellArgumentStyle = ARGUMENT_STYLE_DASHED;
+    
+    public static final String ARGUMENT_STYLE_DASHED = "dashed";
+    public static final String ARGUMENT_STYLE_VARIABLES = "variables";
+    
     @ConfigurationProperty(order = 100)
 	public String getUserObjectClass() {
 		return userObjectClass;
@@ -236,6 +246,15 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 
 	public void setWinRmUseHttps(boolean winRmUseHttps) {
 		this.winRmUseHttps = winRmUseHttps;
+	}
+
+	@ConfigurationProperty(order = 112)
+	public String getPowershellArgumentStyle() {
+		return powershellArgumentStyle;
+	}
+
+	public void setPowershellArgumentStyle(String powershellArgumentStyle) {
+		this.powershellArgumentStyle = powershellArgumentStyle;
 	}
 
 	@Override

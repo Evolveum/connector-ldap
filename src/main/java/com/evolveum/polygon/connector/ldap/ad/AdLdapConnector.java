@@ -334,14 +334,15 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 	public Object runScriptOnResource(ScriptContext scriptCtx, OperationOptions options) {
 		
 		String scriptLanguage = scriptCtx.getScriptLanguage();
-		String command = getScriptCommand(scriptCtx);
 		WinRmToolResponse response;
 		if (scriptLanguage == null || scriptLanguage.equals(AdLdapConfiguration.SCRIPT_LANGUAGE_POWERSHELL)) {
+			String command = getScriptCommand(scriptCtx, getConfiguration().getPowershellArgumentStyle());
 			OperationLog.log("{0} Script REQ powershell: {1}", winRmHost, command);
 			LOG.ok("Executing powershell script on {0} as {1}: {2}", winRmHost, winRmUsername, command);
 			response = winRmTool.executePs(command);
 			
 		} else if (scriptLanguage.equals(AdLdapConfiguration.SCRIPT_LANGUAGE_CMD)) {
+			String command = getScriptCommand(scriptCtx, AdLdapConfiguration.ARGUMENT_STYLE_DASHED);
 			OperationLog.log("{0} Script REQ cmd: {1}", winRmHost, command);
 			LOG.ok("Executing cmd script on {0} as {1}: {2}", winRmHost, winRmUsername, command);
 			response = winRmTool.executeCommand(command);
@@ -361,21 +362,43 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 		return response.getStdOut();
 	}
 
-	private String getScriptCommand(ScriptContext scriptCtx) {
+	private String getScriptCommand(ScriptContext scriptCtx, String argumentStyle) {
 		Map<String, Object> scriptArguments = scriptCtx.getScriptArguments();
 		if (scriptArguments == null || scriptArguments.isEmpty()) {
 			scriptCtx.getScriptText();
 		}
-		StringBuilder cmdSb = new StringBuilder(scriptCtx.getScriptText());
-		for (java.util.Map.Entry<String,Object> argEntry: scriptArguments.entrySet()) {
-			cmdSb.append(" -");
-			cmdSb.append(argEntry.getKey());
-			cmdSb.append(" ");
-			cmdSb.append(argEntry.getValue());
+		StringBuilder cmdSb = new StringBuilder();
+		if (AdLdapConfiguration.ARGUMENT_STYLE_VARIABLES.equals(argumentStyle)) {
+			for (java.util.Map.Entry<String,Object> argEntry: scriptArguments.entrySet()) {
+				Object val = argEntry.getValue();
+				if (val != null) {
+					cmdSb.append("$");
+					cmdSb.append(argEntry.getKey());
+					cmdSb.append(" = ");
+					cmdSb.append(quoteSingle(argEntry.getValue()));
+					cmdSb.append("; ");
+				}
+			}
+		}
+		cmdSb.append(scriptCtx.getScriptText());
+		if (AdLdapConfiguration.ARGUMENT_STYLE_DASHED.equals(argumentStyle)) {
+			for (java.util.Map.Entry<String,Object> argEntry: scriptArguments.entrySet()) {
+				cmdSb.append(" -");
+				cmdSb.append(argEntry.getKey());
+				cmdSb.append(" ");
+				cmdSb.append(argEntry.getValue());
+			}
 		}
 		return cmdSb.toString();
 	}
 	
+	private String quoteSingle(Object value) {
+		if (value == null) {
+			return "";
+		}
+		return "'" + value.toString().replaceAll("'", "''") + "'";
+	}
+
 	private String getScriptError(WinRmToolResponse response) {
 		String stdErr = response.getStdErr();
 		if (stdErr == null) {
