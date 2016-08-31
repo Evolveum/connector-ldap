@@ -96,6 +96,16 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
     private boolean rawUserAccountControlAttribute = false;
     
     /**
+     * Extend the declared AD schema with tweaks that allow practical usage of the schema.
+     * AD will generally allow any attribute to be set to any object regardless for the schema.
+     * This is often used is practice. E.g. declared AD schema for users and groups does not
+     * include samAccountName attribute. But that attribute is needed for users and groups to
+     * work correctly. If this configuration property is set to true (which is the default) then
+     * the connector will artificially add these attributes to the schema.
+     */
+    private boolean tweakSchema = true;
+    
+    /**
      * Hostname of the WinRM server. If not set the ordinary host will be used.
      */
     private String winRmHost = null;
@@ -173,8 +183,17 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 	public void setRawUserAccountControlAttribute(boolean rawUserAccountControlAttribute) {
 		this.rawUserAccountControlAttribute = rawUserAccountControlAttribute;
 	}
-
+	
 	@ConfigurationProperty(order = 106)
+	public boolean isTweakSchema() {
+		return tweakSchema;
+	}
+
+	public void setTweakSchema(boolean tweakSchema) {
+		this.tweakSchema = tweakSchema;
+	}
+
+	@ConfigurationProperty(order = 107)
 	public String getWinRmHost() {
 		return winRmHost;
 	}
@@ -183,7 +202,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.winRmHost = winRmHost;
 	}
 
-	@ConfigurationProperty(order = 107)
+	@ConfigurationProperty(order = 108)
 	public String getWinRmUsername() {
 		return winRmUsername;
 	}
@@ -192,7 +211,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.winRmUsername = winRmUsername;
 	}
 
-	@ConfigurationProperty(order = 108)
+	@ConfigurationProperty(order = 109)
 	public GuardedString getWinRmPassword() {
 		return winRmPassword;
 	}
@@ -201,7 +220,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.winRmPassword = winRmPassword;
 	}
 
-	@ConfigurationProperty(order = 109)
+	@ConfigurationProperty(order = 110)
 	public int getWinRmPort() {
 		return winRmPort;
 	}
@@ -210,7 +229,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.winRmPort = winRmPort;
 	}
 
-	@ConfigurationProperty(order = 110)
+	@ConfigurationProperty(order = 111)
 	public boolean isWinRmUseHttps() {
 		return winRmUseHttps;
 	}

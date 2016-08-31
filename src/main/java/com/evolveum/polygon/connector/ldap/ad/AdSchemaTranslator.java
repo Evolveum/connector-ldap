@@ -70,10 +70,19 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
 	protected void extendObjectClassDefinition(ObjectClassInfoBuilder ocib,
 			org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
 		super.extendObjectClassDefinition(ocib, ldapObjectClass);
-		if (isUserObjectClass(ldapObjectClass.getName()) || isGroupObjectClass(ldapObjectClass.getName())) {
-			AttributeInfoBuilder samAccountNameAttr = new AttributeInfoBuilder(AdConstants.ATTRIBUTE_SAM_ACCOUNT_NAME_NAME);
-			samAccountNameAttr.setType(String.class);
-			ocib.addAttributeInfo(samAccountNameAttr.build());
+		if (getConfiguration().isTweakSchema()) {
+			// Account and groups need samAccountName attribute. But it is not in the declared schema.
+			if (isUserObjectClass(ldapObjectClass.getName()) || isGroupObjectClass(ldapObjectClass.getName())) {
+				AttributeInfoBuilder samAccountNameAttr = new AttributeInfoBuilder(AdConstants.ATTRIBUTE_SAM_ACCOUNT_NAME_NAME);
+				samAccountNameAttr.setType(String.class);
+				ocib.addAttributeInfo(samAccountNameAttr.build());
+			}
+			// Groups often use cn attribute for naming. But it is not in the declared schema.
+			if (isGroupObjectClass(ldapObjectClass.getName())) {
+				AttributeInfoBuilder cnAttr = new AttributeInfoBuilder(AdConstants.ATTRIBUTE_CN_NAME);
+				cnAttr.setType(String.class);
+				ocib.addAttributeInfo(cnAttr.build());
+			}
 		}
 		
 		if (!getConfiguration().isRawUserAccountControlAttribute()) {
