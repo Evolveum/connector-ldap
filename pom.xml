@@ -116,7 +116,7 @@
 		<dependency>
 		  <groupId>io.cloudsoft.windows</groupId>
 		  <artifactId>winrm4j</artifactId>
-		  <version>0.3.5.e1</version>
+		  <version>0.4.0</version>
 		  <exclusions>
 				<!-- Exclude SLF4J API from the lib to avoid bundling it with the
 				     connector. The SLF4J is already part of midPoint.
@@ -152,19 +152,6 @@
 				</exclusion>
 			</exclusions>
 		</dependency>
-
-<!-- 		<dependency>
-				<groupId>xml-apis</groupId>
-				<artifactId>xml-apis</artifactId>
-				<version>3.1.4</version>
-		</dependency>  -->
-
-<!-- 		
- 		<dependency>
-		  <groupId>org.apache.cxf</groupId>
-		  <artifactId>cxf-rt-wsdl</artifactId>
-		  <version>3.1.4</version>
-		</dependency>  -->
 
     </dependencies>
 </project>
