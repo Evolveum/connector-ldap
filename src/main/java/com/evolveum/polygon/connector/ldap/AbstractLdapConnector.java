@@ -534,9 +534,9 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			// do two LDAP searches instead of one in this case.
 			// So we deviate from the contract here. It is naughty, but it
 			// is efficient.
-			return schemaTranslator.toDn(containerQUid.getUid());
+			return getSchemaTranslator().toDn(containerQUid.getUid());
 		} else {
-			return schemaTranslator.toDn(configuration.getBaseContext());
+			return getSchemaTranslator().toDn(configuration.getBaseContext());
 		}
 	}
 
