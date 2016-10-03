@@ -602,6 +602,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 		this.changeNumberAttribute = changeNumberAttribute;
 	}
 	
+	@ConfigurationProperty(order = 34)
 	public boolean isUseUnsafeNameHint() {
 		return useUnsafeNameHint;
 	}
