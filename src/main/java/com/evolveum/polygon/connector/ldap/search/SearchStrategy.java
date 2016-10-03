@@ -64,6 +64,7 @@ public abstract class SearchStrategy<C extends AbstractLdapConfiguration> {
 	private boolean isCompleteResultSet = true;
 	private AttributeHandler attributeHandler;
 	private LdapNetworkConnection explicitConnection = null;
+	private int numberOfEntriesFound = 0;
 	
 	protected SearchStrategy(ConnectionManager<C> connectionManager, AbstractLdapConfiguration configuration,
 			AbstractSchemaTranslator<C> schemaTranslator, ObjectClass objectClass,
@@ -155,6 +156,10 @@ public abstract class SearchStrategy<C extends AbstractLdapConfiguration> {
 		this.explicitConnection = explicitConnection;
 	}
 
+	public int getNumberOfEntriesFound() {
+		return numberOfEntriesFound;
+	}
+
 	protected void applyCommonConfiguration(SearchRequest req) {
 		if (configuration.isReferralStrategyFollow()) {
 			req.followReferrals();
@@ -225,6 +230,7 @@ public abstract class SearchStrategy<C extends AbstractLdapConfiguration> {
 	}
 	
 	protected boolean handleResult(LdapNetworkConnection connection, Entry entry) {
+		numberOfEntriesFound++;
 		return handler.handle(schemaTranslator.toIcfObject(connection, objectClass, entry, attributeHandler));
 	}
 

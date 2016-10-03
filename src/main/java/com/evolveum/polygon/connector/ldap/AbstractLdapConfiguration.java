@@ -289,6 +289,18 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
      */
     private String changeNumberAttribute = "changeNumber";
     
+    /**
+     * Entry DN can be provided to the connector as a "name hint". Connector will use the name hint whenever
+     * it can use it safely. But there are some cases when the name hint cannot be used safely. There are
+     * mostly modify and delete operations when in a rare case a wrong object can be modified or deleted.
+     * The connector will not use the name hint in these cases by default. It will make explicit search
+     * to make sure that everything is fair and square before attempting the operation. However this comes
+     * at the expense of performance. If this switch is set to true then the connector will try to use
+     * the name hint even if it is not completely safe. This may mean significant perfomacne boost for
+     * modify and delete operations.
+     */
+    private boolean useUnsafeNameHint = false;
+    
     // TODO: failover, accountSynchronizationFilter
     // MAYBE TODO: respectResourcePasswordPolicyChangeAfterReset? filterWithOrInsteadOfAnd? 
     //			   removeLogEntryObjectClassFromFilter? synchronizePasswords? passwordAttributeToSynchronize?
@@ -590,6 +602,14 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 		this.changeNumberAttribute = changeNumberAttribute;
 	}
 	
+	public boolean isUseUnsafeNameHint() {
+		return useUnsafeNameHint;
+	}
+
+	public void setUseUnsafeNameHint(boolean useUnsafeNameHint) {
+		this.useUnsafeNameHint = useUnsafeNameHint;
+	}
+
 	@Override
     public void validate() {
     	validateNotBlank(host, "host.blank");

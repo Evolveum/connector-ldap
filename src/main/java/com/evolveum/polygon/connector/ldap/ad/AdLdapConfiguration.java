@@ -87,6 +87,12 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
     public static final String GLOBAL_CATALOG_STRATEGY_READ = "read";
     
     /**
+     * If set to true then the connector will try to search all defined
+     * servers for an entry if all other attempts fail.
+     */
+    private boolean allowBruteForceSearch = false;
+    
+    /**
      * If set to false then the connector will interpret the content of
      * userAccountControl attribute and will decompose it to pseudo-attributes
      * for enabled state, lockout, etc.
@@ -186,6 +192,15 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 	}
 
 	@ConfigurationProperty(order = 105)
+	public boolean isAllowBruteForceSearch() {
+		return allowBruteForceSearch;
+	}
+
+	public void setAllowBruteForceSearch(boolean allowBruteForceSearch) {
+		this.allowBruteForceSearch = allowBruteForceSearch;
+	}
+
+	@ConfigurationProperty(order = 106)
 	public boolean isRawUserAccountControlAttribute() {
 		return rawUserAccountControlAttribute;
 	}
@@ -194,7 +209,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.rawUserAccountControlAttribute = rawUserAccountControlAttribute;
 	}
 	
-	@ConfigurationProperty(order = 106)
+	@ConfigurationProperty(order = 107)
 	public boolean isTweakSchema() {
 		return tweakSchema;
 	}
@@ -203,7 +218,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.tweakSchema = tweakSchema;
 	}
 
-	@ConfigurationProperty(order = 107)
+	@ConfigurationProperty(order = 108)
 	public String getWinRmHost() {
 		return winRmHost;
 	}
@@ -212,7 +227,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.winRmHost = winRmHost;
 	}
 
-	@ConfigurationProperty(order = 108)
+	@ConfigurationProperty(order = 109)
 	public String getWinRmUsername() {
 		return winRmUsername;
 	}
@@ -221,7 +236,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.winRmUsername = winRmUsername;
 	}
 
-	@ConfigurationProperty(order = 109)
+	@ConfigurationProperty(order = 110)
 	public GuardedString getWinRmPassword() {
 		return winRmPassword;
 	}
@@ -230,7 +245,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.winRmPassword = winRmPassword;
 	}
 
-	@ConfigurationProperty(order = 110)
+	@ConfigurationProperty(order = 111)
 	public int getWinRmPort() {
 		return winRmPort;
 	}
@@ -239,7 +254,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.winRmPort = winRmPort;
 	}
 
-	@ConfigurationProperty(order = 111)
+	@ConfigurationProperty(order = 112)
 	public boolean isWinRmUseHttps() {
 		return winRmUseHttps;
 	}
@@ -248,7 +263,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.winRmUseHttps = winRmUseHttps;
 	}
 
-	@ConfigurationProperty(order = 112)
+	@ConfigurationProperty(order = 113)
 	public String getPowershellArgumentStyle() {
 		return powershellArgumentStyle;
 	}

@@ -124,25 +124,26 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 		binaryAttributeDetector.setSchemaTranslator(schemaTranslator);
 	}
 
-	public LdapNetworkConnection getDefaultConnection() {
-		if (defaultServerDefinition == null) {
-			throw new IllegalStateException("No default connection in this connection manager");
-		}
-		if (defaultServerDefinition.getConnection() == null) {
-			connect();
-		}
-		return defaultServerDefinition.getConnection();
-	}
-	
-	public LdapNetworkConnection getConnection(Dn base) {
-		LOG.ok("Selecting server for {0} from servers:\n{1}", base, dumpServers());
-		ServerDefinition server = selectServer(base);
+	private LdapNetworkConnection getConnection(ServerDefinition server) {
 		if (!server.isConnected()) {
 			connectServer(server);
 		}
 		return server.getConnection();
 	}
 	
+	public LdapNetworkConnection getDefaultConnection() {
+		if (defaultServerDefinition == null) {
+			throw new IllegalStateException("No default connection in this connection manager");
+		}
+		return getConnection(defaultServerDefinition);
+	}
+		
+	public LdapNetworkConnection getConnection(Dn base) {
+		LOG.ok("Selecting server for {0} from servers:\n{1}", base, dumpServers());
+		ServerDefinition server = selectServer(base);
+		return getConnection(server);
+	}
+		
 	public LdapNetworkConnection getConnectionReconnect(Dn base) {
 		return getConnectionReconnect(base, null);
 	}
@@ -199,6 +200,32 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 			connectServer(server);
 		}
 		return server.getConnection();		
+	}
+	
+	public Iterable<LdapNetworkConnection> getAllConnections() {
+		
+		final Iterator<ServerDefinition> serversIterator = servers.iterator();
+		
+		return new Iterable<LdapNetworkConnection>() {
+			
+			@Override
+			public Iterator<LdapNetworkConnection> iterator() {
+				return new Iterator<LdapNetworkConnection>() {
+
+					@Override
+					public boolean hasNext() {
+						return serversIterator.hasNext();
+					}
+
+					@Override
+					public LdapNetworkConnection next() {
+						return getConnection(serversIterator.next());
+					}
+					
+				};
+			}
+		};
+		
 	}
 
 	private ServerDefinition selectServer(Dn dn) {

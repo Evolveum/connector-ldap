@@ -38,6 +38,7 @@ import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
 import org.identityconnectors.framework.common.exceptions.UnknownUidException;
 import org.identityconnectors.framework.common.objects.Attribute;
+import org.identityconnectors.framework.common.objects.ConnectorObject;
 import org.identityconnectors.framework.common.objects.OperationOptions;
 import org.identityconnectors.framework.common.objects.ResultsHandler;
 import org.identityconnectors.framework.common.objects.ScriptContext;
@@ -47,6 +48,7 @@ import org.identityconnectors.framework.spi.ConnectorClass;
 import org.identityconnectors.framework.spi.operations.ScriptOnResourceOp;
 
 import com.evolveum.polygon.common.GuardedStringAccessor;
+import com.evolveum.polygon.common.SchemaUtil;
 import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
 import com.evolveum.polygon.connector.ldap.AbstractLdapConnector;
 import com.evolveum.polygon.connector.ldap.ConnectionManager;
@@ -159,76 +161,159 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 	}
 
 	@Override
-	protected SearchStrategy<AdLdapConfiguration> searchByUid(String uidValue, org.identityconnectors.framework.common.objects.ObjectClass objectClass,
-			ObjectClass ldapObjectClass, ResultsHandler handler, OperationOptions options) {
+	protected SearchStrategy<AdLdapConfiguration> searchByUid(Uid uid, org.identityconnectors.framework.common.objects.ObjectClass objectClass,
+			ObjectClass ldapObjectClass, final ResultsHandler handler, OperationOptions options) {
+		final String uidValue = SchemaUtil.getSingleStringNonBlankValue(uid);
+		
+		// Trivial (but not really realistic) case: UID is DN
+		
 		if (LdapUtil.isDnAttribute(getConfiguration().getUidAttribute())) {
 			
 			return searchByDn(getSchemaTranslator().toDn(uidValue), objectClass, ldapObjectClass, handler, options);
 		
-		} else {
+		}
 			
-			if (AdLdapConfiguration.GLOBAL_CATALOG_STRATEGY_NONE.equals(getConfiguration().getGlobalCatalogStrategy())) {
-				// Make search with <GUID=....> baseDn on default connection. Rely on referrals to point our head to
-				// the correct domain controller in multi-domain environment.
-				// We know that this can return at most one object. Therefore always use simple search.
-				SearchStrategy<AdLdapConfiguration> searchStrategy = getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
-				String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
-				Dn guidDn = getSchemaTranslator().getGuidDn(uidValue);
-				try {
-					searchStrategy.search(guidDn, LdapUtil.createAllSearchFilter(), SearchScope.OBJECT, attributesToGet);
-				} catch (LdapException e) {
-					throw LdapUtil.processLdapException("Error searching for GUID '"+uidValue+"'", e);
+		// First attempt: name hint (last seen DN)
+		
+		if (uid.getNameHint() != null) {
+			// We have name hint here. Name hint is the DN of the entry as we have seen it last time. 
+			// If the entry haven't moved since the last read then this is the most efficient way to
+			// read the entry. However, we need to check if the GUID matches before returning the entry
+			// to the primary handler. The original object may be moved and a new object might take its
+			// DN while we were not watching.
+			
+			final String lastDn = uid.getNameHintValue();
+			LOG.ok("We have name hint {0} for GUI {1}, trying to use it",
+					lastDn, uidValue);
+			
+			final boolean[] found = new boolean[1];
+			found[0] = false;
+			
+			ResultsHandler checkingHandler = new ResultsHandler() {
+				@Override
+				public boolean handle(ConnectorObject connectorObject) {
+					String foundUidValue = connectorObject.getUid().getUidValue();
+					if (foundUidValue.equals(uidValue)) {
+						found[0] = true;
+						LOG.ok("Use of name hint {0} for GUI {1} successful.", lastDn, uidValue);
+						return handler.handle(connectorObject);
+					} else {
+						LOG.ok("Attempt to use name hint {0} for GUI {1} produced a different GUID: {2}, ignoring it.",
+								lastDn, uidValue, foundUidValue);
+						return true;
+					}
 				}
-				
-				return searchStrategy;
+			};
+			
+			SearchStrategy<AdLdapConfiguration> nameHintSearchStrategy = searchByDn(
+					getSchemaTranslator().toDn(lastDn), objectClass, ldapObjectClass, checkingHandler, options);
+			
+			if (found[0]) {
+				return nameHintSearchStrategy;
+			}
+		}
 
-			} else if (AdLdapConfiguration.GLOBAL_CATALOG_STRATEGY_READ.equals(getConfiguration().getGlobalCatalogStrategy())) {
-				// Make a search directly to the global catalog server. Present that as final result.
-				// We know that this can return at most one object. Therefore always use simple search.
-				SearchStrategy<AdLdapConfiguration> searchStrategy = new DefaultSearchStrategy<>(globalCatalogConnectionManager, 
-						getConfiguration(), getSchemaTranslator(), objectClass, ldapObjectClass, handler, options);
-				String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
-				Dn guidDn = getSchemaTranslator().getGuidDn(uidValue);
-				try {
-					searchStrategy.search(guidDn, LdapUtil.createAllSearchFilter(), SearchScope.OBJECT, attributesToGet);
-				} catch (LdapException e) {
-					throw LdapUtil.processLdapException("Error searching for GUID '"+uidValue+"'", e);
-				}
-				
+		// Second attempt: global catalog
+		
+		if (AdLdapConfiguration.GLOBAL_CATALOG_STRATEGY_NONE.equals(getConfiguration().getGlobalCatalogStrategy())) {
+			// Make search with <GUID=....> baseDn on default connection. Rely on referrals to point our head to
+			// the correct domain controller in multi-domain environment.
+			// We know that this can return at most one object. Therefore always use simple search.
+			SearchStrategy<AdLdapConfiguration> searchStrategy = getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
+			String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
+			Dn guidDn = getSchemaTranslator().getGuidDn(uidValue);
+			try {
+				searchStrategy.search(guidDn, LdapUtil.createAllSearchFilter(), SearchScope.OBJECT, attributesToGet);
+			} catch (LdapException e) {
+				throw LdapUtil.processLdapException("Error searching for GUID '"+uidValue+"'", e);
+			}
+			
+			if (searchStrategy.getNumberOfEntriesFound() > 0) {
 				return searchStrategy;
-				
-			} else if (AdLdapConfiguration.GLOBAL_CATALOG_STRATEGY_RESOLVE.equals(getConfiguration().getGlobalCatalogStrategy())) {
-				Dn guidDn = getSchemaTranslator().getGuidDn(uidValue);
-				Entry entry = searchSingleEntry(globalCatalogConnectionManager, guidDn, LdapUtil.createAllSearchFilter(), SearchScope.OBJECT,
-						new String[]{AbstractLdapConfiguration.PSEUDO_ATTRIBUTE_DN_NAME}, "global catalog entry for GUID "+uidValue);
-				if (entry == null) {
-					throw new UnknownUidException("Entry for GUID "+uidValue+" was not found in global catalog");
-				}
-				LOG.ok("Resolved GUID {0} in glogbal catalog to DN {1}", uidValue, entry.getDn());
-				Dn dn = entry.getDn();
-				
+			}
+
+		} else if (AdLdapConfiguration.GLOBAL_CATALOG_STRATEGY_READ.equals(getConfiguration().getGlobalCatalogStrategy())) {
+			// Make a search directly to the global catalog server. Present that as final result.
+			// We know that this can return at most one object. Therefore always use simple search.
+			SearchStrategy<AdLdapConfiguration> searchStrategy = new DefaultSearchStrategy<>(globalCatalogConnectionManager, 
+					getConfiguration(), getSchemaTranslator(), objectClass, ldapObjectClass, handler, options);
+			String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
+			Dn guidDn = getSchemaTranslator().getGuidDn(uidValue);
+			try {
+				searchStrategy.search(guidDn, LdapUtil.createAllSearchFilter(), SearchScope.OBJECT, attributesToGet);
+			} catch (LdapException e) {
+				throw LdapUtil.processLdapException("Error searching for GUID '"+uidValue+"'", e);
+			}
+			
+			if (searchStrategy.getNumberOfEntriesFound() > 0) {
+				return searchStrategy;
+			}
+			
+		} else if (AdLdapConfiguration.GLOBAL_CATALOG_STRATEGY_RESOLVE.equals(getConfiguration().getGlobalCatalogStrategy())) {
+			Dn guidDn = getSchemaTranslator().getGuidDn(uidValue);
+			Entry entry = searchSingleEntry(globalCatalogConnectionManager, guidDn, LdapUtil.createAllSearchFilter(), SearchScope.OBJECT,
+					new String[]{AbstractLdapConfiguration.PSEUDO_ATTRIBUTE_DN_NAME}, "global catalog entry for GUID "+uidValue);
+			if (entry == null) {
+				throw new UnknownUidException("Entry for GUID "+uidValue+" was not found in global catalog");
+			}
+			LOG.ok("Resolved GUID {0} in glogbal catalog to DN {1}", uidValue, entry.getDn());
+			Dn dn = entry.getDn();
+			
+			SearchStrategy<AdLdapConfiguration> searchStrategy = getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
+			// We need to force the use of explicit connection here. The search is still using the <GUID=..> dn
+			// The search strategy cannot use that to select a connection. So we need to select a connection
+			// based on the DN returned from global catalog explicitly.
+			// We also cannot use the DN from the global catalog as the base DN for the search.
+			// The global catalog may not be replicated yet and it may not have the correct DN
+			// (e.g. the case of quick read after rename)
+			LdapNetworkConnection connection = getConnectionManager().getConnection(dn);
+			searchStrategy.setExplicitConnection(connection);
+			
+			String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
+			try {
+				searchStrategy.search(guidDn, null, SearchScope.OBJECT, attributesToGet);
+			} catch (LdapException e) {
+				throw LdapUtil.processLdapException("Error searching for DN '"+guidDn+"'", e);
+			}
+			
+			if (searchStrategy.getNumberOfEntriesFound() > 0) {
+				return searchStrategy;
+			}
+			
+		} else {
+			throw new IllegalStateException("Unknown global catalog strategy '"+getConfiguration().getGlobalCatalogStrategy()+"'");
+		}
+		
+		// Third attempt: brutal search over all the servers
+		
+		if (getConfiguration().isAllowBruteForceSearch()) {
+			LOG.ok("Cannot find object with GUI {0} by using name hint or global catalog. Resorting to brute-force search",
+					uidValue);
+			Dn guidDn = getSchemaTranslator().getGuidDn(uidValue);
+			String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
+			for (LdapNetworkConnection connection: getConnectionManager().getAllConnections()) {
 				SearchStrategy<AdLdapConfiguration> searchStrategy = getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
-				// We need to force the use of explicit connection here. The search is still using the <GUID=..> dn
-				// The search strategy cannot use that to select a connection. So we need to select a connection
-				// based on the DN returned from global catalog explicitly.
-				// We also cannot use the DN from the global catalog as the base DN for the search.
-				// The global catalog may not be replicated yet and it may not have the correct DN
-				// (e.g. the case of quick read after rename)
-				LdapNetworkConnection connection = getConnectionManager().getConnection(dn);
 				searchStrategy.setExplicitConnection(connection);
 				
-				String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
 				try {
 					searchStrategy.search(guidDn, null, SearchScope.OBJECT, attributesToGet);
 				} catch (LdapException e) {
 					throw LdapUtil.processLdapException("Error searching for DN '"+guidDn+"'", e);
 				}
-				return searchStrategy;
 				
-			} else {
-				throw new IllegalStateException("Unknown global catalog strategy '"+getConfiguration().getGlobalCatalogStrategy()+"'");
+				if (searchStrategy.getNumberOfEntriesFound() > 0) {
+					return searchStrategy;
+				}
 			}
+			
+		} else {
+			LOG.ok("Cannot find object with GUI {0} by using name hint or global catalog. Brute-force search is disabled. Found nothing.",
+					uidValue);
 		}
+		
+		// Found nothing
+		return null;
+		
 	}
 
 	@Override

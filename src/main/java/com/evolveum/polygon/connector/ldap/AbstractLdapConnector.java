@@ -321,7 +321,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			
 		} else if (isEqualsFilter(icfFilter, Uid.NAME)) {
 			// Search by __UID__. Special case for performance.
-			searchStrategy = searchByUid(SchemaUtil.getSingleStringNonBlankValue(((EqualsFilter)icfFilter).getAttribute()),
+			searchStrategy = searchByUid((Uid)((EqualsFilter)icfFilter).getAttribute(),
 					objectClass, ldapObjectClass, handler, options);
 				
 		} else if (isSecondaryIdentifierOrFilter(icfFilter)) {
@@ -338,11 +338,17 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		}
 		
 		if (handler instanceof SearchResultsHandler) {
-			String cookie = searchStrategy.getPagedResultsCookie();
-			int remainingResults = searchStrategy.getRemainingPagedResults();
-			boolean completeResultSet = searchStrategy.isCompleteResultSet();
-			SearchResult searchResult = new SearchResult(cookie, remainingResults, completeResultSet);
-			((SearchResultsHandler)handler).handleResult(searchResult);
+			if (searchStrategy == null) {
+				// We have found nothing
+				SearchResult searchResult = new SearchResult(null, 0, true);
+				((SearchResultsHandler)handler).handleResult(searchResult);
+			} else {
+				String cookie = searchStrategy.getPagedResultsCookie();
+				int remainingResults = searchStrategy.getRemainingPagedResults();
+				boolean completeResultSet = searchStrategy.isCompleteResultSet();
+				SearchResult searchResult = new SearchResult(cookie, remainingResults, completeResultSet);
+				((SearchResultsHandler)handler).handleResult(searchResult);
+			}
 		} else {
 			LOG.warn("Result handler is NOT SearchResultsHandler, it is {0}", handler.getClass());
 		}
@@ -391,8 +397,9 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 	 * This is different from resolveDn() method in that it returns a complete object.
 	 * The resolveDn() method is supposed to be optimized to only return DN.
 	 */
-	protected SearchStrategy<C> searchByUid(String uidValue, ObjectClass objectClass, org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
+	protected SearchStrategy<C> searchByUid(Uid uid, ObjectClass objectClass, org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
 			ResultsHandler handler, OperationOptions options) {
+		String uidValue = SchemaUtil.getSingleStringNonBlankValue(uid);
 		if (LdapUtil.isDnAttribute(configuration.getUidAttribute())) {
 			return searchByDn(schemaTranslator.toDn(uidValue), objectClass, ldapObjectClass, handler, options);
 		} else {
@@ -827,12 +834,35 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 	private Uid ldapUpdate(ObjectClass icfObjectClass, Uid uid, Dn newDn, Set<Attribute> values,
 			OperationOptions options, ModificationOperation modOp) {
 		
+		org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass = getSchemaTranslator().toLdapObjectClass(icfObjectClass);
+		
 		Dn dn = newDn;
 		if (dn == null) {
+			
+			if (getConfiguration().isUseUnsafeNameHint() && uid.getNameHint() != null) {
+				String dnHintString = uid.getNameHintValue();
+				dn = getSchemaTranslator().toDn(dnHintString);
+				LOG.ok("Using (unsafe) DN from the name hint: {0}", dn);
+				try {
+					
+					return ldapUpdateAttempt(icfObjectClass, uid, dn, values, options, modOp, ldapStructuralObjectClass);
+				
+				} catch (Throwable e) {
+					LOG.warn("Attempt to delete object with DN failed (DN taked from the name hint). The operation will continue with next attempt. Error: {0}",
+							e.getMessage(), e);
+				}
+			}
+			
 			dn = resolveDn(icfObjectClass, uid, options);
+			LOG.ok("Resolved DN: {0}", dn);
 		}
+			
+		return ldapUpdateAttempt(icfObjectClass, uid, dn, values, options, modOp, ldapStructuralObjectClass);
+			
+	}
 		
-		org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass = getSchemaTranslator().toLdapObjectClass(icfObjectClass);
+	private Uid ldapUpdateAttempt(ObjectClass icfObjectClass, Uid uid, Dn dn, Set<Attribute> values,
+			OperationOptions options, ModificationOperation modOp, org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass) {
 		
 		List<Modification> modifications = new ArrayList<Modification>(values.size());
 		for (Attribute icfAttr: values) {
@@ -1078,7 +1108,30 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 	@Override
 	public void delete(ObjectClass objectClass, Uid uid, OperationOptions options) {
 		
-		Dn dn = resolveDn(objectClass, uid, options);
+		Dn dn;
+		if (getConfiguration().isUseUnsafeNameHint() && uid.getNameHint() != null) {
+			String dnHintString = uid.getNameHintValue();
+			dn = getSchemaTranslator().toDn(dnHintString);
+			LOG.ok("Using (unsafe) DN from the name hint: {0}", dn);
+			try {
+				
+				deleteAttempt(dn, uid);
+				
+				return;
+				
+			} catch (Throwable e) {
+				LOG.warn("Attempt to delete object with DN failed (DN taked from the name hint). The operation will continue with next attempt. Error: {0}",
+						e.getMessage(), e);
+			}
+		}
+		
+		dn = resolveDn(objectClass, uid, options);
+		LOG.ok("Resolved DN: {0}", dn);
+		
+		deleteAttempt(dn, uid);
+	}
+		
+	private void deleteAttempt(Dn dn, Uid uid) {
 		LdapNetworkConnection connection = connectionManager.getConnection(dn);
 		
 		try {
