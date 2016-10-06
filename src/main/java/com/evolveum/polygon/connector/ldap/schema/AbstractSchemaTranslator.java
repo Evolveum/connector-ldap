@@ -877,7 +877,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		}
 		ConnectorObjectBuilder cob = new ConnectorObjectBuilder();
 		if (dn == null) {
-			dn = entry.getDn().getName();
+			dn = getDn(entry);
 		}
 		cob.setName(dn);
 		cob.setObjectClass(new ObjectClass(icfStructuralObjectClassInfo.getType()));
@@ -914,10 +914,13 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		while (iterator.hasNext()) {
 			org.apache.directory.api.ldap.model.entry.Attribute ldapAttribute = iterator.next();
 			String ldapAttrName = getLdapAttributeName(ldapAttribute);
+//			LOG.ok("Processing attribute {0}", ldapAttrName);
 			if (!shouldTranslateAttribute(ldapAttrName)) {
+				LOG.ok("Should not translate attribute {0}, skipping", ldapAttrName);
 				continue;
 			}
 			AttributeType attributeType = schemaManager.getAttributeType(ldapAttrName);
+//			LOG.ok("Type for attribute {0}: {1}", ldapAttrName, attributeType);
 			String ldapAttributeNameFromSchema = ldapAttrName;
 			if (attributeType == null) {
 				if (!configuration.isAllowUnknownAttributes()) {
@@ -930,6 +933,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 				continue;
 			}
 			Attribute icfAttribute = toIcfAttribute(connection, entry, ldapAttribute, attributeHandler);
+//			LOG.ok("ConnId attribute for {0}: {1}", ldapAttrName, icfAttribute);
 			if (icfAttribute == null) {
 				continue;
 			}
@@ -942,9 +946,12 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 					}
 				}
 			}
+//			LOG.ok("ConnId attribute info for {0}: {1}", ldapAttrName, attributeInfo);
 			if (attributeInfo != null) {
 				// Avoid sending unknown attributes (such as createtimestamp)
 				cob.addAttribute(icfAttribute);
+			} else {
+				LOG.ok("Attribute {0} is not part of ConnId schema, skipping", ldapAttrName);
 			}
 			
 		}
@@ -952,6 +959,10 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		extendConnectorObject(cob, entry, icfStructuralObjectClassInfo.getType());
 		
 		return cob.build();
+	}
+	
+	public String getDn(Entry entry) {
+		return entry.getDn().getName();
 	}
 	
 	public String getLdapAttributeName(org.apache.directory.api.ldap.model.entry.Attribute ldapAttribute) {

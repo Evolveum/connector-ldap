@@ -288,9 +288,27 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
 		sb.append(guidDashedNotation.substring(24, 36));
 		return sb.toString();
 	}
+	
+	@Override
+	public String getDn(Entry entry) {
+		// distinguishedName attribute provides better DN format (some kind of Microsoft-cannonical form).
+		// The usual entry DN will be formatted in the same way as it was in the request. Therefore if
+		// name hint is used with midPoint, the normal DN will be all lowercase. This may break some things,
+		// e.g. it may interfere with names in older shadows.
+		// So use distinguishedName attribute if available.
+		Attribute distinguishedNameAttr = entry.get(AdConstants.ATTRIBUTE_DISTINGUISHED_NAME_NAME);
+		if (distinguishedNameAttr != null) {
+			try {
+				return distinguishedNameAttr.getString();
+			} catch (LdapInvalidAttributeValueException e) {
+				LOG.warn("Error getting sting value from {0}, falling back to entry DN: {1}", 
+						distinguishedNameAttr, e.getMessage(), e);
+				return super.getDn(entry);
+			}
+		}
+		return super.getDn(entry);
+	}
 
-	
-	
 	@Override
 	protected boolean isOperational(AttributeType ldapAttribute) {
 		if (super.isOperational(ldapAttribute)) {
