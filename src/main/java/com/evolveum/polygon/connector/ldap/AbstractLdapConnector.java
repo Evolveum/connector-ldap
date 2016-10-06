@@ -781,28 +781,58 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		for (Attribute icfAttr: replaceAttributes) {
 			if (icfAttr.is(Name.NAME)) {
 				// This is rename. Which means change of DN. This is a special operation
-				Dn oldDn = resolveDn(objectClass, uid, options);
+				
 				newDn = getSchemaTranslator().toDn(icfAttr);
-				if (oldDn.equals(newDn)) {
-					// nothing to rename, just ignore
-				} else {
-					LdapNetworkConnection connection = connectionManager.getConnection(oldDn);
-					try {
-						OperationLog.logOperationReq(connection, "MoveAndRename REQ {0} -> {1}", oldDn, newDn);
-						// Make sure that DNs are passed in as (user-provided) strings. Otherwise the Directory API
-						// will convert it do OID=value notation. And some LDAP servers (such as OpenDJ) does not handle
-						// that well.
-						connection.moveAndRename(oldDn.getName(), newDn.getName());
-						OperationLog.logOperationRes(connection, "MoveAndRename RES OK {0} -> {1}", oldDn, newDn);
-					} catch (LdapException e) {
-						OperationLog.logOperationErr(connection, "MoveAndRename ERROR {0} -> {1}: {2}", oldDn, newDn, e.getMessage(), e);
-						throw LdapUtil.processLdapException("Rename/move of LDAP entry from "+oldDn+" to "+newDn+" failed", e);
-					}
-				}
+				ldapRename(objectClass, uid, newDn, options);
+				
+				// Do NOT return here. There may still be other (non-name) attributes to update
 			}
 		}
     	
     	return ldapUpdate(objectClass, uid, newDn, replaceAttributes, options, ModificationOperation.REPLACE_ATTRIBUTE);
+	}
+	
+	private void ldapRename(ObjectClass objectClass, Uid uid, Dn newDn, OperationOptions options) {
+		Dn oldDn;
+		
+		if (getConfiguration().isUseUnsafeNameHint() && uid.getNameHint() != null) {
+			String dnHintString = uid.getNameHintValue();
+			oldDn = getSchemaTranslator().toDn(dnHintString);
+			LOG.ok("Using (unsafe) DN from the name hint: {0} for rename", oldDn);
+			try {
+				
+				ldapRenameAttempt(oldDn, newDn);
+				return;
+			
+			} catch (Throwable e) {
+				LOG.warn("Attempt to delete object with DN failed (DN taked from the name hint). The operation will continue with next attempt. Error: {0}",
+						e.getMessage(), e);
+			}
+		}
+		
+		oldDn = resolveDn(objectClass, uid, options);
+		LOG.ok("Resolved DN: {0}", oldDn);
+		
+		ldapRenameAttempt(oldDn, newDn);
+	}
+	
+	private void ldapRenameAttempt(Dn oldDn, Dn newDn) {
+		if (oldDn.equals(newDn)) {
+			// nothing to rename, just ignore
+		} else {
+			LdapNetworkConnection connection = connectionManager.getConnection(oldDn);
+			try {
+				OperationLog.logOperationReq(connection, "MoveAndRename REQ {0} -> {1}", oldDn, newDn);
+				// Make sure that DNs are passed in as (user-provided) strings. Otherwise the Directory API
+				// will convert it do OID=value notation. And some LDAP servers (such as OpenDJ) does not handle
+				// that well.
+				connection.moveAndRename(oldDn.getName(), newDn.getName());
+				OperationLog.logOperationRes(connection, "MoveAndRename RES OK {0} -> {1}", oldDn, newDn);
+			} catch (LdapException e) {
+				OperationLog.logOperationErr(connection, "MoveAndRename ERROR {0} -> {1}: {2}", oldDn, newDn, e.getMessage(), e);
+				throw LdapUtil.processLdapException("Rename/move of LDAP entry from "+oldDn+" to "+newDn+" failed", e);
+			}
+		}
 	}
     
     @Override
@@ -842,7 +872,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			if (getConfiguration().isUseUnsafeNameHint() && uid.getNameHint() != null) {
 				String dnHintString = uid.getNameHintValue();
 				dn = getSchemaTranslator().toDn(dnHintString);
-				LOG.ok("Using (unsafe) DN from the name hint: {0}", dn);
+				LOG.ok("Using (unsafe) DN from the name hint: {0} for update", dn);
 				try {
 					
 					return ldapUpdateAttempt(icfObjectClass, uid, dn, values, options, modOp, ldapStructuralObjectClass);
@@ -1222,7 +1252,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 					}
 				} else {
 					// Something wrong happened, the entry was not created.
-					throw new UnknownUidException(descMessage + " was not found (therefore it cannot be deleted)");
+					throw new UnknownUidException(descMessage + " was not found");
 				}
 			} catch (CursorLdapReferralException e) {
 				LOG.ok("Got cursor referral exception while resolving {0}: {1}", descMessage, e.getReferralInfo());

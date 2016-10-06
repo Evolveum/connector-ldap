@@ -183,7 +183,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 			// DN while we were not watching.
 			
 			final String lastDn = uid.getNameHintValue();
-			LOG.ok("We have name hint {0} for GUI {1}, trying to use it",
+			LOG.ok("We have name hint {0} for GUID {1}, trying to use it",
 					lastDn, uidValue);
 			
 			final boolean[] found = new boolean[1];
@@ -195,10 +195,10 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 					String foundUidValue = connectorObject.getUid().getUidValue();
 					if (foundUidValue.equals(uidValue)) {
 						found[0] = true;
-						LOG.ok("Use of name hint {0} for GUI {1} successful.", lastDn, uidValue);
+						LOG.ok("Use of name hint {0} for GUID {1} successful.", lastDn, uidValue);
 						return handler.handle(connectorObject);
 					} else {
-						LOG.ok("Attempt to use name hint {0} for GUI {1} produced a different GUID: {2}, ignoring it.",
+						LOG.ok("Attempt to use name hint {0} for GUID {1} produced a different GUID: {2}, ignoring it.",
 								lastDn, uidValue, foundUidValue);
 						return true;
 					}
@@ -287,7 +287,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 		// Third attempt: brutal search over all the servers
 		
 		if (getConfiguration().isAllowBruteForceSearch()) {
-			LOG.ok("Cannot find object with GUI {0} by using name hint or global catalog. Resorting to brute-force search",
+			LOG.ok("Cannot find object with GUID {0} by using name hint or global catalog. Resorting to brute-force search",
 					uidValue);
 			Dn guidDn = getSchemaTranslator().getGuidDn(uidValue);
 			String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
@@ -307,7 +307,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 			}
 			
 		} else {
-			LOG.ok("Cannot find object with GUI {0} by using name hint or global catalog. Brute-force search is disabled. Found nothing.",
+			LOG.ok("Cannot find object with GUID {0} by using name hint or global catalog. Brute-force search is disabled. Found nothing.",
 					uidValue);
 		}
 		
@@ -318,23 +318,54 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 
 	@Override
 	protected Dn resolveDn(org.identityconnectors.framework.common.objects.ObjectClass objectClass, Uid uid, OperationOptions options) {
-		Dn guidDn = getSchemaTranslator().getGuidDn(uid.getUidValue());
+		
+		String guid = uid.getUidValue();
+		
+		if (uid.getNameHint() != null) {
+			// Try to use name hint first. Let's read the entry using the name hint and check the GUID.
+			// It is the same overhead as reading global catalog and usually there is a better chance that
+			// this is going to work. Global catalog updates are quite lazy.
+			
+			String dnHintString = uid.getNameHintValue();
+			Dn dnHint = getSchemaTranslator().toDn(dnHintString);
+			LOG.ok("Resolvig DN by using name hint {0}", dnHint);
+			Entry entry = searchSingleEntry(getConnectionManager(), dnHint, LdapUtil.createAllSearchFilter(), SearchScope.OBJECT, 
+					new String[]{ AdLdapConfiguration.ATTRIBUTE_OBJECT_GUID_NAME }, 
+					"LDAP entry for DN hint "+uid.getUidValue());
+			if (entry != null) {
+				String foundGuid = getSchemaTranslator().getGuidAsDashedString(entry);
+				if (guid.equals(foundGuid)) {
+					LOG.ok("Resolved DN for name hint {0} returned object with GUID matched ({1})",
+							dnHintString, foundGuid);
+					return entry.getDn();
+				} else {
+					LOG.ok("Resolvig DN for name hint {0} returned object with GUID mismatch (expected {1}, was {2})",
+							dnHintString, guid, foundGuid);
+				}
+			} else {
+				LOG.ok("Resolvig DN for name hint {0} returned no object", dnHintString);
+			}
+		}
+		
+		Dn guidDn = getSchemaTranslator().getGuidDn(guid);
 		
 		if (AdLdapConfiguration.GLOBAL_CATALOG_STRATEGY_NONE.equals(getConfiguration().getGlobalCatalogStrategy())) {
+			LOG.ok("Resolvig DN by search for {0} (no global catalog)", guidDn);
 			Entry entry = searchSingleEntry(getConnectionManager(), guidDn, LdapUtil.createAllSearchFilter(), SearchScope.OBJECT, 
-					new String[]{AbstractLdapConfiguration.PSEUDO_ATTRIBUTE_DN_NAME}, "LDAP entry for GUID "+uid.getUidValue());
+					new String[]{AbstractLdapConfiguration.PSEUDO_ATTRIBUTE_DN_NAME}, "LDAP entry for GUID "+guid);
 			if (entry == null) {
-				throw new UnknownUidException("Entry for GUID "+uid.getUidValue()+" was not found");
+				throw new UnknownUidException("Entry for GUID "+guid+" was not found");
 			}
 			return entry.getDn();
 			
 		} else {
+			LOG.ok("Resolvig DN by search for {0} (global catalog)", guidDn);
 			Entry entry = searchSingleEntry(globalCatalogConnectionManager, guidDn, LdapUtil.createAllSearchFilter(), SearchScope.OBJECT, 
-					new String[]{AbstractLdapConfiguration.PSEUDO_ATTRIBUTE_DN_NAME}, "LDAP entry for GUID "+uid.getUidValue());
+					new String[]{AbstractLdapConfiguration.PSEUDO_ATTRIBUTE_DN_NAME}, "LDAP entry for GUID "+guid);
 			if (entry == null) {
-				throw new UnknownUidException("Entry for GUID "+uid.getUidValue()+" was not found in global catalog");
+				throw new UnknownUidException("Entry for GUID "+guid+" was not found in global catalog");
 			}
-			LOG.ok("Resolved GUID {0} in glogbal catalog to DN {1}", uid.getUidValue(), entry.getDn());
+			LOG.ok("Resolved GUID {0} in glogbal catalog to DN {1}", guid, entry.getDn());
 			return entry.getDn();
 		}
 	}

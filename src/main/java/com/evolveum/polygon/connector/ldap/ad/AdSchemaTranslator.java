@@ -18,6 +18,7 @@ package com.evolveum.polygon.connector.ldap.ad;
 import java.io.UnsupportedEncodingException;
 
 import org.apache.commons.lang.ArrayUtils;
+import org.apache.directory.api.ldap.model.entry.Attribute;
 import org.apache.directory.api.ldap.model.entry.BinaryValue;
 import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.entry.Value;
@@ -61,6 +62,8 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
 	private static final String[] OPTIONAL_TOP_ATTRIBUTES = {
 			"ntsecuritydescriptor", "instancetype", "objectcategory"
 	};
+	
+	private AttributeType guidAttributeType = null;
 	
 	public AdSchemaTranslator(SchemaManager schemaManager, AdLdapConfiguration configuration) {
 		super(schemaManager, configuration);
@@ -219,6 +222,21 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
 		// schema. But if the Dn parsing does not know about schemaManager it does not know
 		// that we are in relaxed mode and it will fail with these crazy DNs.
 		return toSchemaAwareDn("<GUID="+uidValue+">");
+	}
+	
+	
+	public String getGuidAsDashedString(Entry entry) {
+		Attribute guidAttribute = entry.get(AdLdapConfiguration.ATTRIBUTE_OBJECT_GUID_NAME);
+		String hexNotation = super.toIcfIdentifierValue(guidAttribute.get(), AdLdapConfiguration.ATTRIBUTE_OBJECT_GUID_NAME, 
+				getGuidAttributeType());
+		return formatGuidToDashedNotation(hexNotation);
+	}
+	
+	private AttributeType getGuidAttributeType() {
+		if (guidAttributeType == null) {
+			guidAttributeType = getSchemaManager().getAttributeType(AdLdapConfiguration.ATTRIBUTE_OBJECT_GUID_NAME);
+		}
+		return guidAttributeType;
 	}
 	
 	/**
