@@ -221,6 +221,11 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 					public LdapNetworkConnection next() {
 						return getConnection(serversIterator.next());
 					}
+
+					@Override
+					public void remove() {
+							serversIterator.remove();
+					}
 					
 				};
 			}
