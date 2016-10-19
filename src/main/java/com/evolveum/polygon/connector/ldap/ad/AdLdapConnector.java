@@ -16,6 +16,7 @@
 
 package com.evolveum.polygon.connector.ldap.ad;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -38,8 +39,10 @@ import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
 import org.identityconnectors.framework.common.exceptions.UnknownUidException;
 import org.identityconnectors.framework.common.objects.Attribute;
+import org.identityconnectors.framework.common.objects.AttributeBuilder;
 import org.identityconnectors.framework.common.objects.ConnectorObject;
 import org.identityconnectors.framework.common.objects.OperationOptions;
+import org.identityconnectors.framework.common.objects.OperationalAttributeInfos;
 import org.identityconnectors.framework.common.objects.ResultsHandler;
 import org.identityconnectors.framework.common.objects.ScriptContext;
 import org.identityconnectors.framework.common.objects.Uid;
@@ -521,6 +524,32 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 			return null;
 		}
 		return stdErr;
+	}
+	
+	@Override
+	protected void postUpdate(org.identityconnectors.framework.common.objects.ObjectClass icfObjectClass,
+			Uid uid, Set<Attribute> values, OperationOptions options, ModificationOperation modOp, 
+			Dn dn, org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass,
+			List<Modification> modifications) {
+		super.postUpdate(icfObjectClass, uid, values, options, modOp, dn, ldapStructuralObjectClass, modifications);
+		
+		//if password is in modifications set pwdLastSet=0 ("must change password at next logon")
+		if (getSchemaTranslator().isUserObjectClass(ldapStructuralObjectClass.getName())) {
+			for (Attribute icfAttr: values) {
+				
+				// coming from midpoint password is __PASSWORD__
+				// TODO: should we additionally ask for  icfAttr.getName().equals(getConfiguration().getPasswordAttribute()?
+				if (OperationalAttributeInfos.PASSWORD.is(icfAttr.getName())){
+					
+						List<Modification> modificationsPwdLastSet = new ArrayList<Modification>();	
+						Attribute attrPwdLastSet =AttributeBuilder.build("pwdLastSet", "0");					
+						addAttributeModification(dn, modificationsPwdLastSet, ldapStructuralObjectClass, icfObjectClass, attrPwdLastSet, ModificationOperation.REPLACE_ATTRIBUTE);
+						modify(dn, modificationsPwdLastSet);
+						break;
+					}
+			}
+			
+		}
 	}
 	
 	    
