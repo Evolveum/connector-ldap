@@ -165,6 +165,9 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
         schemaManager = null;
         schemaTranslator = null;
         connectionManager.connect();
+        if (configuration.isEnableExtraTests()) {
+        	extraTests();
+        }
         checkAlive();
     	try {
     		LOG.ok("Fetching root DSE");
@@ -175,7 +178,49 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		}
 	}
     
-    protected SchemaManager getSchemaManager() {
+    protected void extraTests() {
+    	testAncestor("dc=example,dc=com", "uid=foo,ou=people,dc=example,dc=com", true);
+    	testAncestor("uid=foo,ou=people,dc=example,dc=com", "dc=example,dc=com", false);
+    }
+    
+	protected void testAncestor(String upper, String lower, boolean expectedMatch) {
+    	Dn upperDn = asDn(upper);
+    	Dn lowerDn = asDn(lower);
+    	boolean ancestorOf = LdapUtil.isAncestorOf(upperDn, lowerDn, getSchemaTranslator());
+    	if (ancestorOf && !expectedMatch) {
+    		String msg = "Dn '"+upper+"' is wrongly evaluated as ancestor of '"+
+    				lower+"' (it should NOT be).";
+    		LOG.error("Extra test: {0}", msg);
+    		throw new ConnectorException(msg);
+    	}
+    	if (!ancestorOf && expectedMatch) {
+    		String msg = "Dn '"+upper+"' is NOT evaluated as ancestor of '"+
+    				lower+"' (but it should be).";
+    		LOG.error("Extra test: {0}", msg);
+    		throw new ConnectorException(msg);
+    	}
+    	if (LOG.isOk()) {
+    		String msg;
+	    	if (ancestorOf) {
+	    		msg = "Dn '"+upper+"' is correctly evaluated as ancestor of '"+
+	    				lower+"'";
+	    	} else {
+	    		msg = "Dn '"+upper+"' is correctly evaluated NOT yo be ancestor of '"+
+	    				lower+"'";
+	    	}
+	    	LOG.ok("Extra test: {0}", msg);
+    	}
+	}
+	
+	private Dn asDn(String stringDn) {
+		try {
+			return new Dn(stringDn);
+		} catch (LdapInvalidDnException e) {
+			throw new ConnectorException("Cannot parse '"+stringDn+" as DN: "+e.getMessage(), e);
+		}
+	}
+
+	protected SchemaManager getSchemaManager() {
     	if (schemaManager == null) {
     		try {
     			boolean schemaQuirksMode = configuration.isSchemaQuirksMode();

@@ -300,7 +300,16 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
      * modify and delete operations.
      */
     private boolean useUnsafeNameHint = false;
-    
+
+    /**
+     * Enable extra tests during the test connection operations.
+     * Those tests may take longer and they may make more LDAP requests.
+     * These tests try to test some tricky situations and border conditions
+     * and they are generally useful only for connector developers or when
+     * diagnosing connector bugs. 
+     */
+    private boolean enableExtraTests = false;
+
     // TODO: failover, accountSynchronizationFilter
     // MAYBE TODO: respectResourcePasswordPolicyChangeAfterReset? filterWithOrInsteadOfAnd? 
     //			   removeLogEntryObjectClassFromFilter? synchronizePasswords? passwordAttributeToSynchronize?
@@ -609,6 +618,15 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 
 	public void setUseUnsafeNameHint(boolean useUnsafeNameHint) {
 		this.useUnsafeNameHint = useUnsafeNameHint;
+	}
+	
+	@ConfigurationProperty(order = 35)
+	public boolean isEnableExtraTests() {
+		return enableExtraTests;
+	}
+
+	public void setEnableExtraTests(boolean enableExtraTests) {
+		this.enableExtraTests = enableExtraTests;
 	}
 
 	@Override
