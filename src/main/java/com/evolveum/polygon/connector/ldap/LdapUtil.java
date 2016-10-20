@@ -106,8 +106,8 @@ public class LdapUtil {
 	}
 	
 	public static boolean isEntryUuidAttribute(String attributeName) {
-		return LdapConfiguration.ATTRIBUTE_ENTRYUUID_NAME.equals(attributeName) 
-				|| LdapConfiguration.ATTRIBUTE_NSUNIQUEID_NAME.equals(attributeName);
+		return LdapConstants.ATTRIBUTE_ENTRYUUID_NAME.equals(attributeName) 
+				|| LdapConstants.ATTRIBUTE_NSUNIQUEID_NAME.equals(attributeName);
 	}
 
 	public static String getStringAttribute(Entry entry, String attrName) {
@@ -230,7 +230,7 @@ public class LdapUtil {
 			ldapAttrs.add(additionalAttribute);
 		}
 		ldapAttrs.add(schemaTranslator.getUidAttribute());
-		ldapAttrs.add(LdapConfiguration.ATTRIBUTE_OBJECTCLASS_NAME);
+		ldapAttrs.add(LdapConstants.ATTRIBUTE_OBJECTCLASS_NAME);
 		return ldapAttrs.toArray(new String[ldapAttrs.size()]);
 	}
 
@@ -318,7 +318,7 @@ public class LdapUtil {
 	}
 	
 	public static ExprNode createAllSearchFilter() {
-		return new PresenceNode(AbstractLdapConfiguration.ATTRIBUTE_OBJECTCLASS_NAME);
+		return new PresenceNode(LdapConstants.ATTRIBUTE_OBJECTCLASS_NAME);
 	}
 	
 	public static ExprNode createUidSearchFilter(String uidValue, 
@@ -483,7 +483,7 @@ public class LdapUtil {
 		if (ldapObjectClass == null) {
 			return true;
 		}
-		Attribute objectClassAttribute = entry.get(LdapConfiguration.ATTRIBUTE_OBJECTCLASS_NAME); 
+		Attribute objectClassAttribute = entry.get(LdapConstants.ATTRIBUTE_OBJECTCLASS_NAME); 
 		for (Value<?> objectClassVal: objectClassAttribute) {
 			if (ldapObjectClass.getName().equalsIgnoreCase(objectClassVal.getString())) {
 				return true;
@@ -511,7 +511,7 @@ public class LdapUtil {
 	}
 	
 	public static boolean hasModifierName(Entry entry, String[] modifiersNamesToFilterOut) {
-		org.apache.directory.api.ldap.model.entry.Attribute modifiersNameAttribute = entry.get(LdapConfiguration.ATTRIBUTE_MODIFIERSNAME_NAME);
+		org.apache.directory.api.ldap.model.entry.Attribute modifiersNameAttribute = entry.get(LdapConstants.ATTRIBUTE_MODIFIERSNAME_NAME);
 		if (modifiersNameAttribute == null) {
 			return false;
 		}

@@ -17,12 +17,14 @@
 package com.evolveum.polygon.connector.ldap.ad;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import javax.net.ssl.HostnameVerifier;
 
+import org.apache.directory.api.ldap.model.constants.SchemaConstants;
 import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.entry.Modification;
 import org.apache.directory.api.ldap.model.entry.ModificationOperation;
@@ -31,7 +33,21 @@ import org.apache.directory.api.ldap.model.message.SearchScope;
 import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.ldap.model.name.Rdn;
 import org.apache.directory.api.ldap.model.schema.AttributeType;
+import org.apache.directory.api.ldap.model.schema.LdapSyntax;
+import org.apache.directory.api.ldap.model.schema.MatchingRule;
+import org.apache.directory.api.ldap.model.schema.MutableAttributeType;
+import org.apache.directory.api.ldap.model.schema.MutableMatchingRule;
 import org.apache.directory.api.ldap.model.schema.ObjectClass;
+import org.apache.directory.api.ldap.model.schema.SchemaManager;
+import org.apache.directory.api.ldap.model.schema.SchemaObject;
+import org.apache.directory.api.ldap.model.schema.SyntaxChecker;
+import org.apache.directory.api.ldap.model.schema.normalizers.DeepTrimToLowerNormalizer;
+import org.apache.directory.api.ldap.model.schema.registries.AttributeTypeRegistry;
+import org.apache.directory.api.ldap.model.schema.registries.MatchingRuleRegistry;
+import org.apache.directory.api.ldap.model.schema.registries.ObjectClassRegistry;
+import org.apache.directory.api.ldap.model.schema.registries.Registries;
+import org.apache.directory.api.ldap.model.schema.registries.SchemaObjectRegistry;
+import org.apache.directory.api.ldap.model.schema.syntaxCheckers.DirectoryStringSyntaxChecker;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
 import org.apache.http.client.config.AuthSchemes;
 import org.identityconnectors.common.logging.Log;
@@ -55,6 +71,7 @@ import com.evolveum.polygon.common.SchemaUtil;
 import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
 import com.evolveum.polygon.connector.ldap.AbstractLdapConnector;
 import com.evolveum.polygon.connector.ldap.ConnectionManager;
+import com.evolveum.polygon.connector.ldap.LdapConstants;
 import com.evolveum.polygon.connector.ldap.LdapUtil;
 import com.evolveum.polygon.connector.ldap.OperationLog;
 import com.evolveum.polygon.connector.ldap.schema.LdapFilterTranslator;
@@ -551,6 +568,100 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 			
 		}
 	}
+
+	@Override
+	protected void patchSchemaManager(SchemaManager schemaManager) {
+		super.patchSchemaManager(schemaManager);
+		if (!getConfiguration().isTweakSchema()) {
+			return;
+		}
+		
+		Registries registries = schemaManager.getRegistries();
+		MatchingRuleRegistry matchingRuleRegistry = registries.getMatchingRuleRegistry();
+		
+		
+		MatchingRule mrCaseIgnoreMatch = matchingRuleRegistry.get(SchemaConstants.CASE_IGNORE_MATCH_MR_OID);
+		// Microsoft ignores matching rules. Completely. There is not even a single definition.
+		if (mrCaseIgnoreMatch == null) {
+			MutableMatchingRule correctMrCaseIgnoreMatch = new MutableMatchingRule(SchemaConstants.CASE_IGNORE_MATCH_MR_OID);
+			correctMrCaseIgnoreMatch.setSyntaxOid(SchemaConstants.DIRECTORY_STRING_SYNTAX);
+			correctMrCaseIgnoreMatch.setNormalizer(new DeepTrimToLowerNormalizer(SchemaConstants.CASE_IGNORE_MATCH_MR_OID));
+			mrCaseIgnoreMatch = correctMrCaseIgnoreMatch;
+			register(matchingRuleRegistry, correctMrCaseIgnoreMatch);
+		}
+		
+		// Microsoft violates RFC4519
+		fixAttribute(schemaManager, LdapConstants.ATTRIBUTE_CN_OID, LdapConstants.ATTRIBUTE_CN_NAME,
+				createStringSyntax(SchemaConstants.DIRECTORY_STRING_SYNTAX), mrCaseIgnoreMatch);
+		fixAttribute(schemaManager, LdapConstants.ATTRIBUTE_DC_OID, LdapConstants.ATTRIBUTE_DC_NAME,
+				createStringSyntax(SchemaConstants.DIRECTORY_STRING_SYNTAX), mrCaseIgnoreMatch);
+		fixAttribute(schemaManager, LdapConstants.ATTRIBUTE_OU_OID, LdapConstants.ATTRIBUTE_OU_NAME,
+				createStringSyntax(SchemaConstants.DIRECTORY_STRING_SYNTAX), mrCaseIgnoreMatch);
+	}
 	
-	    
+	private LdapSyntax createStringSyntax(String syntaxOid) {
+		LdapSyntax syntax = new LdapSyntax(syntaxOid);
+		syntax.setHumanReadable(true);
+		syntax.setSyntaxChecker(new DirectoryStringSyntaxChecker());
+		return syntax;
+	}
+
+	private void fixAttribute(SchemaManager schemaManager, String attrOid, String attrName,
+			LdapSyntax syntax, MatchingRule equalityMr) {
+		Registries registries = schemaManager.getRegistries();
+		AttributeTypeRegistry attributeTypeRegistry = registries.getAttributeTypeRegistry();
+		ObjectClassRegistry objectClassRegistry = registries.getObjectClassRegistry();
+		
+		AttributeType attrDcType = attributeTypeRegistry.get(attrOid);
+		if (attrDcType == null || attrDcType.getEquality() == null) {
+			MutableAttributeType correctAttrDcType;
+			if (attrDcType != null) {
+				try {
+					attributeTypeRegistry.unregister(attrDcType);
+				} catch (LdapException e) {
+					throw new IllegalStateException("Error unregistering "+attrDcType+": "+e.getMessage(), e);
+				}
+				correctAttrDcType = new MutableAttributeType(attrDcType.getOid());
+				correctAttrDcType.setNames(attrDcType.getNames());
+			} else {
+				correctAttrDcType = new MutableAttributeType(attrOid);
+				correctAttrDcType.setNames(attrName);
+			}
+			
+			correctAttrDcType.setSyntax(syntax);
+			correctAttrDcType.setEquality(equalityMr);
+			correctAttrDcType.setSingleValued(true);
+			LOG.ok("Registering replacement attributeType: {0}", correctAttrDcType);
+			register(attributeTypeRegistry, correctAttrDcType);
+			fixObjectClasses(objectClassRegistry, attrDcType, correctAttrDcType);
+		}
+		
+	}
+	
+	private void fixObjectClasses(ObjectClassRegistry objectClassRegistry, AttributeType oldAttributeType, AttributeType newAttributeType) {
+		for (ObjectClass objectClass: objectClassRegistry) {
+			fixOblectClassAttributes(objectClass.getMayAttributeTypes(), oldAttributeType, newAttributeType);
+			fixOblectClassAttributes(objectClass.getMustAttributeTypes(), oldAttributeType, newAttributeType);
+		}
+		
+	}
+	
+	private void fixOblectClassAttributes(List<AttributeType> attributeTypes, AttributeType oldAttributeType, AttributeType newAttributeType) {
+		for (int i = 0; i < attributeTypes.size(); i++) {
+			AttributeType current = attributeTypes.get(i);
+			if (current.equals(oldAttributeType)) {
+				attributeTypes.set(i, newAttributeType);
+				break;
+			}
+		}
+	}
+
+	private <T extends SchemaObject> void register(SchemaObjectRegistry<T> registry, T object) {
+		try {
+			registry.register(object);
+		} catch (LdapException e) {
+			throw new IllegalStateException("Error registering "+object+": "+e.getMessage(), e);
+		}
+	}
+		    
 }

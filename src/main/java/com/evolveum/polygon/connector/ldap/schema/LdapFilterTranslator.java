@@ -53,7 +53,7 @@ import org.identityconnectors.framework.common.objects.filter.StartsWithFilter;
 
 import com.evolveum.polygon.common.SchemaUtil;
 import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
-import com.evolveum.polygon.connector.ldap.LdapConfiguration;
+import com.evolveum.polygon.connector.ldap.LdapConstants;
 import com.evolveum.polygon.connector.ldap.LdapUtil;
 
 /**
@@ -94,7 +94,7 @@ public class LdapFilterTranslator<C extends AbstractLdapConfiguration> {
 	
 	private EqualityNode<String> createObjectClassEqFilter(ObjectClass ldapObjectClass) {
 		Value<String> ldapValue = new StringValue(ldapObjectClass.getName());
-		return new EqualityNode<String>(LdapConfiguration.ATTRIBUTE_OBJECTCLASS_NAME, ldapValue);
+		return new EqualityNode<String>(LdapConstants.ATTRIBUTE_OBJECTCLASS_NAME, ldapValue);
 	}
 
 	public ScopedFilter translate(Filter icfFilter) {

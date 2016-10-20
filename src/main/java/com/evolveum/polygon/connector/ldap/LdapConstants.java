@@ -21,6 +21,44 @@ package com.evolveum.polygon.connector.ldap;
  */
 public class LdapConstants {
 
+	public static final String ATTRIBUTE_OBJECTCLASS_NAME = "objectClass";
+	public static final String ATTRIBUTE_ENTRYUUID_NAME = "entryUUID";
+	public static final String ATTRIBUTE_NSUNIQUEID_NAME = "nsUniqueId";
+	public static final String ATTRIBUTE_MODIFYTIMESTAMP_NAME = "modifyTimestamp";
+	public static final String ATTRIBUTE_MODIFIERSNAME_NAME = "modifiersName";
+	public static final String ATTRIBUTE_CREATETIMESTAMP_NAME = "createTimestamp";
+	public static final String ATTRIBUTE_CREATORSNAME_NAME = "creatorsName";
+	
+	public static final String ATTRIBUTE_CN_NAME = "cn";
+	public static final String ATTRIBUTE_CN_OID = "2.5.4.3";
+	
+	public static final String ATTRIBUTE_DC_NAME = "dc";
+	public static final String ATTRIBUTE_DC_OID = "0.9.2342.19200300.100.1.25";
+	
+	public static final String ATTRIBUTE_OU_NAME = "ou";
+	public static final String ATTRIBUTE_OU_OID = "2.5.4.11";
+	
+	public static final String ATTRIBUTE_389DS_FIRSTCHANGENUMBER = "firstchangenumber";
+	public static final String ATTRIBUTE_389DS_LASTCHANGENUMBER = "lastchangenumber";
+	
 	public static final String ATTRIBUTE_OPENLDAP_PWD_ACCOUNT_LOCKED_TIME_NAME = "pwdAccountLockedTime";
+	
+	public static final String MATCHING_RULE_CASE_IGNORE_MATCH_NAME = "caseIgnoreMatch";
+	public static final String MATCHING_RULE_CASE_IGNORE_MATCH_OID = "2.5.13.2";
+	
+	public static final String MATCHING_RULE_CASE_IGNORE_IA5_MATCH_NAME = "caseIgnoreIA5Match";
+	public static final String MATCHING_RULE_CASE_IGNORE_IA5_MATCH_OID = "1.3.6.1.4.1.1466.109.114.2";
+	
+	public static final String SYNTAX_AUTH_PASSWORD = "1.3.6.1.4.1.4203.1.1.2";
+	public static final String SYNTAX_SUN_DEFINED_ACCESS_CONTROL_INFORMATION = "1.3.6.1.4.1.26027.1.3.4";
+	public static final String SYNTAX_COLLECTIVE_CONFLICT_BEHAVIOR = "1.3.6.1.4.1.26027.1.3.6";
+	public static final String SYNTAX_NIS_NETGROUP_TRIPLE_SYNTAX = "1.3.6.1.1.1.0.0";
+	public static final String SYNTAX_NIS_BOOT_PARAMETER_SYNTAX = "1.3.6.1.1.1.0.1";
+	public static final String SYNTAX_AD_DN_WITH_BINARY_SYNTAX = "1.2.840.113556.1.4.903";
+	public static final String SYNTAX_AD_DN_WITH_STRING_SYNTAX = "1.2.840.113556.1.4.904";
+	public static final String SYNTAX_AD_CASE_IGNORE_STRING_TELETEX_SYNTAX = "1.2.840.113556.1.4.905";
+	public static final String SYNTAX_AD_CASE_IGNORE_STRING_SYNTAX = "1.2.840.113556.1.4.1221";
+	public static final String SYNTAX_AD_INTEGER8_SYNTAX = "1.2.840.113556.1.4.906";
+	public static final String SYNTAX_AD_SECURITY_DESCRIPTOR_SYNTAX = "1.2.840.113556.1.4.907";
 	
 }

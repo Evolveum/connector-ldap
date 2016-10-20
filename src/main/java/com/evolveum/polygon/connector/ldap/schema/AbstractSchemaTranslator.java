@@ -87,6 +87,7 @@ import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
 import com.evolveum.polygon.connector.ldap.ConnectionManager;
 import com.evolveum.polygon.connector.ldap.LdapConfiguration;
 import com.evolveum.polygon.connector.ldap.LdapConnector;
+import com.evolveum.polygon.connector.ldap.LdapConstants;
 import com.evolveum.polygon.connector.ldap.LdapUtil;
 
 /**
@@ -95,21 +96,9 @@ import com.evolveum.polygon.connector.ldap.LdapUtil;
  */
 public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfiguration> {
 	
-	public static final String SYNTAX_AUTH_PASSWORD = "1.3.6.1.4.1.4203.1.1.2";
-	public static final String SYNTAX_SUN_DEFINED_ACCESS_CONTROL_INFORMATION = "1.3.6.1.4.1.26027.1.3.4";
-	public static final String SYNTAX_COLLECTIVE_CONFLICT_BEHAVIOR = "1.3.6.1.4.1.26027.1.3.6";
-	private static final String SYNTAX_NIS_NETGROUP_TRIPLE_SYNTAX = "1.3.6.1.1.1.0.0";
-	private static final String SYNTAX_NIS_BOOT_PARAMETER_SYNTAX = "1.3.6.1.1.1.0.1";
-	private static final String SYNTAX_AD_DN_WITH_BINARY_SYNTAX = "1.2.840.113556.1.4.903";
-	private static final String SYNTAX_AD_DN_WITH_STRING_SYNTAX = "1.2.840.113556.1.4.904";
-	private static final String SYNTAX_AD_CASE_IGNORE_STRING_TELETEX_SYNTAX = "1.2.840.113556.1.4.905";
-	private static final String SYNTAX_AD_CASE_IGNORE_STRING_SYNTAX = "1.2.840.113556.1.4.1221";
-	private static final String SYNTAX_AD_INTEGER8_SYNTAX = "1.2.840.113556.1.4.906";
-	private static final String SYNTAX_AD_SECURITY_DESCRIPTOR_SYNTAX = "1.2.840.113556.1.4.907";
-	
 	private static final Log LOG = Log.getLog(AbstractSchemaTranslator.class);
-	private static final Map<String, TypeSubType> SYNTAX_MAP = new HashMap<>();
 	private static final Collection<String> STRING_ATTRIBUTE_NAMES = new ArrayList<String>();
+	private static final Map<String, TypeSubType> SYNTAX_MAP = new HashMap<>();
 	
 	private SchemaManager schemaManager;
 	private C configuration;
@@ -309,7 +298,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 				LOG.ok("Skipping translation of attribute {0} because it should not be translated", ldapAttribute.getName());
 				continue;
 			}
-			if (ldapAttribute.getName().equals(LdapConfiguration.ATTRIBUTE_OBJECTCLASS_NAME)) {
+			if (ldapAttribute.getName().equals(LdapConstants.ATTRIBUTE_OBJECTCLASS_NAME)) {
 				continue;
 			}
 			if (ldapAttribute.getName().equals(getConfiguration().getUidAttribute())) {
@@ -737,7 +726,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 	
 	protected boolean isLongSyntax(String syntaxOid) {
 		return SchemaConstants.JAVA_LONG_SYNTAX.equals(syntaxOid) ||
-				SYNTAX_AD_INTEGER8_SYNTAX.equals(syntaxOid);
+				LdapConstants.SYNTAX_AD_INTEGER8_SYNTAX.equals(syntaxOid);
 	}
 
 
@@ -987,7 +976,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 
 	private LdapObjectClasses processObjectClasses(Entry entry) {
 		LdapObjectClasses ocs = new LdapObjectClasses();
-		org.apache.directory.api.ldap.model.entry.Attribute objectClassAttribute = entry.get(LdapConfiguration.ATTRIBUTE_OBJECTCLASS_NAME);
+		org.apache.directory.api.ldap.model.entry.Attribute objectClassAttribute = entry.get(LdapConstants.ATTRIBUTE_OBJECTCLASS_NAME);
 		if (objectClassAttribute == null) {
 			throw new InvalidAttributeValueException("No object class attribute in entry "+entry.getDn());
 		}
@@ -1385,17 +1374,17 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		addToSyntaxMap(SchemaConstants.SYNTAX_CHECKER_SYNTAX, String.class);
 		addToSyntaxMap(SchemaConstants.SEARCH_SCOPE_SYNTAX, String.class);
 		addToSyntaxMap(SchemaConstants.DEREF_ALIAS_SYNTAX, String.class);
-		addToSyntaxMap(SYNTAX_AUTH_PASSWORD, String.class);
-		addToSyntaxMap(SYNTAX_COLLECTIVE_CONFLICT_BEHAVIOR, String.class);
-		addToSyntaxMap(SYNTAX_SUN_DEFINED_ACCESS_CONTROL_INFORMATION, String.class);
-		addToSyntaxMap(SYNTAX_NIS_NETGROUP_TRIPLE_SYNTAX, String.class);
-		addToSyntaxMap(SYNTAX_NIS_BOOT_PARAMETER_SYNTAX, String.class);
-		addToSyntaxMap(SYNTAX_AD_CASE_IGNORE_STRING_TELETEX_SYNTAX, String.class, AttributeInfo.Subtypes.STRING_CASE_IGNORE);
-		addToSyntaxMap(SYNTAX_AD_CASE_IGNORE_STRING_SYNTAX, String.class, AttributeInfo.Subtypes.STRING_CASE_IGNORE);
-		addToSyntaxMap(SYNTAX_AD_DN_WITH_STRING_SYNTAX, String.class);
-		addToSyntaxMap(SYNTAX_AD_DN_WITH_BINARY_SYNTAX, String.class);
-		addToSyntaxMap(SYNTAX_AD_INTEGER8_SYNTAX, long.class);
-		addToSyntaxMap(SYNTAX_AD_SECURITY_DESCRIPTOR_SYNTAX, byte[].class);
+		addToSyntaxMap(LdapConstants.SYNTAX_AUTH_PASSWORD, String.class);
+		addToSyntaxMap(LdapConstants.SYNTAX_COLLECTIVE_CONFLICT_BEHAVIOR, String.class);
+		addToSyntaxMap(LdapConstants.SYNTAX_SUN_DEFINED_ACCESS_CONTROL_INFORMATION, String.class);
+		addToSyntaxMap(LdapConstants.SYNTAX_NIS_NETGROUP_TRIPLE_SYNTAX, String.class);
+		addToSyntaxMap(LdapConstants.SYNTAX_NIS_BOOT_PARAMETER_SYNTAX, String.class);
+		addToSyntaxMap(LdapConstants.SYNTAX_AD_CASE_IGNORE_STRING_TELETEX_SYNTAX, String.class, AttributeInfo.Subtypes.STRING_CASE_IGNORE);
+		addToSyntaxMap(LdapConstants.SYNTAX_AD_CASE_IGNORE_STRING_SYNTAX, String.class, AttributeInfo.Subtypes.STRING_CASE_IGNORE);
+		addToSyntaxMap(LdapConstants.SYNTAX_AD_DN_WITH_STRING_SYNTAX, String.class);
+		addToSyntaxMap(LdapConstants.SYNTAX_AD_DN_WITH_BINARY_SYNTAX, String.class);
+		addToSyntaxMap(LdapConstants.SYNTAX_AD_INTEGER8_SYNTAX, long.class);
+		addToSyntaxMap(LdapConstants.SYNTAX_AD_SECURITY_DESCRIPTOR_SYNTAX, byte[].class);
 		
 		// AD strangeness
 		addToSyntaxMap("OctetString", byte[].class);
@@ -1422,8 +1411,8 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		STRING_ATTRIBUTE_NAMES.add("domaincontrollerfunctionality");
 		STRING_ATTRIBUTE_NAMES.add("currenttime");
 		STRING_ATTRIBUTE_NAMES.add("dsservicename");
-		STRING_ATTRIBUTE_NAMES.add(AbstractLdapConfiguration.ATTRIBUTE_389DS_FIRSTCHANGENUMBER.toLowerCase());
-		STRING_ATTRIBUTE_NAMES.add(AbstractLdapConfiguration.ATTRIBUTE_389DS_LASTCHANGENUMBER.toLowerCase());
+		STRING_ATTRIBUTE_NAMES.add(LdapConstants.ATTRIBUTE_389DS_FIRSTCHANGENUMBER.toLowerCase());
+		STRING_ATTRIBUTE_NAMES.add(LdapConstants.ATTRIBUTE_389DS_LASTCHANGENUMBER.toLowerCase());
 		
 	}
 

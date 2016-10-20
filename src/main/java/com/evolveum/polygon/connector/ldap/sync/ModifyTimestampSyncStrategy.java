@@ -69,6 +69,7 @@ import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
 import com.evolveum.polygon.connector.ldap.ConnectionManager;
 import com.evolveum.polygon.connector.ldap.LdapConfiguration;
 import com.evolveum.polygon.connector.ldap.LdapConnector;
+import com.evolveum.polygon.connector.ldap.LdapConstants;
 import com.evolveum.polygon.connector.ldap.LdapUtil;
 import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
 
@@ -115,9 +116,9 @@ public class ModifyTimestampSyncStrategy<C extends AbstractLdapConfiguration> ex
 		}
 		
 		String[] attributesToGet = LdapUtil.getAttributesToGet(ldapObjectClass, options, 
-				getSchemaTranslator(), AbstractLdapConfiguration.ATTRIBUTE_MODIFYTIMESTAMP_NAME, 
-				AbstractLdapConfiguration.ATTRIBUTE_CREATETIMESTAMP_NAME, AbstractLdapConfiguration.ATTRIBUTE_MODIFIERSNAME_NAME, 
-				AbstractLdapConfiguration.ATTRIBUTE_CREATORSNAME_NAME);
+				getSchemaTranslator(), LdapConstants.ATTRIBUTE_MODIFYTIMESTAMP_NAME, 
+				LdapConstants.ATTRIBUTE_CREATETIMESTAMP_NAME, LdapConstants.ATTRIBUTE_MODIFIERSNAME_NAME, 
+				LdapConstants.ATTRIBUTE_CREATORSNAME_NAME);
 		
 		String baseContext = getConfiguration().getBaseContext();
 		if (LOG.isOk()) {
@@ -180,11 +181,11 @@ public class ModifyTimestampSyncStrategy<C extends AbstractLdapConfiguration> ex
 		Value<String> ldapValue = new StringValue(fromTokenValue);
 		ExprNode filterNode =
 				new OrNode(
-						new GreaterEqNode<String>(AbstractLdapConfiguration.ATTRIBUTE_MODIFYTIMESTAMP_NAME, ldapValue),
-						new GreaterEqNode<String>(AbstractLdapConfiguration.ATTRIBUTE_CREATETIMESTAMP_NAME, ldapValue)
+						new GreaterEqNode<String>(LdapConstants.ATTRIBUTE_MODIFYTIMESTAMP_NAME, ldapValue),
+						new GreaterEqNode<String>(LdapConstants.ATTRIBUTE_CREATETIMESTAMP_NAME, ldapValue)
 				);
 		if (ldapObjectClass != null) {
-			filterNode = new AndNode(new EqualityNode<String>(AbstractLdapConfiguration.ATTRIBUTE_OBJECTCLASS_NAME, 
+			filterNode = new AndNode(new EqualityNode<String>(LdapConstants.ATTRIBUTE_OBJECTCLASS_NAME, 
 					new StringValue(ldapObjectClass.getName())), filterNode);
 		}
 		return filterNode.toString();

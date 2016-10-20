@@ -58,7 +58,11 @@ import org.apache.directory.api.ldap.model.message.SearchResultEntry;
 import org.apache.directory.api.ldap.model.message.SearchScope;
 import org.apache.directory.api.ldap.model.message.controls.PagedResults;
 import org.apache.directory.api.ldap.model.name.Dn;
+import org.apache.directory.api.ldap.model.name.Rdn;
 import org.apache.directory.api.ldap.model.schema.AttributeType;
+import org.apache.directory.api.ldap.model.schema.LdapSyntax;
+import org.apache.directory.api.ldap.model.schema.MatchingRule;
+import org.apache.directory.api.ldap.model.schema.Normalizer;
 import org.apache.directory.api.ldap.model.schema.SchemaManager;
 import org.apache.directory.api.ldap.model.url.LdapUrl;
 import org.apache.directory.api.ldap.schema.manager.impl.DefaultSchemaManager;
@@ -179,10 +183,71 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 	}
     
     protected void extraTests() {
+    	
+    	analyzeAttrDef("dc");
+    	
+    	analyzeDn("CN=foo bar,OU=people,DC=EXamPLE,dc=CoM");
+    	analyzeDn(configuration.getBaseContext());
+    	analyzeDn(configuration.getBindDn());
+    	
     	testAncestor("dc=example,dc=com", "uid=foo,ou=people,dc=example,dc=com", true);
     	testAncestor("uid=foo,ou=people,dc=example,dc=com", "dc=example,dc=com", false);
+    	testAncestor("dc=example,dc=com", "dc=example,dc=com", true);
+    	testAncestor("dc=example,dc=com", "CN=foo bar,OU=people,DC=example,DC=com", true);
+    	// TODO: This fails for LDAP servers (MID-3477)
+    	testAncestor("dc=example,dc=com", "CN=foo bar,OU=people,DC=EXamPLE,DC=COM", true);
+    	testAncestor("DC=example,DC=com", "cn=foo bar,ou=people,dc=example,dc=com", true);
+    	testAncestor("DC=exAMple,DC=com", "CN=foo bar,OU=people,DC=EXamPLE,dc=COM", true);
+	    testAncestor("DC=badEXAMPLE,DC=com", "CN=foo bar,OU=people,DC=EXamPLE,dc=COM", false);
+	    testAncestor("DC=badexample,DC=com", "CN=foo bar,OU=people,DC=example,dc=com", false);
+	    testAncestor("dc=badexample,dc=com", "cn=foo bar,ou=people,dc=example,dc=com", false);
     }
     
+	private void analyzeAttrDef(String attrName) {
+		AttributeType attributeType = getSchemaManager().getAttributeType(attrName);
+		LOG.ok("Definition of LDAP attribute {0}: {1}", attrName, attributeType);
+		if (attributeType != null) {
+			MatchingRule equality = attributeType.getEquality();
+			LOG.ok("Equality matching rule {0}", equality);
+			if (equality != null) {
+				Normalizer normalizer = equality.getNormalizer();
+				LOG.ok("Equality normalizer ({0}): {1}", normalizer==null?null:normalizer.getClass(), normalizer);
+				if (normalizer != null) {
+					String in = " tHiS is REALLY stRAngE  ";
+					try {
+						LOG.ok("Normalized ''{0}'' -> ''{1}''", in, normalizer.normalize(in));
+					} catch (LdapException e) {
+						LOG.error("Normalized error (input: '"+in+"': "+e.getMessage(), e);
+					}
+				}
+			}
+			
+			LdapSyntax syntax = attributeType.getSyntax();
+			LOG.ok("Syntax {0}", syntax);
+			if (syntax != null) {
+				LOG.ok("Syntax checker {0}", syntax.getSyntaxChecker());
+			}
+		}
+	}
+
+	private void analyzeDn(String stringDn) {
+		if (stringDn == null) {
+			return;
+		}
+    	Dn dn = asDn(getSchemaManager(), stringDn);
+    	LOG.ok("Parsed DN {0}: {1}", stringDn, dn);
+    	List<Rdn> rdns = dn.getRdns();
+    	LOG.ok("Parsed RDNs: {0}", rdns);
+    	Rdn lastRdn = rdns.get(rdns.size()-1);
+    	LOG.ok("Last RDN: {0}", lastRdn);
+    	LOG.ok("Last RDN AVA: {0}", lastRdn.getAva());
+    	LOG.ok("Last RDN AVA name: {0}", lastRdn.getAva().getName());
+    	LOG.ok("Last RDN AVA norm name: {0}", lastRdn.getAva().getNormName());
+    	LOG.ok("Last RDN AVA type: {0}", lastRdn.getAva().getType());
+    	LOG.ok("Last RDN AVA attributeType: {0}", lastRdn.getAva().getAttributeType());
+    	LOG.ok("Last RDN norm value: {0}", lastRdn.getNormValue());
+	}
+
 	protected void testAncestor(String upper, String lower, boolean expectedMatch) {
     	Dn upperDn = asDn(upper);
     	Dn lowerDn = asDn(lower);
@@ -211,10 +276,18 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 	    	LOG.ok("Extra test: {0}", msg);
     	}
 	}
-	
+		
 	private Dn asDn(String stringDn) {
 		try {
 			return new Dn(stringDn);
+		} catch (LdapInvalidDnException e) {
+			throw new ConnectorException("Cannot parse '"+stringDn+" as DN: "+e.getMessage(), e);
+		}
+	}
+	
+	private Dn asDn(SchemaManager schemaManager, String stringDn) {
+		try {
+			return new Dn(schemaManager, stringDn);
 		} catch (LdapInvalidDnException e) {
 			throw new ConnectorException("Cannot parse '"+stringDn+" as DN: "+e.getMessage(), e);
 		}
@@ -267,11 +340,16 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			} catch (Exception e) {
 				throw new RuntimeException(e.getMessage(),e);
 			}
+    		patchSchemaManager(schemaManager);
     	}
     	return schemaManager;
     }
     
-    protected boolean isLogSchemaErrors() {
+    protected void patchSchemaManager(SchemaManager schemaManager) {
+		// Nothing to do here. But useful in subclasses.
+	}
+
+	protected boolean isLogSchemaErrors() {
 		return true;
 	}
 
@@ -954,7 +1032,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 						stringValues[i] = (String)val;
 						i++;
 					}
-					modifications.add(new DefaultModification(modOp, LdapConfiguration.ATTRIBUTE_OBJECTCLASS_NAME, stringValues));
+					modifications.add(new DefaultModification(modOp, LdapConstants.ATTRIBUTE_OBJECTCLASS_NAME, stringValues));
 				} else {
 					String[] stringValues = new String[icfAttr.getValue().size()];
 					int i = 0;
@@ -962,7 +1040,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 						stringValues[i] = (String)val;
 						i++;
 					}
-					modifications.add(new DefaultModification(modOp, LdapConfiguration.ATTRIBUTE_OBJECTCLASS_NAME, stringValues));
+					modifications.add(new DefaultModification(modOp, LdapConstants.ATTRIBUTE_OBJECTCLASS_NAME, stringValues));
 				}
 			} else {
 				addAttributeModification(dn, modifications, ldapStructuralObjectClass, icfObjectClass, icfAttr, modOp);

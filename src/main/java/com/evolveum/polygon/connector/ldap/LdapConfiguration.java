@@ -52,7 +52,7 @@ public class LdapConfiguration extends AbstractLdapConfiguration {
 	@Override
 	public void recompute() {
 		if (getUidAttribute() == null) {
-			setUidAttribute(ATTRIBUTE_ENTRYUUID_NAME);
+			setUidAttribute(LdapConstants.ATTRIBUTE_ENTRYUUID_NAME);
 		}
 		super.recompute();
 	}
