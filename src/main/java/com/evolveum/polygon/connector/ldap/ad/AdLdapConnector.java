@@ -550,22 +550,25 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 			List<Modification> modifications) {
 		super.postUpdate(icfObjectClass, uid, values, options, modOp, dn, ldapStructuralObjectClass, modifications);
 		
-		//if password is in modifications set pwdLastSet=0 ("must change password at next logon")
-		if (getSchemaTranslator().isUserObjectClass(ldapStructuralObjectClass.getName())) {
-			for (Attribute icfAttr: values) {
-				
-				// coming from midpoint password is __PASSWORD__
-				// TODO: should we additionally ask for  icfAttr.getName().equals(getConfiguration().getPasswordAttribute()?
-				if (OperationalAttributeInfos.PASSWORD.is(icfAttr.getName())){
-					
-						List<Modification> modificationsPwdLastSet = new ArrayList<Modification>();	
-						Attribute attrPwdLastSet =AttributeBuilder.build("pwdLastSet", "0");					
-						addAttributeModification(dn, modificationsPwdLastSet, ldapStructuralObjectClass, icfObjectClass, attrPwdLastSet, ModificationOperation.REPLACE_ATTRIBUTE);
-						modify(dn, modificationsPwdLastSet);
-						break;
-					}
-			}
+		if (getConfiguration().isForcePasswordChangeAtNextLogon()) {
 			
+			//if password is in modifications set pwdLastSet=0 ("must change password at next logon")
+			if (getSchemaTranslator().isUserObjectClass(ldapStructuralObjectClass.getName())) {
+				for (Attribute icfAttr: values) {
+					
+					// coming from midpoint password is __PASSWORD__
+					// TODO: should we additionally ask for  icfAttr.getName().equals(getConfiguration().getPasswordAttribute()?
+					if (OperationalAttributeInfos.PASSWORD.is(icfAttr.getName())){
+						
+							List<Modification> modificationsPwdLastSet = new ArrayList<Modification>();	
+							Attribute attrPwdLastSet = AttributeBuilder.build(AdConstants.ATTRIBUTE_PWD_LAST_SET_NAME, "0");					
+							addAttributeModification(dn, modificationsPwdLastSet, ldapStructuralObjectClass, icfObjectClass, attrPwdLastSet, ModificationOperation.REPLACE_ATTRIBUTE);
+							modify(dn, modificationsPwdLastSet);
+							break;
+						}
+				}
+				
+			}
 		}
 	}
 

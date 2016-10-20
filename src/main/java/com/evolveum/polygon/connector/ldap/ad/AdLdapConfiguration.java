@@ -112,6 +112,13 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
     private boolean tweakSchema = true;
     
     /**
+     * If set to true then the connector will force password change at next log-on
+     * every time when the password is changed. If set to false (default) the password
+     * change at next log-on will not be forced. 
+     */
+    private boolean forcePasswordChangeAtNextLogon = false;
+    
+    /**
      * Hostname of the WinRM server. If not set the ordinary host will be used.
      */
     private String winRmHost = null;
@@ -217,8 +224,17 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 	public void setTweakSchema(boolean tweakSchema) {
 		this.tweakSchema = tweakSchema;
 	}
-
+	
 	@ConfigurationProperty(order = 108)
+	public boolean isForcePasswordChangeAtNextLogon() {
+		return forcePasswordChangeAtNextLogon;
+	}
+
+	public void setForcePasswordChangeAtNextLogon(boolean forcePasswordChangeAtNextLogon) {
+		this.forcePasswordChangeAtNextLogon = forcePasswordChangeAtNextLogon;
+	}
+
+	@ConfigurationProperty(order = 109)
 	public String getWinRmHost() {
 		return winRmHost;
 	}
@@ -227,7 +243,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.winRmHost = winRmHost;
 	}
 
-	@ConfigurationProperty(order = 109)
+	@ConfigurationProperty(order = 110)
 	public String getWinRmUsername() {
 		return winRmUsername;
 	}
@@ -236,7 +252,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.winRmUsername = winRmUsername;
 	}
 
-	@ConfigurationProperty(order = 110)
+	@ConfigurationProperty(order = 111)
 	public GuardedString getWinRmPassword() {
 		return winRmPassword;
 	}
@@ -245,7 +261,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.winRmPassword = winRmPassword;
 	}
 
-	@ConfigurationProperty(order = 111)
+	@ConfigurationProperty(order = 112)
 	public int getWinRmPort() {
 		return winRmPort;
 	}
@@ -254,7 +270,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.winRmPort = winRmPort;
 	}
 
-	@ConfigurationProperty(order = 112)
+	@ConfigurationProperty(order = 113)
 	public boolean isWinRmUseHttps() {
 		return winRmUseHttps;
 	}
@@ -263,7 +279,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.winRmUseHttps = winRmUseHttps;
 	}
 
-	@ConfigurationProperty(order = 113)
+	@ConfigurationProperty(order = 114)
 	public String getPowershellArgumentStyle() {
 		return powershellArgumentStyle;
 	}
