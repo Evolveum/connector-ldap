@@ -156,6 +156,25 @@ public class EDirectoryLdapConnector extends AbstractLdapConnector<EDirectoryLda
 		if (getSchemaTranslator().isGroupObjectClass(ldapStructuralObjectClass.getName())) {
 			for (Attribute icfAttr: values) {
 				if (icfAttr.is(getConfiguration().getGroupObjectMemberAttribute())) {
+				// this is for group of users; "members"
+					for (Object val: icfAttr.getValue()) {
+						Dn memberDn = getSchemaTranslator().toDn((String)val);
+						List<Modification> rModifications = new ArrayList<Modification>(2);
+						rModifications.add(
+								new DefaultModification(modOp, EDirectoryConstants.ATTRIBUTE_GROUP_MEMBERSHIP_NAME, 
+										dn.toString()));
+						// No need to update securityEquals. eDirectory is doing that by itself
+						// (the question is why it cannot do also to the groupMemberhip?)
+//						if (getConfiguration().isManageEquivalenceAttributes()) {
+//							rModifications.add(
+//									new DefaultModification(modOp, EDirectoryConstants.ATTRIBUTE_SECURITY_EQUALS_NAME, 
+//											dn));
+//						}
+						modify(memberDn, rModifications);
+					}
+				}
+				if (icfAttr.is(getConfiguration().getGroupObjectGroupMemberAttribute())) {
+				// this is for group of groups (nested); "groupMember"
 					for (Object val: icfAttr.getValue()) {
 						Dn memberDn = getSchemaTranslator().toDn((String)val);
 						List<Modification> rModifications = new ArrayList<Modification>(2);

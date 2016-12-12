@@ -35,6 +35,8 @@ public class EDirectoryLdapConfiguration extends AbstractLdapConfiguration {
     private String groupObjectClass = "groupOfNames";
     
     private String groupObjectMemberAttribute = "member";
+
+    private String groupObjectGroupMemberAttribute = "groupMember";
     
     private boolean manageReciprocalGroupAttributes = true;
     
@@ -83,6 +85,15 @@ public class EDirectoryLdapConfiguration extends AbstractLdapConfiguration {
 
 	public void setManageEquivalenceAttributes(boolean manageEquivalenceAttributes) {
 		this.manageEquivalenceAttributes = manageEquivalenceAttributes;
+	}
+
+	@ConfigurationProperty(order = 105)
+	public String getGroupObjectGroupMemberAttribute() {
+		return groupObjectGroupMemberAttribute;
+	}
+
+	public void setGroupObjectGroupMemberAttribute(String groupObjectGroupMemberAttribute) {
+		this.groupObjectGroupMemberAttribute = groupObjectGroupMemberAttribute;
 	}
 
 	@Override
