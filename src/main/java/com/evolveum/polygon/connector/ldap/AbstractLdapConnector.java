@@ -552,7 +552,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		Filter rightSubfilter = ((OrFilter)icfFilter).getRight();
 		EqualsFilter dnSubfilter;
 		Filter otherSubfilter;
-		if ((leftSubfilter instanceof EqualsFilter) && Uid.NAME.equals(((EqualsFilter)leftSubfilter).getName())) {
+		if ((leftSubfilter instanceof EqualsFilter) && Name.NAME.equals(((EqualsFilter)leftSubfilter).getName())) {
 			dnSubfilter = (EqualsFilter) leftSubfilter;
 			otherSubfilter = rightSubfilter;
 		} else {
