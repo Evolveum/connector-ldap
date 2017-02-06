@@ -507,9 +507,19 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		SearchStrategy<C> searchStrategy = getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
 		String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
 		try {
+			
 			searchStrategy.search(dn, null, SearchScope.OBJECT, attributesToGet);
+			
+		} catch (UnknownUidException e) {
+			// This is not really an error. This means that the object does not exist. But in this
+			// case we are supposed to return nothing. We are NOT supposed to throw an error.
+			// So our job id done. We already returned nothing. And we will just ignore the
+			// exception.
+			return searchStrategy;
+			
 		} catch (LdapException e) {
 			throw LdapUtil.processLdapException("Error searching for DN '"+dn+"'", e);
+			
 		}
 		return searchStrategy;
 	}
