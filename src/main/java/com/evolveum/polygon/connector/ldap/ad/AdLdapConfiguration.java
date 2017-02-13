@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2016 Evolveum
+ * Copyright (c) 2015-2017 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -134,6 +134,17 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
     private GuardedString winRmPassword = null;
     
     /**
+     * WinRM authentication scheme.
+     * Possible values: "basic", "ntlm", "credssp".
+     * Default value: "ntlm"
+     */
+    private String winRmAuthenticationScheme = null;
+    
+    public static final String WINDOWS_AUTHENTICATION_SCHEME_BASIC = "basic";
+    public static final String WINDOWS_AUTHENTICATION_SCHEME_NTLM = "ntlm";
+    public static final String WINDOWS_AUTHENTICATION_SCHEME_CREDSSP = "credssp";
+    
+    /**
      * Port number of the WinRM service.
      */
     private int winRmPort = 5985;
@@ -260,8 +271,17 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 	public void setWinRmPassword(GuardedString winRmPassword) {
 		this.winRmPassword = winRmPassword;
 	}
-
+	
 	@ConfigurationProperty(order = 112)
+	public String getWinRmAuthenticationScheme() {
+		return winRmAuthenticationScheme;
+	}
+
+	public void setWinRmAuthenticationScheme(String winRmAuthenticationScheme) {
+		this.winRmAuthenticationScheme = winRmAuthenticationScheme;
+	}
+
+	@ConfigurationProperty(order = 113)
 	public int getWinRmPort() {
 		return winRmPort;
 	}
@@ -270,7 +290,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.winRmPort = winRmPort;
 	}
 
-	@ConfigurationProperty(order = 113)
+	@ConfigurationProperty(order = 114)
 	public boolean isWinRmUseHttps() {
 		return winRmUseHttps;
 	}
@@ -279,7 +299,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.winRmUseHttps = winRmUseHttps;
 	}
 
-	@ConfigurationProperty(order = 114)
+	@ConfigurationProperty(order = 115)
 	public String getPowershellArgumentStyle() {
 		return powershellArgumentStyle;
 	}

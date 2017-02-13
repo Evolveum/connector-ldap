@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2016 Evolveum
+ * Copyright (c) 2015-2017 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -52,6 +52,7 @@ import org.apache.directory.ldap.client.api.LdapNetworkConnection;
 import org.apache.http.client.config.AuthSchemes;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.common.security.GuardedString;
+import org.identityconnectors.framework.common.exceptions.ConfigurationException;
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
 import org.identityconnectors.framework.common.exceptions.UnknownUidException;
 import org.identityconnectors.framework.common.objects.Attribute;
@@ -396,7 +397,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 		winRmHost = getWinRmHost();
 		WinRmTool.Builder builder = WinRmTool.Builder.builder(winRmHost, 
 				winRmUsername, getWinRmPassword());
-		builder.setAuthenticationScheme(AuthSchemes.NTLM);
+		builder.setAuthenticationScheme(getAuthenticationScheme());
 		builder.port(getConfiguration().getWinRmPort());
 		builder.useHttps(getConfiguration().isWinRmUseHttps());
 		// No suffix matcher here. The suffix matcher is problematic. E.g. it will
@@ -404,6 +405,22 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 		HostnameVerifier hostnameVerifier = new DefaultHostnameVerifier(null);
 		builder.hostnameVerifier(hostnameVerifier);
 		winRmTool =  builder.build();
+	}
+
+	private String getAuthenticationScheme() {
+		if (getConfiguration().getWinRmAuthenticationScheme() == null) {
+			return AuthSchemes.NTLM;
+		}
+		if (AdLdapConfiguration.WINDOWS_AUTHENTICATION_SCHEME_BASIC.equals(getConfiguration().getWinRmAuthenticationScheme())) {
+			return AuthSchemes.BASIC;
+		}
+		if (AdLdapConfiguration.WINDOWS_AUTHENTICATION_SCHEME_NTLM.equals(getConfiguration().getWinRmAuthenticationScheme())) {
+			return AuthSchemes.NTLM;
+		}
+		if (AdLdapConfiguration.WINDOWS_AUTHENTICATION_SCHEME_CREDSSP.equals(getConfiguration().getWinRmAuthenticationScheme())) {
+			return AuthSchemes.CREDSSP;
+		}
+		throw new ConfigurationException("Unknown authentication scheme: "+getConfiguration().getWinRmAuthenticationScheme());
 	}
 
 	private void disposeWinRm() {
