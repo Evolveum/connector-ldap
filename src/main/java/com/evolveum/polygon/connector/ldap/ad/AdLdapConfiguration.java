@@ -18,6 +18,7 @@ package com.evolveum.polygon.connector.ldap.ad;
 
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.common.security.GuardedString;
+import org.identityconnectors.framework.common.exceptions.ConfigurationException;
 import org.identityconnectors.framework.spi.ConfigurationProperty;
 
 import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
@@ -127,6 +128,11 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
      * Username used for WinRM authentication. If not set the bind DN will be used.
      */
     private String winRmUsername = null;
+    
+    /**
+     * Domain name used for WinRM authentication.
+     */
+    private String winRmDomain = null;
     
     /**
      * Password used for WinRM authentication. If not set the bind password will be used.
@@ -262,6 +268,15 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 	public void setWinRmUsername(String winRmUsername) {
 		this.winRmUsername = winRmUsername;
 	}
+	
+	@ConfigurationProperty(order = 111)
+	public String getWinRmDomain() {
+		return winRmDomain;
+	}
+
+	public void setWinRmDomain(String winRmDomain) {
+		this.winRmDomain = winRmDomain;
+	}
 
 	@ConfigurationProperty(order = 111)
 	public GuardedString getWinRmPassword() {
@@ -339,6 +354,10 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 			String configLine = "host=" + gcHost +"; port=" + gcPort;
 			LOG.ok("Automatically determined global catalog configuration: {0}", configLine);
 			globalCatalogServers = new String[] { configLine };
+		}
+		if (WINDOWS_AUTHENTICATION_SCHEME_CREDSSP.equals(winRmAuthenticationScheme) &&
+				winRmDomain == null) {
+			throw new ConfigurationException("Domain name is required if CredSSP is used");
 		}
 		super.recompute();
 	}

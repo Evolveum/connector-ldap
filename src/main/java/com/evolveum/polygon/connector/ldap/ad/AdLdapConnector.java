@@ -395,8 +395,9 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 		initBus();
 		winRmUsername = getWinRmUsername();
 		winRmHost = getWinRmHost();
+		String winRmDomain = getConfiguration().getWinRmDomain();
 		WinRmTool.Builder builder = WinRmTool.Builder.builder(winRmHost, 
-				winRmUsername, getWinRmPassword());
+				winRmDomain, winRmUsername, getWinRmPassword());
 		builder.setAuthenticationScheme(getAuthenticationScheme());
 		builder.port(getConfiguration().getWinRmPort());
 		builder.useHttps(getConfiguration().isWinRmUseHttps());
