@@ -630,12 +630,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		}
 		if (ldapAttributeType == null) {
 			// We have no definition for this attribute. Assume string.
-			try {
-				return (Value)new StringValue(ldapAttributeType, icfAttributeValue.toString());
-			} catch (LdapInvalidAttributeValueException e) {
-				throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
-						+"; attributeType="+ldapAttributeType, e);
-			}
+			return (Value)new StringValue(icfAttributeValue);
 		}
 		
 		String syntaxOid = ldapAttributeType.getSyntaxOid();
