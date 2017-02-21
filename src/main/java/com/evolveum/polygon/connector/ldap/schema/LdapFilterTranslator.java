@@ -54,7 +54,6 @@ import org.identityconnectors.framework.common.objects.filter.StartsWithFilter;
 import com.evolveum.polygon.common.SchemaUtil;
 import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
 import com.evolveum.polygon.connector.ldap.LdapConstants;
-import com.evolveum.polygon.connector.ldap.LdapUtil;
 
 /**
  * @author Radovan Semancik

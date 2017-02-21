@@ -15,25 +15,10 @@
  */
 package com.evolveum.polygon.connector.ldap.ad;
 
-import java.util.List;
-
-import org.apache.directory.api.ldap.model.entry.StringValue;
-import org.apache.directory.api.ldap.model.filter.AndNode;
-import org.apache.directory.api.ldap.model.filter.EqualityNode;
-import org.apache.directory.api.ldap.model.filter.ExprNode;
-import org.apache.directory.api.ldap.model.filter.GreaterEqNode;
-import org.apache.directory.api.ldap.model.filter.LessEqNode;
-import org.apache.directory.api.ldap.model.filter.NotNode;
 import org.apache.directory.api.ldap.model.schema.ObjectClass;
-import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException;
-import org.identityconnectors.framework.common.objects.OperationalAttributes;
-import org.identityconnectors.framework.common.objects.filter.EqualsFilter;
 
-import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
-import com.evolveum.polygon.connector.ldap.LdapUtil;
 import com.evolveum.polygon.connector.ldap.schema.LdapFilterTranslator;
 import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
-import com.evolveum.polygon.connector.ldap.schema.ScopedFilter;
 
 /**
  * @author semancik

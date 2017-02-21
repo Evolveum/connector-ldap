@@ -15,8 +15,6 @@
  */
 package com.evolveum.polygon.connector.ldap.ad;
 
-import java.io.IOException;
-
 import org.apache.directory.api.ldap.model.cursor.CursorException;
 import org.apache.directory.api.ldap.model.cursor.EntryCursor;
 import org.apache.directory.api.ldap.model.entry.Attribute;
