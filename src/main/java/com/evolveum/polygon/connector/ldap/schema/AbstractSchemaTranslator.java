@@ -290,7 +290,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 				LOG.ok("Skipping translation of attribute {0} because it should not be translated", ldapAttribute.getName());
 				continue;
 			}
-			if (ldapAttribute.getName().equals(LdapConstants.ATTRIBUTE_OBJECTCLASS_NAME)) {
+			if (ldapAttribute.getName().equals(SchemaConstants.OBJECT_CLASS_AT)) {
 				continue;
 			}
 			if (ldapAttribute.getName().equals(getConfiguration().getUidAttribute())) {
@@ -968,7 +968,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 
 	private LdapObjectClasses processObjectClasses(Entry entry) {
 		LdapObjectClasses ocs = new LdapObjectClasses();
-		org.apache.directory.api.ldap.model.entry.Attribute objectClassAttribute = entry.get(LdapConstants.ATTRIBUTE_OBJECTCLASS_NAME);
+		org.apache.directory.api.ldap.model.entry.Attribute objectClassAttribute = entry.get(SchemaConstants.OBJECT_CLASS_AT);
 		if (objectClassAttribute == null) {
 			throw new InvalidAttributeValueException("No object class attribute in entry "+entry.getDn());
 		}

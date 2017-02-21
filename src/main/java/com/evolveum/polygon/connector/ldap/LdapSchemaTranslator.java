@@ -17,6 +17,7 @@ package com.evolveum.polygon.connector.ldap;
 
 import java.util.Arrays;
 
+import org.apache.directory.api.ldap.model.constants.SchemaConstants;
 import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.schema.SchemaManager;
 import org.identityconnectors.common.logging.Log;
@@ -62,7 +63,7 @@ public class LdapSchemaTranslator extends AbstractSchemaTranslator<LdapConfigura
 				String[] schemaOperationalAttributes = super.getOperationalAttributes();
 				computedOperationalAttributes = new String[schemaOperationalAttributes.length + 1];
 				computedOperationalAttributes = Arrays.copyOf(schemaOperationalAttributes, schemaOperationalAttributes.length + 1);
-				computedOperationalAttributes[schemaOperationalAttributes.length] = LdapConstants.ATTRIBUTE_OPENLDAP_PWD_ACCOUNT_LOCKED_TIME_NAME;
+				computedOperationalAttributes[schemaOperationalAttributes.length] = SchemaConstants.PWD_ACCOUNT_LOCKED_TIME_AT;
 			} else {
 				computedOperationalAttributes = super.getOperationalAttributes();
 			}
@@ -75,7 +76,7 @@ public class LdapSchemaTranslator extends AbstractSchemaTranslator<LdapConfigura
 		super.extendConnectorObject(cob, entry, objectClassName);
 		
 		if (LdapConfiguration.LOCKOUT_STRATEGY_OPENLDAP.equals(getConfiguration().getLockoutStrategy())) {
-			Long pwdAccountLockedTime = LdapUtil.getTimestampAttribute(entry, LdapConstants.ATTRIBUTE_OPENLDAP_PWD_ACCOUNT_LOCKED_TIME_NAME);
+			Long pwdAccountLockedTime = LdapUtil.getTimestampAttribute(entry, SchemaConstants.PWD_ACCOUNT_LOCKED_TIME_AT);
 			if (pwdAccountLockedTime != null) {
 				// WARNING: this is not exact. The lock might have already expired. But we do not have
 				// any good way to check that without access to cn=config

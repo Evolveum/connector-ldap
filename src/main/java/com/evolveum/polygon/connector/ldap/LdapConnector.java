@@ -18,6 +18,7 @@ package com.evolveum.polygon.connector.ldap;
 
 import java.util.List;
 
+import org.apache.directory.api.ldap.model.constants.SchemaConstants;
 import org.apache.directory.api.ldap.model.entry.DefaultModification;
 import org.apache.directory.api.ldap.model.entry.Modification;
 import org.apache.directory.api.ldap.model.entry.ModificationOperation;
@@ -57,7 +58,7 @@ public class LdapConnector extends AbstractLdapConnector<LdapConfiguration> {
 				throw new UnsupportedOperationException("Locking object is not supported (only unlocking is)");
 			}
 			modifications.add(
-					new DefaultModification(modOp, LdapConstants.ATTRIBUTE_OPENLDAP_PWD_ACCOUNT_LOCKED_TIME_NAME)); // no value
+					new DefaultModification(modOp, SchemaConstants.PWD_ACCOUNT_LOCKED_TIME_AT)); // no value
 			
 		} else {
 			super.addAttributeModification(dn, modifications, ldapStructuralObjectClass, icfObjectClass, icfAttr, modOp);

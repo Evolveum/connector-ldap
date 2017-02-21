@@ -26,6 +26,7 @@ import org.apache.commons.lang.ArrayUtils;
 import org.apache.directory.api.ldap.extras.controls.permissiveModify.PermissiveModify;
 import org.apache.directory.api.ldap.extras.controls.permissiveModify.PermissiveModifyImpl;
 import org.apache.directory.api.ldap.extras.controls.vlv.VirtualListViewRequest;
+import org.apache.directory.api.ldap.model.constants.SchemaConstants;
 import org.apache.directory.api.ldap.model.cursor.CursorException;
 import org.apache.directory.api.ldap.model.cursor.CursorLdapReferralException;
 import org.apache.directory.api.ldap.model.cursor.SearchCursor;
@@ -1041,7 +1042,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 						stringValues[i] = (String)val;
 						i++;
 					}
-					modifications.add(new DefaultModification(modOp, LdapConstants.ATTRIBUTE_OBJECTCLASS_NAME, stringValues));
+					modifications.add(new DefaultModification(modOp, SchemaConstants.OBJECT_CLASS_AT, stringValues));
 				} else {
 					String[] stringValues = new String[icfAttr.getValue().size()];
 					int i = 0;
@@ -1049,7 +1050,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 						stringValues[i] = (String)val;
 						i++;
 					}
-					modifications.add(new DefaultModification(modOp, LdapConstants.ATTRIBUTE_OBJECTCLASS_NAME, stringValues));
+					modifications.add(new DefaultModification(modOp, SchemaConstants.OBJECT_CLASS_AT, stringValues));
 				}
 			} else {
 				addAttributeModification(dn, modifications, ldapStructuralObjectClass, icfObjectClass, icfAttr, modOp);

@@ -18,6 +18,7 @@ package com.evolveum.polygon.connector.ldap.sync;
 import java.util.Arrays;
 import java.util.Calendar;
 
+import org.apache.directory.api.ldap.model.constants.SchemaConstants;
 import org.apache.directory.api.ldap.model.cursor.CursorException;
 import org.apache.directory.api.ldap.model.cursor.EntryCursor;
 import org.apache.directory.api.ldap.model.entry.Entry;
@@ -48,7 +49,6 @@ import org.identityconnectors.framework.spi.SyncTokenResultsHandler;
 
 import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
 import com.evolveum.polygon.connector.ldap.ConnectionManager;
-import com.evolveum.polygon.connector.ldap.LdapConstants;
 import com.evolveum.polygon.connector.ldap.LdapUtil;
 import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
 
@@ -95,9 +95,9 @@ public class ModifyTimestampSyncStrategy<C extends AbstractLdapConfiguration> ex
 		}
 		
 		String[] attributesToGet = LdapUtil.getAttributesToGet(ldapObjectClass, options, 
-				getSchemaTranslator(), LdapConstants.ATTRIBUTE_MODIFYTIMESTAMP_NAME, 
-				LdapConstants.ATTRIBUTE_CREATETIMESTAMP_NAME, LdapConstants.ATTRIBUTE_MODIFIERSNAME_NAME, 
-				LdapConstants.ATTRIBUTE_CREATORSNAME_NAME);
+				getSchemaTranslator(), SchemaConstants.MODIFY_TIMESTAMP_AT, 
+				SchemaConstants.CREATE_TIMESTAMP_AT, SchemaConstants.MODIFIERS_NAME_AT, 
+				SchemaConstants.CREATORS_NAME_AT);
 		
 		String baseContext = getConfiguration().getBaseContext();
 		if (LOG.isOk()) {
@@ -160,11 +160,11 @@ public class ModifyTimestampSyncStrategy<C extends AbstractLdapConfiguration> ex
 		Value<String> ldapValue = new StringValue(fromTokenValue);
 		ExprNode filterNode =
 				new OrNode(
-						new GreaterEqNode<String>(LdapConstants.ATTRIBUTE_MODIFYTIMESTAMP_NAME, ldapValue),
-						new GreaterEqNode<String>(LdapConstants.ATTRIBUTE_CREATETIMESTAMP_NAME, ldapValue)
+						new GreaterEqNode<String>(SchemaConstants.MODIFY_TIMESTAMP_AT, ldapValue),
+						new GreaterEqNode<String>(SchemaConstants.CREATE_TIMESTAMP_AT, ldapValue)
 				);
 		if (ldapObjectClass != null) {
-			filterNode = new AndNode(new EqualityNode<String>(LdapConstants.ATTRIBUTE_OBJECTCLASS_NAME, 
+			filterNode = new AndNode(new EqualityNode<String>(SchemaConstants.OBJECT_CLASS_AT, 
 					new StringValue(ldapObjectClass.getName())), filterNode);
 		}
 		return filterNode.toString();

@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
+import org.apache.directory.api.ldap.model.constants.SchemaConstants;
 import org.apache.directory.api.ldap.model.entry.StringValue;
 import org.apache.directory.api.ldap.model.entry.Value;
 import org.apache.directory.api.ldap.model.filter.AndNode;
@@ -53,7 +54,6 @@ import org.identityconnectors.framework.common.objects.filter.StartsWithFilter;
 
 import com.evolveum.polygon.common.SchemaUtil;
 import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
-import com.evolveum.polygon.connector.ldap.LdapConstants;
 
 /**
  * @author Radovan Semancik
@@ -93,7 +93,7 @@ public class LdapFilterTranslator<C extends AbstractLdapConfiguration> {
 	
 	private EqualityNode<String> createObjectClassEqFilter(ObjectClass ldapObjectClass) {
 		Value<String> ldapValue = new StringValue(ldapObjectClass.getName());
-		return new EqualityNode<String>(LdapConstants.ATTRIBUTE_OBJECTCLASS_NAME, ldapValue);
+		return new EqualityNode<String>(SchemaConstants.OBJECT_CLASS_AT, ldapValue);
 	}
 
 	public ScopedFilter translate(Filter icfFilter) {

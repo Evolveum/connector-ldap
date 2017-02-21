@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.directory.api.ldap.extras.controls.vlv.VirtualListViewRequest;
+import org.apache.directory.api.ldap.model.constants.SchemaConstants;
 import org.apache.directory.api.ldap.model.cursor.CursorException;
 import org.apache.directory.api.ldap.model.cursor.EntryCursor;
 import org.apache.directory.api.ldap.model.cursor.SearchCursor;
@@ -103,7 +104,7 @@ public class LdapUtil {
 	}
 	
 	public static boolean isEntryUuidAttribute(String attributeName) {
-		return LdapConstants.ATTRIBUTE_ENTRYUUID_NAME.equals(attributeName) 
+		return SchemaConstants.ENTRY_UUID_AT.equals(attributeName) 
 				|| LdapConstants.ATTRIBUTE_NSUNIQUEID_NAME.equals(attributeName);
 	}
 
@@ -227,7 +228,7 @@ public class LdapUtil {
 			ldapAttrs.add(additionalAttribute);
 		}
 		ldapAttrs.add(schemaTranslator.getUidAttribute());
-		ldapAttrs.add(LdapConstants.ATTRIBUTE_OBJECTCLASS_NAME);
+		ldapAttrs.add(SchemaConstants.OBJECT_CLASS_AT);
 		return ldapAttrs.toArray(new String[ldapAttrs.size()]);
 	}
 
@@ -315,7 +316,7 @@ public class LdapUtil {
 	}
 	
 	public static ExprNode createAllSearchFilter() {
-		return new PresenceNode(LdapConstants.ATTRIBUTE_OBJECTCLASS_NAME);
+		return new PresenceNode(SchemaConstants.OBJECT_CLASS_AT);
 	}
 	
 	public static ExprNode createUidSearchFilter(String uidValue, 
@@ -480,7 +481,7 @@ public class LdapUtil {
 		if (ldapObjectClass == null) {
 			return true;
 		}
-		Attribute objectClassAttribute = entry.get(LdapConstants.ATTRIBUTE_OBJECTCLASS_NAME); 
+		Attribute objectClassAttribute = entry.get(SchemaConstants.OBJECT_CLASS_AT); 
 		for (Value<?> objectClassVal: objectClassAttribute) {
 			if (ldapObjectClass.getName().equalsIgnoreCase(objectClassVal.getString())) {
 				return true;
@@ -508,7 +509,7 @@ public class LdapUtil {
 	}
 	
 	public static boolean hasModifierName(Entry entry, String[] modifiersNamesToFilterOut) {
-		org.apache.directory.api.ldap.model.entry.Attribute modifiersNameAttribute = entry.get(LdapConstants.ATTRIBUTE_MODIFIERSNAME_NAME);
+		org.apache.directory.api.ldap.model.entry.Attribute modifiersNameAttribute = entry.get(SchemaConstants.MODIFIERS_NAME_AT);
 		if (modifiersNameAttribute == null) {
 			return false;
 		}

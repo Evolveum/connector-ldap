@@ -69,7 +69,6 @@ import com.evolveum.polygon.common.GuardedStringAccessor;
 import com.evolveum.polygon.common.SchemaUtil;
 import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
 import com.evolveum.polygon.connector.ldap.AbstractLdapConnector;
-import com.evolveum.polygon.connector.ldap.LdapConstants;
 import com.evolveum.polygon.connector.ldap.LdapUtil;
 import com.evolveum.polygon.connector.ldap.OperationLog;
 import com.evolveum.polygon.connector.ldap.schema.LdapFilterTranslator;
@@ -608,11 +607,11 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 		}
 		
 		// Microsoft violates RFC4519
-		fixAttribute(schemaManager, LdapConstants.ATTRIBUTE_CN_OID, LdapConstants.ATTRIBUTE_CN_NAME,
+		fixAttribute(schemaManager, SchemaConstants.CN_AT_OID, SchemaConstants.CN_AT,
 				createStringSyntax(SchemaConstants.DIRECTORY_STRING_SYNTAX), mrCaseIgnoreMatch);
-		fixAttribute(schemaManager, LdapConstants.ATTRIBUTE_DC_OID, LdapConstants.ATTRIBUTE_DC_NAME,
+		fixAttribute(schemaManager, SchemaConstants.DC_OBJECT_OC_OID, SchemaConstants.DC_AT,
 				createStringSyntax(SchemaConstants.DIRECTORY_STRING_SYNTAX), mrCaseIgnoreMatch);
-		fixAttribute(schemaManager, LdapConstants.ATTRIBUTE_OU_OID, LdapConstants.ATTRIBUTE_OU_NAME,
+		fixAttribute(schemaManager, SchemaConstants.OU_AT_OID, SchemaConstants.OU_AT,
 				createStringSyntax(SchemaConstants.DIRECTORY_STRING_SYNTAX), mrCaseIgnoreMatch);
 	}
 	
