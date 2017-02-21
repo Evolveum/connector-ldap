@@ -1216,7 +1216,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 			return true;
 		}
 		for (org.apache.directory.api.ldap.model.schema.ObjectClass superior: ldapObjectClass.getSuperiors()) {
-			if (superior.getName().equalsIgnoreCase(AbstractLdapConfiguration.OBJECTCLASS_TOP_NAME)) {
+			if (superior.getName().equalsIgnoreCase(SchemaConstants.TOP_OC)) {
 				// Do not even try top object class. Standard top objectclass has nothing to offer.
 				// And some non-standard (e.g. AD) definitions will only screw everything up as they
 				// contain definition for attributes that are not really meaningful.

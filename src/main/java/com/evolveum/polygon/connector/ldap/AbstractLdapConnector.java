@@ -684,16 +684,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		if (options == null || options.getScope() == null) {
 			return SearchScope.SUBTREE;
 		}
-		String optScope = options.getScope();
-		if (LdapConfiguration.SCOPE_SUB.equals(optScope)) {
-			return SearchScope.SUBTREE;
-		} else if (LdapConfiguration.SCOPE_ONE.equals(optScope)) {
-			return SearchScope.ONELEVEL;
-		} else if (LdapConfiguration.SCOPE_BASE.equals(optScope)) {
-			return SearchScope.OBJECT;
-		} else {
-			throw new IllegalArgumentException("Unknown scope "+optScope);
-		}
+		return SearchScope.getSearchScope( SearchScope.getSearchScope( options.getScope() ) );
 	}
 
 	protected String[] getAttributesToGet(org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass, OperationOptions options) {

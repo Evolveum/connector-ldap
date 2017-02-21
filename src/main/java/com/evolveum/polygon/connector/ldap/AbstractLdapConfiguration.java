@@ -18,6 +18,7 @@ package com.evolveum.polygon.connector.ldap;
 
 import static org.identityconnectors.common.StringUtil.isBlank;
 
+import org.apache.directory.api.ldap.model.constants.SchemaConstants;
 import org.identityconnectors.framework.common.exceptions.ConfigurationException;
 import org.identityconnectors.framework.spi.AbstractConfiguration;
 import org.identityconnectors.common.logging.Log;
@@ -648,13 +649,13 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
     
     public void recompute() {
     	if (passwordAttribute == null) {
-    		passwordAttribute = "userPassword";
+    		passwordAttribute = SchemaConstants.USER_PASSWORD_AT;
     	}
     	if (synchronizationStrategy == null) {
     		synchronizationStrategy = SYNCHRONIZATION_STRATEGY_AUTO;
     	}
     	if (vlvSortAttribute == null) {
-    		vlvSortAttribute = "uid";
+    		vlvSortAttribute = SchemaConstants.UID_AT;
     	}
     }
     

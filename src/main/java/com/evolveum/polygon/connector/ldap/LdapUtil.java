@@ -67,6 +67,7 @@ import org.apache.directory.api.ldap.model.message.SearchRequestImpl;
 import org.apache.directory.api.ldap.model.message.SearchResultEntry;
 import org.apache.directory.api.ldap.model.message.SearchScope;
 import org.apache.directory.api.ldap.model.message.controls.PagedResults;
+import org.apache.directory.api.ldap.model.message.controls.SortKey;
 import org.apache.directory.api.ldap.model.message.controls.SortRequest;
 import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.ldap.model.schema.AttributeType;
@@ -104,8 +105,8 @@ public class LdapUtil {
 	}
 	
 	public static boolean isEntryUuidAttribute(String attributeName) {
-		return SchemaConstants.ENTRY_UUID_AT.equals(attributeName) 
-				|| LdapConstants.ATTRIBUTE_NSUNIQUEID_NAME.equals(attributeName);
+		return SchemaConstants.ENTRY_UUID_AT.equalsIgnoreCase(attributeName) 
+				|| LdapConstants.ATTRIBUTE_NSUNIQUEID_NAME.equalsIgnoreCase(attributeName);
 	}
 
 	public static String getStringAttribute(Entry entry, String attrName) {
@@ -425,37 +426,68 @@ public class LdapUtil {
 	public static RuntimeException processLdapResult(String message, LdapResult ldapResult) {
 		ResultCodeEnum resultCode = ldapResult.getResultCode();
 		RuntimeException re;
-		if (resultCode == ResultCodeEnum.SUCCESS) {
-			re = null;
-		} else if (resultCode == ResultCodeEnum.ENTRY_ALREADY_EXISTS || resultCode == ResultCodeEnum.CONSTRAINT_VIOLATION) {
-			// CONSTRAINT_VIOLATION is usually returned when uniqueness plugin is triggered
-			re =  new AlreadyExistsException(message + ": " + formatLdapMessage(ldapResult));
-		} else if (resultCode == ResultCodeEnum.OBJECT_CLASS_VIOLATION || resultCode == ResultCodeEnum.NOT_ALLOWED_ON_RDN ||
-				resultCode == ResultCodeEnum.OBJECT_CLASS_MODS_PROHIBITED || resultCode == ResultCodeEnum.NOT_ALLOWED_ON_NON_LEAF ||
-				resultCode == ResultCodeEnum.AFFECTS_MULTIPLE_DSAS || resultCode == ResultCodeEnum.ALIAS_DEREFERENCING_PROBLEM ||
-				resultCode == ResultCodeEnum.ALIAS_PROBLEM || resultCode == ResultCodeEnum.ATTRIBUTE_OR_VALUE_EXISTS || 
-				resultCode == ResultCodeEnum.UNDEFINED_ATTRIBUTE_TYPE ||
-				resultCode == ResultCodeEnum.INVALID_ATTRIBUTE_SYNTAX || resultCode == ResultCodeEnum.INVALID_DN_SYNTAX ||
-				resultCode == ResultCodeEnum.NAMING_VIOLATION || resultCode == ResultCodeEnum.INAPPROPRIATE_MATCHING ||
-				resultCode == ResultCodeEnum.NO_SUCH_ATTRIBUTE) {
-			re =  new InvalidAttributeValueException(message + ": " + formatLdapMessage(ldapResult));
-		} else if (resultCode == ResultCodeEnum.STRONG_AUTH_REQUIRED || resultCode == ResultCodeEnum.ADMIN_LIMIT_EXCEEDED ||
-				resultCode == ResultCodeEnum.INVALID_CREDENTIALS || resultCode == ResultCodeEnum.INAPPROPRIATE_AUTHENTICATION ||
-				resultCode == ResultCodeEnum.CONFIDENTIALITY_REQUIRED || resultCode == ResultCodeEnum.AUTH_METHOD_NOT_SUPPORTED) {
-			re =  new ConnectorSecurityException(message + ": " + formatLdapMessage(ldapResult));
-		} else if (resultCode == ResultCodeEnum.OTHER || resultCode == ResultCodeEnum.LOOP_DETECT) {
-			re =  new ConfigurationException(message + ": " + formatLdapMessage(ldapResult));
-		} else if (resultCode == ResultCodeEnum.INSUFFICIENT_ACCESS_RIGHTS || resultCode == ResultCodeEnum.UNWILLING_TO_PERFORM ||
-				resultCode == ResultCodeEnum.SIZE_LIMIT_EXCEEDED || resultCode == ResultCodeEnum.TIME_LIMIT_EXCEEDED) {
-			re =  new PermissionDeniedException(message + ": " + formatLdapMessage(ldapResult));
-		} else if (resultCode == ResultCodeEnum.NO_SUCH_OBJECT) {
-			re =  new UnknownUidException(message + ": " + formatLdapMessage(ldapResult));
-		} else if (resultCode == ResultCodeEnum.PROTOCOL_ERROR) {
-			// Do not classify this as IO exception. The IO exception often means network error and therefore it is
-			// the IDM will re-try. There is no point in re-try if there is a protocol error.
-			re =  new ConnectorException(message + ": " + formatLdapMessage(ldapResult));
-		} else {
-			re =  new ConnectorIOException(message + ": " + formatLdapMessage(ldapResult));
+		switch (resultCode) {
+		    case SUCCESS :
+		        re = null;
+		        break;
+		        
+		    case ENTRY_ALREADY_EXISTS:
+		    case CONSTRAINT_VIOLATION:
+	            // CONSTRAINT_VIOLATION is usually returned when uniqueness plugin is triggered
+	            re =  new AlreadyExistsException(message + ": " + formatLdapMessage(ldapResult));
+	            break;
+		        
+            case OBJECT_CLASS_VIOLATION : 
+            case NOT_ALLOWED_ON_RDN :
+            case OBJECT_CLASS_MODS_PROHIBITED :
+            case NOT_ALLOWED_ON_NON_LEAF :
+            case AFFECTS_MULTIPLE_DSAS :
+            case ALIAS_DEREFERENCING_PROBLEM :
+            case ALIAS_PROBLEM :
+            case ATTRIBUTE_OR_VALUE_EXISTS :
+            case UNDEFINED_ATTRIBUTE_TYPE :
+            case INVALID_ATTRIBUTE_SYNTAX :
+            case INVALID_DN_SYNTAX :
+            case NAMING_VIOLATION :
+            case INAPPROPRIATE_MATCHING :
+            case NO_SUCH_ATTRIBUTE :
+                re =  new InvalidAttributeValueException(message + ": " + formatLdapMessage(ldapResult));
+                break;
+
+            case STRONG_AUTH_REQUIRED :
+            case ADMIN_LIMIT_EXCEEDED :
+            case INVALID_CREDENTIALS :
+            case INAPPROPRIATE_AUTHENTICATION :
+            case CONFIDENTIALITY_REQUIRED :
+            case AUTH_METHOD_NOT_SUPPORTED:
+                re =  new ConnectorSecurityException(message + ": " + formatLdapMessage(ldapResult));
+                break;
+                
+            case OTHER :
+            case LOOP_DETECT :
+                re =  new ConfigurationException(message + ": " + formatLdapMessage(ldapResult));
+                break;
+                
+            case INSUFFICIENT_ACCESS_RIGHTS :
+            case UNWILLING_TO_PERFORM :
+            case SIZE_LIMIT_EXCEEDED :
+            case TIME_LIMIT_EXCEEDED :
+                re =  new PermissionDeniedException(message + ": " + formatLdapMessage(ldapResult));
+                break;
+                
+            case NO_SUCH_OBJECT :
+                re =  new UnknownUidException(message + ": " + formatLdapMessage(ldapResult));
+                break;
+                
+            case PROTOCOL_ERROR :
+    			// Do not classify this as IO exception. The IO exception often means network error and therefore it is
+    			// the IDM will re-try. There is no point in re-try if there is a protocol error.
+    			re =  new ConnectorException(message + ": " + formatLdapMessage(ldapResult));
+    			break;
+    			
+    		default :
+    		    re =  new ConnectorIOException(message + ": " + formatLdapMessage(ldapResult));
+    		    break;
 		}
 		if (LOG.isOk()) {
 			LOG.ok("Operation \"{0}\" ended with error ({1}): {2}", message, ldapResult.getResultCode().getResultCode(), ldapResult.getDiagnosticMessage());
@@ -581,14 +613,15 @@ public class LdapUtil {
 	public static String toShortString(Map<String, Control> controlsMap) {
 		if (controlsMap != null && !controlsMap.isEmpty()) {
 			StringBuilder sb = new StringBuilder();
-			// We want just a short list here. toString methods of control implementations are too long. Avoid them.
-			Iterator<java.util.Map.Entry<String, Control>> iterator = controlsMap.entrySet().iterator();
-			while (iterator.hasNext()) {
-				Control control = iterator.next().getValue();
-				toShortString(sb, control);
-				if (iterator.hasNext()) {
-					sb.append(",");
-				}
+            // We want just a short list here. toString methods of control implementations are too long. Avoid them.
+			boolean isFirst = true;
+			for ( Control control : controlsMap.values() ) {
+			    if ( isFirst ) {
+			        isFirst = false;
+			    } else {
+			        sb.append( ',' );
+			    }
+			    toShortString(sb, control);
 			}
 			return sb.toString();
 		}
@@ -638,7 +671,7 @@ public class LdapUtil {
 			sb.append("),");
 		} else if (control instanceof SortRequest) {
 			sb.append("Sort(");
-			for (org.apache.directory.api.ldap.model.message.controls.SortKey sortKey: ((SortRequest)control).getSortKeys()) {
+			for (SortKey sortKey: ((SortRequest)control).getSortKeys()) {
 				sb.append(sortKey.getAttributeTypeDesc());
 				sb.append(":");
 				sb.append(sortKey.getMatchingRuleId());
@@ -681,15 +714,7 @@ public class LdapUtil {
 			throw new InvalidAttributeValueException("Invalid DN: " + upper.toString() + ": " + e.getMessage(), e);
 		}
 
-		Dn lowerSA;
-		try {
-			lowerSA = new Dn(schemaTranslator.getSchemaManager(), lower.toString());
-		} catch (LdapInvalidDnException e) {
-			throw new InvalidAttributeValueException("Invalid DN: " + lower.toString() + ": " + e.getMessage(), e);
-		}
-		
-		return upperSA.isAncestorOf(lowerSA);
+		return upperSA.isAncestorOf(lower);
 	}
 
-	
 }
