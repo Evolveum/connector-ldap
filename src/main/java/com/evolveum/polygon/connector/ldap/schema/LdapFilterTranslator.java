@@ -149,7 +149,7 @@ public class LdapFilterTranslator<C extends AbstractLdapConfiguration> {
 			return new ScopedFilter(new NotNode(subNode.getFilter()));
 			
 		} else if (icfFilter instanceof EqualsFilter) {
-			return translateEqualsFilter(((EqualsFilter)icfFilter));
+			return translateEqualsFilter((EqualsFilter)icfFilter);
 			
 
 		} else if (icfFilter instanceof ContainsAllValuesFilter) {
@@ -178,7 +178,6 @@ public class LdapFilterTranslator<C extends AbstractLdapConfiguration> {
 		} else if (icfFilter instanceof ContainsFilter) {
 			Attribute icfAttribute = ((ContainsFilter)icfFilter).getAttribute();
 			String icfAttributeName = icfAttribute.getName();
-			List<Object> icfAttributeValue = icfAttribute.getValue();
 			if (Name.NAME.equals(icfAttributeName)) {
 				throw new IllegalArgumentException("Cannot use wildcard filter on DN (__NAME__)");
 			}
@@ -190,24 +189,20 @@ public class LdapFilterTranslator<C extends AbstractLdapConfiguration> {
 		} else if (icfFilter instanceof StartsWithFilter) {
 			Attribute icfAttribute = ((EqualsFilter)icfFilter).getAttribute();
 			String icfAttributeName = icfAttribute.getName();
-			List<Object> icfAttributeValue = icfAttribute.getValue();
 			if (Name.NAME.equals(icfAttributeName)) {
 				throw new IllegalArgumentException("Cannot use wildcard filter on DN (__NAME__)");
 			}
 			AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, icfAttributeName);
-			List<String> anyPattern = new ArrayList<String>(1);
 			String pattern = SchemaUtil.getSingleStringNonBlankValue(icfAttribute);
 			return new ScopedFilter(new SubstringNode(ldapAttributeType, pattern, null));
 
 		} else if (icfFilter instanceof EndsWithFilter) {
 			Attribute icfAttribute = ((EqualsFilter)icfFilter).getAttribute();
 			String icfAttributeName = icfAttribute.getName();
-			List<Object> icfAttributeValue = icfAttribute.getValue();
 			if (Name.NAME.equals(icfAttributeName)) {
 				throw new IllegalArgumentException("Cannot use wildcard filter on DN (__NAME__)");
 			}
 			AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, icfAttributeName);
-			List<String> anyPattern = new ArrayList<String>(1);
 			String pattern = SchemaUtil.getSingleStringNonBlankValue(icfAttribute);
 			return new ScopedFilter(new SubstringNode(ldapAttributeType, null, pattern));
 			

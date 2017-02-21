@@ -518,25 +518,29 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 		}
 		StringBuilder cmdSb = new StringBuilder();
 		if (AdLdapConfiguration.ARGUMENT_STYLE_VARIABLES.equals(argumentStyle)) {
-			for (java.util.Map.Entry<String,Object> argEntry: scriptArguments.entrySet()) {
-				Object val = argEntry.getValue();
-				if (val != null) {
-					cmdSb.append("$");
-					cmdSb.append(argEntry.getKey());
-					cmdSb.append(" = ");
-					cmdSb.append(quoteSingle(argEntry.getValue()));
-					cmdSb.append("; ");
-				}
+		    if (scriptArguments != null) {
+    			for (java.util.Map.Entry<String,Object> argEntry: scriptArguments.entrySet()) {
+    				Object val = argEntry.getValue();
+    				if (val != null) {
+    					cmdSb.append("$");
+    					cmdSb.append(argEntry.getKey());
+    					cmdSb.append(" = ");
+    					cmdSb.append(quoteSingle(argEntry.getValue()));
+    					cmdSb.append("; ");
+    				}
+    			}
 			}
 		}
 		cmdSb.append(scriptCtx.getScriptText());
 		if (AdLdapConfiguration.ARGUMENT_STYLE_DASHED.equals(argumentStyle)) {
-			for (java.util.Map.Entry<String,Object> argEntry: scriptArguments.entrySet()) {
-				cmdSb.append(" -");
-				cmdSb.append(argEntry.getKey());
-				cmdSb.append(" ");
-				cmdSb.append(argEntry.getValue());
-			}
+		    if (scriptArguments != null) {
+    			for (java.util.Map.Entry<String,Object> argEntry: scriptArguments.entrySet()) {
+    				cmdSb.append(" -");
+    				cmdSb.append(argEntry.getKey());
+    				cmdSb.append(" ");
+    				cmdSb.append(argEntry.getValue());
+    			}
+		    }
 		}
 		return cmdSb.toString();
 	}

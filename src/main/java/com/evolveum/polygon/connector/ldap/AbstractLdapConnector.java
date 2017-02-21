@@ -1223,17 +1223,17 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 	public void sync(ObjectClass objectClass, SyncToken token, SyncResultsHandler handler,
 			OperationOptions options) {
 		prepareIcfSchema();
-		SyncStrategy<C> strategy = chooseSyncStrategy(objectClass);
+		SyncStrategy<C> strategy = chooseSyncStrategy();
 		strategy.sync(objectClass, token, handler, options);
 	}
 	
 	@Override
 	public SyncToken getLatestSyncToken(ObjectClass objectClass) {
-		SyncStrategy<C> strategy = chooseSyncStrategy(objectClass);
+		SyncStrategy<C> strategy = chooseSyncStrategy();
 		return strategy.getLatestSyncToken(objectClass);
 	}
 	
-	private SyncStrategy<C> chooseSyncStrategy(ObjectClass objectClass) {
+	private SyncStrategy<C> chooseSyncStrategy() {
 		if (syncStrategy == null) {
 			switch (configuration.getSynchronizationStrategy()) {
 				case LdapConfiguration.SYNCHRONIZATION_STRATEGY_NONE:
@@ -1248,7 +1248,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 					syncStrategy = new AdDirSyncStrategy<>(configuration, connectionManager, getSchemaManager(), getSchemaTranslator());
 					break;
 				case LdapConfiguration.SYNCHRONIZATION_STRATEGY_AUTO:
-					syncStrategy = chooseSyncStrategyAuto(objectClass);
+					syncStrategy = chooseSyncStrategyAuto();
 					break;
 				default:
 					throw new IllegalArgumentException("Unknown synchronization strategy '"+configuration.getSynchronizationStrategy()+"'");
@@ -1257,7 +1257,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		return syncStrategy;
 	}
 
-	private SyncStrategy<C> chooseSyncStrategyAuto(ObjectClass objectClass) {
+	private SyncStrategy<C> chooseSyncStrategyAuto() {
 		Entry rootDse = LdapUtil.getRootDse(connectionManager, SunChangelogSyncStrategy.ROOT_DSE_ATTRIBUTE_CHANGELOG_NAME);
 		org.apache.directory.api.ldap.model.entry.Attribute changelogAttribute = rootDse.get(SunChangelogSyncStrategy.ROOT_DSE_ATTRIBUTE_CHANGELOG_NAME);
 		if (changelogAttribute != null) {
@@ -1336,7 +1336,6 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			}
 			Value<Object> ldapValue = getSchemaTranslator().toLdapIdentifierValue(ldapAttributeType, uid.getUidValue());
 			ExprNode filterNode = new EqualityNode<Object>(ldapAttributeType, ldapValue);
-			String filterString = filterNode.toString();
 			LOG.ok("Resolving DN for UID {0}", uid);
 			Entry entry = searchSingleEntry(getConnectionManager(), baseDn, filterNode, scope,
 					new String[]{uidAttributeName}, "LDAP entry for UID "+uid);

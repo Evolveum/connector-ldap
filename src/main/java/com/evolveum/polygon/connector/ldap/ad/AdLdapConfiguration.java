@@ -340,7 +340,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		if (globalCatalogServers == null) {
 			String gcHost;
 			String host = getHost();
-			int dotIndex = host.indexOf(".");
+			int dotIndex = host.indexOf('.');
 			if (dotIndex > 0) {
 				String domain = host.substring(dotIndex + 1);
 				gcHost = "gc._msdcs."+domain;

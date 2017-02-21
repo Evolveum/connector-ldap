@@ -89,8 +89,6 @@ public class AdDirSyncStrategy<C extends AbstractLdapConfiguration> extends Sync
 			ldapObjectClass = getSchemaTranslator().toLdapObjectClass(icfObjectClass);
 		}
 		
-		String[] attributesToGet = LdapUtil.getAttributesToGet(ldapObjectClass, options, getSchemaTranslator());
-		
 		SearchRequest req = createSearchRequest(LdapConfiguration.SEARCH_FILTER_ALL, fromToken);
 		AdShowDeleted showDeletedReqControl = new AdShowDeletedImpl();
 		req.addControl(showDeletedReqControl);

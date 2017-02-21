@@ -110,7 +110,7 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
 	@Override
 	public Value<Object> toLdapValue(AttributeType ldapAttributeType, Object icfAttributeValue) {
 		if (!getConfiguration().isRawUserAccountControlAttribute() && AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME.equals(ldapAttributeType.getName())) {
-			if (((Boolean)icfAttributeValue)) {
+			if ((Boolean)icfAttributeValue) {
 				// ENABLED
 				return super.toLdapValue(ldapAttributeType, Integer.toString(AdConstants.USER_ACCOUNT_CONTROL_NORMAL));
 			} else {
@@ -174,7 +174,7 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
 	protected Value<Object> toLdapPasswordValue(AttributeType ldapAttributeType, Object icfAttributeValue) {
 		String password;
 		if (icfAttributeValue instanceof String) {
-				password = ((String)icfAttributeValue);
+				password = (String)icfAttributeValue;
 		} else if (icfAttributeValue instanceof GuardedString) {
 			final String[] out = new String[1];
 			((GuardedString)icfAttributeValue).access(new GuardedString.Accessor() {

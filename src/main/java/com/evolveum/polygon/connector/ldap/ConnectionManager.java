@@ -248,7 +248,7 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 		LOG.ok("SELECT: selected base context: {0}", selectedBaseContext);
 		List<ServerDefinition> selectedServers = new ArrayList<>();
 		for (ServerDefinition server: servers) {
-			if ((selectedBaseContext == null && server.getBaseContext() == null)) {
+			if (selectedBaseContext == null && server.getBaseContext() == null) {
 				if (server.getOrigin() == Origin.REFERRAL) {
 					// avoid using dynamically added servers as a fallback
 					// for all queries
@@ -257,7 +257,7 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 					selectedServers.add(server);
 				}
 			}
-			if ((selectedBaseContext == null || server.getBaseContext() == null)) {
+			if (selectedBaseContext == null || server.getBaseContext() == null) {
 				continue;
 			}
 			if (selectedBaseContext.equals(server.getBaseContext())) {

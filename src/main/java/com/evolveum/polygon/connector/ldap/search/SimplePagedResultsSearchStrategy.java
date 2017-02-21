@@ -103,7 +103,7 @@ public class SimplePagedResultsSearchStrategy<C extends AbstractLdapConfiguratio
     		applyCommonConfiguration(req);
     		if (attributes != null) {
     			req.addAttributes(attributes);
-    		};
+    		}
     		
     		if (sortReqControl != null) {
     			req.addControl(sortReqControl);

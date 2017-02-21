@@ -216,7 +216,7 @@ public class SunChangelogSyncStrategy<C extends AbstractLdapConfiguration> exten
 						}
 						if (!getSchemaTranslator().hasUidAttribute(targetEntry)) {
 							// No UID attribute in the changelog entry. We need to re-read it explicitly.
-							targetEntry = LdapUtil.fetchEntry(connection, targetDn.toString(), ldapObjectClass, options, getSchemaTranslator());
+							targetEntry = LdapUtil.fetchEntry(connection, targetDn, ldapObjectClass, options, getSchemaTranslator());
 							if (targetEntry == null) {
 								LOG.warn("Changelog entry {0} refers to an entry {1} that no longer exists, ignoring", entry.getDn(), targetDn);
 								continue;

@@ -71,7 +71,7 @@ public class DefaultSearchStrategy<C extends AbstractLdapConfiguration> extends 
 		applyCommonConfiguration(req);
 		if (attributes != null) {
 			req.addAttributes(attributes);
-		};
+		}
 		
 		LdapNetworkConnection connection = getConnection(baseDn);
 		Referral referral = null; // remember this in case we need a reconnect

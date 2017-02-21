@@ -126,7 +126,7 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
     		applyCommonConfiguration(req);
     		if (attributes != null) {
     			req.addAttributes(attributes);
-    		};
+    		}
     		
     		if (sortReqControl != null) {
     			req.addControl(sortReqControl);

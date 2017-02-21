@@ -59,8 +59,8 @@ public class EDirectorySchemaTranslator extends AbstractSchemaTranslator<EDirect
 	
 	@Override
 	protected boolean shouldTranslateAttribute(String attrName) {
-		return (!attrName.equals(EDirectoryConstants.ATTRIBUTE_LOCKOUT_LOCKED_NAME)
-				&& !attrName.equals(EDirectoryConstants.ATTRIBUTE_LOGIN_DISABLED_NAME));
+		return !attrName.equals(EDirectoryConstants.ATTRIBUTE_LOCKOUT_LOCKED_NAME)
+				&& !attrName.equals(EDirectoryConstants.ATTRIBUTE_LOGIN_DISABLED_NAME);
 	}
 	
 	@Override

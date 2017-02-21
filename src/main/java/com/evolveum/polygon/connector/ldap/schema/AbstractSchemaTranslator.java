@@ -234,10 +234,10 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		attrInfoList.add(PredefinedAttributeInfos.AUXILIARY_OBJECT_CLASS);
 		
 		addAttributeTypesFromLdapSchema(attrInfoList, ldapObjectClass);
-		addExtraOperationalAttributes(attrInfoList, ldapObjectClass);
+		addExtraOperationalAttributes(attrInfoList);
 	}
 	
-	private void addExtraOperationalAttributes(List<AttributeInfo> attrInfoList, org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
+	private void addExtraOperationalAttributes(List<AttributeInfo> attrInfoList) {
 		for (String operationalAttributeLdapName: configuration.getOperationalAttributes()) {
 			if (containsAttribute(attrInfoList, operationalAttributeLdapName)) {
 				continue;
@@ -498,12 +498,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		}
 		if (ldapAttributeType == null) {
 			// We have no definition for this attribute. Assume string.
-			try {
-				return (Value)new StringValue(ldapAttributeType, icfAttributeValue.toString());
-			} catch (LdapInvalidAttributeValueException e) {
-				throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
-						+"; attributeType="+ldapAttributeType, e);
-			}
+			return (Value)new StringValue(icfAttributeValue.toString());
 		}
 		
 		if (ldapAttributeType.getName().equals(configuration.getPasswordAttribute())) {
@@ -637,14 +632,9 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		if (SchemaConstants.OCTET_STRING_SYNTAX.equals(syntaxOid)) {
 			// Expect hex-encoded value (see toIcfIdentifierValue())
 			byte[] bytes = LdapUtil.hexToBinary(icfAttributeValue);
-			try {
-				// Do NOT set attributeType in the Value in this case.
-				// The attributeType might not match the Value class
-				return (Value)new BinaryValue(null, bytes);
-			} catch (LdapInvalidAttributeValueException e) {
-				throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
-						+"; attributeType="+ldapAttributeType, e);
-			}
+			// Do NOT set attributeType in the Value in this case.
+			// The attributeType might not match the Value class
+			return (Value)new BinaryValue(bytes);
 		} else {
 			try {
 				return (Value)new StringValue(ldapAttributeType, icfAttributeValue);
@@ -1267,7 +1257,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 			this.type = type;
 			this.subtype = subtype;
 		}
-	};
+	}
 
 	private static void addToSyntaxMap(String syntaxOid, Class type) {
 		SYNTAX_MAP.put(syntaxOid, new TypeSubType(type, null));
