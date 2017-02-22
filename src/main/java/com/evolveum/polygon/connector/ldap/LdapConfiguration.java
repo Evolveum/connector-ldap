@@ -16,6 +16,7 @@
 
 package com.evolveum.polygon.connector.ldap;
 
+import org.apache.directory.api.ldap.model.constants.SchemaConstants;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.framework.spi.ConfigurationProperty;
 
@@ -52,7 +53,7 @@ public class LdapConfiguration extends AbstractLdapConfiguration {
 	@Override
 	public void recompute() {
 		if (getUidAttribute() == null) {
-			setUidAttribute(LdapConstants.ATTRIBUTE_ENTRYUUID_NAME);
+			setUidAttribute(SchemaConstants.ENTRY_UUID_AT);
 		}
 		super.recompute();
 	}

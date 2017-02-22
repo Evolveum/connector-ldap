@@ -17,15 +17,12 @@ package com.evolveum.polygon.connector.ldap.edirectory;
 
 import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.entry.Value;
-import org.apache.directory.api.ldap.model.exception.LdapInvalidAttributeValueException;
 import org.apache.directory.api.ldap.model.schema.AttributeType;
 import org.apache.directory.api.ldap.model.schema.LdapSyntax;
 import org.apache.directory.api.ldap.model.schema.SchemaManager;
 import org.identityconnectors.common.logging.Log;
-import org.identityconnectors.framework.common.objects.AttributeBuilder;
 import org.identityconnectors.framework.common.objects.AttributeInfoBuilder;
 import org.identityconnectors.framework.common.objects.ConnectorObjectBuilder;
-import org.identityconnectors.framework.common.objects.ObjectClass;
 import org.identityconnectors.framework.common.objects.ObjectClassInfoBuilder;
 import org.identityconnectors.framework.common.objects.OperationalAttributes;
 
@@ -62,8 +59,8 @@ public class EDirectorySchemaTranslator extends AbstractSchemaTranslator<EDirect
 	
 	@Override
 	protected boolean shouldTranslateAttribute(String attrName) {
-		return (!attrName.equals(EDirectoryConstants.ATTRIBUTE_LOCKOUT_LOCKED_NAME)
-				&& !attrName.equals(EDirectoryConstants.ATTRIBUTE_LOGIN_DISABLED_NAME));
+		return !attrName.equals(EDirectoryConstants.ATTRIBUTE_LOCKOUT_LOCKED_NAME)
+				&& !attrName.equals(EDirectoryConstants.ATTRIBUTE_LOGIN_DISABLED_NAME);
 	}
 	
 	@Override

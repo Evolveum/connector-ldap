@@ -18,20 +18,17 @@ package com.evolveum.polygon.connector.ldap.schema;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.ObjectOutputStream;
-import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-import java.util.Set;
 
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.directory.api.ldap.extras.controls.vlv.VirtualListViewRequest;
@@ -49,7 +46,6 @@ import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.ldap.model.schema.AttributeType;
 import org.apache.directory.api.ldap.model.schema.LdapSyntax;
 import org.apache.directory.api.ldap.model.schema.SchemaManager;
-import org.apache.directory.api.ldap.model.schema.UsageEnum;
 import org.apache.directory.api.util.GeneralizedTime;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
 import org.apache.directory.ldap.client.api.exception.InvalidConnectionException;
@@ -57,7 +53,6 @@ import org.identityconnectors.common.Base64;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
-import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
 import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException;
 import org.identityconnectors.framework.common.objects.Attribute;
 import org.identityconnectors.framework.common.objects.AttributeBuilder;
@@ -76,11 +71,8 @@ import org.identityconnectors.framework.common.objects.PredefinedAttributes;
 import org.identityconnectors.framework.common.objects.Schema;
 import org.identityconnectors.framework.common.objects.SchemaBuilder;
 import org.identityconnectors.framework.common.objects.Uid;
-import org.identityconnectors.framework.spi.operations.CreateOp;
-import org.identityconnectors.framework.spi.operations.SchemaOp;
 import org.identityconnectors.framework.spi.operations.SearchOp;
 import org.identityconnectors.framework.spi.operations.SyncOp;
-import org.identityconnectors.framework.spi.operations.UpdateAttributeValuesOp;
 
 import com.evolveum.polygon.common.SchemaUtil;
 import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
@@ -242,10 +234,10 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		attrInfoList.add(PredefinedAttributeInfos.AUXILIARY_OBJECT_CLASS);
 		
 		addAttributeTypesFromLdapSchema(attrInfoList, ldapObjectClass);
-		addExtraOperationalAttributes(attrInfoList, ldapObjectClass);
+		addExtraOperationalAttributes(attrInfoList);
 	}
 	
-	private void addExtraOperationalAttributes(List<AttributeInfo> attrInfoList, org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
+	private void addExtraOperationalAttributes(List<AttributeInfo> attrInfoList) {
 		for (String operationalAttributeLdapName: configuration.getOperationalAttributes()) {
 			if (containsAttribute(attrInfoList, operationalAttributeLdapName)) {
 				continue;
@@ -298,7 +290,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 				LOG.ok("Skipping translation of attribute {0} because it should not be translated", ldapAttribute.getName());
 				continue;
 			}
-			if (ldapAttribute.getName().equals(LdapConstants.ATTRIBUTE_OBJECTCLASS_NAME)) {
+			if (ldapAttribute.getName().equals(SchemaConstants.OBJECT_CLASS_AT)) {
 				continue;
 			}
 			if (ldapAttribute.getName().equals(getConfiguration().getUidAttribute())) {
@@ -506,12 +498,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		}
 		if (ldapAttributeType == null) {
 			// We have no definition for this attribute. Assume string.
-			try {
-				return (Value)new StringValue(ldapAttributeType, icfAttributeValue.toString());
-			} catch (LdapInvalidAttributeValueException e) {
-				throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
-						+"; attributeType="+ldapAttributeType, e);
-			}
+			return (Value)new StringValue(icfAttributeValue.toString());
 		}
 		
 		if (ldapAttributeType.getName().equals(configuration.getPasswordAttribute())) {
@@ -638,26 +625,16 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		}
 		if (ldapAttributeType == null) {
 			// We have no definition for this attribute. Assume string.
-			try {
-				return (Value)new StringValue(ldapAttributeType, icfAttributeValue.toString());
-			} catch (LdapInvalidAttributeValueException e) {
-				throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
-						+"; attributeType="+ldapAttributeType, e);
-			}
+			return (Value)new StringValue(icfAttributeValue);
 		}
 		
 		String syntaxOid = ldapAttributeType.getSyntaxOid();
 		if (SchemaConstants.OCTET_STRING_SYNTAX.equals(syntaxOid)) {
 			// Expect hex-encoded value (see toIcfIdentifierValue())
 			byte[] bytes = LdapUtil.hexToBinary(icfAttributeValue);
-			try {
-				// Do NOT set attributeType in the Value in this case.
-				// The attributeType might not match the Value class
-				return (Value)new BinaryValue(null, bytes);
-			} catch (LdapInvalidAttributeValueException e) {
-				throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
-						+"; attributeType="+ldapAttributeType, e);
-			}
+			// Do NOT set attributeType in the Value in this case.
+			// The attributeType might not match the Value class
+			return (Value)new BinaryValue(bytes);
 		} else {
 			try {
 				return (Value)new StringValue(ldapAttributeType, icfAttributeValue);
@@ -976,7 +953,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 
 	private LdapObjectClasses processObjectClasses(Entry entry) {
 		LdapObjectClasses ocs = new LdapObjectClasses();
-		org.apache.directory.api.ldap.model.entry.Attribute objectClassAttribute = entry.get(LdapConstants.ATTRIBUTE_OBJECTCLASS_NAME);
+		org.apache.directory.api.ldap.model.entry.Attribute objectClassAttribute = entry.get(SchemaConstants.OBJECT_CLASS_AT);
 		if (objectClassAttribute == null) {
 			throw new InvalidAttributeValueException("No object class attribute in entry "+entry.getDn());
 		}
@@ -1239,7 +1216,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 			return true;
 		}
 		for (org.apache.directory.api.ldap.model.schema.ObjectClass superior: ldapObjectClass.getSuperiors()) {
-			if (superior.getName().equalsIgnoreCase(AbstractLdapConfiguration.OBJECTCLASS_TOP_NAME)) {
+			if (superior.getName().equalsIgnoreCase(SchemaConstants.TOP_OC)) {
 				// Do not even try top object class. Standard top objectclass has nothing to offer.
 				// And some non-standard (e.g. AD) definitions will only screw everything up as they
 				// contain definition for attributes that are not really meaningful.
@@ -1280,7 +1257,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 			this.type = type;
 			this.subtype = subtype;
 		}
-	};
+	}
 
 	private static void addToSyntaxMap(String syntaxOid, Class type) {
 		SYNTAX_MAP.put(syntaxOid, new TypeSubType(type, null));

@@ -17,7 +17,6 @@
 package com.evolveum.polygon.connector.ldap.ad;
 
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -40,7 +39,6 @@ import org.apache.directory.api.ldap.model.schema.MutableMatchingRule;
 import org.apache.directory.api.ldap.model.schema.ObjectClass;
 import org.apache.directory.api.ldap.model.schema.SchemaManager;
 import org.apache.directory.api.ldap.model.schema.SchemaObject;
-import org.apache.directory.api.ldap.model.schema.SyntaxChecker;
 import org.apache.directory.api.ldap.model.schema.normalizers.DeepTrimToLowerNormalizer;
 import org.apache.directory.api.ldap.model.schema.registries.AttributeTypeRegistry;
 import org.apache.directory.api.ldap.model.schema.registries.MatchingRuleRegistry;
@@ -71,8 +69,6 @@ import com.evolveum.polygon.common.GuardedStringAccessor;
 import com.evolveum.polygon.common.SchemaUtil;
 import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
 import com.evolveum.polygon.connector.ldap.AbstractLdapConnector;
-import com.evolveum.polygon.connector.ldap.ConnectionManager;
-import com.evolveum.polygon.connector.ldap.LdapConstants;
 import com.evolveum.polygon.connector.ldap.LdapUtil;
 import com.evolveum.polygon.connector.ldap.OperationLog;
 import com.evolveum.polygon.connector.ldap.schema.LdapFilterTranslator;
@@ -83,7 +79,6 @@ import com.evolveum.polygon.connector.ldap.search.SearchStrategy;
 import io.cloudsoft.winrm4j.winrm.WinRmTool;
 import io.cloudsoft.winrm4j.winrm.WinRmToolResponse;
 
-import org.apache.commons.lang.StringUtils;
 import org.apache.cxf.Bus;
 import org.apache.cxf.BusFactory;
 import org.apache.cxf.transport.https.httpclient.DefaultHostnameVerifier;
@@ -523,25 +518,29 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 		}
 		StringBuilder cmdSb = new StringBuilder();
 		if (AdLdapConfiguration.ARGUMENT_STYLE_VARIABLES.equals(argumentStyle)) {
-			for (java.util.Map.Entry<String,Object> argEntry: scriptArguments.entrySet()) {
-				Object val = argEntry.getValue();
-				if (val != null) {
-					cmdSb.append("$");
-					cmdSb.append(argEntry.getKey());
-					cmdSb.append(" = ");
-					cmdSb.append(quoteSingle(argEntry.getValue()));
-					cmdSb.append("; ");
-				}
+		    if (scriptArguments != null) {
+    			for (java.util.Map.Entry<String,Object> argEntry: scriptArguments.entrySet()) {
+    				Object val = argEntry.getValue();
+    				if (val != null) {
+    					cmdSb.append("$");
+    					cmdSb.append(argEntry.getKey());
+    					cmdSb.append(" = ");
+    					cmdSb.append(quoteSingle(argEntry.getValue()));
+    					cmdSb.append("; ");
+    				}
+    			}
 			}
 		}
 		cmdSb.append(scriptCtx.getScriptText());
 		if (AdLdapConfiguration.ARGUMENT_STYLE_DASHED.equals(argumentStyle)) {
-			for (java.util.Map.Entry<String,Object> argEntry: scriptArguments.entrySet()) {
-				cmdSb.append(" -");
-				cmdSb.append(argEntry.getKey());
-				cmdSb.append(" ");
-				cmdSb.append(argEntry.getValue());
-			}
+		    if (scriptArguments != null) {
+    			for (java.util.Map.Entry<String,Object> argEntry: scriptArguments.entrySet()) {
+    				cmdSb.append(" -");
+    				cmdSb.append(argEntry.getKey());
+    				cmdSb.append(" ");
+    				cmdSb.append(argEntry.getValue());
+    			}
+		    }
 		}
 		return cmdSb.toString();
 	}
@@ -612,11 +611,11 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 		}
 		
 		// Microsoft violates RFC4519
-		fixAttribute(schemaManager, LdapConstants.ATTRIBUTE_CN_OID, LdapConstants.ATTRIBUTE_CN_NAME,
+		fixAttribute(schemaManager, SchemaConstants.CN_AT_OID, SchemaConstants.CN_AT,
 				createStringSyntax(SchemaConstants.DIRECTORY_STRING_SYNTAX), mrCaseIgnoreMatch);
-		fixAttribute(schemaManager, LdapConstants.ATTRIBUTE_DC_OID, LdapConstants.ATTRIBUTE_DC_NAME,
+		fixAttribute(schemaManager, SchemaConstants.DC_OBJECT_OC_OID, SchemaConstants.DC_AT,
 				createStringSyntax(SchemaConstants.DIRECTORY_STRING_SYNTAX), mrCaseIgnoreMatch);
-		fixAttribute(schemaManager, LdapConstants.ATTRIBUTE_OU_OID, LdapConstants.ATTRIBUTE_OU_NAME,
+		fixAttribute(schemaManager, SchemaConstants.OU_AT_OID, SchemaConstants.OU_AT,
 				createStringSyntax(SchemaConstants.DIRECTORY_STRING_SYNTAX), mrCaseIgnoreMatch);
 	}
 	

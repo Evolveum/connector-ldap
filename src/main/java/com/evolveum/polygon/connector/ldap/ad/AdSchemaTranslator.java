@@ -25,14 +25,11 @@ import org.apache.directory.api.ldap.model.entry.Value;
 import org.apache.directory.api.ldap.model.exception.LdapInvalidAttributeValueException;
 import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.ldap.model.schema.AttributeType;
-import org.apache.directory.api.ldap.model.schema.LdapSyntax;
 import org.apache.directory.api.ldap.model.schema.SchemaManager;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.common.security.GuardedString;
-import org.identityconnectors.framework.common.objects.AttributeBuilder;
 import org.identityconnectors.framework.common.objects.AttributeInfoBuilder;
 import org.identityconnectors.framework.common.objects.ConnectorObjectBuilder;
-import org.identityconnectors.framework.common.objects.ObjectClass;
 import org.identityconnectors.framework.common.objects.ObjectClassInfoBuilder;
 import org.identityconnectors.framework.common.objects.OperationalAttributes;
 
@@ -113,7 +110,7 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
 	@Override
 	public Value<Object> toLdapValue(AttributeType ldapAttributeType, Object icfAttributeValue) {
 		if (!getConfiguration().isRawUserAccountControlAttribute() && AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME.equals(ldapAttributeType.getName())) {
-			if (((Boolean)icfAttributeValue)) {
+			if ((Boolean)icfAttributeValue) {
 				// ENABLED
 				return super.toLdapValue(ldapAttributeType, Integer.toString(AdConstants.USER_ACCOUNT_CONTROL_NORMAL));
 			} else {
@@ -177,7 +174,7 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
 	protected Value<Object> toLdapPasswordValue(AttributeType ldapAttributeType, Object icfAttributeValue) {
 		String password;
 		if (icfAttributeValue instanceof String) {
-				password = ((String)icfAttributeValue);
+				password = (String)icfAttributeValue;
 		} else if (icfAttributeValue instanceof GuardedString) {
 			final String[] out = new String[1];
 			((GuardedString)icfAttributeValue).access(new GuardedString.Accessor() {

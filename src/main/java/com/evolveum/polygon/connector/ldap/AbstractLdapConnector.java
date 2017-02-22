@@ -26,6 +26,7 @@ import org.apache.commons.lang.ArrayUtils;
 import org.apache.directory.api.ldap.extras.controls.permissiveModify.PermissiveModify;
 import org.apache.directory.api.ldap.extras.controls.permissiveModify.PermissiveModifyImpl;
 import org.apache.directory.api.ldap.extras.controls.vlv.VirtualListViewRequest;
+import org.apache.directory.api.ldap.model.constants.SchemaConstants;
 import org.apache.directory.api.ldap.model.cursor.CursorException;
 import org.apache.directory.api.ldap.model.cursor.CursorLdapReferralException;
 import org.apache.directory.api.ldap.model.cursor.SearchCursor;
@@ -46,7 +47,6 @@ import org.apache.directory.api.ldap.model.message.AddRequest;
 import org.apache.directory.api.ldap.model.message.AddRequestImpl;
 import org.apache.directory.api.ldap.model.message.AddResponse;
 import org.apache.directory.api.ldap.model.message.AliasDerefMode;
-import org.apache.directory.api.ldap.model.message.Control;
 import org.apache.directory.api.ldap.model.message.ModifyRequest;
 import org.apache.directory.api.ldap.model.message.ModifyRequestImpl;
 import org.apache.directory.api.ldap.model.message.ModifyResponse;
@@ -684,16 +684,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		if (options == null || options.getScope() == null) {
 			return SearchScope.SUBTREE;
 		}
-		String optScope = options.getScope();
-		if (LdapConfiguration.SCOPE_SUB.equals(optScope)) {
-			return SearchScope.SUBTREE;
-		} else if (LdapConfiguration.SCOPE_ONE.equals(optScope)) {
-			return SearchScope.ONELEVEL;
-		} else if (LdapConfiguration.SCOPE_BASE.equals(optScope)) {
-			return SearchScope.OBJECT;
-		} else {
-			throw new IllegalArgumentException("Unknown scope "+optScope);
-		}
+		return SearchScope.getSearchScope( SearchScope.getSearchScope( options.getScope() ) );
 	}
 
 	protected String[] getAttributesToGet(org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass, OperationOptions options) {
@@ -1042,7 +1033,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 						stringValues[i] = (String)val;
 						i++;
 					}
-					modifications.add(new DefaultModification(modOp, LdapConstants.ATTRIBUTE_OBJECTCLASS_NAME, stringValues));
+					modifications.add(new DefaultModification(modOp, SchemaConstants.OBJECT_CLASS_AT, stringValues));
 				} else {
 					String[] stringValues = new String[icfAttr.getValue().size()];
 					int i = 0;
@@ -1050,7 +1041,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 						stringValues[i] = (String)val;
 						i++;
 					}
-					modifications.add(new DefaultModification(modOp, LdapConstants.ATTRIBUTE_OBJECTCLASS_NAME, stringValues));
+					modifications.add(new DefaultModification(modOp, SchemaConstants.OBJECT_CLASS_AT, stringValues));
 				}
 			} else {
 				addAttributeModification(dn, modifications, ldapStructuralObjectClass, icfObjectClass, icfAttr, modOp);
@@ -1223,17 +1214,17 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 	public void sync(ObjectClass objectClass, SyncToken token, SyncResultsHandler handler,
 			OperationOptions options) {
 		prepareIcfSchema();
-		SyncStrategy<C> strategy = chooseSyncStrategy(objectClass);
+		SyncStrategy<C> strategy = chooseSyncStrategy();
 		strategy.sync(objectClass, token, handler, options);
 	}
 	
 	@Override
 	public SyncToken getLatestSyncToken(ObjectClass objectClass) {
-		SyncStrategy<C> strategy = chooseSyncStrategy(objectClass);
+		SyncStrategy<C> strategy = chooseSyncStrategy();
 		return strategy.getLatestSyncToken(objectClass);
 	}
 	
-	private SyncStrategy<C> chooseSyncStrategy(ObjectClass objectClass) {
+	private SyncStrategy<C> chooseSyncStrategy() {
 		if (syncStrategy == null) {
 			switch (configuration.getSynchronizationStrategy()) {
 				case LdapConfiguration.SYNCHRONIZATION_STRATEGY_NONE:
@@ -1248,7 +1239,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 					syncStrategy = new AdDirSyncStrategy<>(configuration, connectionManager, getSchemaManager(), getSchemaTranslator());
 					break;
 				case LdapConfiguration.SYNCHRONIZATION_STRATEGY_AUTO:
-					syncStrategy = chooseSyncStrategyAuto(objectClass);
+					syncStrategy = chooseSyncStrategyAuto();
 					break;
 				default:
 					throw new IllegalArgumentException("Unknown synchronization strategy '"+configuration.getSynchronizationStrategy()+"'");
@@ -1257,7 +1248,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		return syncStrategy;
 	}
 
-	private SyncStrategy<C> chooseSyncStrategyAuto(ObjectClass objectClass) {
+	private SyncStrategy<C> chooseSyncStrategyAuto() {
 		Entry rootDse = LdapUtil.getRootDse(connectionManager, SunChangelogSyncStrategy.ROOT_DSE_ATTRIBUTE_CHANGELOG_NAME);
 		org.apache.directory.api.ldap.model.entry.Attribute changelogAttribute = rootDse.get(SunChangelogSyncStrategy.ROOT_DSE_ATTRIBUTE_CHANGELOG_NAME);
 		if (changelogAttribute != null) {
@@ -1336,7 +1327,6 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			}
 			Value<Object> ldapValue = getSchemaTranslator().toLdapIdentifierValue(ldapAttributeType, uid.getUidValue());
 			ExprNode filterNode = new EqualityNode<Object>(ldapAttributeType, ldapValue);
-			String filterString = filterNode.toString();
 			LOG.ok("Resolving DN for UID {0}", uid);
 			Entry entry = searchSingleEntry(getConnectionManager(), baseDn, filterNode, scope,
 					new String[]{uidAttributeName}, "LDAP entry for UID "+uid);
