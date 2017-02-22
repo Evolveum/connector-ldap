@@ -361,8 +361,6 @@ public class LdapUtil {
 			re = new ConnectorSecurityException(message + exceptionMessage, ldapException);
 		} else if (ldapException instanceof LdapAffectMultipleDsaException) {
 			re = new InvalidAttributeValueException(message + exceptionMessage, ldapException);
-		} else if (ldapException instanceof LdapAffectMultipleDsaException) {
-			re = new InvalidAttributeValueException(message + exceptionMessage, ldapException);
 		} else if (ldapException instanceof LdapAliasDereferencingException) {
 			re = new InvalidAttributeValueException(message + exceptionMessage, ldapException);
 		} else if (ldapException instanceof LdapAliasException) {
