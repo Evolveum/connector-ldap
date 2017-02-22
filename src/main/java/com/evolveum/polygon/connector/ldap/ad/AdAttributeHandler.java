@@ -15,18 +15,16 @@
  */
 package com.evolveum.polygon.connector.ldap.ad;
 
-import org.apache.directory.api.ldap.model.cursor.CursorException;
-import org.apache.directory.api.ldap.model.cursor.EntryCursor;
 import org.apache.directory.api.ldap.model.entry.Attribute;
 import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.entry.Value;
 import org.apache.directory.api.ldap.model.exception.LdapException;
 import org.apache.directory.api.ldap.model.exception.LdapInvalidAttributeValueException;
+import org.apache.directory.api.ldap.model.exception.LdapNoSuchObjectException;
 import org.apache.directory.api.ldap.model.message.SearchScope;
 import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
 import org.identityconnectors.common.logging.Log;
-import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
 import org.identityconnectors.framework.common.objects.AttributeBuilder;
 import org.identityconnectors.framework.common.objects.AttributeValueCompleteness;
 
@@ -108,22 +106,20 @@ public class AdAttributeHandler implements AttributeHandler {
 		OperationLog.logOperationReq(connection, "Search REQ base={0}, filter={1}, scope={2}, attributes={3}", 
 				dn, AbstractLdapConfiguration.SEARCH_FILTER_ALL, SearchScope.OBJECT, attributesToGet);
 		try {
-			EntryCursor searchCursor = connection.search(dn, 
-					AbstractLdapConfiguration.SEARCH_FILTER_ALL, SearchScope.OBJECT, attributesToGet);
-			if (searchCursor.next()) {
-				entry = searchCursor.get();
+			entry = connection.lookup( dn, attributesToGet );
+			
+			if ( entry==null ) {
+	            OperationLog.logOperationErr(connection, "Entry not found for {0}", dn);
+	            throw LdapUtil.processLdapException( "Range search for "+dn+" with "+attributesToGet+" failed", 
+	                new LdapNoSuchObjectException("No entry found for " + dn));
 			}
-			if (searchCursor.next()) {
-				throw new IllegalStateException("Impossible has happened, 'base' search for "+dn+" returned more than one entry");
-			}
-			LdapUtil.closeCursor(searchCursor);
 		} catch (LdapException e) {
 			OperationLog.logOperationErr(connection, "Search ERR {0}: {1}", e.getClass().getName(), e.getMessage(), e);
 			throw LdapUtil.processLdapException("Range search for "+dn+" with "+attributesToGet+" failed", e);
-		} catch (CursorException e) {
-			throw new ConnectorIOException("Range search for "+dn+" with "+attributesToGet+" failed: "+e.getMessage(), e);
 		}
+		
 		OperationLog.logOperationRes(connection, "Search RES {0}", entry);
+		
 		return entry.get(attrName);
 	}
 
