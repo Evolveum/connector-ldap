@@ -494,7 +494,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 			return (Value)new StringValue(icfAttributeValue.toString());
 		}
 		
-		if (ldapAttributeType.getName().equals(configuration.getPasswordAttribute())) {
+		if (ldapAttributeType.getName().equalsIgnoreCase( configuration.getPasswordAttribute())) {
 			return toLdapPasswordValue(ldapAttributeType, icfAttributeValue);
 		}
 		
@@ -536,6 +536,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 			}
 		} else if (isBinarySyntax(syntaxOid)) {
 			LOG.ok("Converting to LDAP: {0} ({1}): explicit binary", ldapAttributeType.getName(), syntaxOid);
+			
 			if (icfAttributeValue instanceof byte[]) {
 				try {
 					// Do NOT set attributeType in the Value in this case.
@@ -568,8 +569,9 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 				throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": expected byte[] but got "+icfAttributeValue.getClass()
 						+"; attributeType="+ldapAttributeType);
 			}
-		} else if (isStringSyntax(syntaxOid)) {
-			LOG.ok("Converting to LDAP: {0} ({1}): explicit string", ldapAttributeType.getName(), syntaxOid);
+		} else if (ldapAttributeType.getSyntax().isHumanReadable()) {
+			LOG.ok("Converting to LDAP: {0} ({1}): explicit string", ldapAttributeType.getName(), 
+			    ldapAttributeType.getSyntax().getOid());
 			try {
 				return (Value)new StringValue(ldapAttributeType, icfAttributeValue.toString());
 			} catch (LdapInvalidAttributeValueException e) {
@@ -718,38 +720,83 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 				|| SchemaConstants.CERTIFICATE_PAIR_SYNTAX.equals(syntaxOid);
 	}
 	
+	/**
+	 * Check if an Attribute is binary or String. We use either the H/R flag, of present,
+	 * or a set of static syntaxes. In this case, here are the statically defined matches :
+	 * <ul>
+     *   <li>
+     *     Binary syntaxes :
+     *     <ul>
+     *       <li>BINARY_SYNTAX</li>
+     *       <li>BIT_STRING_SYNTAX</li>
+     *       <li>CERTIFICATE_LIST_SYNTAX</li>
+     *       <li>CERTIFICATE_PAIR_SYNTAX</li>
+     *       <li>CERTIFICATE_SYNTAX</li>
+     *       <li>JPEG_SYNTAX</li>
+     *       <li>OCTET_STRING_SYNTAX</li>
+     *     </ul>
+     *   </li>
+     *   <li>
+     *     String syntaxes :
+     *     <ul>
+     *       <li>DIRECTORY_STRING_SYNTAX</li>
+     *       <li>DN_SYNTAX</li>
+     *       <li>IA5_STRING_SYNTAX</li>
+     *       <li>OBJECT_CLASS_TYPE_SYNTAX</li>
+     *       <li>PRINTABLE_STRING_SYNTAX</li>
+     *     </ul>
+     *   </li>
+	 * </ul>
+	 * 
+	 * @param attributeId The Attribute name
+	 * @return <tt>true</tt> if the attribute is binary, <tt>false</tt> otherwise
+	 */
 	public boolean isBinaryAttribute(String attributeId) {
 		String ldapAttributeName = getLdapAttributeName(attributeId);
 		AttributeType attributeType = schemaManager.getAttributeType(ldapAttributeName);
+		
 		if (attributeType == null) {
 			if (STRING_ATTRIBUTE_NAMES.contains(attributeId.toLowerCase())) {
 				return false;
 			}
+			
 			LOG.warn("Uknown attribute {0}, cannot determine if it is binary", ldapAttributeName);
+			
 			return false;
 		}
+		
 		LdapSyntax syntax = getSyntax(attributeType);
+		
 		if (syntax == null) {
 			// OpenLDAP does not define some syntaxes that it uses
 			return false;
 		}
-		String syntaxOid = attributeType.getSyntaxOid();
+		
+		String syntaxOid = syntax.getOid();
+		
+		// First check in the pre-defined list, just in case
 		if (isBinarySyntax(syntaxOid)) {
 			return true;
 		}
+		
 		if (isStringSyntax(syntaxOid)) {
 			return false;
 		}
+		
+		// Ok, if the syntax is not one of the pre-defined we know of, 
+		// try to ask the syntax about its status.
 		return !syntax.isHumanReadable();
 	}
 	
 	LdapSyntax getSyntax(AttributeType attributeType) {
 		LdapSyntax syntax = attributeType.getSyntax();
+		
 		if (syntax == null && attributeType.getSyntaxOid() != null) {
 			// HACK to support ugly servers (such as AD) that do not declare 
 			// ldapSyntaxes in the schema
 			syntax = new LdapSyntax(attributeType.getSyntaxOid());
 		}
+		
 		return syntax;
 	}
 
@@ -766,10 +813,13 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 				throw new InvalidAttributeValueException("Unknown LDAP attribute "+ldapAttributeName + " (not present in LDAP schema)");
 			}
 		}
-		if ((ldapAttributeType != null) && !ldapAttributeType.getSyntax().isHumanReadable()) {
+		
+		if ((ldapAttributeType != null) && isBinaryAttribute( ldapAttributeName )) {
 			LOG.ok("Converting identifier to ICF: {0} (syntax {1}, value {2}): explicit binary", 
-			    ldapAttributeName, ldapAttributeType.getOid(), ldapValue.getClass());
+			    ldapAttributeName, getSyntax(ldapAttributeType).getOid(), ldapValue.getClass());
+			
 			byte[] bytes;
+			
 			if (ldapValue instanceof BinaryValue) {
 				bytes = ldapValue.getBytes();
 			} else if (ldapValue instanceof StringValue) {
@@ -779,11 +829,13 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 			} else {
 				throw new IllegalStateException("Unexpected value type "+ldapValue.getClass());
 			}
+			
 			// Assume that identifiers are short. It is more readable to use hex representation than base64.
 			return LdapUtil.binaryToHex(bytes);
 		} else {
 			LOG.ok("Converting identifier to ICF: {0} (syntax {1}, value {2}): implicit string", ldapAttributeName, 
-			    (ldapAttributeType == null ? null : ldapAttributeType.getOid()), ldapValue.getClass());
+			    getSyntax(ldapAttributeType).getOid(), ldapValue.getClass());
+			
 			return ldapValue.getString();
 		}
 	}
