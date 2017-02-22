@@ -171,7 +171,7 @@ public class LdapFilterTranslator<C extends AbstractLdapConfiguration> {
 			}
 			List<ExprNode> subNodes = new ArrayList<ExprNode>(ldapValues.size());
 			for (Value<Object> ldapValue: ldapValues) {
-				subNodes.add(new EqualityNode<Object>(ldapAttributeType, ldapValues.get(0)));
+				subNodes.add(new EqualityNode<Object>(ldapAttributeType, ldapValue));
 			}
 			return new ScopedFilter(new AndNode(subNodes));
 			
