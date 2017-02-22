@@ -287,10 +287,10 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 				LOG.ok("Skipping translation of attribute {0} because it should not be translated", ldapAttribute.getName());
 				continue;
 			}
-			if (ldapAttribute.getName().equals(SchemaConstants.OBJECT_CLASS_AT)) {
+			if (ldapAttribute.getName().equalsIgnoreCase( SchemaConstants.OBJECT_CLASS_AT)) {
 				continue;
 			}
-			if (ldapAttribute.getName().equals(getConfiguration().getUidAttribute())) {
+			if (ldapAttribute.getName().equalsIgnoreCase(getConfiguration().getUidAttribute())) {
 				// This is handled separately as __UID__ attribute
 				continue;
 			}
@@ -414,9 +414,12 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 			return String.class;
 		}
     	Class<?> type = null;
-    	if (SYNTAX_MAP.get(syntax.getName()) != null) {
-    	    type = SYNTAX_MAP.get(syntax.getName()).type;
+        TypeSubType typeSubtype = SYNTAX_MAP.get( syntax.getName() );
+
+    	if (typeSubtype != null) {
+    	    type = typeSubtype.type;
     	}
+    	
     	if (type == null) {
     		LOG.warn("No type mapping for syntax {0}, using string", syntax.getName());
     		return String.class;
@@ -460,13 +463,13 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		if (ldapAttribute == null) {
 			return false;
 		}
-		if (ldapAttribute.getEquality() != null && matchingRuleOid.equals(ldapAttribute.getEquality().getOid())) {
+		if (ldapAttribute.getEquality() != null && matchingRuleOid.equalsIgnoreCase(ldapAttribute.getEquality().getOid())) {
 			return true;
 		}
-		if (matchingRuleOid.equals(ldapAttribute.getEqualityOid())) {
+		if (matchingRuleOid.equalsIgnoreCase(ldapAttribute.getEqualityOid())) {
 			return true;
 		}
-		if (matchingRuleName.equals(ldapAttribute.getEqualityName())) {
+		if (matchingRuleName.equalsIgnoreCase(ldapAttribute.getEqualityName())) {
 			return true;
 		}
 		if (ldapAttribute.getSuperior() != null) {
