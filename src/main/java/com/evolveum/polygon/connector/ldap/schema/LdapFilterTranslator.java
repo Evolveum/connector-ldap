@@ -96,6 +96,235 @@ public class LdapFilterTranslator<C extends AbstractLdapConfiguration> {
 		return new EqualityNode<String>(SchemaConstants.OBJECT_CLASS_AT, ldapValue);
 	}
 
+
+	public ScopedFilter translate(AndFilter icfFilter) {
+        if (icfFilter == null) {
+            return null;
+        }
+        
+        Collection<Filter> icfSubfilters = icfFilter.getFilters();
+        List<ExprNode> subNodes = new ArrayList<ExprNode>(icfSubfilters.size());
+        Dn baseDn = null;
+        
+        for (Filter icfSubFilter: icfSubfilters) {
+            ScopedFilter subNode = translate(icfSubFilter);
+            
+            if (subNode.getBaseDn() != null) {
+                if ((baseDn != null) && !baseDn.equals(subNode.getBaseDn())) {
+                    throw new InvalidAttributeValueException("Two search clauses for DN in one search filter");
+                } else {
+                    baseDn = subNode.getBaseDn();
+                }
+            }
+            
+            if (subNode.getFilter() != null) {
+                subNodes.add(subNode.getFilter());
+            }
+        }
+        
+        return new ScopedFilter(new AndNode(subNodes), baseDn);
+	}
+
+
+    public ScopedFilter translate(OrFilter icfFilter) {
+        if (icfFilter == null) {
+            return null;
+        }
+        
+        Collection<Filter> icfSubfilters = icfFilter.getFilters();
+        List<ExprNode> subNodes = new ArrayList<ExprNode>(icfSubfilters.size());
+        
+        for (Filter icfSubFilter: icfSubfilters) {
+            ScopedFilter subNode = translate(icfSubFilter);
+            
+            if (subNode.getBaseDn() != null) {
+                throw new InvalidAttributeValueException("Filter for __NAME__ cannot be used in OR clauses");
+            }
+            
+            subNodes.add(subNode.getFilter());
+        }
+        
+        return new ScopedFilter(new OrNode(subNodes));
+    }
+
+
+    public ScopedFilter translate(NotFilter icfFilter) {
+        if (icfFilter == null) {
+            return null;
+        }
+        
+        Filter icfSubfilter = icfFilter.getFilter();
+        ScopedFilter subNode = translate(icfSubfilter);
+        
+        if (subNode.getBaseDn() != null) {
+            throw new InvalidAttributeValueException("Filter for __NAME__ cannot be used in NOT clauses");
+        }
+        
+        return new ScopedFilter(new NotNode(subNode.getFilter()));
+    }
+
+
+    public ScopedFilter translate(ContainsAllValuesFilter icfFilter) {
+        if (icfFilter == null) {
+            return null;
+        }
+        
+        Attribute icfAttribute = icfFilter.getAttribute();
+        String icfAttributeName = icfAttribute.getName();
+        List<Object> icfAttributeValue = icfAttribute.getValue();
+        
+        if (Name.NAME.equals(icfAttributeName)) {
+            Dn dn = schemaTranslator.toDn(icfAttribute);
+            return new ScopedFilter(dn);
+        }
+        
+        AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, icfAttributeName);
+        List<Value<Object>> ldapValues = schemaTranslator.toLdapValues(ldapAttributeType, icfAttributeValue);
+        
+        if (ldapValues == null || ldapValues.isEmpty()) {
+            throw new IllegalArgumentException("Does it make sense to have empty ContainsAllValuesFilter?");
+        }
+        
+        if (ldapValues.size() == 1) {
+            // Essentialy same as EqualsFilter, so let's optimize this
+            return new ScopedFilter(new EqualityNode<Object>(ldapAttributeType, ldapValues.get(0)));
+        }
+        
+        List<ExprNode> subNodes = new ArrayList<ExprNode>(ldapValues.size());
+        
+        for (Value<Object> ldapValue: ldapValues) {
+            subNodes.add(new EqualityNode<Object>(ldapAttributeType, ldapValue));
+        }
+        
+        return new ScopedFilter(new AndNode(subNodes));
+    }
+
+
+    public ScopedFilter translate(ContainsFilter icfFilter) {
+        if (icfFilter == null) {
+            return null;
+        }
+        
+        Attribute icfAttribute = icfFilter.getAttribute();
+        String icfAttributeName = icfAttribute.getName();
+        
+        if (Name.NAME.equals(icfAttributeName)) {
+            throw new IllegalArgumentException("Cannot use wildcard filter on DN (__NAME__)");
+        }
+        
+        AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, icfAttributeName);
+        List<String> anyPattern = new ArrayList<String>(1);
+        anyPattern.add(SchemaUtil.getSingleStringNonBlankValue(icfAttribute));
+        
+        return new ScopedFilter(new SubstringNode(anyPattern, ldapAttributeType, null, null));
+    }
+
+
+    public ScopedFilter translate(EqualsFilter icfFilter) {
+        if (icfFilter == null) {
+            return null;
+        }
+        
+        Attribute icfAttribute = icfFilter.getAttribute();
+        String icfAttributeName = icfAttribute.getName();
+        
+        if (Name.NAME.equals(icfAttributeName)) {
+            throw new IllegalArgumentException("Cannot use wildcard filter on DN (__NAME__)");
+        }
+        
+        AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, icfAttributeName);
+        String pattern = SchemaUtil.getSingleStringNonBlankValue(icfAttribute);
+        
+        return new ScopedFilter(new SubstringNode(ldapAttributeType, pattern, null));
+    }
+
+
+    public ScopedFilter translate(GreaterThanFilter icfFilter) {
+        if (icfFilter == null) {
+            return null;
+        }
+        
+        Attribute icfAttribute = icfFilter.getAttribute();
+        String icfAttributeName = icfAttribute.getName();
+        List<Object> icfAttributeValue = icfAttribute.getValue();
+        
+        if (Name.NAME.equals(icfAttributeName)) {
+            throw new IllegalArgumentException("Cannot query LDAP objects by DN in a complex filter (__NAME__)");
+        }
+        
+        AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, icfAttributeName);
+        Value<Object> ldapValue = schemaTranslator.toLdapValue(ldapAttributeType, icfAttributeValue);
+        GreaterEqNode<Object> greaterEqNode = new GreaterEqNode<Object>(ldapAttributeType, ldapValue);
+        EqualityNode<Object> equalityNode = new EqualityNode<Object>(ldapAttributeType, ldapValue);
+        
+        return new ScopedFilter(new AndNode(greaterEqNode,new NotNode(equalityNode)));
+    }
+
+
+    public ScopedFilter translate(GreaterThanOrEqualFilter icfFilter) {
+        if (icfFilter == null) {
+            return null;
+        }
+        
+        Attribute icfAttribute = icfFilter.getAttribute();
+        String icfAttributeName = icfAttribute.getName();
+        List<Object> icfAttributeValue = icfAttribute.getValue();
+        
+        if (Name.NAME.equals(icfAttributeName)) {
+            throw new IllegalArgumentException("Cannot query LDAP objects by DN in a complex filter (__NAME__)");
+        }
+        
+        AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, icfAttributeName);
+        Value<Object> ldapValue = schemaTranslator.toLdapValue(ldapAttributeType, icfAttributeValue);
+        
+        return new ScopedFilter(new GreaterEqNode<Object>(ldapAttributeType, ldapValue));
+        
+    }
+
+
+    public ScopedFilter translate(LessThanFilter icfFilter) {
+        if (icfFilter == null) {
+            return null;
+        }
+        
+        Attribute icfAttribute = icfFilter.getAttribute();
+        String icfAttributeName = icfAttribute.getName();
+        List<Object> icfAttributeValue = icfAttribute.getValue();
+        
+        if (Name.NAME.equals(icfAttributeName)) {
+            throw new IllegalArgumentException("Cannot query LDAP objects by DN in a complex filter (__NAME__)");
+        }
+        
+        AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, icfAttributeName);
+        Value<Object> ldapValue = schemaTranslator.toLdapValue(ldapAttributeType, icfAttributeValue);
+        LessEqNode<Object> lessEqNode = new LessEqNode<Object>(ldapAttributeType, ldapValue);
+        EqualityNode<Object> equalityNode = new EqualityNode<Object>(ldapAttributeType, ldapValue);
+        
+        return new ScopedFilter(new AndNode(lessEqNode,new NotNode(equalityNode)));
+    }
+
+
+    public ScopedFilter translate(LessThanOrEqualFilter icfFilter) {
+        if (icfFilter == null) {
+            return null;
+        }
+        
+        Attribute icfAttribute = icfFilter.getAttribute();
+        String icfAttributeName = icfAttribute.getName();
+        List<Object> icfAttributeValue = icfAttribute.getValue();
+        
+        if (Name.NAME.equals(icfAttributeName)) {
+            throw new IllegalArgumentException("Cannot query LDAP objects by DN in a complex filter (__NAME__)");
+        }
+        
+        AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, icfAttributeName);
+        Value<Object> ldapValue = schemaTranslator.toLdapValue(ldapAttributeType, icfAttributeValue);
+        
+        return new ScopedFilter(new LessEqNode<Object>(ldapAttributeType, ldapValue));
+        
+    }
+
+    
 	public ScopedFilter translate(Filter icfFilter) {
 		if (icfFilter == null) {
 			return null;
@@ -106,155 +335,27 @@ public class LdapFilterTranslator<C extends AbstractLdapConfiguration> {
 		// any OO magic here. And this is still quite readable.
 		
 		if (icfFilter instanceof AndFilter) {
-			Collection<Filter> icfSubfilters = ((AndFilter)icfFilter).getFilters();
-			List<ExprNode> subNodes = new ArrayList<ExprNode>(icfSubfilters.size());
-			Dn baseDn = null;
-			for (Filter icfSubFilter: icfSubfilters) {
-				ScopedFilter subNode = translate(icfSubFilter);
-				if (subNode.getBaseDn() != null) {
-					if (baseDn != null) {
-						if (baseDn.equals(subNode.getBaseDn())) {
-							// Same dn in both nodes, nothing to do
-						} else {
-							throw new InvalidAttributeValueException("Two search clauses for DN in one search filter");
-						}						
-					} else {
-						baseDn = subNode.getBaseDn();
-					}
-				}
-				if (subNode.getFilter() != null) {
-					subNodes.add(subNode.getFilter());
-				}
-			}
-			return new ScopedFilter(new AndNode(subNodes), baseDn);
-			
+			return translate((AndFilter)icfFilter);
 		} else if (icfFilter instanceof OrFilter) {
-			Collection<Filter> icfSubfilters = ((OrFilter)icfFilter).getFilters();
-			List<ExprNode> subNodes = new ArrayList<ExprNode>(icfSubfilters.size());
-			for (Filter icfSubFilter: icfSubfilters) {
-				ScopedFilter subNode = translate(icfSubFilter);
-				if (subNode.getBaseDn() != null) {
-					throw new InvalidAttributeValueException("Filter for __NAME__ cannot be used in OR clauses");
-				}
-				subNodes.add(subNode.getFilter());
-			}
-			return new ScopedFilter(new OrNode(subNodes));
-			
+            return translate((OrFilter)icfFilter);
 		} else if (icfFilter instanceof NotFilter) {
-			Filter icfSubfilter = ((NotFilter)icfFilter).getFilter();
-			ScopedFilter subNode = translate(icfSubfilter);
-			if (subNode.getBaseDn() != null) {
-				throw new InvalidAttributeValueException("Filter for __NAME__ cannot be used in NOT clauses");
-			}
-			return new ScopedFilter(new NotNode(subNode.getFilter()));
-			
+            return translate((NotFilter)icfFilter);
 		} else if (icfFilter instanceof EqualsFilter) {
 			return translateEqualsFilter((EqualsFilter)icfFilter);
-			
-
 		} else if (icfFilter instanceof ContainsAllValuesFilter) {
-			Attribute icfAttribute = ((ContainsAllValuesFilter)icfFilter).getAttribute();
-			String icfAttributeName = icfAttribute.getName();
-			List<Object> icfAttributeValue = icfAttribute.getValue();
-			if (Name.NAME.equals(icfAttributeName)) {
-				Dn dn = schemaTranslator.toDn(icfAttribute);
-				return new ScopedFilter(dn);
-			}
-			AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, icfAttributeName);
-			List<Value<Object>> ldapValues = schemaTranslator.toLdapValues(ldapAttributeType, icfAttributeValue);
-			if (ldapValues == null || ldapValues.isEmpty()) {
-				throw new IllegalArgumentException("Does it make sense to have empty ContainsAllValuesFilter?");
-			}
-			if (ldapValues.size() == 1) {
-				// Essentialy same as EqualsFilter, so let's optimize this
-				return new ScopedFilter(new EqualityNode<Object>(ldapAttributeType, ldapValues.get(0)));
-			}
-			List<ExprNode> subNodes = new ArrayList<ExprNode>(ldapValues.size());
-			for (Value<Object> ldapValue: ldapValues) {
-				subNodes.add(new EqualityNode<Object>(ldapAttributeType, ldapValue));
-			}
-			return new ScopedFilter(new AndNode(subNodes));
-			
+            return translate((ContainsAllValuesFilter)icfFilter);
 		} else if (icfFilter instanceof ContainsFilter) {
-			Attribute icfAttribute = ((ContainsFilter)icfFilter).getAttribute();
-			String icfAttributeName = icfAttribute.getName();
-			if (Name.NAME.equals(icfAttributeName)) {
-				throw new IllegalArgumentException("Cannot use wildcard filter on DN (__NAME__)");
-			}
-			AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, icfAttributeName);
-			List<String> anyPattern = new ArrayList<String>(1);
-			anyPattern.add(SchemaUtil.getSingleStringNonBlankValue(icfAttribute));
-			return new ScopedFilter(new SubstringNode(anyPattern, ldapAttributeType, null, null));
-			
-		} else if (icfFilter instanceof StartsWithFilter) {
-			Attribute icfAttribute = ((EqualsFilter)icfFilter).getAttribute();
-			String icfAttributeName = icfAttribute.getName();
-			if (Name.NAME.equals(icfAttributeName)) {
-				throw new IllegalArgumentException("Cannot use wildcard filter on DN (__NAME__)");
-			}
-			AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, icfAttributeName);
-			String pattern = SchemaUtil.getSingleStringNonBlankValue(icfAttribute);
-			return new ScopedFilter(new SubstringNode(ldapAttributeType, pattern, null));
-
-		} else if (icfFilter instanceof EndsWithFilter) {
-			Attribute icfAttribute = ((EqualsFilter)icfFilter).getAttribute();
-			String icfAttributeName = icfAttribute.getName();
-			if (Name.NAME.equals(icfAttributeName)) {
-				throw new IllegalArgumentException("Cannot use wildcard filter on DN (__NAME__)");
-			}
-			AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, icfAttributeName);
-			String pattern = SchemaUtil.getSingleStringNonBlankValue(icfAttribute);
-			return new ScopedFilter(new SubstringNode(ldapAttributeType, null, pattern));
-			
+            return translate((ContainsFilter)icfFilter);
+		} else if ((icfFilter instanceof StartsWithFilter) || (icfFilter instanceof EndsWithFilter)) {
+            return translate((EqualsFilter)icfFilter);
 		} else if (icfFilter instanceof GreaterThanFilter) {			
-			Attribute icfAttribute = ((EqualsFilter)icfFilter).getAttribute();
-			String icfAttributeName = icfAttribute.getName();
-			List<Object> icfAttributeValue = icfAttribute.getValue();
-			if (Name.NAME.equals(icfAttributeName)) {
-				throw new IllegalArgumentException("Cannot query LDAP objects by DN in a complex filter (__NAME__)");
-			}
-			AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, icfAttributeName);
-			Value<Object> ldapValue = schemaTranslator.toLdapValue(ldapAttributeType, icfAttributeValue);
-			GreaterEqNode<Object> greaterEqNode = new GreaterEqNode<Object>(ldapAttributeType, ldapValue);
-			EqualityNode<Object> equalityNode = new EqualityNode<Object>(ldapAttributeType, ldapValue);
-			return new ScopedFilter(new AndNode(greaterEqNode,new NotNode(equalityNode)));
-			
+            return translate((GreaterThanFilter)icfFilter);
 		} else if (icfFilter instanceof GreaterThanOrEqualFilter) {
-			Attribute icfAttribute = ((EqualsFilter)icfFilter).getAttribute();
-			String icfAttributeName = icfAttribute.getName();
-			List<Object> icfAttributeValue = icfAttribute.getValue();
-			if (Name.NAME.equals(icfAttributeName)) {
-				throw new IllegalArgumentException("Cannot query LDAP objects by DN in a complex filter (__NAME__)");
-			}
-			AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, icfAttributeName);
-			Value<Object> ldapValue = schemaTranslator.toLdapValue(ldapAttributeType, icfAttributeValue);
-			return new ScopedFilter(new GreaterEqNode<Object>(ldapAttributeType, ldapValue));
-			
+            return translate((GreaterThanOrEqualFilter)icfFilter);
 		} else if (icfFilter instanceof LessThanFilter) {
-			Attribute icfAttribute = ((EqualsFilter)icfFilter).getAttribute();
-			String icfAttributeName = icfAttribute.getName();
-			List<Object> icfAttributeValue = icfAttribute.getValue();
-			if (Name.NAME.equals(icfAttributeName)) {
-				throw new IllegalArgumentException("Cannot query LDAP objects by DN in a complex filter (__NAME__)");
-			}
-			AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, icfAttributeName);
-			Value<Object> ldapValue = schemaTranslator.toLdapValue(ldapAttributeType, icfAttributeValue);
-			LessEqNode<Object> lessEqNode = new LessEqNode<Object>(ldapAttributeType, ldapValue);
-			EqualityNode<Object> equalityNode = new EqualityNode<Object>(ldapAttributeType, ldapValue);
-			return new ScopedFilter(new AndNode(lessEqNode,new NotNode(equalityNode)));
-			
+            return translate((LessThanFilter)icfFilter);
 		} else if (icfFilter instanceof LessThanOrEqualFilter) {
-			
-			Attribute icfAttribute = ((EqualsFilter)icfFilter).getAttribute();
-			String icfAttributeName = icfAttribute.getName();
-			List<Object> icfAttributeValue = icfAttribute.getValue();
-			if (Name.NAME.equals(icfAttributeName)) {
-				throw new IllegalArgumentException("Cannot query LDAP objects by DN in a complex filter (__NAME__)");
-			}
-			AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, icfAttributeName);
-			Value<Object> ldapValue = schemaTranslator.toLdapValue(ldapAttributeType, icfAttributeValue);
-			return new ScopedFilter(new LessEqNode<Object>(ldapAttributeType, ldapValue));
-			
+            return translate((LessThanOrEqualFilter)icfFilter);
 		} else if (icfFilter instanceof ExternallyChainedFilter) {
 			return translate(((ExternallyChainedFilter)icfFilter).getFilter());
 			
