@@ -114,17 +114,20 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 	public Schema translateSchema(ConnectionManager<C> connection) throws InvalidConnectionException {
 		SchemaBuilder schemaBuilder = new SchemaBuilder(LdapConnector.class);
 		LOG.ok("Translating LDAP schema from {0}", schemaManager);
+		
 		for (org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass: schemaManager.getObjectClassRegistry()) {
 			if (shouldTranslateObjectClass(ldapObjectClass.getName())) {
 				LOG.ok("Found LDAP schema object class {0}, translating", ldapObjectClass.getName());
 				ObjectClassInfoBuilder ocib = new ObjectClassInfoBuilder();
 				ocib.setType(toIcfObjectClassType(ldapObjectClass));
-				List<AttributeInfo> attrInfoList = new ArrayList<>();
+				Map<String, AttributeInfo> attrInfoList = new HashMap<>();
 				addAttributeTypes(attrInfoList, ldapObjectClass);
-				ocib.addAllAttributeInfo(attrInfoList);
+				ocib.addAllAttributeInfo(attrInfoList.values());
+				
 				if (ldapObjectClass.isAuxiliary()) {
 					ocib.setAuxiliary(true);
 				}
+				
 				extendObjectClassDefinition(ocib, ldapObjectClass);
 				schemaBuilder.defineObjectClass(ocib.build());
 			} else {
@@ -191,7 +194,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		}
 	}
 	
-	private void addAttributeTypes(List<AttributeInfo> attrInfoList, org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
+	private void addAttributeTypes(Map<String, AttributeInfo> attrInfoList, org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
 		
 		// ICF UID
 		String uidAttribudeLdapName = configuration.getUidAttribute();
@@ -199,13 +202,15 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		uidAib.setNativeName(uidAttribudeLdapName);
 		uidAib.setRequired(false); // Must be optional. It is not present for create operations
 		AttributeType uidAttributeLdapType = null;
+		
 		try {
-			uidAttributeLdapType = schemaManager.getAttributeTypeRegistry().lookup(uidAttribudeLdapName);
+			uidAttributeLdapType = schemaManager.lookupAttributeTypeRegistry( uidAttribudeLdapName);
 		} catch (LdapException e) {
 			// We can live with this
 			LOG.ok("Got exception looking up UID atribute {0}: {1} ({2}) (probabably harmless)", uidAttribudeLdapName,
 					e.getMessage(), e.getClass());
 		}
+		
 		if (uidAttributeLdapType != null) {
 			// UID must be string. It is hardcoded in the framework.
 			uidAib.setType(String.class);
@@ -217,7 +222,9 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 			uidAib.setUpdateable(false);
 			uidAib.setReadable(true);
 		}
-		attrInfoList.add(uidAib.build());
+		
+		AttributeInfo attributeInfo = uidAib.build();
+		attrInfoList.put(attributeInfo.getName(), attributeInfo);
 		
 		// ICF NAME
 		AttributeInfoBuilder nameAib = new AttributeInfoBuilder(Name.NAME);
@@ -225,16 +232,17 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		nameAib.setNativeName(LdapConfiguration.PSEUDO_ATTRIBUTE_DN_NAME);
 		nameAib.setSubtype(AttributeInfo.Subtypes.STRING_LDAP_DN);
 		nameAib.setRequired(true);
-		attrInfoList.add(nameAib.build());
+        attributeInfo = nameAib.build();
+        attrInfoList.put(attributeInfo.getName(), attributeInfo);
 		
 		// AUXILIARY_OBJECT_CLASS
-		attrInfoList.add(PredefinedAttributeInfos.AUXILIARY_OBJECT_CLASS);
+		attrInfoList.put(PredefinedAttributeInfos.AUXILIARY_OBJECT_CLASS.getName(), PredefinedAttributeInfos.AUXILIARY_OBJECT_CLASS);
 		
 		addAttributeTypesFromLdapSchema(attrInfoList, ldapObjectClass);
 		addExtraOperationalAttributes(attrInfoList);
 	}
 	
-	private void addExtraOperationalAttributes(List<AttributeInfo> attrInfoList) {
+	private void addExtraOperationalAttributes(Map<String, AttributeInfo> attrInfoList) {
 		for (String operationalAttributeLdapName: configuration.getOperationalAttributes()) {
 			if (containsAttribute(attrInfoList, operationalAttributeLdapName)) {
 				continue;
@@ -245,8 +253,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 			
 			AttributeType attributeType = null;
 			try {
-				String operationalAttributeLdapOid = schemaManager.getAttributeTypeRegistry().getOidByName(operationalAttributeLdapName);
-				attributeType = schemaManager.getAttributeTypeRegistry().get(operationalAttributeLdapOid);
+				attributeType = schemaManager.lookupAttributeTypeRegistry(operationalAttributeLdapName);
 			} catch (LdapException e) {
 				// Ignore. We want this attribute even if it is not in the LDAP schema
 			}
@@ -262,12 +269,13 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 			}
 			aib.setReturnedByDefault(false);
 			
-			attrInfoList.add(aib.build());
+			AttributeInfo attributeInfo = aib.build();
+			attrInfoList.put(attributeInfo.getName(), attributeInfo);
 		}
 		
 	}
 	
-	private void addAttributeTypesFromLdapSchema(List<AttributeInfo> attrInfoList, org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
+	private void addAttributeTypesFromLdapSchema(Map<String, AttributeInfo> attrInfoList, org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
 		LOG.ok("  ... translating attributes from {0}:\n{1}\nMUST\n{2}", ldapObjectClass.getName(), ldapObjectClass, ldapObjectClass.getMustAttributeTypes());
 		addAttributeTypes(attrInfoList, ldapObjectClass.getMustAttributeTypes(), true);
 		LOG.ok("  ... translating attributes from {0}:\n{1}\nMAY\n{2}", ldapObjectClass.getName(), ldapObjectClass, ldapObjectClass.getMayAttributeTypes());
@@ -281,7 +289,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		}
 	}
 
-	private void addAttributeTypes(List<AttributeInfo> attrInfoList, List<AttributeType> attributeTypes, boolean isRequired) {
+	private void addAttributeTypes(Map<String, AttributeInfo> attrInfoList, List<AttributeType> attributeTypes, boolean isRequired) {
 		for (AttributeType ldapAttribute: attributeTypes) {
 			if (!shouldTranslateAttribute(ldapAttribute.getName())) {
 				LOG.ok("Skipping translation of attribute {0} because it should not be translated", ldapAttribute.getName());
@@ -317,7 +325,8 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 			setAttributeMultiplicityAndPermissions(ldapAttribute, aib);
 			LOG.ok("Translating {0} -> {1} ({2} -> {3})", ldapAttribute.getName(), icfAttributeName, 
 					ldapSyntax==null?null:ldapSyntax.getOid(), icfType);
-			attrInfoList.add(aib.build());
+			AttributeInfo attributeInfo = aib.build();
+			attrInfoList.put(attributeInfo.getName(), attributeInfo);
 		}
 	}
 	
@@ -341,13 +350,8 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		}
 	}
 	
-	private boolean containsAttribute(List<AttributeInfo> attrInfoList, String icfAttributeName) {
-		for (AttributeInfo attrInfo: attrInfoList) {
-			if (icfAttributeName.equals(attrInfo.getName())) {
-				return true;
-			}
-		}
-		return false;
+	private boolean containsAttribute(Map<String, AttributeInfo> attrInfoList, String icfAttributeName) {
+	    return attrInfoList.containsKey( icfAttributeName );
 	}
 
 	private String toIcfAttributeName(String ldapAttributeName) {
@@ -360,7 +364,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 	public org.apache.directory.api.ldap.model.schema.ObjectClass toLdapObjectClass(ObjectClass icfObjectClass) {
 		String ldapObjectClassName = toLdapObjectClassName(icfObjectClass);
 		try {
-			return schemaManager.getObjectClassRegistry().lookup(ldapObjectClassName);
+			return schemaManager.lookupObjectClassRegistry(ldapObjectClassName);
 		} catch (LdapException e) {
 			throw new IllegalArgumentException("Unknown object class "+icfObjectClass+": "+e.getMessage(), e);
 		}
@@ -384,8 +388,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 			ldapAttributeName = icfAttributeName;
 		}
 		try {
-			String attributeOid = schemaManager.getAttributeTypeRegistry().getOidByName(ldapAttributeName);
-			AttributeType attributeType = schemaManager.getAttributeTypeRegistry().lookup(attributeOid);
+			AttributeType attributeType = schemaManager.lookupAttributeTypeRegistry(ldapAttributeName);
 			if (attributeType == null && configuration.isAllowUnknownAttributes()) {
 				// Create fake attribute type
 				attributeType = new AttributeType(ldapAttributeName);
@@ -998,7 +1001,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 			String objectClassString = objectClassVal.getString();
 			org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass;
 			try {
-				ldapObjectClass = schemaManager.getObjectClassRegistry().lookup(objectClassString);
+				ldapObjectClass = schemaManager.lookupObjectClassRegistry(objectClassString);
 			} catch (LdapException e) {
 				throw new InvalidAttributeValueException(e.getMessage(), e);
 			}
