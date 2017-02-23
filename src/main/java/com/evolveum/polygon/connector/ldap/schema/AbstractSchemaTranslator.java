@@ -15,9 +15,6 @@
  */
 package com.evolveum.polygon.connector.ldap.schema;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.ObjectOutputStream;
 import java.io.UnsupportedEncodingException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -89,7 +86,7 @@ import com.evolveum.polygon.connector.ldap.LdapUtil;
 public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfiguration> {
 	
 	private static final Log LOG = Log.getLog(AbstractSchemaTranslator.class);
-	private static final Collection<String> STRING_ATTRIBUTE_NAMES = new ArrayList<String>();
+	private static final Collection<String> STRING_ATTRIBUTE_NAMES = new ArrayList<>();
 	private static final Map<String, TypeSubType> SYNTAX_MAP = new HashMap<>();
 	
 	private SchemaManager schemaManager;
@@ -122,7 +119,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 				LOG.ok("Found LDAP schema object class {0}, translating", ldapObjectClass.getName());
 				ObjectClassInfoBuilder ocib = new ObjectClassInfoBuilder();
 				ocib.setType(toIcfObjectClassType(ldapObjectClass));
-				List<AttributeInfo> attrInfoList = new ArrayList<AttributeInfo>();
+				List<AttributeInfo> attrInfoList = new ArrayList<>();
 				addAttributeTypes(attrInfoList, ldapObjectClass);
 				ocib.addAllAttributeInfo(attrInfoList);
 				if (ldapObjectClass.isAuxiliary()) {
@@ -290,10 +287,10 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 				LOG.ok("Skipping translation of attribute {0} because it should not be translated", ldapAttribute.getName());
 				continue;
 			}
-			if (ldapAttribute.getName().equals(SchemaConstants.OBJECT_CLASS_AT)) {
+			if (ldapAttribute.getName().equalsIgnoreCase( SchemaConstants.OBJECT_CLASS_AT)) {
 				continue;
 			}
-			if (ldapAttribute.getName().equals(getConfiguration().getUidAttribute())) {
+			if (ldapAttribute.getName().equalsIgnoreCase(getConfiguration().getUidAttribute())) {
 				// This is handled separately as __UID__ attribute
 				continue;
 			}
@@ -362,14 +359,8 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 	
 	public org.apache.directory.api.ldap.model.schema.ObjectClass toLdapObjectClass(ObjectClass icfObjectClass) {
 		String ldapObjectClassName = toLdapObjectClassName(icfObjectClass);
-		String ldapObjectClassOid;
 		try {
-			ldapObjectClassOid = schemaManager.getObjectClassRegistry().getOidByName(ldapObjectClassName);
-		} catch (LdapException e) {
-			throw new IllegalArgumentException("Unknown object class "+icfObjectClass+": "+e.getMessage(), e);
-		}
-		try {
-			return schemaManager.getObjectClassRegistry().lookup(ldapObjectClassOid);
+			return schemaManager.getObjectClassRegistry().lookup(ldapObjectClassName);
 		} catch (LdapException e) {
 			throw new IllegalArgumentException("Unknown object class "+icfObjectClass+": "+e.getMessage(), e);
 		}
@@ -423,7 +414,12 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 			return String.class;
 		}
     	Class<?> type = null;
-    	if (SYNTAX_MAP.get(syntax.getName()) != null) type = SYNTAX_MAP.get(syntax.getName()).type;
+        TypeSubType typeSubtype = SYNTAX_MAP.get( syntax.getName() );
+
+    	if (typeSubtype != null) {
+    	    type = typeSubtype.type;
+    	}
+    	
     	if (type == null) {
     		LOG.warn("No type mapping for syntax {0}, using string", syntax.getName());
     		return String.class;
@@ -467,13 +463,13 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		if (ldapAttribute == null) {
 			return false;
 		}
-		if (ldapAttribute.getEquality() != null && matchingRuleOid.equals(ldapAttribute.getEquality().getOid())) {
+		if (ldapAttribute.getEquality() != null && matchingRuleOid.equalsIgnoreCase(ldapAttribute.getEquality().getOid())) {
 			return true;
 		}
-		if (matchingRuleOid.equals(ldapAttribute.getEqualityOid())) {
+		if (matchingRuleOid.equalsIgnoreCase(ldapAttribute.getEqualityOid())) {
 			return true;
 		}
-		if (matchingRuleName.equals(ldapAttribute.getEqualityName())) {
+		if (matchingRuleName.equalsIgnoreCase(ldapAttribute.getEqualityName())) {
 			return true;
 		}
 		if (ldapAttribute.getSuperior() != null) {
@@ -485,7 +481,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 	}
 
 	public List<Value<Object>> toLdapValues(AttributeType ldapAttributeType, List<Object> icfAttributeValues) {
-		List<Value<Object>> ldapValues = new ArrayList<Value<Object>>(icfAttributeValues.size());
+		List<Value<Object>> ldapValues = new ArrayList<>(icfAttributeValues.size());
 		for (Object icfValue: icfAttributeValues) {
 			ldapValues.add(toLdapValue(ldapAttributeType, icfValue));
 		}
@@ -501,7 +497,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 			return (Value)new StringValue(icfAttributeValue.toString());
 		}
 		
-		if (ldapAttributeType.getName().equals(configuration.getPasswordAttribute())) {
+		if (ldapAttributeType.getName().equalsIgnoreCase( configuration.getPasswordAttribute())) {
 			return toLdapPasswordValue(ldapAttributeType, icfAttributeValue);
 		}
 		
@@ -543,6 +539,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 			}
 		} else if (isBinarySyntax(syntaxOid)) {
 			LOG.ok("Converting to LDAP: {0} ({1}): explicit binary", ldapAttributeType.getName(), syntaxOid);
+			
 			if (icfAttributeValue instanceof byte[]) {
 				try {
 					// Do NOT set attributeType in the Value in this case.
@@ -575,8 +572,9 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 				throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": expected byte[] but got "+icfAttributeValue.getClass()
 						+"; attributeType="+ldapAttributeType);
 			}
-		} else if (isStringSyntax(syntaxOid)) {
-			LOG.ok("Converting to LDAP: {0} ({1}): explicit string", ldapAttributeType.getName(), syntaxOid);
+		} else if (ldapAttributeType.getSyntax().isHumanReadable()) {
+			LOG.ok("Converting to LDAP: {0} ({1}): explicit string", ldapAttributeType.getName(), 
+			    ldapAttributeType.getSyntax().getOid());
 			try {
 				return (Value)new StringValue(ldapAttributeType, icfAttributeValue.toString());
 			} catch (LdapInvalidAttributeValueException e) {
@@ -722,41 +720,86 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 				|| SchemaConstants.BIT_STRING_SYNTAX.equals(syntaxOid)
 				|| SchemaConstants.CERTIFICATE_SYNTAX.equals(syntaxOid)
 				|| SchemaConstants.CERTIFICATE_LIST_SYNTAX.equals(syntaxOid)
-				|| SchemaConstants.CERTIFICATE_PAIR_SYNTAX.equals(syntaxOid);				
+				|| SchemaConstants.CERTIFICATE_PAIR_SYNTAX.equals(syntaxOid);
 	}
 	
+	/**
+	 * Check if an Attribute is binary or String. We use either the H/R flag, of present,
+	 * or a set of static syntaxes. In this case, here are the statically defined matches :
+	 * <ul>
+     *   <li>
+     *     Binary syntaxes :
+     *     <ul>
+     *       <li>BINARY_SYNTAX</li>
+     *       <li>BIT_STRING_SYNTAX</li>
+     *       <li>CERTIFICATE_LIST_SYNTAX</li>
+     *       <li>CERTIFICATE_PAIR_SYNTAX</li>
+     *       <li>CERTIFICATE_SYNTAX</li>
+     *       <li>JPEG_SYNTAX</li>
+     *       <li>OCTET_STRING_SYNTAX</li>
+     *     </ul>
+     *   </li>
+     *   <li>
+     *     String syntaxes :
+     *     <ul>
+     *       <li>DIRECTORY_STRING_SYNTAX</li>
+     *       <li>DN_SYNTAX</li>
+     *       <li>IA5_STRING_SYNTAX</li>
+     *       <li>OBJECT_CLASS_TYPE_SYNTAX</li>
+     *       <li>PRINTABLE_STRING_SYNTAX</li>
+     *     </ul>
+     *   </li>
+	 * </ul>
+	 * 
+	 * @param attributeId The Attribute name
+	 * @return <tt>true</tt> if the attribute is binary, <tt>false</tt> otherwise
+	 */
 	public boolean isBinaryAttribute(String attributeId) {
 		String ldapAttributeName = getLdapAttributeName(attributeId);
 		AttributeType attributeType = schemaManager.getAttributeType(ldapAttributeName);
+		
 		if (attributeType == null) {
 			if (STRING_ATTRIBUTE_NAMES.contains(attributeId.toLowerCase())) {
 				return false;
 			}
+			
 			LOG.warn("Uknown attribute {0}, cannot determine if it is binary", ldapAttributeName);
+			
 			return false;
 		}
+		
 		LdapSyntax syntax = getSyntax(attributeType);
+		
 		if (syntax == null) {
 			// OpenLDAP does not define some syntaxes that it uses
 			return false;
 		}
-		String syntaxOid = attributeType.getSyntaxOid();
+		
+		String syntaxOid = syntax.getOid();
+		
+		// First check in the pre-defined list, just in case
 		if (isBinarySyntax(syntaxOid)) {
 			return true;
 		}
+		
 		if (isStringSyntax(syntaxOid)) {
 			return false;
 		}
+		
+		// Ok, if the syntax is not one of the pre-defined we know of, 
+		// try to ask the syntax about its status.
 		return !syntax.isHumanReadable();
 	}
 	
 	LdapSyntax getSyntax(AttributeType attributeType) {
 		LdapSyntax syntax = attributeType.getSyntax();
+		
 		if (syntax == null && attributeType.getSyntaxOid() != null) {
 			// HACK to support ugly servers (such as AD) that do not declare 
 			// ldapSyntaxes in the schema
 			syntax = new LdapSyntax(attributeType.getSyntaxOid());
 		}
+		
 		return syntax;
 	}
 
@@ -767,41 +810,35 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		if (ldapValue == null) {
 			return null;
 		}
-		String syntaxOid = null;
 		if (ldapAttributeType == null) {
 			// E.g. ancient OpenLDAP does not have entryUUID in schema
 			if (!configuration.isAllowUnknownAttributes()) {
 				throw new InvalidAttributeValueException("Unknown LDAP attribute "+ldapAttributeName + " (not present in LDAP schema)");
 			}
-		} else {  
-			syntaxOid = ldapAttributeType.getSyntaxOid();
 		}
-		if (isBinarySyntax(syntaxOid)) {
-			LOG.ok("Converting identifier to ICF: {0} (syntax {1}, value {2}): explicit binary", ldapAttributeName, syntaxOid, ldapValue.getClass());
+		
+		if ((ldapAttributeType != null) && isBinaryAttribute( ldapAttributeName )) {
+			LOG.ok("Converting identifier to ICF: {0} (syntax {1}, value {2}): explicit binary", 
+			    ldapAttributeName, getSyntax(ldapAttributeType).getOid(), ldapValue.getClass());
+			
 			byte[] bytes;
+			
 			if (ldapValue instanceof BinaryValue) {
 				bytes = ldapValue.getBytes();
 			} else if (ldapValue instanceof StringValue) {
-				// Binary value incorrectly detected as string value. Conversion to Java string has broken the data.
-				// We need to do some magic to fix it.
-				LOG.ok("UID: string: {0}, bytes", ldapValue.getString());
-				ByteArrayOutputStream bout = new ByteArrayOutputStream();
-				try {
-					ObjectOutputStream oos = new ObjectOutputStream(bout);
-					oos.writeUTF(ldapValue.getString());
-					oos.close();
-					bout.close();
-				} catch (IOException e) {
-					throw new IllegalStateException(e.getMessage(), e);
-				}
-				bytes = bout.toByteArray();
+                // Binary value incorrectly detected as string value. Conversion to Java string has broken the data.
+                // We need to do some magic to fix it.
+			    bytes = ldapValue.getBytes();
 			} else {
 				throw new IllegalStateException("Unexpected value type "+ldapValue.getClass());
 			}
+			
 			// Assume that identifiers are short. It is more readable to use hex representation than base64.
 			return LdapUtil.binaryToHex(bytes);
 		} else {
-			LOG.ok("Converting identifier to ICF: {0} (syntax {1}, value {2}): implicit string", ldapAttributeName, syntaxOid, ldapValue.getClass());
+			LOG.ok("Converting identifier to ICF: {0} (syntax {1}, value {2}): implicit string", ldapAttributeName, 
+			    getSyntax(ldapAttributeType).getOid(), ldapValue.getClass());
+			
 			return ldapValue.getString();
 		}
 	}
@@ -1249,25 +1286,25 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 	}
 
 	private static class TypeSubType {
-		Class type;
+		Class<?> type;
 		String subtype;
 		
-		public TypeSubType(Class type, String subtype) {
+		public TypeSubType(Class<?> type, String subtype) {
 			super();
 			this.type = type;
 			this.subtype = subtype;
 		}
 	}
 
-	private static void addToSyntaxMap(String syntaxOid, Class type) {
+	private static void addToSyntaxMap(String syntaxOid, Class<?> type) {
 		SYNTAX_MAP.put(syntaxOid, new TypeSubType(type, null));
 	}
 
-	private static void addToSyntaxMap(String syntaxOid, Class type, String subtype) {
+	private static void addToSyntaxMap(String syntaxOid, Class<?> type, String subtype) {
 		SYNTAX_MAP.put(syntaxOid, new TypeSubType(type, subtype));
 	}
 
-	private static void addToSyntaxMap(String syntaxOid, Class type, AttributeInfo.Subtypes subtype) {
+	private static void addToSyntaxMap(String syntaxOid, Class<?> type, AttributeInfo.Subtypes subtype) {
 		SYNTAX_MAP.put(syntaxOid, new TypeSubType(type, subtype.toString()));
 	}
 	
