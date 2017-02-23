@@ -1320,8 +1320,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			AttributeType ldapAttributeType;
 			SchemaManager schemaManager = getSchemaManager();
 			try {
-				String attributeOid = schemaManager.getAttributeTypeRegistry().getOidByName(uidAttributeName);
-				ldapAttributeType = schemaManager.getAttributeTypeRegistry().lookup(attributeOid);
+				ldapAttributeType = schemaManager.lookupAttributeTypeRegistry(uidAttributeName);
 			} catch (LdapException e1) {
 				throw new InvalidAttributeValueException("Cannot find schema for UID attribute "+uidAttributeName);
 			}
