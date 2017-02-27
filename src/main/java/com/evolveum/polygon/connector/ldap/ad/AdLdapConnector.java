@@ -613,7 +613,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 		// Microsoft violates RFC4519
 		fixAttribute(schemaManager, SchemaConstants.CN_AT_OID, SchemaConstants.CN_AT,
 				createStringSyntax(SchemaConstants.DIRECTORY_STRING_SYNTAX), mrCaseIgnoreMatch);
-		fixAttribute(schemaManager, SchemaConstants.DC_OBJECT_OC_OID, SchemaConstants.DC_AT,
+		fixAttribute(schemaManager, SchemaConstants.DOMAIN_COMPONENT_AT_OID, SchemaConstants.DC_AT,
 				createStringSyntax(SchemaConstants.DIRECTORY_STRING_SYNTAX), mrCaseIgnoreMatch);
 		fixAttribute(schemaManager, SchemaConstants.OU_AT_OID, SchemaConstants.OU_AT,
 				createStringSyntax(SchemaConstants.DIRECTORY_STRING_SYNTAX), mrCaseIgnoreMatch);
