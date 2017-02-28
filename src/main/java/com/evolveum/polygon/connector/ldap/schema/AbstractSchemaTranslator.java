@@ -839,7 +839,8 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 			return LdapUtil.binaryToHex(bytes);
 		} else {
 			LOG.ok("Converting identifier to ICF: {0} (syntax {1}, value {2}): implicit string", ldapAttributeName, 
-			    getSyntax(ldapAttributeType).getOid(), ldapValue.getClass());
+				ldapAttributeType==null?null:getSyntax(ldapAttributeType).getOid(),
+			    ldapValue.getClass());
 			
 			return ldapValue.getString();
 		}
