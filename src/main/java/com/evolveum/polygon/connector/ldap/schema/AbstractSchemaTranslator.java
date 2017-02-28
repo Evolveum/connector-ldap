@@ -575,9 +575,8 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 				throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": expected byte[] but got "+icfAttributeValue.getClass()
 						+"; attributeType="+ldapAttributeType);
 			}
-		} else if (ldapAttributeType.getSyntax().isHumanReadable()) {
-			LOG.ok("Converting to LDAP: {0} ({1}): explicit string", ldapAttributeType.getName(), 
-			    ldapAttributeType.getSyntax().getOid());
+		} else if (!isBinaryAttribute(syntaxOid)) {
+			LOG.ok("Converting to LDAP: {0} ({1}): explicit string", ldapAttributeType.getName(), syntaxOid);
 			try {
 				return (Value)new StringValue(ldapAttributeType, icfAttributeValue.toString());
 			} catch (LdapInvalidAttributeValueException e) {
