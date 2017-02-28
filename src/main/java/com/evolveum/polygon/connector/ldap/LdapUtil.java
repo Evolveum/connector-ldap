@@ -19,7 +19,6 @@ import java.io.IOException;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Date;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -712,7 +711,13 @@ public class LdapUtil {
 			throw new InvalidAttributeValueException("Invalid DN: " + upper.toString() + ": " + e.getMessage(), e);
 		}
 
-		return upperSA.isAncestorOf(lower);
+		Dn lowerSA;
+		try {
+			lowerSA = new Dn(schemaTranslator.getSchemaManager(), lower.toString());
+		} catch (LdapInvalidDnException e) {
+			throw new InvalidAttributeValueException("Invalid DN: " + lower.toString() + ": " + e.getMessage(), e);
+		}
+		
+		return upperSA.isAncestorOf(lowerSA);
 	}
-
 }
