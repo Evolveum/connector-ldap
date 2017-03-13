@@ -260,7 +260,8 @@ public class LdapUtil {
 			OperationOptions options, AbstractSchemaTranslator schemaTranslator) {
 		String[] attributesToGet = getAttributesToGet(ldapObjectClass, options, schemaTranslator);
 		Entry entry = null;
-		LOG.ok("Lookup Entry={0}, attributes={1}", dn, attributesToGet);
+		LOG.ok("Search REQ base={0}, filter={1}, scope={2}, attributes={3}", 
+				dn, AbstractLdapConfiguration.SEARCH_FILTER_ALL, SearchScope.OBJECT, attributesToGet);
 		
 		try {
 		    entry = connection.lookup( dn, attributesToGet );
