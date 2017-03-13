@@ -245,6 +245,16 @@ public class LdapUtil {
 		return false;
 	}
 
+	/**
+	 * Fetch a single entry using its DN.
+	 * 
+	 * @param connection The LDAP connection to use
+	 * @param dn The entry's DN
+	 * @param ldapObjectClass The entry's ObjectClass
+	 * @param options The options to use 
+	 * @param schemaTranslator The Schema translator instance
+	 * @return The found entry, or null if none is found.
+	 */
 	public static Entry fetchEntry(LdapNetworkConnection connection, String dn, 
 			org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass, 
 			OperationOptions options, AbstractSchemaTranslator schemaTranslator) {
