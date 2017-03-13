@@ -210,14 +210,14 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 			LOG.ok("Got exception looking up UID atribute {0}: {1} ({2}) (probabably harmless)", uidAttribudeLdapName,
 					e.getMessage(), e.getClass());
 		}
-		
+
+        // UID must be string. It is hardcoded in the framework.
+        uidAib.setType(String.class);
+
 		if (uidAttributeLdapType != null) {
-			// UID must be string. It is hardcoded in the framework.
-			uidAib.setType(String.class);
 			uidAib.setSubtype(toIcfSubtype(String.class, uidAttributeLdapType, Uid.NAME));
 			setAttributeMultiplicityAndPermissions(uidAttributeLdapType, uidAib);
 		} else {
-			uidAib.setType(String.class);
 			uidAib.setCreateable(false);
 			uidAib.setUpdateable(false);
 			uidAib.setReadable(true);
@@ -282,7 +282,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		addAttributeTypes(attrInfoList, ldapObjectClass.getMayAttributeTypes(), false);
 		
 		List<org.apache.directory.api.ldap.model.schema.ObjectClass> superiors = ldapObjectClass.getSuperiors();
-		if (superiors != null) {
+		if ((superiors != null) && (superiors.size() > 0)) {
 			for (org.apache.directory.api.ldap.model.schema.ObjectClass superior: superiors) {
 				addAttributeTypesFromLdapSchema(attrInfoList, superior);
 			}
@@ -295,7 +295,10 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 				LOG.ok("Skipping translation of attribute {0} because it should not be translated", ldapAttribute.getName());
 				continue;
 			}
-			if (ldapAttribute.getName().equalsIgnoreCase( SchemaConstants.OBJECT_CLASS_AT)) {
+			
+			// Compare the name *or* the OID (the name may be null)
+			if ((SchemaConstants.OBJECT_CLASS_AT.equalsIgnoreCase( ldapAttribute.getName()))
+			    || SchemaConstants.OBJECT_CLASS_AT_OID.equals( ldapAttribute.getOid() )) {
 				continue;
 			}
 			if (ldapAttribute.getName().equalsIgnoreCase(getConfiguration().getUidAttribute())) {
@@ -355,7 +358,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 	}
 
 	private String toIcfAttributeName(String ldapAttributeName) {
-		if (ldapAttributeName.equals(configuration.getPasswordAttribute())) {
+		if (ldapAttributeName.equalsIgnoreCase(configuration.getPasswordAttribute())) {
 			return OperationalAttributeInfos.PASSWORD.getName();
 		}
 		return ldapAttributeName;
@@ -914,15 +917,21 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		return icfSchema.findObjectClassInfo(icfObjectClass.getObjectClassValue());
 	}
 	
-	public boolean hasUidAttribute(Entry entry) {
-		String uidAttributeName = configuration.getUidAttribute();
-		if (LdapUtil.isDnAttribute(uidAttributeName)) {
-			return true;
-		} else {
-			org.apache.directory.api.ldap.model.entry.Attribute uidAttribute = entry.get(uidAttributeName);
-			return uidAttribute != null;
-		}
-	}
+    /**
+     * Tells if a given Entry has an UID attribute
+     * 
+     * @param entry The Entry to check
+     * @return <tt>true</tt> if the entry contains an UID attribute
+     */
+    public boolean hasUidAttribute(Entry entry) {
+        String uidAttributeName = configuration.getUidAttribute();
+        
+        if (LdapUtil.isDnAttribute(uidAttributeName)) {
+            return true;
+        } else {
+            return entry.get(uidAttributeName) != null;
+        }
+    }
 
 	public ConnectorObject toIcfObject(LdapNetworkConnection connection, ObjectClass icfObjectClass, Entry entry, AttributeHandler attributeHandler) {
 		ObjectClassInfo icfObjectClassInfo = findObjectClassInfo(icfObjectClass);
