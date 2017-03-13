@@ -210,14 +210,14 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 			LOG.ok("Got exception looking up UID atribute {0}: {1} ({2}) (probabably harmless)", uidAttribudeLdapName,
 					e.getMessage(), e.getClass());
 		}
-		
+
+        // UID must be string. It is hardcoded in the framework.
+        uidAib.setType(String.class);
+
 		if (uidAttributeLdapType != null) {
-			// UID must be string. It is hardcoded in the framework.
-			uidAib.setType(String.class);
 			uidAib.setSubtype(toIcfSubtype(String.class, uidAttributeLdapType, Uid.NAME));
 			setAttributeMultiplicityAndPermissions(uidAttributeLdapType, uidAib);
 		} else {
-			uidAib.setType(String.class);
 			uidAib.setCreateable(false);
 			uidAib.setUpdateable(false);
 			uidAib.setReadable(true);
@@ -282,7 +282,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		addAttributeTypes(attrInfoList, ldapObjectClass.getMayAttributeTypes(), false);
 		
 		List<org.apache.directory.api.ldap.model.schema.ObjectClass> superiors = ldapObjectClass.getSuperiors();
-		if (superiors != null) {
+		if ((superiors != null) && (superiors.size() > 0)) {
 			for (org.apache.directory.api.ldap.model.schema.ObjectClass superior: superiors) {
 				addAttributeTypesFromLdapSchema(attrInfoList, superior);
 			}
@@ -295,7 +295,10 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 				LOG.ok("Skipping translation of attribute {0} because it should not be translated", ldapAttribute.getName());
 				continue;
 			}
-			if (ldapAttribute.getName().equalsIgnoreCase( SchemaConstants.OBJECT_CLASS_AT)) {
+			
+			// Compare the name *or* the OID (the name may be null)
+			if ((SchemaConstants.OBJECT_CLASS_AT.equalsIgnoreCase( ldapAttribute.getName()))
+			    || SchemaConstants.OBJECT_CLASS_AT_OID.equals( ldapAttribute.getOid() )) {
 				continue;
 			}
 			if (ldapAttribute.getName().equalsIgnoreCase(getConfiguration().getUidAttribute())) {
@@ -355,7 +358,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 	}
 
 	private String toIcfAttributeName(String ldapAttributeName) {
-		if (ldapAttributeName.equals(configuration.getPasswordAttribute())) {
+		if (ldapAttributeName.equalsIgnoreCase(configuration.getPasswordAttribute())) {
 			return OperationalAttributeInfos.PASSWORD.getName();
 		}
 		return ldapAttributeName;
@@ -707,26 +710,64 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 	}
 
 
-	protected boolean isStringSyntax(String syntaxOid) {
-		return SchemaConstants.DIRECTORY_STRING_SYNTAX.equals(syntaxOid) 
-				|| SchemaConstants.IA5_STRING_SYNTAX.equals(syntaxOid)				
-				|| SchemaConstants.OBJECT_CLASS_TYPE_SYNTAX.equals(syntaxOid)
-				|| SchemaConstants.DN_SYNTAX.equals(syntaxOid)
-				|| SchemaConstants.PRINTABLE_STRING_SYNTAX.equals(syntaxOid);
-	}
+    /**
+     * Tells if the given Syntax OID is String. It checks only a subset of
+     * know syntaxes :
+     * <ul>
+     *   <li>DIRECTORY_STRING_SYNTAX</li>
+     *   <li>IA5_STRING_SYNTAX</li>
+     *   <li>OBJECT_CLASS_TYPE_SYNTAX</li>
+     *   <li>DN_SYNTAX</li>
+     *   <li>PRINTABLE_STRING_SYNTAX</li>
+     * </ul>  
+     * @param syntaxOid The Syntax OID
+     * @return <tt>true</tt> if the syntax OID is one of the listed syntaxes
+     */
+    protected boolean isStringSyntax(String syntaxOid) {
+        switch (syntaxOid) {
+            case SchemaConstants.DIRECTORY_STRING_SYNTAX : 
+            case SchemaConstants.IA5_STRING_SYNTAX :
+            case SchemaConstants.OBJECT_CLASS_TYPE_SYNTAX :
+            case SchemaConstants.DN_SYNTAX :
+            case SchemaConstants.PRINTABLE_STRING_SYNTAX :
+                return true;
+            default :
+                return false;
+        }
+    }
 
-	protected boolean isBinarySyntax(String syntaxOid) {
-		return SchemaConstants.OCTET_STRING_SYNTAX.equals(syntaxOid) 
-				|| SchemaConstants.JPEG_SYNTAX.equals(syntaxOid)
-				|| SchemaConstants.BINARY_SYNTAX.equals(syntaxOid)
-				|| SchemaConstants.BIT_STRING_SYNTAX.equals(syntaxOid)
-				|| SchemaConstants.CERTIFICATE_SYNTAX.equals(syntaxOid)
-				|| SchemaConstants.CERTIFICATE_LIST_SYNTAX.equals(syntaxOid)
-				|| SchemaConstants.CERTIFICATE_PAIR_SYNTAX.equals(syntaxOid);
-	}
-	
+    /**
+     * Tells if the given Syntax OID is binary. It checks only a subset of
+     * know syntaxes :
+     * <ul>
+     *   <li>OCTET_STRING_SYNTAX</li>
+     *   <li>JPEG_SYNTAX</li>
+     *   <li>BINARY_SYNTAX</li>
+     *   <li>BIT_STRING_SYNTAX</li>
+     *   <li>CERTIFICATE_SYNTAX</li>
+     *   <li>CERTIFICATE_LIST_SYNTAX</li>
+     *   <li>CERTIFICATE_PAIR_SYNTAX</li>
+     * </ul>  
+     * @param syntaxOid The Syntax OID
+     * @return <tt>true</tt> if the syntax OID is one of the listed syntaxes
+     */
+    protected boolean isBinarySyntax(String syntaxOid) {
+        switch (syntaxOid) {
+            case SchemaConstants.OCTET_STRING_SYNTAX :
+            case SchemaConstants.JPEG_SYNTAX :
+            case SchemaConstants.BINARY_SYNTAX :
+            case SchemaConstants.BIT_STRING_SYNTAX :
+            case SchemaConstants.CERTIFICATE_SYNTAX :
+            case SchemaConstants.CERTIFICATE_LIST_SYNTAX :
+            case SchemaConstants.CERTIFICATE_PAIR_SYNTAX :
+                return true;
+            default :
+                return false;
+        }
+    }
+
 	/**
-	 * Check if an Attribute is binary or String. We use either the H/R flag, of present,
+	 * Check if an Attribute is binary or String. We use either the H/R flag, if present,
 	 * or a set of static syntaxes. In this case, here are the statically defined matches :
 	 * <ul>
      *   <li>
@@ -751,59 +792,86 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
      *       <li>PRINTABLE_STRING_SYNTAX</li>
      *     </ul>
      *   </li>
-	 * </ul>
-	 * 
-	 * @param attributeId The Attribute name
-	 * @return <tt>true</tt> if the attribute is binary, <tt>false</tt> otherwise
-	 */
-	public boolean isBinaryAttribute(String attributeId) {
-		String ldapAttributeName = getLdapAttributeName(attributeId);
-		AttributeType attributeType = schemaManager.getAttributeType(ldapAttributeName);
-		
-		if (attributeType == null) {
-			if (STRING_ATTRIBUTE_NAMES.contains(attributeId.toLowerCase())) {
-				return false;
-			}
-			
-			LOG.warn("Uknown attribute {0}, cannot determine if it is binary", ldapAttributeName);
-			
-			return false;
-		}
-		
-		LdapSyntax syntax = getSyntax(attributeType);
-		
-		if (syntax == null) {
-			// OpenLDAP does not define some syntaxes that it uses
-			return false;
-		}
-		
-		String syntaxOid = syntax.getOid();
-		
-		// First check in the pre-defined list, just in case
-		if (isBinarySyntax(syntaxOid)) {
-			return true;
-		}
-		
-		if (isStringSyntax(syntaxOid)) {
-			return false;
-		}
-		
-		// Ok, if the syntax is not one of the pre-defined we know of, 
-		// try to ask the syntax about its status.
-		return !syntax.isHumanReadable();
-	}
+     * </ul>
+     * 
+     * @param attributeId The Attribute name or its OID
+     * @return <tt>true</tt> if the attribute is binary, <tt>false</tt> otherwise
+     */
+    public boolean isBinaryAttribute(String attributeId) {
+        // Get rid of the attribute's options
+        String ldapAttributeName = getLdapAttributeName(attributeId);
+        
+        // Retrieve the attributeType from the schema
+        AttributeType attributeType = schemaManager.getAttributeType(ldapAttributeName);
+        
+        if (attributeType == null) {
+            // Not found. Let's try with the set of hard-coded attributeType
+            if (STRING_ATTRIBUTE_NAMES.contains(attributeId.toLowerCase())) {
+                return false;
+            }
+            
+            LOG.warn("Uknown attribute {0}, cannot determine if it is binary", ldapAttributeName);
+            
+            return false;
+        }
+        
+        // Ok, we have the AttributeType, let's get its Syntax
+        LdapSyntax syntax = getSyntax(attributeType);
+        
+        // Should *never* happen, as the getSyntax() method always 
+        // return a syntax....
+        if (syntax == null) {
+            // OpenLDAP does not define some syntaxes that it uses
+            return false;
+        }
+        
+        String syntaxOid = syntax.getOid();
+        
+        // First check in the pre-defined list, just in case
+        if (isBinarySyntax(syntaxOid)) {
+            return true;
+        }
+        
+        if (isStringSyntax(syntaxOid)) {
+            return false;
+        }
+        
+        // Ok, if the syntax is not one of the pre-defined we know of, 
+        // try to ask the syntax about its status.
+        return !syntax.isHumanReadable();
+    }
 	
-	LdapSyntax getSyntax(AttributeType attributeType) {
-		LdapSyntax syntax = attributeType.getSyntax();
-		
-		if (syntax == null && attributeType.getSyntaxOid() != null) {
-			// HACK to support ugly servers (such as AD) that do not declare 
-			// ldapSyntaxes in the schema
-			syntax = new LdapSyntax(attributeType.getSyntaxOid());
-		}
-		
-		return syntax;
-	}
+	
+    /**
+     * Retrieve the Syntax associated with an AttributeType. In theory, every AttributeType
+     * must have a syntax, but some rogue and not compliant LDAP Servers don't do that.
+     * Typically, if an AttributeType does not have a Syntax, then it should inherit from
+     * its parent's Syntax.  
+     * 
+     * @param attributeType The AttributeType for which we want the Syntax
+     * @return The LdapSyntax instance for this AttributeType
+     */
+    LdapSyntax getSyntax(AttributeType attributeType) {
+        LdapSyntax syntax = attributeType.getSyntax();
+        
+        if (syntax == null && attributeType.getSyntaxOid() != null) {
+            // HACK to support ugly servers (such as AD) that do not declare 
+            // ldapSyntaxes in the schema
+            // We will first check if we can't find the syntax from the
+            // SchemaManager, and if not, we will create it
+            try
+            {
+                syntax = schemaManager.lookupLdapSyntaxRegistry( attributeType.getSyntaxOid() );
+            }
+            catch ( LdapException e )
+            {
+                // Fallback...
+                syntax = new LdapSyntax(attributeType.getSyntaxOid());
+            }
+        }
+        
+        return syntax;
+    }
 
 	/**
 	 * Used to format __UID__ and __NAME__.
@@ -850,15 +918,21 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		return icfSchema.findObjectClassInfo(icfObjectClass.getObjectClassValue());
 	}
 	
-	public boolean hasUidAttribute(Entry entry) {
-		String uidAttributeName = configuration.getUidAttribute();
-		if (LdapUtil.isDnAttribute(uidAttributeName)) {
-			return true;
-		} else {
-			org.apache.directory.api.ldap.model.entry.Attribute uidAttribute = entry.get(uidAttributeName);
-			return uidAttribute != null;
-		}
-	}
+    /**
+     * Tells if a given Entry has an UID attribute
+     * 
+     * @param entry The Entry to check
+     * @return <tt>true</tt> if the entry contains an UID attribute
+     */
+    public boolean hasUidAttribute(Entry entry) {
+        String uidAttributeName = configuration.getUidAttribute();
+        
+        if (LdapUtil.isDnAttribute(uidAttributeName)) {
+            return true;
+        } else {
+            return entry.get(uidAttributeName) != null;
+        }
+    }
 
 	public ConnectorObject toIcfObject(LdapNetworkConnection connection, ObjectClass icfObjectClass, Entry entry, AttributeHandler attributeHandler) {
 		ObjectClassInfo icfObjectClassInfo = findObjectClassInfo(icfObjectClass);
@@ -975,11 +1049,32 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		return getLdapAttributeName(ldapAttribute.getId());
 	}
 	
+	/**
+	 * Get back the attribute name, without the options. Typically, RFC 4512 
+	 * defines an Attribute description as :
+	 * <pre>
+	 * attributedescription = attributetype options
+     * attributetype = oid
+     * options = *( SEMI option )
+     * option = 1*keychar
+	 * </pre>
+	 * 
+	 * where <em>oid</em> can be a String or an OID. An example is :
+	 * <pre>
+	 * cn;lang-de;lang-en
+	 * </pre>
+	 * where the attribute name is <em>cn</em>.
+	 * <p>
+	 * @param attributeId The attribute descriptio to parse
+	 * @return The attribute name, without the options
+	 */
 	public String getLdapAttributeName(String attributeId) {
 		int iSemicolon = attributeId.indexOf(';');
+		
 		if (iSemicolon < 0) {
 			return attributeId;
 		}
+		
 		return attributeId.substring(0, iSemicolon);
 	}
 
