@@ -250,24 +250,17 @@ public class LdapUtil {
 			OperationOptions options, AbstractSchemaTranslator schemaTranslator) {
 		String[] attributesToGet = getAttributesToGet(ldapObjectClass, options, schemaTranslator);
 		Entry entry = null;
-		LOG.ok("Search REQ base={0}, filter={1}, scope={2}, attributes={3}", 
-				dn, AbstractLdapConfiguration.SEARCH_FILTER_ALL, SearchScope.OBJECT, attributesToGet);
+		LOG.ok("Lookup Entry={0}, attributes={1}", dn, attributesToGet);
+		
 		try {
-			EntryCursor searchCursor = connection.search(dn, AbstractLdapConfiguration.SEARCH_FILTER_ALL, SearchScope.OBJECT, attributesToGet);
-			if (searchCursor.next()) {
-				entry = searchCursor.get();
-			}
-			if (searchCursor.next()) {
-				throw new IllegalStateException("Impossible has happened, 'base' search for "+dn+" returned more than one entry");
-			}
-			closeCursor(searchCursor);
+		    entry = connection.lookup( dn, attributesToGet );
 		} catch (LdapException e) {
 			LOG.error("Search ERR {0}: {1}", e.getClass().getName(), e.getMessage(), e);
 			throw processLdapException("Search for "+dn+" failed", e);
-		} catch (CursorException e) {
-			throw new ConnectorIOException("Search for "+dn+" failed: "+e.getMessage(), e);
 		}
+		
 		LOG.ok("Search RES {0}", entry);
+		
 		return entry;
 	}
 	
