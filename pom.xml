@@ -116,7 +116,7 @@
 		<dependency>
 		  <groupId>io.cloudsoft.windows</groupId>
 		  <artifactId>winrm4j</artifactId>
-		  <version>0.4.0.e1</version>
+		  <version>0.4.0.e2</version>
 		  <exclusions>
 				<!-- Exclude SLF4J API from the lib to avoid bundling it with the
 				     connector. The SLF4J is already part of midPoint.

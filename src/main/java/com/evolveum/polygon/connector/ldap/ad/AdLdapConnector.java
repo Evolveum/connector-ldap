@@ -51,6 +51,7 @@ import org.apache.http.client.config.AuthSchemes;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.common.exceptions.ConfigurationException;
+import org.identityconnectors.framework.common.exceptions.ConnectionFailedException;
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
 import org.identityconnectors.framework.common.exceptions.UnknownUidException;
 import org.identityconnectors.framework.common.objects.Attribute;
@@ -92,6 +93,9 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
     private String winRmUsername;
     private String winRmHost;
     private WinRmTool winRmTool;
+    private HostnameVerifier hostnameVerifier;
+    private PowerHell powerHell;
+    private PowerHell exchangePowerHell;
     
     private static int busUsageCount = 0;
 
@@ -106,6 +110,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 	@Override
     public void dispose() {
 		super.dispose();
+		disposePowerHell();
 		disposeWinRm();
 	}
 
@@ -398,7 +403,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 		builder.useHttps(getConfiguration().isWinRmUseHttps());
 		// No suffix matcher here. The suffix matcher is problematic. E.g. it will
 		// cause mismatch between chimera.ad.evolveum.com and chimera.ad.evolveum.com
-		HostnameVerifier hostnameVerifier = new DefaultHostnameVerifier(null);
+		hostnameVerifier = new DefaultHostnameVerifier(null);
 		builder.hostnameVerifier(hostnameVerifier);
 		winRmTool =  builder.build();
 	}
@@ -419,6 +424,15 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 		throw new ConfigurationException("Unknown authentication scheme: "+getConfiguration().getWinRmAuthenticationScheme());
 	}
 
+	private void disposePowerHell() {
+		if (powerHell != null) {
+			powerHell.disconnect();
+		}
+		if (exchangePowerHell != null) {
+			exchangePowerHell.disconnect();
+		}
+	} 
+	
 	private void disposeWinRm() {
 		disposeBus();
 	}
@@ -481,7 +495,16 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 
 	@Override
 	public Object runScriptOnResource(ScriptContext scriptCtx, OperationOptions options) {
-		
+		switch (scriptCtx.getScriptLanguage()) {
+			case AdLdapConfiguration.SCRIPT_LANGUAGE_EXCHANGE:
+			case AdLdapConfiguration.SCRIPT_LANGUAGE_POWERHELL:
+				return runPowerHellScript(scriptCtx, options);
+			default:
+				return runWinRmToolScript(scriptCtx, options);
+		}
+	}
+	
+	private Object runWinRmToolScript(ScriptContext scriptCtx, OperationOptions options) {
 		String scriptLanguage = scriptCtx.getScriptLanguage();
 		WinRmToolResponse response;
 		if (scriptLanguage == null || scriptLanguage.equals(AdLdapConfiguration.SCRIPT_LANGUAGE_POWERSHELL)) {
@@ -500,15 +523,99 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 			throw new IllegalArgumentException("Unknown script language '"+scriptLanguage+"'");
 		}
 		
-		OperationLog.log("{0} Script RES status={1}", winRmHost, response.getStatusCode());
 		LOG.ok("Script returned status {0}\nSTDOUT:\n{1}\nSTDERR:\n{2}", response.getStatusCode(), response.getStdOut(), response.getStdErr());
 		
-		if (response.getStatusCode() != 0) {
+		if (response.getStatusCode() == 0) {
+			OperationLog.log("{0} Script RES status={1}", winRmHost, response.getStatusCode());
+		} else {
 			String errorMessage = getScriptError(response);
+			OperationLog.error("{0} Script ERR status={1}: {2}", winRmHost, response.getStatusCode(), errorMessage);
 			throw new ConnectorException("Script execution failed (status code "+response.getStatusCode()+"): "+errorMessage);
 		}
 		
 		return response.getStdOut();
+	}
+	
+	private Object runPowerHellScript(ScriptContext scriptCtx, OperationOptions options) {
+		PowerHell powerHell;
+		switch (scriptCtx.getScriptLanguage()) {
+			case AdLdapConfiguration.SCRIPT_LANGUAGE_EXCHANGE:
+				powerHell = getExchangePowerHell();
+				break;
+			case AdLdapConfiguration.SCRIPT_LANGUAGE_POWERHELL:
+				powerHell = getPowerHell();
+				break;
+			default:
+				throw new IllegalArgumentException("Unknown script language "+scriptCtx.getScriptLanguage());
+		}
+		
+		String command = getScriptCommand(scriptCtx, getConfiguration().getPowershellArgumentStyle());
+		
+		OperationLog.log("{0} Script REQ exchange: {1}", winRmHost, command);
+		LOG.ok("Executing exchange script on {0} as {1}: {2}", winRmHost, winRmUsername, command);
+		
+		String output;
+		try {
+			
+			output = powerHell.runCommand(command);
+			
+		} catch (PowerHellExecutionException e) {
+			OperationLog.error("{0} Script ERR {1}", winRmHost, e.getMessage());
+			throw new ConnectorException("Script execution failed: "+e.getMessage(), e);
+		}
+					
+		OperationLog.log("{0} Script RES {1}", winRmHost, (output==null||output.isEmpty())?"no output":("output "+output.length()+" chars"));
+		LOG.ok("Script returned output\n{0}", output);
+				
+		return output;
+	}
+
+	private PowerHell getExchangePowerHell() {
+		if (exchangePowerHell == null) {
+			LOG.ok("Initializing exchange PowerHell");
+			exchangePowerHell = initPowerHell("Add-PSSnapin *Exchange*");
+		}
+		return exchangePowerHell;
+	}
+	
+	private PowerHell getPowerHell() {
+		if (powerHell == null) {
+			LOG.ok("Initializing PowerHell");
+			powerHell = initPowerHell(null);
+		}
+		return powerHell;
+	}
+
+	private PowerHell initPowerHell(String initiScriptlet) {
+		PowerHell powerHell = new PowerHell();
+		String winRmDomain = getConfiguration().getWinRmDomain();
+		powerHell.setDomainName(winRmDomain);
+		powerHell.setEndpointUrl(getWinRmEndpointUrl());
+		powerHell.setUserName(winRmUsername);
+		powerHell.setPassword(getWinRmPassword());
+		powerHell.setAuthenticationScheme(getAuthenticationScheme());
+		powerHell.setHostnameVerifier(hostnameVerifier);
+		powerHell.setInitScriptlet(initiScriptlet);
+		
+		try {
+			powerHell.connect();
+		} catch (PowerHellExecutionException e) {
+			throw new ConnectionFailedException("Cannot connect PowerHell: "+e.getMessage(), e);
+		}
+		
+		return powerHell;
+	}
+
+	private String getWinRmEndpointUrl() {
+		StringBuilder sb = new StringBuilder();
+		if (getConfiguration().isWinRmUseHttps()) {
+			sb.append("https://");
+		} else {
+			sb.append("http://");
+		}
+		sb.append(winRmHost).append(":").append(getConfiguration().getWinRmPort());
+		sb.append("/wsman");
+		return sb.toString();
 	}
 
 	private String getScriptCommand(ScriptContext scriptCtx, String argumentStyle) {

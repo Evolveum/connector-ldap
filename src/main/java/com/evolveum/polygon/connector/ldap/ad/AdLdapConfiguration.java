@@ -36,8 +36,25 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 	public static final String ATTRIBUTE_OBJECT_GUID_NAME = "objectGUID";
 	public static final String ATTRIBUTE_UNICODE_PWD_NAME = "unicodePwd";
 	
+	/**
+	 * Execution of PowerShell using a single WinRM (WS-MAN) command.
+	 */
 	public static final String SCRIPT_LANGUAGE_POWERSHELL = "powershell";
+	
+	/**
+	 * Execution of single WinRM (WS-MAN) command (using default shell: cmd.exe).
+	 */
 	public static final String SCRIPT_LANGUAGE_CMD = "cmd";
+	
+	/**
+	 * Long-running PowerShell using the PowerHell loop (no special initialization).
+	 */
+	public static final String SCRIPT_LANGUAGE_POWERHELL = "powerhell";
+
+	/**
+	 * Long-running PowerShell initialized with Exchange snap-ins using the PowerHell loop.
+	 */
+	public static final String SCRIPT_LANGUAGE_EXCHANGE = "exchange";
     
 	/**
 	 * Object class to use for user accounts. Default: user

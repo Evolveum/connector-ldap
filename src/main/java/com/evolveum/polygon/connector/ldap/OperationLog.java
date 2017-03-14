@@ -39,13 +39,17 @@ public class OperationLog {
 	}
 
 	public static void logOperationErr(LdapNetworkConnection connection, String format, Object... params) {
-		if (LOG.isInfo()) {
+		if (LOG.isError()) {
 			LOG.error(LdapUtil.formatConnectionInfo(connection) + format, params);
 		}
 	}
 	
 	public static void log(String format, Object... params) {
 		LOG.info(format, params);
+	}
+	
+	public static void error(String format, Object... params) {
+		LOG.error(format, params);
 	}
 
 	public static boolean isLogOperations() {
