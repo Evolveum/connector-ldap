@@ -42,6 +42,7 @@ import org.apache.directory.api.ldap.model.message.controls.SortRequest;
 import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.ldap.model.schema.AttributeType;
 import org.apache.directory.api.ldap.model.schema.LdapSyntax;
+import org.apache.directory.api.ldap.model.schema.MutableAttributeType;
 import org.apache.directory.api.ldap.model.schema.SchemaManager;
 import org.apache.directory.api.util.GeneralizedTime;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
@@ -394,8 +395,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 			AttributeType attributeType = schemaManager.lookupAttributeTypeRegistry(ldapAttributeName);
 			if (attributeType == null && configuration.isAllowUnknownAttributes()) {
 				// Create fake attribute type
-				attributeType = new AttributeType(ldapAttributeName);
-				attributeType.setNames(ldapAttributeName);
+				attributeType = createFauxAttributeType(ldapAttributeName);
 			}
 			return attributeType;
 		} catch (LdapException e) {
@@ -408,6 +408,13 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 				throw new IllegalArgumentException("Unknown LDAP attribute "+ldapAttributeName+" (translated from ICF attribute "+icfAttributeName+")", e);
 			}
 		}
+	}
+	
+	public AttributeType createFauxAttributeType(String attributeName) {
+		MutableAttributeType mutableLdapAttributeType = new MutableAttributeType(attributeName);
+		mutableLdapAttributeType.setNames(attributeName);
+		mutableLdapAttributeType.setSyntaxOid(SchemaConstants.DIRECTORY_STRING_SYNTAX);
+		return mutableLdapAttributeType;
 	}
 
 	public Class<?> toIcfType(LdapSyntax syntax, String icfAttributeName) {

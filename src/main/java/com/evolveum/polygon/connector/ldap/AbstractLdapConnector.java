@@ -62,6 +62,7 @@ import org.apache.directory.api.ldap.model.name.Rdn;
 import org.apache.directory.api.ldap.model.schema.AttributeType;
 import org.apache.directory.api.ldap.model.schema.LdapSyntax;
 import org.apache.directory.api.ldap.model.schema.MatchingRule;
+import org.apache.directory.api.ldap.model.schema.MutableAttributeType;
 import org.apache.directory.api.ldap.model.schema.Normalizer;
 import org.apache.directory.api.ldap.model.schema.SchemaManager;
 import org.apache.directory.api.ldap.model.url.LdapUrl;
@@ -1317,12 +1318,16 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			Dn baseDn = getBaseDn(options);
 			checkBaseDnPresent(baseDn);
 			SearchScope scope = getScope(options);
-			AttributeType ldapAttributeType;
+			AttributeType ldapAttributeType = null;
 			SchemaManager schemaManager = getSchemaManager();
 			try {
 				ldapAttributeType = schemaManager.lookupAttributeTypeRegistry(uidAttributeName);
-			} catch (LdapException e1) {
-				throw new InvalidAttributeValueException("Cannot find schema for UID attribute "+uidAttributeName);
+			} catch (LdapException e) {
+				// E.g. ancient OpenLDAP does not have entryUUID in schema
+				if (!configuration.isAllowUnknownAttributes()) {
+					throw new InvalidAttributeValueException("Cannot find schema for UID attribute "+uidAttributeName, e);
+				} 
+				ldapAttributeType = schemaTranslator.createFauxAttributeType(uidAttributeName);
 			}
 			Value<Object> ldapValue = getSchemaTranslator().toLdapIdentifierValue(ldapAttributeType, uid.getUidValue());
 			ExprNode filterNode = new EqualityNode<Object>(ldapAttributeType, ldapValue);
