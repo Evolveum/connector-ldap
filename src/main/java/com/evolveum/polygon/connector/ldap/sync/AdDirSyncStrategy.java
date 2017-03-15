@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015-2016 Evolveum
+ * Copyright (c) 2015-2017 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -135,7 +135,13 @@ public class AdDirSyncStrategy<C extends AbstractLdapConfiguration> extends Sync
 					} else {
 						deltaBuilder.setDeltaType(SyncDeltaType.CREATE_OR_UPDATE);
 						Entry targetEntry = LdapUtil.fetchEntryByUid(connection, targetUid, ldapObjectClass, options, getConfiguration(), getSchemaTranslator());
-						LOG.ok("Got target entry based on dirSync:\n{0}", targetEntry);
+						LOG.ok("Got target entry based on dirSync, targetUid={0}:\n{1}", targetUid, targetEntry);
+						if (targetEntry == null) {
+							// The entry may not exist any more. Maybe it was already deleted.
+							// Then it may be OK to just ignore this event. The related DELETE event
+							// should be detected separately.
+							continue;
+						}
 					
 						if (!isAcceptableForSynchronization(targetEntry, ldapObjectClass, 
 								getConfiguration().getModifiersNamesToFilterOut())) {
