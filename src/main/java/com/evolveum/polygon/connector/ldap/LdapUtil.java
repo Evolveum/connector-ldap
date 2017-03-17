@@ -509,17 +509,29 @@ public class LdapUtil {
 		}
 	}
 	
-	public static boolean isObjectClass(Entry entry,
-			org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
+	/**
+	 * Check if a given ObjectClass is present in the entry.
+	 * 
+	 * @param entry The entry to check
+	 * @param ldapObjectClass The objectClass to retrieve
+	 * @return <tt>TRUE</tt> if the objectClass is part of the entry
+	 */
+	public static boolean isObjectClass(Entry entry, org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
 		if (ldapObjectClass == null) {
 			return true;
 		}
+		
+		// Should be :
+	    // return entry.contains( SchemaConstants.OBJECT_CLASS_AT, ldapObjectClass.getName() );
+		// but we can't be sure that the ObjectClass will be correctly cased... 
 		Attribute objectClassAttribute = entry.get(SchemaConstants.OBJECT_CLASS_AT); 
+		
 		for (Value<?> objectClassVal: objectClassAttribute) {
 			if (ldapObjectClass.getName().equalsIgnoreCase(objectClassVal.getString())) {
 				return true;
 			}
 		}
+		
 		return false;
 	}
 	
