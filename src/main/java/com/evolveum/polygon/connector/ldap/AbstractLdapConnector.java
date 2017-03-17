@@ -1341,6 +1341,15 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 	 */
 	protected Entry searchSingleEntry(ConnectionManager<C> connectionManager, Dn baseDn, ExprNode filterNode, 
 			SearchScope scope, String[] attributesToGet, String descMessage) {
+		return searchSingleEntry(connectionManager, baseDn,  baseDn, filterNode, 
+				scope, attributesToGet, descMessage);
+	}
+	
+	/**
+	 * Uses baseDn only for selecting server 
+	 */
+	protected Entry searchSingleEntry(ConnectionManager<C> connectionManager, Dn baseDn, Dn entryDn, ExprNode filterNode, 
+			SearchScope scope, String[] attributesToGet, String descMessage) {
 		
 		LdapNetworkConnection connection = connectionManager.getConnection(baseDn);
 		String filterString = filterNode.toString();
@@ -1350,12 +1359,12 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		while (referralAttempts < configuration.getMaximumNumberOfAttempts()) {
 			referralAttempts++;
 			if (OperationLog.isLogOperations()) {
-				OperationLog.logOperationReq(connection, "Search REQ base={0}, filter={1}, scope={2}, attributes={3}, controls=null",
-					baseDn, filterString, scope, Arrays.toString(attributesToGet));
+				OperationLog.logOperationReq(connection, "Search REQ base={0}, entry={0}, filter={1}, scope={2}, attributes={3}, controls=null",
+					baseDn, entryDn, filterString, scope, Arrays.toString(attributesToGet));
 			}
 			
 			SearchRequest searchReq = new SearchRequestImpl();
-			searchReq.setBase(baseDn);
+			searchReq.setBase(entryDn);
 			searchReq.setFilter(filterNode);
 			searchReq.setScope(scope);
 			searchReq.addAttributes(attributesToGet);
