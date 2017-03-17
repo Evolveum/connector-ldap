@@ -524,6 +524,9 @@ public class LdapUtil {
 		// Should be :
 	    // return entry.contains( SchemaConstants.OBJECT_CLASS_AT, ldapObjectClass.getName() );
 		// but we can't be sure that the ObjectClass will be correctly cased... 
+		// Looking at the directory API code it is not sure whether the object class would be
+		// matched in a case-ignore way in all the cases. Butter keep this code for now.
+		// It may be less efficient, but it looks like it is more reliable.
 		Attribute objectClassAttribute = entry.get(SchemaConstants.OBJECT_CLASS_AT); 
 		
 		for (Value<?> objectClassVal: objectClassAttribute) {
