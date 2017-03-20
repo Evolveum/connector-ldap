@@ -196,62 +196,30 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 		
 		}
 		
-		//very first attempt: 
-		SearchStrategy<AdLdapConfiguration> searchStrategyUid = getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
-		
 		if (uid.getNameHint() != null) {
+			
+			// First attempt: name hint, GUID search (last seen DN)
+			
+			// Name hint is the last DN that we have seen for this object. However, the object may have
+			// been renamed or may have moved. Therefore use the name hint just to select the connection.
+			// Once we have the connection then forget name hint and use GUID DN to get the entry.
+			// This is the most efficient and still very reliable way to get the entry.
+						
+			Dn nameHintDn = getSchemaTranslator().toDn(uid.getNameHint());
+			SearchStrategy<AdLdapConfiguration> searchStrategy = getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
+			LdapNetworkConnection connection = getConnectionManager().getConnection(nameHintDn);
+			searchStrategy.setExplicitConnection(connection);
+			
+			Dn guidDn = getSchemaTranslator().getGuidDn(uidValue);
 			String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
-			ExprNode filterNode = LdapUtil.createUidSearchFilter(uidValue, ldapObjectClass, getSchemaTranslator());	
 			try {
-				String lastDn = uid.getNameHintValue();
-				Dn baseDn = new Dn(lastDn.substring(lastDn.toLowerCase().indexOf("dc=")));
-				//baseDn is for getting the right server and is on dc level
-				//therefore scope must be subtree 
-				searchStrategyUid.search(baseDn, filterNode, SearchScope.SUBTREE, attributesToGet);
+				searchStrategy.search(guidDn, null, SearchScope.OBJECT, attributesToGet);
 			} catch (LdapException e) {
-				throw LdapUtil.processLdapException("Error searching for UID '"+uidValue+"'", e);
+				throw LdapUtil.processLdapException("Error searching for DN '"+guidDn+"'", e);
 			}
 			
-			return searchStrategyUid;
-		}
-			
-		// First attempt: name hint (last seen DN)
-		
-		if (uid.getNameHint() != null) {
-			// We have name hint here. Name hint is the DN of the entry as we have seen it last time. 
-			// If the entry haven't moved since the last read then this is the most efficient way to
-			// read the entry. However, we need to check if the GUID matches before returning the entry
-			// to the primary handler. The original object may be moved and a new object might take its
-			// DN while we were not watching.
-			
-			final String lastDn = uid.getNameHintValue();
-			LOG.ok("We have name hint {0} for GUID {1}, trying to use it",
-					lastDn, uidValue);
-			
-			final boolean[] found = new boolean[1];
-			found[0] = false;
-			
-			ResultsHandler checkingHandler = new ResultsHandler() {
-				@Override
-				public boolean handle(ConnectorObject connectorObject) {
-					String foundUidValue = connectorObject.getUid().getUidValue();
-					if (foundUidValue.equals(uidValue)) {
-						found[0] = true;
-						LOG.ok("Use of name hint {0} for GUID {1} successful.", lastDn, uidValue);
-						return handler.handle(connectorObject);
-					} else {
-						LOG.ok("Attempt to use name hint {0} for GUID {1} produced a different GUID: {2}, ignoring it.",
-								lastDn, uidValue, foundUidValue);
-						return true;
-					}
-				}
-			};
-			
-			SearchStrategy<AdLdapConfiguration> nameHintSearchStrategy = searchByDn(
-					getSchemaTranslator().toDn(lastDn), objectClass, ldapObjectClass, checkingHandler, options);
-			
-			if (found[0]) {
-				return nameHintSearchStrategy;
+			if (searchStrategy.getNumberOfEntriesFound() > 0) {
+				return searchStrategy;
 			}
 		}
 
@@ -364,26 +332,21 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 		String guid = uid.getUidValue();
 		
 		if (uid.getNameHint() != null) {
-			// Try to use name hint first. Let's read the entry using the name hint for getting right server and read the entry using GUID.
-			// this is going to work. Global catalog updates are quite lazy.
+			// Try to use name hint to select the correct server, but still search by GUID. The entry might
+			// have been renamed since we looked last time and the name hint may be out of date. But it is
+			// likely that it is still OK for selecting correct server.
+			// Global catalog updates are quite lazy. Looking at global catalog can get even worse results
+			// than name hint.
 			
 			String dnHintString = uid.getNameHintValue();
 			Dn dnHint = getSchemaTranslator().toDn(dnHintString);
 			LOG.ok("Resolvig DN by using name hint {0} and guid", dnHint, guid);
-			
-			Dn baseDn;
-			try {
-				baseDn = new Dn(dnHintString.substring(dnHintString.toLowerCase().indexOf("dc=")));
-			} catch (LdapException e) {
-				throw LdapUtil.processLdapException("Error resolving dn for Uid '"+uid+"'", e);
-			}
 
 			Dn guidDn = getSchemaTranslator().getGuidDn(guid);
-			
-			
-				LOG.ok("Resolvig DN by search for {0} (no global catalog)", guidDn);
-				Entry entry = searchSingleEntry(getConnectionManager(), baseDn, guidDn, LdapUtil.createAllSearchFilter(), SearchScope.OBJECT, 
-						new String[]{AbstractLdapConfiguration.PSEUDO_ATTRIBUTE_DN_NAME}, "LDAP entry for GUID "+guid);
+						
+			LOG.ok("Resolvig DN by search for {0} (no global catalog)", guidDn);
+			Entry entry = searchSingleEntry(getConnectionManager(), guidDn, LdapUtil.createAllSearchFilter(), SearchScope.OBJECT, 
+					new String[]{AbstractLdapConfiguration.PSEUDO_ATTRIBUTE_DN_NAME}, "LDAP entry for GUID "+guid, dnHint);
 
 			if (entry != null) {
 					return entry.getDn();

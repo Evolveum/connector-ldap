@@ -1345,17 +1345,21 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 	 */
 	protected Entry searchSingleEntry(ConnectionManager<C> connectionManager, Dn baseDn, ExprNode filterNode, 
 			SearchScope scope, String[] attributesToGet, String descMessage) {
-		return searchSingleEntry(connectionManager, baseDn,  baseDn, filterNode, 
-				scope, attributesToGet, descMessage);
+		return searchSingleEntry(connectionManager, baseDn, filterNode, 
+				scope, attributesToGet, descMessage, baseDn);
 	}
 	
 	/**
-	 * Uses baseDn only for selecting server 
+	 * The most efficient simple search for a single entry. Follows referrals based on the configured strategy.
+	 * Additional parameter dnHint is used to select the server. But baseDn is still used as a base for search.
+	 * This is needed in case where the nameHing in the __NAME__ may be out of date and we need to search by
+	 * primary identifier. But we still want to use the nameHint to select the server. Chances are it is still
+	 * good for that. 
 	 */
-	protected Entry searchSingleEntry(ConnectionManager<C> connectionManager, Dn baseDn, Dn entryDn, ExprNode filterNode, 
-			SearchScope scope, String[] attributesToGet, String descMessage) {
+	protected Entry searchSingleEntry(ConnectionManager<C> connectionManager, Dn baseDn, ExprNode filterNode, 
+			SearchScope scope, String[] attributesToGet, String descMessage, Dn dnHint) {
 		
-		LdapNetworkConnection connection = connectionManager.getConnection(baseDn);
+		LdapNetworkConnection connection = connectionManager.getConnection(dnHint);
 		String filterString = filterNode.toString();
 		
 		Entry entry = null;
@@ -1363,12 +1367,12 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		while (referralAttempts < configuration.getMaximumNumberOfAttempts()) {
 			referralAttempts++;
 			if (OperationLog.isLogOperations()) {
-				OperationLog.logOperationReq(connection, "Search REQ base={0}, entry={0}, filter={1}, scope={2}, attributes={3}, controls=null",
-					baseDn, entryDn, filterString, scope, Arrays.toString(attributesToGet));
+				OperationLog.logOperationReq(connection, "Search REQ base={0}, filter={1}, scope={2}, attributes={3}, controls=null, dnHint={4}",
+					baseDn, filterString, scope, Arrays.toString(attributesToGet), dnHint);
 			}
 			
 			SearchRequest searchReq = new SearchRequestImpl();
-			searchReq.setBase(entryDn);
+			searchReq.setBase(baseDn);
 			searchReq.setFilter(filterNode);
 			searchReq.setScope(scope);
 			searchReq.addAttributes(attributesToGet);
