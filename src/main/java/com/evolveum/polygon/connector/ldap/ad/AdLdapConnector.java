@@ -28,6 +28,7 @@ import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.entry.Modification;
 import org.apache.directory.api.ldap.model.entry.ModificationOperation;
 import org.apache.directory.api.ldap.model.exception.LdapException;
+import org.apache.directory.api.ldap.model.filter.ExprNode;
 import org.apache.directory.api.ldap.model.message.SearchScope;
 import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.ldap.model.name.Rdn;
@@ -186,12 +187,32 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 			ObjectClass ldapObjectClass, final ResultsHandler handler, OperationOptions options) {
 		final String uidValue = SchemaUtil.getSingleStringNonBlankValue(uid);
 		
+		
 		// Trivial (but not really realistic) case: UID is DN
 		
 		if (LdapUtil.isDnAttribute(getConfiguration().getUidAttribute())) {
 			
 			return searchByDn(getSchemaTranslator().toDn(uidValue), objectClass, ldapObjectClass, handler, options);
 		
+		}
+		
+		//very first attempt: 
+		SearchStrategy<AdLdapConfiguration> searchStrategyUid = getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
+		
+		if (uid.getNameHint() != null) {
+			String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
+			ExprNode filterNode = LdapUtil.createUidSearchFilter(uidValue, ldapObjectClass, getSchemaTranslator());	
+			try {
+				String lastDn = uid.getNameHintValue();
+				Dn baseDn = new Dn(lastDn.substring(lastDn.toLowerCase().indexOf("dc=")));
+				//baseDn is for getting the right server and is on dc level
+				//therefore scope must be subtree 
+				searchStrategyUid.search(baseDn, filterNode, SearchScope.SUBTREE, attributesToGet);
+			} catch (LdapException e) {
+				throw LdapUtil.processLdapException("Error searching for UID '"+uidValue+"'", e);
+			}
+			
+			return searchStrategyUid;
 		}
 			
 		// First attempt: name hint (last seen DN)
@@ -343,26 +364,29 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 		String guid = uid.getUidValue();
 		
 		if (uid.getNameHint() != null) {
-			// Try to use name hint first. Let's read the entry using the name hint and check the GUID.
-			// It is the same overhead as reading global catalog and usually there is a better chance that
+			// Try to use name hint first. Let's read the entry using the name hint for getting right server and read the entry using GUID.
 			// this is going to work. Global catalog updates are quite lazy.
 			
 			String dnHintString = uid.getNameHintValue();
 			Dn dnHint = getSchemaTranslator().toDn(dnHintString);
-			LOG.ok("Resolvig DN by using name hint {0}", dnHint);
-			Entry entry = searchSingleEntry(getConnectionManager(), dnHint, LdapUtil.createAllSearchFilter(), SearchScope.OBJECT, 
-					new String[]{ AdLdapConfiguration.ATTRIBUTE_OBJECT_GUID_NAME }, 
-					"LDAP entry for DN hint "+uid.getUidValue());
+			LOG.ok("Resolvig DN by using name hint {0} and guid", dnHint, guid);
+			
+			Dn baseDn;
+			try {
+				baseDn = new Dn(dnHintString.substring(dnHintString.toLowerCase().indexOf("dc=")));
+			} catch (LdapException e) {
+				throw LdapUtil.processLdapException("Error resolving dn for Uid '"+uid+"'", e);
+			}
+
+			Dn guidDn = getSchemaTranslator().getGuidDn(guid);
+			
+			
+				LOG.ok("Resolvig DN by search for {0} (no global catalog)", guidDn);
+				Entry entry = searchSingleEntry(getConnectionManager(), baseDn, guidDn, LdapUtil.createAllSearchFilter(), SearchScope.OBJECT, 
+						new String[]{AbstractLdapConfiguration.PSEUDO_ATTRIBUTE_DN_NAME}, "LDAP entry for GUID "+guid);
+
 			if (entry != null) {
-				String foundGuid = getSchemaTranslator().getGuidAsDashedString(entry);
-				if (guid.equals(foundGuid)) {
-					LOG.ok("Resolved DN for name hint {0} returned object with GUID matched ({1})",
-							dnHintString, foundGuid);
 					return entry.getDn();
-				} else {
-					LOG.ok("Resolvig DN for name hint {0} returned object with GUID mismatch (expected {1}, was {2})",
-							dnHintString, guid, foundGuid);
-				}
 			} else {
 				LOG.ok("Resolvig DN for name hint {0} returned no object", dnHintString);
 			}
@@ -789,6 +813,5 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 		} catch (LdapException e) {
 			throw new IllegalStateException("Error registering "+object+": "+e.getMessage(), e);
 		}
-	}
-		    
+	}	    
 }
