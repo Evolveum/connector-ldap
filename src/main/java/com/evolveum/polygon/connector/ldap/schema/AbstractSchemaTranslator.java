@@ -731,6 +731,10 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
      * @return <tt>true</tt> if the syntax OID is one of the listed syntaxes
      */
     protected boolean isStringSyntax(String syntaxOid) {
+    	if (syntaxOid == null) {
+    		// If there is no syntax information we assume that is is string type
+    		return true;
+    	}
         switch (syntaxOid) {
             case SchemaConstants.DIRECTORY_STRING_SYNTAX : 
             case SchemaConstants.IA5_STRING_SYNTAX :
@@ -759,6 +763,9 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
      * @return <tt>true</tt> if the syntax OID is one of the listed syntaxes
      */
     protected boolean isBinarySyntax(String syntaxOid) {
+    	if (syntaxOid == null) {
+    		return false;
+    	}
         switch (syntaxOid) {
             case SchemaConstants.OCTET_STRING_SYNTAX :
             case SchemaConstants.JPEG_SYNTAX :
