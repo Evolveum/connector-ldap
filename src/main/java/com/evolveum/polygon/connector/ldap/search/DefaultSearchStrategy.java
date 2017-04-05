@@ -31,6 +31,7 @@ import org.apache.directory.api.ldap.model.message.SearchResultEntry;
 import org.apache.directory.api.ldap.model.message.SearchScope;
 import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
+import org.apache.directory.ldap.client.api.exception.InvalidConnectionException;
 import org.apache.directory.ldap.client.api.exception.LdapConnectionTimeOutException;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
@@ -93,11 +94,11 @@ public class DefaultSearchStrategy<C extends AbstractLdapConfiguration> extends 
 						if (!hasNext) {
 							break;
 						}
-					} catch (LdapConnectionTimeOutException e) {
+					} catch (LdapConnectionTimeOutException | InvalidConnectionException e) {
 						logSearchError(connection, e);
-						// Server disconnected. And by some miracle this was not caught be
+						// Server disconnected. And by some miracle this was not caught by
 						// checkAlive or connection manager.
-						LOG.ok("Connection timeout ({0}), reconnecting", e.getMessage(), e);
+						LOG.ok("Connection error ({0}), reconnecting", e.getMessage(), e);
 						LdapUtil.closeCursor(searchCursor);
 						connection = getConnectionReconnect(baseDn, referral);
 						continue OUTER;
