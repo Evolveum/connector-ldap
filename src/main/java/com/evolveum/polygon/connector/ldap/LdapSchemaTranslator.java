@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2016 Evolveum
+ * Copyright (c) 2016-2017 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,8 +19,10 @@ import java.util.Arrays;
 
 import org.apache.directory.api.ldap.model.constants.SchemaConstants;
 import org.apache.directory.api.ldap.model.entry.Entry;
+import org.apache.directory.api.ldap.model.schema.AttributeType;
 import org.apache.directory.api.ldap.model.schema.SchemaManager;
 import org.identityconnectors.common.logging.Log;
+import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException;
 import org.identityconnectors.framework.common.objects.AttributeInfoBuilder;
 import org.identityconnectors.framework.common.objects.ConnectorObjectBuilder;
 import org.identityconnectors.framework.common.objects.ObjectClassInfoBuilder;
@@ -69,6 +71,23 @@ public class LdapSchemaTranslator extends AbstractSchemaTranslator<LdapConfigura
 			}
 		}
 		return computedOperationalAttributes;
+	}
+	
+	@Override
+	public AttributeType toLdapAttribute(org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
+			String icfAttributeName) {
+		
+		if (OperationalAttributes.LOCK_OUT_NAME.equals(icfAttributeName)) {
+			if (getConfiguration().getLockoutStrategy() == null || LdapConfiguration.LOCKOUT_STRATEGY_NONE.equals(getConfiguration().getLockoutStrategy())) {
+				return null;
+			} else if (LdapConfiguration.LOCKOUT_STRATEGY_OPENLDAP.equals(getConfiguration().getLockoutStrategy())) {
+				return super.toLdapAttribute(ldapObjectClass, SchemaConstants.PWD_ACCOUNT_LOCKED_TIME_AT); 
+			} else {
+				throw new IllegalStateException("Unknown lockout strategy "+ getConfiguration().getLockoutStrategy());
+			}
+		}
+		
+		return super.toLdapAttribute(ldapObjectClass, icfAttributeName);
 	}
 
 	@Override
