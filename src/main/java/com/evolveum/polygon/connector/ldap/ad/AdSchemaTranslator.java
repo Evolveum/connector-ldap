@@ -89,9 +89,9 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
 	
 	
 	@Override
-	protected void setAttributeMultiplicityAndPermissions(AttributeType ldapAttributeType,
+	protected void setAttributeMultiplicityAndPermissions(AttributeType ldapAttributeType, String connidAttributeName,
 			AttributeInfoBuilder aib) {
-		super.setAttributeMultiplicityAndPermissions(ldapAttributeType, aib);
+		super.setAttributeMultiplicityAndPermissions(ldapAttributeType, connidAttributeName, aib);
 		if (ArrayUtils.contains(OPTIONAL_TOP_ATTRIBUTES, ldapAttributeType.getName().toLowerCase())) {
 			aib.setRequired(false);
 		}

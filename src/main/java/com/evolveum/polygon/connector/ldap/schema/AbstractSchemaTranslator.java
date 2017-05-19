@@ -27,6 +27,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
+import javax.naming.directory.SchemaViolationException;
+
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.directory.api.ldap.extras.controls.vlv.VirtualListViewRequest;
 import org.apache.directory.api.ldap.model.constants.SchemaConstants;
@@ -50,12 +52,14 @@ import org.apache.directory.ldap.client.api.exception.InvalidConnectionException
 import org.identityconnectors.common.Base64;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.common.security.GuardedString;
+import org.identityconnectors.framework.common.exceptions.ConfigurationException;
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
 import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException;
 import org.identityconnectors.framework.common.objects.Attribute;
 import org.identityconnectors.framework.common.objects.AttributeBuilder;
 import org.identityconnectors.framework.common.objects.AttributeInfo;
 import org.identityconnectors.framework.common.objects.AttributeInfoBuilder;
+import org.identityconnectors.framework.common.objects.AttributeValueCompleteness;
 import org.identityconnectors.framework.common.objects.ConnectorObject;
 import org.identityconnectors.framework.common.objects.ConnectorObjectBuilder;
 import org.identityconnectors.framework.common.objects.Name;
@@ -112,6 +116,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		return configuration;
 	}
 
+	@SuppressWarnings("unchecked")
 	public Schema translateSchema(ConnectionManager<C> connection) throws InvalidConnectionException {
 		SchemaBuilder schemaBuilder = new SchemaBuilder(LdapConnector.class);
 		LOG.ok("Translating LDAP schema from {0}", schemaManager);
@@ -205,7 +210,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		AttributeType uidAttributeLdapType = null;
 		
 		try {
-			uidAttributeLdapType = schemaManager.lookupAttributeTypeRegistry( uidAttribudeLdapName);
+			uidAttributeLdapType = schemaManager.lookupAttributeTypeRegistry(uidAttribudeLdapName);
 		} catch (LdapException e) {
 			// We can live with this
 			LOG.ok("Got exception looking up UID atribute {0}: {1} ({2}) (probabably harmless)", uidAttribudeLdapName,
@@ -217,7 +222,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 
 		if (uidAttributeLdapType != null) {
 			uidAib.setSubtype(toIcfSubtype(String.class, uidAttributeLdapType, Uid.NAME));
-			setAttributeMultiplicityAndPermissions(uidAttributeLdapType, uidAib);
+			setAttributeMultiplicityAndPermissions(uidAttributeLdapType, Uid.NAME, uidAib);
 		} else {
 			uidAib.setCreateable(false);
 			uidAib.setUpdateable(false);
@@ -263,7 +268,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 				Class<?> icfType = toIcfType(attributeType.getSyntax(), operationalAttributeLdapName);
 				aib.setType(icfType);
 				aib.setSubtype(toIcfSubtype(icfType, attributeType, operationalAttributeLdapName));
-				setAttributeMultiplicityAndPermissions(attributeType, aib);
+				setAttributeMultiplicityAndPermissions(attributeType, operationalAttributeLdapName, aib);
 			} else {
 				aib.setType(String.class);
 				aib.setMultiValued(false);
@@ -326,7 +331,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 			if (isOperational(ldapAttribute)) {
 				aib.setReturnedByDefault(false);
 			}
-			setAttributeMultiplicityAndPermissions(ldapAttribute, aib);
+			setAttributeMultiplicityAndPermissions(ldapAttribute, icfAttributeName, aib);
 			LOG.ok("Translating {0} -> {1} ({2} -> {3})", ldapAttribute.getName(), icfAttributeName, 
 					ldapSyntax==null?null:ldapSyntax.getOid(), icfType);
 			AttributeInfo attributeInfo = aib.build();
@@ -338,13 +343,28 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		return ldapAttribute.isOperational();
 	}
 
-	protected void setAttributeMultiplicityAndPermissions(AttributeType ldapAttributeType, AttributeInfoBuilder aib) {
+	protected void setAttributeMultiplicityAndPermissions(AttributeType ldapAttributeType, String icfAttributeName, AttributeInfoBuilder aib) {
 		if (ldapAttributeType.isSingleValued()) {
 			aib.setMultiValued(false);
 		} else {
 			aib.setMultiValued(true);
 		}
-		aib.setReadable(true);
+		if (OperationalAttributeInfos.PASSWORD.is(icfAttributeName)) {
+			switch (configuration.getPasswordReadStrategy()) {
+				case AbstractLdapConfiguration.PASSWORD_READ_STRATEGY_READABLE:
+				case AbstractLdapConfiguration.PASSWORD_READ_STRATEGY_INCOMPLETE_READ:
+					aib.setReadable(true);
+					break;
+				case AbstractLdapConfiguration.PASSWORD_READ_STRATEGY_UNREADABLE:
+					aib.setReturnedByDefault(false);
+					aib.setReadable(false);
+					break;
+				default:
+					throw new ConfigurationException("Unknown passoword read strategy "+configuration.getPasswordReadStrategy());
+			}
+		} else {
+			aib.setReadable(true);
+		}
 		if (ldapAttributeType.isReadOnly() || !ldapAttributeType.isUserModifiable()) {
 			aib.setCreateable(false);
 			aib.setUpdateable(false);
@@ -501,6 +521,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		return ldapValues;
 	}
 	
+	@SuppressWarnings({ "unchecked", "rawtypes" })
 	public Value<Object> toLdapValue(AttributeType ldapAttributeType, Object icfAttributeValue) {
 		if (icfAttributeValue == null) {
 			return null;
@@ -517,6 +538,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		return wrapInLdapValueClass(ldapAttributeType, icfAttributeValue);
 	}
 	
+	@SuppressWarnings({ "unchecked", "rawtypes" })
 	protected Value<Object> wrapInLdapValueClass(AttributeType ldapAttributeType, Object icfAttributeValue) {
 		String syntaxOid = ldapAttributeType.getSyntaxOid();
 		if (SchemaConstants.GENERALIZED_TIME_SYNTAX.equals(syntaxOid)) {
@@ -629,6 +651,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 	/**
 	 * Used to parse __UID__ and __NAME__.
 	 */
+	@SuppressWarnings({ "unchecked", "rawtypes" })
 	public Value<Object> toLdapIdentifierValue(AttributeType ldapAttributeType, String icfAttributeValue) {
 		if (icfAttributeValue == null) {
 			return null;
@@ -1248,19 +1271,39 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		if (attributeHandler != null) {
 			attributeHandler.handle(connection, entry, ldapAttribute, ab);
 		}
+		boolean incompleteRead = false;
+		if (OperationalAttributeInfos.PASSWORD.is(icfAttributeName)) {
+			switch (configuration.getPasswordReadStrategy()) {
+				case AbstractLdapConfiguration.PASSWORD_READ_STRATEGY_READABLE:
+					// Nothing to do. Proceed with ordinary read.
+					break;
+				case AbstractLdapConfiguration.PASSWORD_READ_STRATEGY_INCOMPLETE_READ:
+					incompleteRead = true;
+					break;
+				case AbstractLdapConfiguration.PASSWORD_READ_STRATEGY_UNREADABLE:
+					return null;
+				default:
+					throw new ConfigurationException("Unknown passoword read strategy "+configuration.getPasswordReadStrategy());
+			}
+		}
 		Iterator<Value<?>> iterator = ldapAttribute.iterator();
 		boolean hasValidValue = false;
 		while (iterator.hasNext()) {
 			Value<?> ldapValue = iterator.next();
 			Object icfValue = toIcfValue(icfAttributeName, ldapValue, ldapAttributeNameFromSchema, ldapAttributeType);
 			if (icfValue != null) {
-				ab.addValue(icfValue);
+				if (!incompleteRead) {
+					ab.addValue(icfValue);
+				}
 				hasValidValue = true;
 			}
 		}
 		if (!hasValidValue) {
 			// Do not even try to build. The build will fail.
 			return null;
+		}
+		if (incompleteRead) {
+			ab.setAttributeValueCompleteness(AttributeValueCompleteness.INCOMPLETE);
 		}
 		try {
 			return ab.build();
