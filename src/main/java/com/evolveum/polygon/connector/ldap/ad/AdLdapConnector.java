@@ -716,7 +716,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 	private LdapSyntax createStringSyntax(String syntaxOid) {
 		LdapSyntax syntax = new LdapSyntax(syntaxOid);
 		syntax.setHumanReadable(true);
-		syntax.setSyntaxChecker(new DirectoryStringSyntaxChecker());
+		syntax.setSyntaxChecker(DirectoryStringSyntaxChecker.INSTANCE);
 		return syntax;
 	}
 
