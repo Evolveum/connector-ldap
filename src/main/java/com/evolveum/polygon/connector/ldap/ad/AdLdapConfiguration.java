@@ -295,7 +295,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.winRmDomain = winRmDomain;
 	}
 
-	@ConfigurationProperty(order = 111)
+	@ConfigurationProperty(order = 112)
 	public GuardedString getWinRmPassword() {
 		return winRmPassword;
 	}
@@ -304,7 +304,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.winRmPassword = winRmPassword;
 	}
 	
-	@ConfigurationProperty(order = 112)
+	@ConfigurationProperty(order = 113)
 	public String getWinRmAuthenticationScheme() {
 		return winRmAuthenticationScheme;
 	}
@@ -313,7 +313,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.winRmAuthenticationScheme = winRmAuthenticationScheme;
 	}
 
-	@ConfigurationProperty(order = 113)
+	@ConfigurationProperty(order = 114)
 	public int getWinRmPort() {
 		return winRmPort;
 	}
@@ -322,7 +322,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.winRmPort = winRmPort;
 	}
 
-	@ConfigurationProperty(order = 114)
+	@ConfigurationProperty(order = 115)
 	public boolean isWinRmUseHttps() {
 		return winRmUseHttps;
 	}
@@ -331,7 +331,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.winRmUseHttps = winRmUseHttps;
 	}
 
-	@ConfigurationProperty(order = 115)
+	@ConfigurationProperty(order = 116)
 	public String getPowershellArgumentStyle() {
 		return powershellArgumentStyle;
 	}
