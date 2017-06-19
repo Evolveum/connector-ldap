@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015 Evolveum
+ * Copyright (c) 2015-2017 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -68,6 +68,8 @@ public class EDirectorySchemaTranslator extends AbstractSchemaTranslator<EDirect
 			org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass, String icfAttributeName) {
 		if (icfAttributeName.equals(OperationalAttributes.ENABLE_NAME)) {
 			return super.toLdapAttribute(ldapObjectClass, EDirectoryConstants.ATTRIBUTE_LOGIN_DISABLED_NAME);
+		} else if (icfAttributeName.equals(OperationalAttributes.LOCK_OUT_NAME)) {
+			return super.toLdapAttribute(ldapObjectClass, EDirectoryConstants.ATTRIBUTE_LOCKOUT_LOCKED_NAME);
 		} else {
 			return super.toLdapAttribute(ldapObjectClass, icfAttributeName);
 		}
