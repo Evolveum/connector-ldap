@@ -161,14 +161,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
     @Override
 	public void test() {
     	LOG.info("Test {0} connector instance {1}", this.getClass().getSimpleName(), this);
-    	try {
-    		LOG.ok("Closing connections ... to reopen them again");
-			connectionManager.close();
-		} catch (IOException e) {
-			throw new ConnectorIOException(e.getMessage(), e);
-		}
-        schemaManager = null;
-        schemaTranslator = null;
+    	cleanupBeforeTest();
         connectionManager.connect();
         if (configuration.isEnableExtraTests()) {
         	extraTests();
@@ -183,7 +176,18 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		}
 	}
     
-    protected void extraTests() {
+    protected void cleanupBeforeTest() {
+    	try {
+    		LOG.ok("Closing connections ... to reopen them again");
+			connectionManager.close();
+		} catch (IOException e) {
+			throw new ConnectorIOException(e.getMessage(), e);
+		}
+        schemaManager = null;
+        schemaTranslator = null;
+	}
+
+	protected void extraTests() {
     	
     	analyzeAttrDef("dc");
     	

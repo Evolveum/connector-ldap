@@ -28,7 +28,6 @@ import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.entry.Modification;
 import org.apache.directory.api.ldap.model.entry.ModificationOperation;
 import org.apache.directory.api.ldap.model.exception.LdapException;
-import org.apache.directory.api.ldap.model.filter.ExprNode;
 import org.apache.directory.api.ldap.model.message.SearchScope;
 import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.ldap.model.name.Rdn;
@@ -57,7 +56,6 @@ import org.identityconnectors.framework.common.exceptions.ConnectorException;
 import org.identityconnectors.framework.common.exceptions.UnknownUidException;
 import org.identityconnectors.framework.common.objects.Attribute;
 import org.identityconnectors.framework.common.objects.AttributeBuilder;
-import org.identityconnectors.framework.common.objects.ConnectorObject;
 import org.identityconnectors.framework.common.objects.OperationOptions;
 import org.identityconnectors.framework.common.objects.OperationalAttributeInfos;
 import org.identityconnectors.framework.common.objects.ResultsHandler;
@@ -113,6 +111,16 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 		super.dispose();
 		disposePowerHell();
 		disposeWinRm();
+	}
+	
+	@Override
+	protected void cleanupBeforeTest() {
+		if (powerHell != null) {
+			powerHell.disconnect();
+		}
+		if (exchangePowerHell != null) {
+			exchangePowerHell.disconnect();
+		}
 	}
 
 	@Override
