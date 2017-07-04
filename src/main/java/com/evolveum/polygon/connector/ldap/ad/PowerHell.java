@@ -78,6 +78,7 @@ public class PowerHell {
 	private boolean disableCertificateChecks;
 	private String initScriptlet;
 	private String prompt = PROMPT;
+	private boolean isLoopRunning = false;
 	
 	// State
 	private WinRmClient client;
@@ -164,8 +165,13 @@ public class PowerHell {
 		LOG.ok("Connecting WinRM for PowerHell. Endpoint: {0}", endpointUrl);
 		client = builder.build();
 		
+		startMainLoop();
+	}
+	
+	private void startMainLoop() throws PowerHellExecutionException {
+		
 		String psScript = createScript(initScriptlet);
-		LOG.ok("Executing powershell. Script: {0}", psScript);
+		LOG.ok("Executing powershell. Main loop script: {0}", psScript);
 		
 		long tsStart = System.currentTimeMillis();
 		
@@ -194,7 +200,7 @@ public class PowerHell {
     		}
     		
     		if (exitCode != null) {
-    			LOG.error("Exit code received before first prompt: {}", exitCode);
+    			LOG.error("Exit code received before first prompt: {0}", exitCode);
     			client.disconnect();
     			PowerHellExecutionException e = new PowerHellExecutionException("Exit code received before first prompt", exitCode);
     			e.setStdout(out);
@@ -203,6 +209,7 @@ public class PowerHell {
     		}
     	}
 		
+		isLoopRunning = true;
 	}
 
 	private void processFault(String message, Fault e) {
@@ -220,6 +227,10 @@ public class PowerHell {
 	public String runCommand(String outCommandLine) throws PowerHellExecutionException {
 		
 		long tsCommStart = System.currentTimeMillis();
+		
+		if (!isLoopRunning) {
+			startMainLoop();
+		}
 		
 		StringWriter writerStdOut = new StringWriter();
 		StringWriter writerStdErr = new StringWriter();
@@ -263,13 +274,22 @@ public class PowerHell {
     		}
     		
     		if (exitCode != null) {
-    			LOG.error("Exit code received during command execution: {}", exitCode);
-    			client.disconnect();
-    			PowerHellExecutionException e = new PowerHellExecutionException("Exit code received during command execution", exitCode);
-    			e.setStdout(writerStdOut.toString());
-    			e.setStderr(writerStdErr.toString());
-    			e.setPromptMessage(promptMessage);
-    			throw e;
+    			// Most likely cause is that some script invoked "exit" keyword.
+    			if (exitCode == 0) {
+    				LOG.ok("Exit code received during command execution: {0} (will restart main loop)", exitCode);
+    				// Let's assume that this is harmless, like invocation of "exit" with no error code.
+    				// However, we need to restart the main loop for next command.
+    				isLoopRunning = false;
+    				break;
+    			} else {
+	    			LOG.error("Exit code received during command execution: {0}", exitCode);
+	    			client.disconnect();
+	    			PowerHellExecutionException e = new PowerHellExecutionException("Exit code received during command execution", exitCode);
+	    			e.setStdout(writerStdOut.toString());
+	    			e.setStderr(writerStdErr.toString());
+	    			e.setPromptMessage(promptMessage);
+	    			throw e;
+    			}
     		}
 		}		
 		
