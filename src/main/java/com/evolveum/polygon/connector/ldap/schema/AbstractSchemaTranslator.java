@@ -265,11 +265,16 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 			}
 			
 			if (attributeType != null) {
-				Class<?> icfType = toIcfType(attributeType.getSyntax(), operationalAttributeLdapName);
+				LdapSyntax ldapSyntax = getSyntax(attributeType);
+				Class<?> icfType = toIcfType(ldapSyntax, operationalAttributeLdapName);
 				aib.setType(icfType);
 				aib.setSubtype(toIcfSubtype(icfType, attributeType, operationalAttributeLdapName));
+				LOG.ok("Translating {0} -> {1} ({2} -> {3}) (operational)", operationalAttributeLdapName, operationalAttributeLdapName, 
+						ldapSyntax==null?null:ldapSyntax.getOid(), icfType);
 				setAttributeMultiplicityAndPermissions(attributeType, operationalAttributeLdapName, aib);
 			} else {
+				LOG.ok("Translating {0} -> {1} ({2} -> {3}) (operational, not defined in schema)", operationalAttributeLdapName, operationalAttributeLdapName, 
+						null, String.class);
 				aib.setType(String.class);
 				aib.setMultiValued(false);
 			}
@@ -531,7 +536,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 			return (Value)new StringValue(icfAttributeValue.toString());
 		}
 		
-		if (ldapAttributeType.getName().equalsIgnoreCase( configuration.getPasswordAttribute())) {
+		if (ldapAttributeType.getName().equalsIgnoreCase(configuration.getPasswordAttribute())) {
 			return toLdapPasswordValue(ldapAttributeType, icfAttributeValue);
 		}
 		
