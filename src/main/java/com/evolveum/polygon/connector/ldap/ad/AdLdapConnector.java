@@ -117,6 +117,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 	protected void cleanupBeforeTest() {
 		if (powerHell != null) {
 			powerHell.disconnect();
+			powerHell = null;
 		}
 		if (exchangePowerHell != null) {
 			exchangePowerHell.disconnect();
@@ -428,9 +429,11 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 	private void disposePowerHell() {
 		if (powerHell != null) {
 			powerHell.disconnect();
+			powerHell = null;
 		}
 		if (exchangePowerHell != null) {
 			exchangePowerHell.disconnect();
+			exchangePowerHell = null;
 		}
 	} 
 	
