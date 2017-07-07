@@ -166,6 +166,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
         if (configuration.isEnableExtraTests()) {
         	extraTests();
         }
+        reconnectAfterTest();
         checkAlive();
     	try {
     		LOG.ok("Fetching root DSE");
@@ -186,6 +187,10 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
         schemaManager = null;
         schemaTranslator = null;
 	}
+    
+    protected void reconnectAfterTest() {
+    	
+    }
 
 	protected void extraTests() {
     	

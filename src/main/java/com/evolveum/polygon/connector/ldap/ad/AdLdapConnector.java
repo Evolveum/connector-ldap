@@ -120,7 +120,13 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 		}
 		if (exchangePowerHell != null) {
 			exchangePowerHell.disconnect();
+			exchangePowerHell = null;
 		}
+	}
+	
+	@Override
+	protected void reconnectAfterTest() {
+		initWinRm();
 	}
 
 	@Override
