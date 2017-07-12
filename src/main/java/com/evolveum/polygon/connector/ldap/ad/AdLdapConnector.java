@@ -16,6 +16,8 @@
 
 package com.evolveum.polygon.connector.ldap.ad;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -28,6 +30,8 @@ import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.entry.Modification;
 import org.apache.directory.api.ldap.model.entry.ModificationOperation;
 import org.apache.directory.api.ldap.model.exception.LdapException;
+import org.apache.directory.api.ldap.model.message.LdapResult;
+import org.apache.directory.api.ldap.model.message.ResultCodeEnum;
 import org.apache.directory.api.ldap.model.message.SearchScope;
 import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.ldap.model.name.Rdn;
@@ -793,5 +797,30 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 		} catch (LdapException e) {
 			throw new IllegalStateException("Error registering "+object+": "+e.getMessage(), e);
 		}
-	}	    
+	}
+	
+	protected RuntimeException processLdapResult(String message, LdapResult ldapResult) {
+		if (ldapResult.getResultCode() == ResultCodeEnum.UNWILLING_TO_PERFORM) {
+			WillNotPerform willNotPerform = WillNotPerform.parseDiagnosticMessage(ldapResult.getDiagnosticMessage());
+			if (willNotPerform == null) {
+				return LdapUtil.processLdapResult(message, ldapResult);
+			}
+			try {
+				Class<? extends RuntimeException> exceptionClass = willNotPerform.getExceptionClass();
+				Constructor<? extends RuntimeException> exceptionConstructor;
+				exceptionConstructor = exceptionClass.getConstructor(String.class);
+				String exceptionMessage = LdapUtil.sanitizeString(ldapResult.getDiagnosticMessage()) + ": " + willNotPerform.name() + ": " + willNotPerform.getMessage();
+				RuntimeException exception = exceptionConstructor.newInstance(exceptionMessage);
+				LdapUtil.logOperationError(message, ldapResult, exceptionMessage);
+				throw exception;
+			} catch (NoSuchMethodException | SecurityException | InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
+				LOG.error("Error during LDAP error handling: {0}: {1}", e.getClass(), e.getMessage(), e);
+				// fallback
+				return LdapUtil.processLdapResult(message, ldapResult);
+			}
+
+		} else {
+			return LdapUtil.processLdapResult(message, ldapResult);
+		}
+	}
 }

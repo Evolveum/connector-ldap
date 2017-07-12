@@ -47,6 +47,7 @@ import org.apache.directory.api.ldap.model.message.AddRequest;
 import org.apache.directory.api.ldap.model.message.AddRequestImpl;
 import org.apache.directory.api.ldap.model.message.AddResponse;
 import org.apache.directory.api.ldap.model.message.AliasDerefMode;
+import org.apache.directory.api.ldap.model.message.LdapResult;
 import org.apache.directory.api.ldap.model.message.ModifyRequest;
 import org.apache.directory.api.ldap.model.message.ModifyRequestImpl;
 import org.apache.directory.api.ldap.model.message.ModifyResponse;
@@ -173,7 +174,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			Entry rootDse = connectionManager.getDefaultConnection().getRootDse();
 			LOG.ok("Root DSE: {0}", rootDse);
 		} catch (LdapException e) {
-			throw LdapUtil.processLdapException(null, e);
+			throw processLdapException(null, e);
 		}
 	}
     
@@ -528,7 +529,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			return searchStrategy;
 			
 		} catch (LdapException e) {
-			throw LdapUtil.processLdapException("Error searching for DN '"+dn+"'", e);
+			throw processLdapException("Error searching for DN '"+dn+"'", e);
 			
 		}
 		return searchStrategy;
@@ -556,7 +557,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			try {
 				searchStrategy.search(baseDn, filterNode, scope, attributesToGet);
 			} catch (LdapException e) {
-				throw LdapUtil.processLdapException("Error searching for UID '"+uidValue+"'", e);
+				throw processLdapException("Error searching for UID '"+uidValue+"'", e);
 			}
 			
 			return searchStrategy;
@@ -620,7 +621,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		try {
 			searchStrategy.search(baseDn, filterNode, scope, attributesToGet);
 		} catch (LdapException e) {
-			throw LdapUtil.processLdapException("Error searching in "+baseDn, e);
+			throw processLdapException("Error searching in "+baseDn, e);
 		}
 		
 		return searchStrategy;
@@ -650,7 +651,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			try {
 				searchStrategy.search(scopedFilter.getBaseDn(), filterNode, SearchScope.OBJECT, attributesToGet);
 			} catch (LdapException e) {
-				throw LdapUtil.processLdapException("Error searching for "+scopedFilter.getBaseDn(), e);
+				throw processLdapException("Error searching for "+scopedFilter.getBaseDn(), e);
 			}
 		
 		} else {
@@ -662,7 +663,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			try {
 				searchStrategy.search(baseDn, filterNode, scope, attributesToGet);
 			} catch (LdapException e) {
-				throw LdapUtil.processLdapException("Error searching in "+baseDn, e);
+				throw processLdapException("Error searching in "+baseDn, e);
 			}
 			
 		}
@@ -855,7 +856,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			
 		} catch (LdapException e) {
 			OperationLog.logOperationErr(connection, "Add ERROR {0}: {1}", dnStringFromName, e.getMessage(), e);
-			throw LdapUtil.processLdapException("Error adding LDAP entry "+dnStringFromName, e);
+			throw processLdapException("Error adding LDAP entry "+dnStringFromName, e);
 		}
 		
 		OperationLog.logOperationRes(connection, "Add RES {0}: {1}", dnStringFromName, addResponse.getLdapResult());
@@ -898,9 +899,9 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		
 		return uid;
 	}
-
+	
 	protected RuntimeException processCreateResult(String dn, AddResponse addResponse) {
-		 return LdapUtil.processLdapResult("Error adding LDAP entry " + dn, addResponse.getLdapResult());
+		 return processLdapResult("Error adding LDAP entry " + dn, addResponse.getLdapResult());
 	}
 
 	protected void preCreate(org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass, Entry entry) {
@@ -964,7 +965,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 				OperationLog.logOperationRes(connection, "MoveAndRename RES OK {0} -> {1}", oldDn, newDn);
 			} catch (LdapException e) {
 				OperationLog.logOperationErr(connection, "MoveAndRename ERROR {0} -> {1}: {2}", oldDn, newDn, e.getMessage(), e);
-				throw LdapUtil.processLdapException("Rename/move of LDAP entry from "+oldDn+" to "+newDn+" failed", e);
+				throw processLdapException("Rename/move of LDAP entry from "+oldDn+" to "+newDn+" failed", e);
 			}
 		}
 	}
@@ -1121,11 +1122,11 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 	}
 
 	protected RuntimeException processModifyResult(Dn dn, List<Modification> modifications, ModifyResponse modifyResponse) {
-		return LdapUtil.processLdapResult("Error modifying LDAP entry "+dn+": "+dumpModifications(modifications), modifyResponse.getLdapResult());
+		return processLdapResult("Error modifying LDAP entry "+dn+": "+dumpModifications(modifications), modifyResponse.getLdapResult());
 	}
 
 	protected RuntimeException processModifyResult(String dn, List<Modification> modifications, LdapException e) {
-		return LdapUtil.processLdapException("Error modifying LDAP entry "+dn, e);
+		return processLdapException("Error modifying LDAP entry "+dn, e);
 	}
 		
 	protected void addAttributeModification(Dn dn, List<Modification> modifications,
@@ -1306,7 +1307,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			OperationLog.logOperationRes(connection, "Delete RES {0}", dn);
 		} catch (LdapException e) {
 			OperationLog.logOperationErr(connection, "Delete ERROR {0}: {1}", dn, e.getMessage(), e);
-			throw LdapUtil.processLdapException("Failed to delete entry with DN "+dn+" (UID="+uid+")", e);
+			throw processLdapException("Failed to delete entry with DN "+dn+" (UID="+uid+")", e);
 		}
 	}
 	
@@ -1428,7 +1429,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 					throw new ConnectorIOException("Error reading "+descMessage+": "+e.getMessage(), e);
 				}
 			} catch (LdapException e) {
-				throw LdapUtil.processLdapException("Error reading "+descMessage, e);
+				throw processLdapException("Error reading "+descMessage, e);
 			} catch (CursorException e) {
 				throw new ConnectorIOException("Error reading "+descMessage+": "+e.getMessage(), e);
 			} finally {
@@ -1468,7 +1469,12 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
         }
     }
 
+	protected RuntimeException processLdapException(String message, LdapException ldapException) {
+		return LdapUtil.processLdapException(message, ldapException);
+	}
 	
-    
+	protected RuntimeException processLdapResult(String message, LdapResult ldapResult) {
+		return LdapUtil.processLdapResult(message, ldapResult);
+	}
 
 }

@@ -490,15 +490,27 @@ public class LdapUtil {
     		    re =  new ConnectorIOException(message + ": " + formatLdapMessage(ldapResult));
     		    break;
 		}
-		if (LOG.isOk()) {
-			LOG.ok("Operation \"{0}\" ended with error ({1}): {2}", message, ldapResult.getResultCode().getResultCode(), ldapResult.getDiagnosticMessage());
-		}
+		logOperationError(message, ldapResult, null);
 		return re;
 	}
 	
+	public static void logOperationError(String message, LdapResult ldapResult, String additionalErrorMessage) {
+		if (LOG.isOk()) {
+			if (additionalErrorMessage != null) {
+				LOG.ok("Operation \"{0}\" ended with error ({1}): {2}", message, ldapResult.getResultCode().getResultCode(), ldapResult.getDiagnosticMessage());
+			} else {
+				LOG.ok("Operation \"{0}\" ended with error ({1}): {2}: {3}", message, ldapResult.getResultCode().getResultCode(), ldapResult.getDiagnosticMessage(), additionalErrorMessage);
+			}
+		}		
+	}
+	
 	public static String formatLdapMessage(LdapResult ldapResult) {
-		return ldapResult.getResultCode().getMessage().replaceAll("\\p{C}", "?") +
-				": " + ldapResult.getDiagnosticMessage().replaceAll("\\p{C}", "?") + " ("+ ldapResult.getResultCode().getResultCode()+")";
+		return sanitizeString(ldapResult.getResultCode().getMessage()) +
+				": " + sanitizeString(ldapResult.getDiagnosticMessage()) + " ("+ ldapResult.getResultCode().getResultCode()+")";
+	}
+	
+	public static String sanitizeString(String in) {
+		return in.replaceAll("\\p{C}", "?");
 	}
 
 	public static Entry getRootDse(ConnectionManager<? extends AbstractLdapConfiguration> connectionManager, String... attributesToGet) {
