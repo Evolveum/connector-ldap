@@ -317,6 +317,18 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
      * diagnosing connector bugs. 
      */
     private boolean enableExtraTests = false;
+    
+    /**
+     * Timestamp presentation mode. This controls the way how connector presents the timestamps
+     * to the client. It can present them as unix epoch (number of seconds since 1970) or the
+     * timestamps can be presented in LDAP-native string form (ISO 8601).
+     * Possible values: "unixEpoch", "string"
+     * Default value: unixEpoch
+     */
+    private String timestampPresentation = TIMESTAMP_PRESENTATION_UNIX_EPOCH;
+
+    public static final String TIMESTAMP_PRESENTATION_UNIX_EPOCH = "unixEpoch";
+    public static final String TIMESTAMP_PRESENTATION_STRING = "string";
 
     // TODO: failover, accountSynchronizationFilter
     // MAYBE TODO: respectResourcePasswordPolicyChangeAfterReset? filterWithOrInsteadOfAnd? 
@@ -644,6 +656,15 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 
 	public void setEnableExtraTests(boolean enableExtraTests) {
 		this.enableExtraTests = enableExtraTests;
+	}
+
+	@ConfigurationProperty(order = 37)
+	public String getTimestampPresentation() {
+		return timestampPresentation;
+	}
+
+	public void setTimestampPresentation(String timestampPresentation) {
+		this.timestampPresentation = timestampPresentation;
 	}
 
 	@Override

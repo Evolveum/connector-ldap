@@ -21,6 +21,7 @@ import java.security.NoSuchAlgorithmException;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -456,6 +457,13 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 
     	if (typeSubtype != null) {
     	    type = typeSubtype.type;
+    	    if (type == Date.class) {
+    	    	if (AbstractLdapConfiguration.TIMESTAMP_PRESENTATION_UNIX_EPOCH.equals(getConfiguration().getTimestampPresentation())) {
+    	    		type = long.class;
+    	    	} else {
+    	    		type = String.class;
+    	    	}
+    	    }
     	}
     	
     	if (type == null) {
@@ -547,12 +555,21 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 	protected Value<Object> wrapInLdapValueClass(AttributeType ldapAttributeType, Object icfAttributeValue) {
 		String syntaxOid = ldapAttributeType.getSyntaxOid();
 		if (SchemaConstants.GENERALIZED_TIME_SYNTAX.equals(syntaxOid)) {
-			try {
-					return (Value)new StringValue(ldapAttributeType, icfAttributeValue.toString());
+			if (icfAttributeValue instanceof Long) {
+				try {
+					return (Value)new StringValue(ldapAttributeType, LdapUtil.toGeneralizedTime((Long)icfAttributeValue, acceptsFractionalGeneralizedTime()));
 				} catch (LdapInvalidAttributeValueException e) {
 					throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
-							+"; attributeType="+ldapAttributeType, e);
-				}				
+						+"; attributeType="+ldapAttributeType, e);
+				}
+			} else {
+				try {
+						return (Value)new StringValue(ldapAttributeType, icfAttributeValue.toString());
+					} catch (LdapInvalidAttributeValueException e) {
+						throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
+								+"; attributeType="+ldapAttributeType, e);
+					}
+			}
 		} else if (icfAttributeValue instanceof Boolean) {
 			LOG.ok("Converting to LDAP: {0} ({1}): boolean", ldapAttributeType.getName(), syntaxOid);
 			try {
@@ -696,7 +713,16 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 				syntaxOid = ldapAttributeType.getSyntaxOid();
 			}
 			if (SchemaConstants.GENERALIZED_TIME_SYNTAX.equals(syntaxOid)) {
-				return ldapValue.getString();
+				if (AbstractLdapConfiguration.TIMESTAMP_PRESENTATION_UNIX_EPOCH.equals(getConfiguration().getTimestampPresentation())) {
+					try {
+						GeneralizedTime gt = new GeneralizedTime(ldapValue.getString());
+						return gt.getCalendar().getTimeInMillis();
+					} catch (ParseException e) {
+						throw new InvalidAttributeValueException("Wrong generalized time format in LDAP attribute "+ldapAttributeName+": "+e.getMessage(), e);
+					}
+				} else {
+					return ldapValue.getString();
+				}
 			} else if (SchemaConstants.BOOLEAN_SYNTAX.equals(syntaxOid)) {
 				return Boolean.parseBoolean(ldapValue.getString());
 			} else if (isIntegerSyntax(syntaxOid)) {
@@ -1485,7 +1511,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		addToSyntaxMap(SchemaConstants.ENHANCED_GUIDE_SYNTAX, String.class);
 		addToSyntaxMap(SchemaConstants.FACSIMILE_TELEPHONE_NUMBER_SYNTAX, String.class);
 		addToSyntaxMap(SchemaConstants.FAX_SYNTAX, String.class);
-		addToSyntaxMap(SchemaConstants.GENERALIZED_TIME_SYNTAX, String.class);
+		addToSyntaxMap(SchemaConstants.GENERALIZED_TIME_SYNTAX, Date.class); // Date.class is a placeholder. It will be replaced by real value in the main code
 		addToSyntaxMap(SchemaConstants.GUIDE_SYNTAX, String.class);
 		addToSyntaxMap(SchemaConstants.IA5_STRING_SYNTAX, String.class);
 		addToSyntaxMap(SchemaConstants.INTEGER_SYNTAX, int.class);
