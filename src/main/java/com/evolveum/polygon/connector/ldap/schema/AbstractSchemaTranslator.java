@@ -547,21 +547,12 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 	protected Value<Object> wrapInLdapValueClass(AttributeType ldapAttributeType, Object icfAttributeValue) {
 		String syntaxOid = ldapAttributeType.getSyntaxOid();
 		if (SchemaConstants.GENERALIZED_TIME_SYNTAX.equals(syntaxOid)) {
-			if (icfAttributeValue instanceof Long) {
-				try {
-					return (Value)new StringValue(ldapAttributeType, LdapUtil.toGeneralizedTime((Long)icfAttributeValue, acceptsFractionalGeneralizedTime()));
-				} catch (LdapInvalidAttributeValueException e) {
-					throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
-							+"; attributeType="+ldapAttributeType, e);
-				}
-			} else {
-				try {
+			try {
 					return (Value)new StringValue(ldapAttributeType, icfAttributeValue.toString());
 				} catch (LdapInvalidAttributeValueException e) {
 					throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
 							+"; attributeType="+ldapAttributeType, e);
 				}				
-			}
 		} else if (icfAttributeValue instanceof Boolean) {
 			LOG.ok("Converting to LDAP: {0} ({1}): boolean", ldapAttributeType.getName(), syntaxOid);
 			try {
@@ -705,12 +696,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 				syntaxOid = ldapAttributeType.getSyntaxOid();
 			}
 			if (SchemaConstants.GENERALIZED_TIME_SYNTAX.equals(syntaxOid)) {
-				try {
-					GeneralizedTime gt = new GeneralizedTime(ldapValue.getString());
-					return gt.getCalendar().getTimeInMillis();
-				} catch (ParseException e) {
-					throw new InvalidAttributeValueException("Wrong generalized time format in LDAP attribute "+ldapAttributeName+": "+e.getMessage(), e);
-				}
+				return ldapValue.getString();
 			} else if (SchemaConstants.BOOLEAN_SYNTAX.equals(syntaxOid)) {
 				return Boolean.parseBoolean(ldapValue.getString());
 			} else if (isIntegerSyntax(syntaxOid)) {
@@ -1499,7 +1485,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		addToSyntaxMap(SchemaConstants.ENHANCED_GUIDE_SYNTAX, String.class);
 		addToSyntaxMap(SchemaConstants.FACSIMILE_TELEPHONE_NUMBER_SYNTAX, String.class);
 		addToSyntaxMap(SchemaConstants.FAX_SYNTAX, String.class);
-		addToSyntaxMap(SchemaConstants.GENERALIZED_TIME_SYNTAX, long.class);
+		addToSyntaxMap(SchemaConstants.GENERALIZED_TIME_SYNTAX, String.class);
 		addToSyntaxMap(SchemaConstants.GUIDE_SYNTAX, String.class);
 		addToSyntaxMap(SchemaConstants.IA5_STRING_SYNTAX, String.class);
 		addToSyntaxMap(SchemaConstants.INTEGER_SYNTAX, int.class);
