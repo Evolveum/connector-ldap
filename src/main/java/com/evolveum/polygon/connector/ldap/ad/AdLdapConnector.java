@@ -91,6 +91,8 @@ import org.apache.cxf.transport.https.httpclient.DefaultHostnameVerifier;
 public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> implements ScriptOnResourceOp {
 
     private static final Log LOG = Log.getLog(AdLdapConnector.class);
+
+	private static final String PING_COMMAND = "hostname.exe";
     
     private GlobalCatalogConnectionManager globalCatalogConnectionManager;
     private String winRmUsername;
@@ -106,8 +108,6 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 	public void init(Configuration configuration) {
 		super.init(configuration);
 		globalCatalogConnectionManager = new GlobalCatalogConnectionManager(getConfiguration());
-		
-		initWinRm();
 	}
 	
 	@Override
@@ -119,6 +119,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 	
 	@Override
 	protected void cleanupBeforeTest() {
+		winRmTool = null;
 		if (powerHell != null) {
 			powerHell.disconnect();
 			powerHell = null;
@@ -130,8 +131,15 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 	}
 	
 	@Override
+	public void checkAlive() {
+		super.checkAlive();
+		if (isWinRmExplicitlyConfigured()) {
+			pingWinRm();
+		}
+	}
+	
+	@Override
 	protected void reconnectAfterTest() {
-		initWinRm();
 	}
 
 	@Override
@@ -411,7 +419,8 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 		// cause mismatch between chimera.ad.evolveum.com and chimera.ad.evolveum.com
 		hostnameVerifier = new DefaultHostnameVerifier(null);
 		builder.hostnameVerifier(hostnameVerifier);
-		winRmTool =  builder.build();
+		winRmTool = builder.build();
+		winRmTool.setRetriesForConnectionFailures(1);
 	}
 
 	private String getAuthenticationScheme() {
@@ -429,6 +438,36 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 		}
 		throw new ConfigurationException("Unknown authentication scheme: "+getConfiguration().getWinRmAuthenticationScheme());
 	}
+	
+	private boolean isWinRmExplicitlyConfigured() {
+		if (getConfiguration().getWinRmUsername() != null) {
+			return true;
+		}
+		if (getConfiguration().getWinRmPassword() != null) {
+			return true;
+		}
+		if (getConfiguration().getWinRmDomain() != null) {
+			return true;
+		}
+		if (getConfiguration().getWinRmAuthenticationScheme() != null) {
+			return true;
+		}
+		return false;
+	}
+	
+	private void pingWinRm() {
+		String command = PING_COMMAND;
+		OperationLog.log("{0} Script REQ ping cmd: {1}", winRmHost, command);
+		LOG.ok("Executing ping cmd script on {0} as {1}: {2}", winRmHost, winRmUsername, command);
+		WinRmToolResponse response = executeWinRmCommand(command);
+		if (response.getStatusCode() == 0) {
+			OperationLog.log("{0} Script RES ping status={1}", winRmHost, response.getStatusCode());
+		} else {
+			String errorMessage = getScriptError(response);
+			OperationLog.error("{0} Script ERR ping status={1}: {2}", winRmHost, response.getStatusCode(), errorMessage);
+			throw new ConnectorException("Ping script execution failed (status code "+response.getStatusCode()+"): "+errorMessage);
+		}
+	}
 
 	private void disposePowerHell() {
 		if (powerHell != null) {
@@ -442,7 +481,9 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 	} 
 	
 	private void disposeWinRm() {
-		disposeBus();
+		if (winRmTool != null) {
+			disposeBus();
+		}
 	}
 
 	/*
@@ -519,13 +560,13 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 			String command = getScriptCommand(scriptCtx, getConfiguration().getPowershellArgumentStyle());
 			OperationLog.log("{0} Script REQ powershell: {1}", winRmHost, command);
 			LOG.ok("Executing powershell script on {0} as {1}: {2}", winRmHost, winRmUsername, command);
-			response = winRmTool.executePs(command);
+			response = executeWinRmPs(command);
 			
 		} else if (scriptLanguage.equals(AdLdapConfiguration.SCRIPT_LANGUAGE_CMD)) {
 			String command = getScriptCommand(scriptCtx, AdLdapConfiguration.ARGUMENT_STYLE_DASHED);
 			OperationLog.log("{0} Script REQ cmd: {1}", winRmHost, command);
 			LOG.ok("Executing cmd script on {0} as {1}: {2}", winRmHost, winRmUsername, command);
-			response = winRmTool.executeCommand(command);
+			response = executeWinRmCommand(command);
 			
 		} else {
 			throw new IllegalArgumentException("Unknown script language '"+scriptLanguage+"'");
@@ -542,6 +583,28 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 		}
 		
 		return response.getStdOut();
+	}
+	
+	private WinRmToolResponse executeWinRmCommand(String command) {
+		try {
+			if (winRmTool == null) {
+				initWinRm();
+			}
+			return winRmTool.executeCommand(command);
+		} catch (Throwable e) {
+			throw new ConnectorException(e.getMessage(), e);
+		}
+	}
+	
+	private WinRmToolResponse executeWinRmPs(String command) {
+		try {
+			if (winRmTool == null) {
+				initWinRm();
+			}
+			return winRmTool.executePs(command);
+		} catch (Throwable e) {
+			throw new ConnectorException(e.getMessage(), e);
+		}
 	}
 	
 	private Object runPowerHellScript(ScriptContext scriptCtx, OperationOptions options) {
