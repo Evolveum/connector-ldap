@@ -102,6 +102,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
     private PowerHell powerHell;
     private PowerHell exchangePowerHell;
     
+    private boolean busInitialized = false;
     private static int busUsageCount = 0;
 
 	@Override
@@ -405,8 +406,11 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 		}
 	}
 	
-	private void initWinRm() {
-		initBus();
+	private void initWinRmTool() {
+		if (!busInitialized) {
+			initBus();
+			busInitialized = true;
+		}
 		winRmUsername = getWinRmUsername();
 		winRmHost = getWinRmHost();
 		String winRmDomain = getConfiguration().getWinRmDomain();
@@ -481,7 +485,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 	} 
 	
 	private void disposeWinRm() {
-		if (winRmTool != null) {
+		if (busInitialized) {
 			disposeBus();
 		}
 	}
@@ -588,7 +592,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 	private WinRmToolResponse executeWinRmCommand(String command) {
 		try {
 			if (winRmTool == null) {
-				initWinRm();
+				initWinRmTool();
 			}
 			return winRmTool.executeCommand(command);
 		} catch (Throwable e) {
@@ -599,7 +603,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 	private WinRmToolResponse executeWinRmPs(String command) {
 		try {
 			if (winRmTool == null) {
-				initWinRm();
+				initWinRmTool();
 			}
 			return winRmTool.executePs(command);
 		} catch (Throwable e) {
@@ -658,6 +662,10 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 	}
 
 	private PowerHell initPowerHell(String initiScriptlet) {
+		if (!busInitialized) {
+			initBus();
+			busInitialized = true;
+		}
 		PowerHell powerHell = new PowerHell();
 		String winRmDomain = getConfiguration().getWinRmDomain();
 		powerHell.setDomainName(winRmDomain);
