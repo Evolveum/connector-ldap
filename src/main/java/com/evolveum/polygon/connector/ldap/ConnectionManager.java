@@ -469,7 +469,8 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 		if (ldapResult.getResultCode() != ResultCodeEnum.SUCCESS) {
 			String msg = "Unable to bind to LDAP server " + connection.getConfig().getLdapHost() 
 					+ ":" + connection.getConfig().getLdapPort() + " as " + bindDn
-					+ ": " + ldapResult.getResultCode().getMessage() + ": " + ldapResult.getDiagnosticMessage() 
+					+ ": " + LdapUtil.sanitizeString(ldapResult.getResultCode().getMessage()) + ": " 
+					+ LdapUtil.sanitizeString(ldapResult.getDiagnosticMessage() )
 					+ " (" + ldapResult.getResultCode().getResultCode() + ")";
 			throw new ConfigurationException(msg);
 		}
