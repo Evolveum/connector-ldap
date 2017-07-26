@@ -132,11 +132,10 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 	}
 	
 	@Override
-	public void checkAlive() {
-		super.checkAlive();
+	protected void additionalConnectionTests() {
 		if (isWinRmExplicitlyConfigured()) {
 			pingWinRm();
-		}
+		}		
 	}
 	
 	@Override
@@ -665,6 +664,9 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 		if (!busInitialized) {
 			initBus();
 			busInitialized = true;
+		}
+		if (winRmTool == null) {
+			initWinRmTool();
 		}
 		PowerHell powerHell = new PowerHell();
 		String winRmDomain = getConfiguration().getWinRmDomain();

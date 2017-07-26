@@ -169,6 +169,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
         }
         reconnectAfterTest();
         checkAlive();
+        additionalConnectionTests();
     	try {
     		LOG.ok("Fetching root DSE");
 			Entry rootDse = connectionManager.getDefaultConnection().getRootDse();
@@ -178,7 +179,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		}
 	}
     
-    protected void cleanupBeforeTest() {
+	protected void cleanupBeforeTest() {
     	try {
     		LOG.ok("Closing connections ... to reopen them again");
 			connectionManager.close();
@@ -192,6 +193,11 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
     protected void reconnectAfterTest() {
     	
     }
+    
+    protected void additionalConnectionTests() {
+		
+	}
+
 
 	protected void extraTests() {
     	
