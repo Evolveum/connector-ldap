@@ -137,6 +137,20 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
     private boolean forcePasswordChangeAtNextLogon = false;
     
     /**
+     * The mechanism that will be used to execute scripts on resource.
+     * The default WinRM mechanism will execute the script by using
+     * WinRM client built into the connector. Local strategy means execution
+     * on the local machine where the connector is deployed.
+     * Possible values: "winrm", "local".
+     * Default value: "winrm"
+     */
+    private String scriptExecitionMechanism = null;
+    
+    public static final String SCRIPT_EXECUTION_MECHANISM_WINRM = "winrm";
+    public static final String SCRIPT_EXECUTION_MECHANISM_LOCAL = "local";
+    // The "winrs" and "invoke-command" mechanisms may come later.
+    
+    /**
      * Hostname of the WinRM server. If not set the ordinary host will be used.
      */
     private String winRmHost = null;
@@ -185,6 +199,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
     private String powershellArgumentStyle = ARGUMENT_STYLE_DASHED;
     
     public static final String ARGUMENT_STYLE_DASHED = "dashed";
+    public static final String ARGUMENT_STYLE_SLASHED = "slashed";
     public static final String ARGUMENT_STYLE_VARIABLES = "variables";
     
     @ConfigurationProperty(order = 100)
@@ -269,6 +284,15 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 	}
 
 	@ConfigurationProperty(order = 109)
+	public String getScriptExecitionMechanism() {
+		return scriptExecitionMechanism;
+	}
+
+	public void setScriptExecitionMechanism(String scriptExecitionMechanism) {
+		this.scriptExecitionMechanism = scriptExecitionMechanism;
+	}
+
+	@ConfigurationProperty(order = 110)
 	public String getWinRmHost() {
 		return winRmHost;
 	}
@@ -277,7 +301,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.winRmHost = winRmHost;
 	}
 
-	@ConfigurationProperty(order = 110)
+	@ConfigurationProperty(order = 111)
 	public String getWinRmUsername() {
 		return winRmUsername;
 	}
@@ -286,7 +310,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.winRmUsername = winRmUsername;
 	}
 	
-	@ConfigurationProperty(order = 111)
+	@ConfigurationProperty(order = 112)
 	public String getWinRmDomain() {
 		return winRmDomain;
 	}
@@ -295,7 +319,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.winRmDomain = winRmDomain;
 	}
 
-	@ConfigurationProperty(order = 112)
+	@ConfigurationProperty(order = 113)
 	public GuardedString getWinRmPassword() {
 		return winRmPassword;
 	}
@@ -304,7 +328,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.winRmPassword = winRmPassword;
 	}
 	
-	@ConfigurationProperty(order = 113)
+	@ConfigurationProperty(order = 114)
 	public String getWinRmAuthenticationScheme() {
 		return winRmAuthenticationScheme;
 	}
@@ -313,7 +337,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.winRmAuthenticationScheme = winRmAuthenticationScheme;
 	}
 
-	@ConfigurationProperty(order = 114)
+	@ConfigurationProperty(order = 115)
 	public int getWinRmPort() {
 		return winRmPort;
 	}
@@ -322,7 +346,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.winRmPort = winRmPort;
 	}
 
-	@ConfigurationProperty(order = 115)
+	@ConfigurationProperty(order = 116)
 	public boolean isWinRmUseHttps() {
 		return winRmUseHttps;
 	}
@@ -331,7 +355,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.winRmUseHttps = winRmUseHttps;
 	}
 
-	@ConfigurationProperty(order = 116)
+	@ConfigurationProperty(order = 117)
 	public String getPowershellArgumentStyle() {
 		return powershellArgumentStyle;
 	}

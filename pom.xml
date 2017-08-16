@@ -112,24 +112,24 @@
 			<version>1.4.2.18</version>
 		</dependency>
 		
-		<!-- WinRM client needed to run powershell scripts -->
 		<dependency>
-		  <groupId>io.cloudsoft.windows</groupId>
-		  <artifactId>winrm4j</artifactId>
-		  <version>0.4.0.e3</version>
+		  <groupId>com.evolveum.powerhell</groupId>
+		  <artifactId>powerhell</artifactId>
+		  <version>1.0.0-SNAPSHOT</version>
 		  <exclusions>
 				<!-- Exclude SLF4J API from the lib to avoid bundling it with the
 				     connector. The SLF4J is already part of midPoint.
 				     If it would be also bundled with the connector then we will
 				     have the same classes/interfaces loaded by two classloaders
-				     and that will cause problems. -->
+				     and that will cause problems.
+				     The SLF4J API is a dependency of winrm4j -->
 				<exclusion>
 					<groupId>org.slf4j</groupId>
 					<artifactId>slf4j-api</artifactId>
 				</exclusion>
 			</exclusions>
-		</dependency>
-
+	  	</dependency>
+		
 		<dependency>
 		  <groupId>org.apache.httpcomponents</groupId>
 		  <artifactId>httpclient</artifactId>
