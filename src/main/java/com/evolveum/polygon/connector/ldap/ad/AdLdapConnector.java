@@ -650,7 +650,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 			setLocalParameters(powerHell);
 			return powerHell;
 		} else {
-			throw new IllegalArgumentException("Unknown scripting execution mechanism "+getConfiguration().getScriptExecitionMechanism());
+			throw new IllegalArgumentException("Unknown scripting execution mechanism "+getConfiguration().getScriptExecutionMechanism());
 		}
 	}
 	
@@ -664,7 +664,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 			setLocalParameters(powerHell);
 			return powerHell;
 		} else {
-			throw new IllegalArgumentException("Unknown scripting execution mechanism "+getConfiguration().getScriptExecitionMechanism());
+			throw new IllegalArgumentException("Unknown scripting execution mechanism "+getConfiguration().getScriptExecutionMechanism());
 		}
 	}
 
@@ -676,16 +676,16 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 		} else if (isScriptingLocal()) {
 			throw new UnsupportedOperationException("PowerHell loop is not supported for local script execution mechanism");
 		} else {
-			throw new IllegalArgumentException("Unknown scripting execution mechanism "+getConfiguration().getScriptExecitionMechanism());
+			throw new IllegalArgumentException("Unknown scripting execution mechanism "+getConfiguration().getScriptExecutionMechanism());
 		}
 	}
 
 	private boolean isScriptingWinRm() {
-		return getConfiguration().getScriptExecitionMechanism() == null || AdLdapConfiguration.SCRIPT_EXECUTION_MECHANISM_WINRM.equals(getConfiguration().getScriptExecitionMechanism());
+		return getConfiguration().getScriptExecutionMechanism() == null || AdLdapConfiguration.SCRIPT_EXECUTION_MECHANISM_WINRM.equals(getConfiguration().getScriptExecutionMechanism());
 	}
 
 	private boolean isScriptingLocal() {
-		return AdLdapConfiguration.SCRIPT_EXECUTION_MECHANISM_LOCAL.equals(getConfiguration().getScriptExecitionMechanism());
+		return AdLdapConfiguration.SCRIPT_EXECUTION_MECHANISM_LOCAL.equals(getConfiguration().getScriptExecutionMechanism());
 	}
 	
 	private void setWinRmParameters(AbstractPowerHellWinRmImpl powerHell) {
@@ -752,7 +752,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 
 
 	private boolean isScriptingExplicitlyConfigured() {
-		if (getConfiguration().getScriptExecitionMechanism() != null) {
+		if (getConfiguration().getScriptExecutionMechanism() != null) {
 			return true;
 		}
 		if (getConfiguration().getWinRmUsername() != null) {

@@ -144,7 +144,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
      * Possible values: "winrm", "local".
      * Default value: "winrm"
      */
-    private String scriptExecitionMechanism = null;
+    private String scriptExecutionMechanism = null;
     
     public static final String SCRIPT_EXECUTION_MECHANISM_WINRM = "winrm";
     public static final String SCRIPT_EXECUTION_MECHANISM_LOCAL = "local";
@@ -284,12 +284,12 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 	}
 
 	@ConfigurationProperty(order = 109)
-	public String getScriptExecitionMechanism() {
-		return scriptExecitionMechanism;
+	public String getScriptExecutionMechanism() {
+		return scriptExecutionMechanism;
 	}
 
-	public void setScriptExecitionMechanism(String scriptExecitionMechanism) {
-		this.scriptExecitionMechanism = scriptExecitionMechanism;
+	public void setScriptExecutionMechanism(String scriptExecitionMechanism) {
+		this.scriptExecutionMechanism = scriptExecitionMechanism;
 	}
 
 	@ConfigurationProperty(order = 110)
