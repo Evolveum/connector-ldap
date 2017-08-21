@@ -29,6 +29,7 @@ import org.apache.directory.api.ldap.model.cursor.EntryCursor;
 import org.apache.directory.api.ldap.model.cursor.SearchCursor;
 import org.apache.directory.api.ldap.model.entry.Attribute;
 import org.apache.directory.api.ldap.model.entry.Entry;
+import org.apache.directory.api.ldap.model.entry.StringValue;
 import org.apache.directory.api.ldap.model.entry.Value;
 import org.apache.directory.api.ldap.model.exception.LdapAdminLimitExceededException;
 import org.apache.directory.api.ldap.model.exception.LdapAffectMultipleDsaException;
@@ -54,6 +55,7 @@ import org.apache.directory.api.ldap.model.exception.LdapSchemaException;
 import org.apache.directory.api.ldap.model.exception.LdapSchemaViolationException;
 import org.apache.directory.api.ldap.model.exception.LdapStrongAuthenticationRequiredException;
 import org.apache.directory.api.ldap.model.exception.LdapUnwillingToPerformException;
+import org.apache.directory.api.ldap.model.filter.AndNode;
 import org.apache.directory.api.ldap.model.filter.EqualityNode;
 import org.apache.directory.api.ldap.model.filter.ExprNode;
 import org.apache.directory.api.ldap.model.filter.PresenceNode;
@@ -319,6 +321,57 @@ public class LdapUtil {
 		return entry;
 	}
 	
+	public static ExprNode filterAnd(ExprNode f1, ExprNode f2) {
+		if (f1 == null) {
+			return f2;
+		}
+		if (f2 == null) {
+			return f1;
+		}
+		if (f1 instanceof AndNode) {
+			return filterAndOptimized((AndNode) f1, f2);
+		}
+		if (f2 instanceof AndNode) {
+			return filterAndOptimized((AndNode) f2, f1);
+		}
+		return new AndNode(f1, f2);
+	}
+	
+	private static ExprNode filterAndOptimized(AndNode f1, ExprNode f2) {
+		List<ExprNode> subnodes = new ArrayList<>();
+		subnodes.addAll(f1.getChildren());
+		if (f2 instanceof AndNode) {
+			subnodes.addAll(((AndNode) f2).getChildren());
+		} else {
+			subnodes.add(f2);
+		}
+		return new AndNode(subnodes);
+	}
+	
+	public static ExprNode createObjectClassFilter(
+			org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
+		return new EqualityNode<>(SchemaConstants.OBJECT_CLASS_AT, new StringValue(ldapObjectClass.getName()));
+	}
+	
+	public static boolean containsFilter(ExprNode filterNode, String attrName) {
+		if (filterNode instanceof EqualityNode<?>) {
+			return attrName.equalsIgnoreCase(((EqualityNode<?>)filterNode).getAttribute());
+		} else if (filterNode instanceof PresenceNode) {
+			return attrName.equalsIgnoreCase(((PresenceNode)filterNode).getAttribute());
+		} else if (filterNode instanceof AndNode) {
+			for (ExprNode subfilter: ((AndNode)filterNode).getChildren()) {
+				if (containsFilter(subfilter, attrName)) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+	
+	public static boolean containsObjectClassFilter(ExprNode filterNode) {
+		return containsFilter(filterNode, SchemaConstants.OBJECT_CLASS_AT);
+	}
+
 	public static ExprNode createAllSearchFilter() {
 		return new PresenceNode(SchemaConstants.OBJECT_CLASS_AT);
 	}
@@ -751,4 +804,5 @@ public class LdapUtil {
 		
 		return upperSA.isAncestorOf(lowerSA);
 	}
+
 }

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2014-2016 Evolveum
+ * Copyright (c) 2014-2017 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -122,7 +122,7 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
         	
         	SearchRequest req = new SearchRequestImpl();
     		req.setBase(baseDn);
-    		req.setFilter(filterNode);
+    		req.setFilter(preProcessSearchFilter(filterNode));
     		req.setScope(scope);
     		applyCommonConfiguration(req);
     		if (attributes != null) {

@@ -329,6 +329,14 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 
     public static final String TIMESTAMP_PRESENTATION_UNIX_EPOCH = "unixEpoch";
     public static final String TIMESTAMP_PRESENTATION_STRING = "string";
+    
+    /**
+     * Enables inclusion of explicit object class filter in all searches. Normally the connector would
+     * derive search filter only based on the attributes specified in the query. E.g. (&(uid=foo)(cn=bar)).
+     * If includeObjectClassFilter is set to true, then also explicit filter for objectclass will be included.
+     * E.g (&(objectClass=inetOrgPerson)(uid=foo)(cn=bar))
+     */
+    private boolean includeObjectClassFilter = false;
 
     // TODO: failover, accountSynchronizationFilter
     // MAYBE TODO: respectResourcePasswordPolicyChangeAfterReset? filterWithOrInsteadOfAnd? 
@@ -665,6 +673,15 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 
 	public void setTimestampPresentation(String timestampPresentation) {
 		this.timestampPresentation = timestampPresentation;
+	}
+
+	@ConfigurationProperty(order = 38)
+	public boolean isIncludeObjectClassFilter() {
+		return includeObjectClassFilter;
+	}
+
+	public void setIncludeObjectClassFilter(boolean includeObjectClassFilter) {
+		this.includeObjectClassFilter = includeObjectClassFilter;
 	}
 
 	@Override
