@@ -1146,6 +1146,8 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		if (objectClassAttribute == null) {
 			throw new InvalidAttributeValueException("No object class attribute in entry "+entry.getDn());
 		}
+		// Neither structural nor auxiliary. Should not happen. But it does.
+		List<org.apache.directory.api.ldap.model.schema.ObjectClass> outstandingObjectClasses = new ArrayList<>();
 		for (Value<?> objectClassVal: objectClassAttribute) {
 			String objectClassString = objectClassVal.getString();
 			org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass;
@@ -1155,9 +1157,18 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 				throw new InvalidAttributeValueException(e.getMessage(), e);
 			}
 			if (ldapObjectClass.isStructural()) {
+//				LOG.ok("Objectclass {0}: structural)", ldapObjectClass.getName());
 				ocs.getLdapStructuralObjectClasses().add(ldapObjectClass);
 			} else if (ldapObjectClass.isAuxiliary()) {
+//				LOG.ok("Objectclass {0}: auxiliary)", ldapObjectClass.getName());
 				ocs.getLdapAuxiliaryObjectClasses().add(ldapObjectClass);
+			} else if (ldapObjectClass.isAbstract()) {
+//				LOG.ok("Objectclass {0}: abstract)", ldapObjectClass.getName());
+				// We are ignoring this. This is 'top' and things like that.
+				// These are not directly useful, not even in the alternative mechanism.
+			} else {
+//				LOG.ok("Objectclass {0}: outstanding)", ldapObjectClass.getName());
+				outstandingObjectClasses.add(ldapObjectClass);
 			}
 		}
 		if (ocs.getLdapStructuralObjectClasses().isEmpty()) {
@@ -1167,22 +1178,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 			ocs.setLdapLowestStructuralObjectClass(ocs.getLdapStructuralObjectClasses().get(0));
 		} else {
 			for (org.apache.directory.api.ldap.model.schema.ObjectClass structObjectClass: ocs.getLdapStructuralObjectClasses()) {
-	//			LOG.ok("Trying {0} ({1})", structObjectClass.getName(), structObjectClass.getOid());
-				boolean isSuper = false;
-				for (org.apache.directory.api.ldap.model.schema.ObjectClass otherObjectClass: ocs.getLdapStructuralObjectClasses()) {
-					if (structObjectClass.getOid().equals(otherObjectClass.getOid())) {
-						continue;
-					}
-	//				LOG.ok("  with {0} ({1})", otherObjectClass.getName(), structObjectClass.getOid());
-	//				LOG.ok("    superiorOids: {0}", otherObjectClass.getSuperiorOids());
-					if (otherObjectClass.getSuperiorOids().contains(structObjectClass.getOid()) || otherObjectClass.getSuperiorOids().contains(structObjectClass.getName())) {
-	//					LOG.ok("    isSuper");
-						isSuper = true;
-						break;
-					}
-				}
-	//			LOG.ok("    isSuper={0}", isSuper);
-				if (!isSuper) {
+				if (!hasSubclass(structObjectClass, ocs.getLdapStructuralObjectClasses())) {
 					ocs.setLdapLowestStructuralObjectClass(structObjectClass);
 					break;
 				}
@@ -1191,7 +1187,43 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 				throw new InvalidAttributeValueException("Cannot determine lowest structural object class for set of object classes: "+objectClassAttribute);
 			}
 		}
+		if (getConfiguration().isAlternativeObjectClassDetection()) {
+			for (org.apache.directory.api.ldap.model.schema.ObjectClass objectClass: outstandingObjectClasses) {
+				// Extra filter to filter out classes such as 'top' if they are not
+				// properly marked as abstract
+				if (hasSubclass(objectClass, outstandingObjectClasses)) {
+					continue;
+				}
+				if (hasSubclass(objectClass, ocs.getLdapStructuralObjectClasses())) {
+					continue;
+				}
+				if (hasSubclass(objectClass, ocs.getLdapAuxiliaryObjectClasses())) {
+					continue;
+				}
+				LOG.ok("Detected auxliary objectclasse (alternative method): {0})", ocs);
+				ocs.getLdapAuxiliaryObjectClasses().addAll(outstandingObjectClasses);
+			}
+		}
+//		LOG.ok("Detected objectclasses: {0})", ocs);
 		return ocs;
+	}
+	
+	private boolean hasSubclass(org.apache.directory.api.ldap.model.schema.ObjectClass objectClass, 
+			List<org.apache.directory.api.ldap.model.schema.ObjectClass> otherObjectClasses) {
+//		LOG.ok("Trying {0} ({1})", structObjectClass.getName(), structObjectClass.getOid());
+		for (org.apache.directory.api.ldap.model.schema.ObjectClass otherObjectClass: otherObjectClasses) {
+			if (objectClass.getOid().equals(otherObjectClass.getOid())) {
+				continue;
+			}
+//			LOG.ok("  with {0} ({1})", otherObjectClass.getName(), structObjectClass.getOid());
+//			LOG.ok("    superiorOids: {0}", otherObjectClass.getSuperiorOids());
+			if (otherObjectClass.getSuperiorOids().contains(objectClass.getOid()) 
+					|| otherObjectClass.getSuperiorOids().contains(objectClass.getName())) {
+//				LOG.ok("    hasSubclass");
+				return true;
+			}
+		}
+		return false;
 	}
 	
 	private Object hashLdapPassword(Object icfAttributeValue) {

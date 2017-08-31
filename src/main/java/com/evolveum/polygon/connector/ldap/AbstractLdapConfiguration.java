@@ -337,6 +337,11 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
      * E.g (&(objectClass=inetOrgPerson)(uid=foo)(cn=bar))
      */
     private boolean includeObjectClassFilter = false;
+    
+    /**
+     * Enabled more tolerant algorithm to detect which object class is structural and which is auxiliary.
+     */
+    private boolean alternativeObjectClassDetection = false;
 
     // TODO: failover, accountSynchronizationFilter
     // MAYBE TODO: respectResourcePasswordPolicyChangeAfterReset? filterWithOrInsteadOfAnd? 
@@ -682,6 +687,15 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 
 	public void setIncludeObjectClassFilter(boolean includeObjectClassFilter) {
 		this.includeObjectClassFilter = includeObjectClassFilter;
+	}
+
+	@ConfigurationProperty(order = 39)
+	public boolean isAlternativeObjectClassDetection() {
+		return alternativeObjectClassDetection;
+	}
+
+	public void setAlternativeObjectClassDetection(boolean alternativeObjectClassDetection) {
+		this.alternativeObjectClassDetection = alternativeObjectClassDetection;
 	}
 
 	@Override

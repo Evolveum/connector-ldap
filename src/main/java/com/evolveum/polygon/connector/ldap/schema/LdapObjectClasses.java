@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015 Evolveum
+ * Copyright (c) 2015-2017 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -43,6 +43,13 @@ public class LdapObjectClasses {
 
 	public List<org.apache.directory.api.ldap.model.schema.ObjectClass> getLdapAuxiliaryObjectClasses() {
 		return ldapAuxiliaryObjectClasses;
+	}
+
+	@Override
+	public String toString() {
+		return "LdapObjectClasses(ldapLowestStructuralObjectClass=" + ldapLowestStructuralObjectClass
+				+ ", ldapStructuralObjectClasses=" + ldapStructuralObjectClasses
+				+ ", ldapAuxiliaryObjectClasses=" + ldapAuxiliaryObjectClasses + ")";
 	}
 	
 	
