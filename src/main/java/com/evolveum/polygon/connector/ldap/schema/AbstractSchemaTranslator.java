@@ -1080,12 +1080,12 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 					}
 				}
 			}
-//			LOG.ok("ConnId attribute info for {0}: {1}", ldapAttrName, attributeInfo);
+//			LOG.ok("ConnId attribute info for {0} ({1}): {2}", icfAttribute.getName(), ldapAttrName, attributeInfo);
 			if (attributeInfo != null) {
 				// Avoid sending unknown attributes (such as createtimestamp)
 				cob.addAttribute(icfAttribute);
 			} else {
-				LOG.ok("Attribute {0} is not part of ConnId schema, skipping", ldapAttrName);
+				LOG.ok("ConnId attribute {0} is not part of ConnId schema, skipping", icfAttribute.getName());
 			}
 			
 		}
