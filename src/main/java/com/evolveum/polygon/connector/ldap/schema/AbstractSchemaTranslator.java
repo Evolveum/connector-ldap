@@ -1023,7 +1023,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 			for (org.apache.directory.api.ldap.model.schema.ObjectClass ldapAuxiliaryObjectClass: ldapObjectClasses.getLdapAuxiliaryObjectClasses()) {
 				auxAttrBuilder.addValue(ldapAuxiliaryObjectClass.getName());
 				ObjectClassInfo objectClassInfo = icfSchema.findObjectClassInfo(ldapAuxiliaryObjectClass.getName());
-				LOG.ok("ConnId object class info for auxiliary object class {0}:\n{1}", ldapAuxiliaryObjectClass.getName(), objectClassInfo);
+//				LOG.ok("ConnId object class info for auxiliary object class {0}:\n{1}", ldapAuxiliaryObjectClass.getName(), objectClassInfo);
 				icfAuxiliaryObjectClassInfos.add(objectClassInfo);
 			}
 			cob.addAttribute(auxAttrBuilder.build());
@@ -1050,13 +1050,13 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		while (iterator.hasNext()) {
 			org.apache.directory.api.ldap.model.entry.Attribute ldapAttribute = iterator.next();
 			String ldapAttrName = getLdapAttributeName(ldapAttribute);
-			LOG.ok("Processing attribute {0}", ldapAttrName);
+//			LOG.ok("Processing attribute {0}", ldapAttrName);
 			if (!shouldTranslateAttribute(ldapAttrName)) {
-				LOG.ok("Should not translate attribute {0}, skipping", ldapAttrName);
+//				LOG.ok("Should not translate attribute {0}, skipping", ldapAttrName);
 				continue;
 			}
 			AttributeType attributeType = schemaManager.getAttributeType(ldapAttrName);
-			LOG.ok("Type for attribute {0}: {1}", ldapAttrName, attributeType);
+//			LOG.ok("Type for attribute {0}: {1}", ldapAttrName, attributeType);
 			String ldapAttributeNameFromSchema = ldapAttrName;
 			if (attributeType == null) {
 				if (!configuration.isAllowUnknownAttributes()) {
@@ -1069,7 +1069,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 				continue;
 			}
 			Attribute icfAttribute = toIcfAttribute(connection, entry, ldapAttribute, attributeHandler);
-			LOG.ok("ConnId attribute for {0}: {1}", ldapAttrName, icfAttribute);
+//			LOG.ok("ConnId attribute for {0}: {1}", ldapAttrName, icfAttribute);
 			if (icfAttribute == null) {
 				continue;
 			}
@@ -1077,14 +1077,14 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 			if (attributeInfo == null) {
 				for (ObjectClassInfo icfAuxiliaryObjectClassInfo: icfAuxiliaryObjectClassInfos) {
 					attributeInfo = SchemaUtil.findAttributeInfo(icfAuxiliaryObjectClassInfo, icfAttribute);
-					LOG.ok("Looking for ConnId attribute {0} info in auxiliary class {1}: {2}", icfAttribute, icfAuxiliaryObjectClassInfo==null?null:icfAuxiliaryObjectClassInfo.getType(), attributeInfo);
+//					LOG.ok("Looking for ConnId attribute {0} info in auxiliary class {1}: {2}", icfAttribute, icfAuxiliaryObjectClassInfo==null?null:icfAuxiliaryObjectClassInfo.getType(), attributeInfo);
 					if (attributeInfo != null) {
 						break;
 					}
-					LOG.ok("Failed to find attribute in: {0}", icfAuxiliaryObjectClassInfo);
+//					LOG.ok("Failed to find attribute in: {0}", icfAuxiliaryObjectClassInfo);
 				}
 			}
-			LOG.ok("ConnId attribute info for {0} ({1}): {2}", icfAttribute.getName(), ldapAttrName, attributeInfo);
+//			LOG.ok("ConnId attribute info for {0} ({1}): {2}", icfAttribute.getName(), ldapAttrName, attributeInfo);
 			if (attributeInfo != null) {
 				// Avoid sending unknown attributes (such as createtimestamp)
 				cob.addAttribute(icfAttribute);
