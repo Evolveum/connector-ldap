@@ -672,6 +672,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 		if (isScriptingWinRm()) {
 			PowerHellWinRmLoopImpl powerHell = new PowerHellWinRmLoopImpl();
 			setWinRmParameters(powerHell);
+			powerHell.setInitScriptlet(initSctip);
 			return powerHell;
 		} else if (isScriptingLocal()) {
 			throw new UnsupportedOperationException("PowerHell loop is not supported for local script execution mechanism");
