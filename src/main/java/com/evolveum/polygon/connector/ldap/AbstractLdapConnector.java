@@ -1475,12 +1475,12 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
         }
     }
 
-	protected RuntimeException processLdapException(String message, LdapException ldapException) {
-		return LdapUtil.processLdapException(message, ldapException);
+	protected RuntimeException processLdapException(String connectorMessage, LdapException ldapException) {
+		return LdapUtil.processLdapException(connectorMessage, ldapException);
 	}
 	
-	protected RuntimeException processLdapResult(String message, LdapResult ldapResult) {
-		return LdapUtil.processLdapResult(message, ldapResult);
+	protected RuntimeException processLdapResult(String connectorMessage, LdapResult ldapResult) {
+		return LdapUtil.processLdapResult(connectorMessage, ldapResult);
 	}
 
 }

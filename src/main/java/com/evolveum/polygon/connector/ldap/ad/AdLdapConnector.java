@@ -31,6 +31,8 @@ import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.entry.Modification;
 import org.apache.directory.api.ldap.model.entry.ModificationOperation;
 import org.apache.directory.api.ldap.model.exception.LdapException;
+import org.apache.directory.api.ldap.model.exception.LdapOperationException;
+import org.apache.directory.api.ldap.model.exception.LdapOtherException;
 import org.apache.directory.api.ldap.model.message.LdapResult;
 import org.apache.directory.api.ldap.model.message.ResultCodeEnum;
 import org.apache.directory.api.ldap.model.message.SearchScope;
@@ -540,32 +542,76 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 		}
 	}
 	
-	protected RuntimeException processLdapResult(String message, LdapResult ldapResult) {
+	@Override
+	protected RuntimeException processLdapResult(String connectorMessage, LdapResult ldapResult) {
 		if (ldapResult.getResultCode() == ResultCodeEnum.UNWILLING_TO_PERFORM) {
 			WillNotPerform willNotPerform = WillNotPerform.parseDiagnosticMessage(ldapResult.getDiagnosticMessage());
-			if (willNotPerform == null) {
-				return LdapUtil.processLdapResult(message, ldapResult);
-			}
-			try {
-				Class<? extends RuntimeException> exceptionClass = willNotPerform.getExceptionClass();
-				Constructor<? extends RuntimeException> exceptionConstructor;
-				exceptionConstructor = exceptionClass.getConstructor(String.class);
-				String exceptionMessage = LdapUtil.sanitizeString(ldapResult.getDiagnosticMessage()) + ": " + willNotPerform.name() + ": " + willNotPerform.getMessage();
-				RuntimeException exception = exceptionConstructor.newInstance(exceptionMessage);
-				LdapUtil.logOperationError(message, ldapResult, exceptionMessage);
-				throw exception;
-			} catch (NoSuchMethodException | SecurityException | InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
-				LOG.error("Error during LDAP error handling: {0}: {1}", e.getClass(), e.getMessage(), e);
-				// fallback
-				return LdapUtil.processLdapResult(message, ldapResult);
+			if (willNotPerform != null) {
+				try {
+					Class<? extends RuntimeException> exceptionClass = willNotPerform.getExceptionClass();
+					Constructor<? extends RuntimeException> exceptionConstructor;
+					exceptionConstructor = exceptionClass.getConstructor(String.class);
+					String exceptionMessage = LdapUtil.sanitizeString(ldapResult.getDiagnosticMessage()) + ": " + willNotPerform.name() + ": " + willNotPerform.getMessage();
+					RuntimeException exception = exceptionConstructor.newInstance(exceptionMessage);
+					LdapUtil.logOperationError(connectorMessage, ldapResult, exceptionMessage);
+					throw exception;
+				} catch (NoSuchMethodException | SecurityException | InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
+					LOG.error("Error during LDAP error handling: {0}: {1}", e.getClass(), e.getMessage(), e);
+					// fallback
+					return LdapUtil.processLdapResult(connectorMessage, ldapResult);
+				}
 			}
 
-		} else {
-			return LdapUtil.processLdapResult(message, ldapResult);
 		}
+		if (ldapResult.getResultCode() == ResultCodeEnum.OTHER) {
+			RuntimeException otherExpression = processOtherError(connectorMessage, ldapResult.getDiagnosticMessage(), ldapResult, null);
+			if (otherExpression != null) {
+				return otherExpression;
+			}
+		}
+		return LdapUtil.processLdapResult(connectorMessage, ldapResult);
+	}
+	
+	@Override
+	protected RuntimeException processLdapException(String connectorMessage, LdapException ldapException) {
+		if (ldapException instanceof LdapOtherException) {
+			RuntimeException otherExpression = processOtherError(connectorMessage, ldapException.getMessage(), null, (LdapOtherException) ldapException);
+			if (otherExpression != null) {
+				return otherExpression;
+			}
+		}
+		return super.processLdapException(connectorMessage, ldapException);
 	}
 
 	
+	/**
+	 * This is category of errors that we do not know anything just a string error message.
+	 * And we have to figure out what is going on just from the message.
+	 */
+	private RuntimeException processOtherError(String connectorMessage, String diagnosticMessage, LdapResult ldapResult, LdapOperationException ldapException) {
+		WindowsErrorCode errorCode = WindowsErrorCode.parseDiagnosticMessage(diagnosticMessage);
+		if (errorCode == null) {
+			return null;
+		}
+		try {
+			Class<? extends RuntimeException> exceptionClass = errorCode.getExceptionClass();
+			Constructor<? extends RuntimeException> exceptionConstructor;
+			exceptionConstructor = exceptionClass.getConstructor(String.class);
+			String exceptionMessage = LdapUtil.sanitizeString(diagnosticMessage) + ": " + errorCode.name() + ": " + errorCode.getMessage();
+			RuntimeException exception = exceptionConstructor.newInstance(exceptionMessage);
+			if (ldapResult != null) {
+				LdapUtil.logOperationError(connectorMessage, ldapResult, exceptionMessage);
+			} else {
+				LdapUtil.logOperationError(connectorMessage, ldapException, exceptionMessage);
+			}
+			return exception;
+		} catch (NoSuchMethodException | SecurityException | InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
+			LOG.error("Error during LDAP error handling: {0}: {1}", e.getClass(), e.getMessage(), e);
+			// fallback
+			return null;
+		}
+	}
+
 	// SCRIPTING
 	// All of this will eventually go to a separate connector
 	
