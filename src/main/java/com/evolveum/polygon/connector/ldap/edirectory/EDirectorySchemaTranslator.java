@@ -104,7 +104,7 @@ public class EDirectorySchemaTranslator extends AbstractSchemaTranslator<EDirect
 			Long resetTime = LdapUtil.getTimestampAttribute(entry, EDirectoryConstants.ATTRIBUTE_LOCKOUT_RESET_TIME_NAME);
 			long now = System.currentTimeMillis();
 			LOG.ok("LOCK reset={0}, now={1}", resetTime, now);
-			if (resetTime > now) {
+			if (resetTime!=null && resetTime > now) {
 				cob.addAttribute(OperationalAttributes.LOCK_OUT_NAME, Boolean.TRUE);
 			} else {
 				cob.addAttribute(OperationalAttributes.LOCK_OUT_NAME, Boolean.FALSE);
