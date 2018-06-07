@@ -864,7 +864,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
                 return false;
             }
             
-            LOG.warn("Uknown attribute {0}, cannot determine if it is binary", ldapAttributeName);
+            LOG.warn("Unknown attribute {0}, cannot determine if it is binary", ldapAttributeName);
             
             return false;
         }
