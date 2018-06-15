@@ -326,7 +326,17 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
 
 	@Override
 	public int getRemainingPagedResults() {
-		return lastListSize;
+		
+		if (lastListSize < 0) {
+			return lastListSize;
+		}
+		
+		int offset = 0;
+        if (getOptions() != null && getOptions().getPagedResultsOffset() != null) {
+        	offset = getOptions().getPagedResultsOffset() - 1;
+        }
+		
+		return lastListSize - offset - getNumberOfEntriesFound();
 	}
         
     @Override

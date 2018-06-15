@@ -259,7 +259,11 @@ public class SimplePagedResultsSearchStrategy<C extends AbstractLdapConfiguratio
 
 	@Override
 	public int getRemainingPagedResults() {
-		return lastListSize;
+		if (lastListSize < 0) {
+			return lastListSize;
+		} else {
+			return lastListSize - getNumberOfEntriesFound();
+		}
 	}
         
     @Override
