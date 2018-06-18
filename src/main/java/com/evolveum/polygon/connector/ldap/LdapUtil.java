@@ -17,8 +17,12 @@ package com.evolveum.polygon.connector.ldap;
 
 import java.io.IOException;
 import java.text.ParseException;
+import java.time.ZonedDateTime;
+import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Date;
+import java.util.GregorianCalendar;
 import java.util.List;
 import java.util.Map;
 
@@ -166,6 +170,32 @@ public class LdapUtil {
 			return gtime.toGeneralizedTimeWithoutFraction();
 		}
 	}
+
+	public static String toGeneralizedTime(ZonedDateTime zdt, boolean fractionalPart) {
+		// Maybe we can do a nicer and simpler time conversion?
+		GregorianCalendar calendar = GregorianCalendar.from(zdt);
+		GeneralizedTime gtime = new GeneralizedTime(calendar);
+		if (fractionalPart) {
+			return gtime.toGeneralizedTime();
+		} else {
+			return gtime.toGeneralizedTimeWithoutFraction();
+		}
+	}
+
+	public static ZonedDateTime generalizedTimeStringToZonedDateTime(String generalizedTimeString) throws ParseException {
+		// Maybe we can do a nicer and simpler time conversion?
+		GeneralizedTime gt = new GeneralizedTime(generalizedTimeString);
+		GregorianCalendar gcal;
+		Calendar cal = gt.getCalendar();
+		if (cal instanceof GregorianCalendar) {
+			gcal = (GregorianCalendar) cal;
+		} else {
+			gcal = new GregorianCalendar();
+			gcal.setTimeInMillis(cal.getTimeInMillis());
+		}
+		return gcal.toZonedDateTime();
+	}
+
 	
 	public static Boolean toBoolean(String stringVal, Boolean defaultVal) {
 		if (stringVal == null) {
@@ -814,5 +844,5 @@ public class LdapUtil {
 		
 		return upperSA.isAncestorOf(lowerSA);
 	}
-
+	
 }

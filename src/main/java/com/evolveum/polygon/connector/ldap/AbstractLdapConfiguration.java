@@ -320,13 +320,16 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
     
     /**
      * Timestamp presentation mode. This controls the way how connector presents the timestamps
-     * to the client. It can present them as unix epoch (number of seconds since 1970) or the
-     * timestamps can be presented in LDAP-native string form (ISO 8601).
-     * Possible values: "unixEpoch", "string"
-     * Default value: unixEpoch
+     * to the client. It can present them in native framework format (which is the default). 
+     * Or it can present them as unix epoch (number of seconds since 1970) or the
+     * timestamps can be presented in LDAP-native string form (ISO 8601). Unix epoch and
+     * string representation are provided mostly for compatibility reasons.
+     * Possible values: "native", "unixEpoch", "string"
+     * Default value: native
      */
-    private String timestampPresentation = TIMESTAMP_PRESENTATION_UNIX_EPOCH;
+    private String timestampPresentation = TIMESTAMP_PRESENTATION_NATIVE;
 
+    public static final String TIMESTAMP_PRESENTATION_NATIVE = "native";
     public static final String TIMESTAMP_PRESENTATION_UNIX_EPOCH = "unixEpoch";
     public static final String TIMESTAMP_PRESENTATION_STRING = "string";
     

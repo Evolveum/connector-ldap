@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2014-2016 Evolveum
+ * Copyright (c) 2014-2018 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,16 +19,14 @@ import java.io.UnsupportedEncodingException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.text.ParseException;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-
-import javax.naming.directory.SchemaViolationException;
 
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.directory.api.ldap.extras.controls.vlv.VirtualListViewRequest;
@@ -457,11 +455,19 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 
     	if (typeSubtype != null) {
     	    type = typeSubtype.type;
-    	    if (type == Date.class) {
-    	    	if (AbstractLdapConfiguration.TIMESTAMP_PRESENTATION_UNIX_EPOCH.equals(getConfiguration().getTimestampPresentation())) {
-    	    		type = long.class;
-    	    	} else {
-    	    		type = String.class;
+    	    if (type == ZonedDateTime.class) {
+    	    	switch (getConfiguration().getTimestampPresentation()) {
+    	    		case AbstractLdapConfiguration.TIMESTAMP_PRESENTATION_NATIVE:
+    	    			type = ZonedDateTime.class;
+    	    			break;
+    	    		case AbstractLdapConfiguration.TIMESTAMP_PRESENTATION_UNIX_EPOCH:
+    	    			type = long.class;
+    	    			break;
+    	    		case AbstractLdapConfiguration.TIMESTAMP_PRESENTATION_STRING:
+    	    			type = String.class;
+    	    			break;
+    	    		default:
+    	    			throw new IllegalArgumentException("Unknown value of timestampPresentation: "+getConfiguration().getTimestampPresentation());
     	    	}
     	    }
     	}
@@ -562,13 +568,22 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 					throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
 						+"; attributeType="+ldapAttributeType, e);
 				}
-			} else {
+			} else if (icfAttributeValue instanceof ZonedDateTime) {
+				try {
+					return (Value)new StringValue(ldapAttributeType, LdapUtil.toGeneralizedTime((ZonedDateTime)icfAttributeValue, acceptsFractionalGeneralizedTime()));
+				} catch (LdapInvalidAttributeValueException e) {
+					throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
+						+"; attributeType="+ldapAttributeType, e);
+				}
+			} else if (icfAttributeValue instanceof String) {
 				try {
 						return (Value)new StringValue(ldapAttributeType, icfAttributeValue.toString());
 					} catch (LdapInvalidAttributeValueException e) {
 						throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
 								+"; attributeType="+ldapAttributeType, e);
 					}
+			} else {
+				throw new InvalidAttributeValueException("Wrong type for attribute "+ldapAttributeType+": "+icfAttributeValue.getClass());
 			}
 		} else if (icfAttributeValue instanceof Boolean) {
 			LOG.ok("Converting to LDAP: {0} ({1}): boolean", ldapAttributeType.getName(), syntaxOid);
@@ -713,15 +728,24 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 				syntaxOid = ldapAttributeType.getSyntaxOid();
 			}
 			if (SchemaConstants.GENERALIZED_TIME_SYNTAX.equals(syntaxOid)) {
-				if (AbstractLdapConfiguration.TIMESTAMP_PRESENTATION_UNIX_EPOCH.equals(getConfiguration().getTimestampPresentation())) {
-					try {
-						GeneralizedTime gt = new GeneralizedTime(ldapValue.getString());
-						return gt.getCalendar().getTimeInMillis();
-					} catch (ParseException e) {
-						throw new InvalidAttributeValueException("Wrong generalized time format in LDAP attribute "+ldapAttributeName+": "+e.getMessage(), e);
-					}
-				} else {
-					return ldapValue.getString();
+				switch (getConfiguration().getTimestampPresentation()) {
+					case AbstractLdapConfiguration.TIMESTAMP_PRESENTATION_NATIVE:
+						try {
+							return LdapUtil.generalizedTimeStringToZonedDateTime(ldapValue.getString());
+						} catch (ParseException e) {
+							throw new InvalidAttributeValueException("Wrong generalized time format in LDAP attribute "+ldapAttributeName+": "+e.getMessage(), e);
+						}
+					case AbstractLdapConfiguration.TIMESTAMP_PRESENTATION_UNIX_EPOCH:
+						try {
+							GeneralizedTime gt = new GeneralizedTime(ldapValue.getString());
+							return gt.getCalendar().getTimeInMillis();
+						} catch (ParseException e) {
+							throw new InvalidAttributeValueException("Wrong generalized time format in LDAP attribute "+ldapAttributeName+": "+e.getMessage(), e);
+						}
+					case AbstractLdapConfiguration.TIMESTAMP_PRESENTATION_STRING:
+						return ldapValue.getString();
+					default:
+						throw new IllegalArgumentException("Unknown value of timestampPresentation: "+getConfiguration().getTimestampPresentation());
 				}
 			} else if (SchemaConstants.BOOLEAN_SYNTAX.equals(syntaxOid)) {
 				return Boolean.parseBoolean(ldapValue.getString());
@@ -1547,7 +1571,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		addToSyntaxMap(SchemaConstants.ENHANCED_GUIDE_SYNTAX, String.class);
 		addToSyntaxMap(SchemaConstants.FACSIMILE_TELEPHONE_NUMBER_SYNTAX, String.class);
 		addToSyntaxMap(SchemaConstants.FAX_SYNTAX, String.class);
-		addToSyntaxMap(SchemaConstants.GENERALIZED_TIME_SYNTAX, Date.class); // Date.class is a placeholder. It will be replaced by real value in the main code
+		addToSyntaxMap(SchemaConstants.GENERALIZED_TIME_SYNTAX, ZonedDateTime.class); // but this may be changed by the configuration
 		addToSyntaxMap(SchemaConstants.GUIDE_SYNTAX, String.class);
 		addToSyntaxMap(SchemaConstants.IA5_STRING_SYNTAX, String.class);
 		addToSyntaxMap(SchemaConstants.INTEGER_SYNTAX, int.class);
