@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015-2016 Evolveum
+ * Copyright (c) 2015-2018 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,8 +18,8 @@ package com.evolveum.polygon.connector.ldap;
 import java.io.IOException;
 import java.text.ParseException;
 import java.time.ZonedDateTime;
-import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.GregorianCalendar;
@@ -80,7 +80,6 @@ import org.apache.directory.api.util.GeneralizedTime;
 import org.apache.directory.ldap.client.api.LdapConnectionConfig;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
 import org.apache.directory.ldap.client.api.exception.InvalidConnectionException;
-import org.identityconnectors.common.Base64;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.framework.common.exceptions.AlreadyExistsException;
 import org.identityconnectors.framework.common.exceptions.ConfigurationException;
@@ -770,7 +769,7 @@ public class LdapUtil {
 			if (cookie == null) {
 				sb.append("null");
 			} else {
-				sb.append(Base64.encode(cookie));
+				sb.append(Base64.getEncoder().encodeToString(cookie));
 			}
 			sb.append("),");
 		} else if (control instanceof VirtualListViewRequest) {
@@ -787,7 +786,7 @@ public class LdapUtil {
 			if (contextId == null) {
 				sb.append("null");
 			} else {
-				sb.append(Base64.encode(contextId));
+				sb.append(Base64.getEncoder().encodeToString(contextId));
 			}
 			sb.append("),");
 		} else if (control instanceof SortRequest) {

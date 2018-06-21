@@ -21,6 +21,7 @@ import java.security.NoSuchAlgorithmException;
 import java.text.ParseException;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -48,7 +49,6 @@ import org.apache.directory.api.ldap.model.schema.SchemaManager;
 import org.apache.directory.api.util.GeneralizedTime;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
 import org.apache.directory.ldap.client.api.exception.InvalidConnectionException;
-import org.identityconnectors.common.Base64;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.common.exceptions.ConfigurationException;
@@ -1324,7 +1324,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
         resSb.append('{');
         resSb.append(alg);
         resSb.append('}');
-        resSb.append(Base64.encode(hashAndSalt));
+        resSb.append(Base64.getEncoder().encodeToString(hashAndSalt));
 
         return resSb.toString();
     }

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2014-2017 Evolveum
+ * Copyright (c) 2014-2018 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 package com.evolveum.polygon.connector.ldap.search;
+
+import java.util.Base64;
 
 import org.apache.directory.api.ldap.model.cursor.CursorException;
 import org.apache.directory.api.ldap.model.cursor.SearchCursor;
@@ -36,7 +38,6 @@ import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
 import org.apache.directory.ldap.client.api.exception.InvalidConnectionException;
 import org.apache.directory.ldap.client.api.exception.LdapConnectionTimeOutException;
-import org.identityconnectors.common.Base64;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
 import org.identityconnectors.framework.common.objects.ObjectClass;
@@ -65,7 +66,7 @@ public class SimplePagedResultsSearchStrategy<C extends AbstractLdapConfiguratio
 			ResultsHandler handler, OperationOptions options) {
 		super(connectionManager, configuration, schemaTranslator, objectClass, ldapObjectClass, handler, options);
 		if (options != null && options.getPagedResultsCookie() != null) {
-        	cookie = Base64.decode(options.getPagedResultsCookie());
+        	cookie = Base64.getDecoder().decode(options.getPagedResultsCookie());
         }
 	}
 
@@ -121,7 +122,7 @@ public class SimplePagedResultsSearchStrategy<C extends AbstractLdapConfiguratio
         	pagedResultsControl.setSize(pageSize);
         	if (LOG.isOk()) {
             	LOG.ok("LDAP search request: PagedResults( pageSize = {0}, cookie = {1} )", 
-            			pageSize, Base64.encode(cookie));
+            			pageSize, cookie==null?null:Base64.getEncoder().encodeToString(cookie));
             }
         	req.addControl(pagedResultsControl);
         	
@@ -182,7 +183,12 @@ public class SimplePagedResultsSearchStrategy<C extends AbstractLdapConfiguratio
 			    		sb.append(pagedResultsResponseControl.getSize());
 			    		if (pagedResultsResponseControl.getCookie() != null) {
 			    			sb.append(" cookie=");
-			    			sb.append(Base64.encode(pagedResultsResponseControl.getCookie()));
+			    			byte[] cookie = pagedResultsResponseControl.getCookie();
+			    			if (cookie == null) {
+			    				sb.append("null");
+			    			} else {
+			    				sb.append(Base64.getEncoder().encodeToString(cookie));
+			    			}
 			    		}
 			    		extra = sb.toString();
 			    		cookie = pagedResultsResponseControl.getCookie();
@@ -271,7 +277,7 @@ public class SimplePagedResultsSearchStrategy<C extends AbstractLdapConfiguratio
 		if (cookie == null) {
 			return null;
 		}
-		return Base64.encode(cookie);
+		return Base64.getEncoder().encodeToString(cookie);
 	}
     
     

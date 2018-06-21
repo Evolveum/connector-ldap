@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015-2017 Evolveum
+ * Copyright (c) 2015-2018 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 package com.evolveum.polygon.connector.ldap.sync;
 
 import java.util.Arrays;
+import java.util.Base64;
 
 import org.apache.commons.lang.StringUtils;
 import org.apache.directory.api.ldap.extras.controls.ad.AdShowDeleted;
@@ -35,7 +36,6 @@ import org.apache.directory.api.ldap.model.message.SearchScope;
 import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.ldap.model.schema.SchemaManager;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
-import org.identityconnectors.common.Base64;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
 import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException;
@@ -124,7 +124,7 @@ public class AdDirSyncStrategy<C extends AbstractLdapConfiguration> extends Sync
 					
 					SyncDeltaBuilder deltaBuilder = new SyncDeltaBuilder();
 					
-					SyncToken entryToken = new SyncToken(entryCookie==null?"":Base64.encode(entryCookie));
+					SyncToken entryToken = new SyncToken(entryCookie==null?"":Base64.getEncoder().encodeToString(entryCookie));
 					deltaBuilder.setToken(entryToken);
 					
 					boolean isDelted = LdapUtil.getBooleanAttribute(dirSyncEntry, AdConstants.ATTRIBUTE_IS_DELETED, Boolean.FALSE);
@@ -184,7 +184,7 @@ public class AdDirSyncStrategy<C extends AbstractLdapConfiguration> extends Sync
 		// last change over and over again.
 		// NOTE: this assumes that the clock of client and server are synchronized
 		if (handler instanceof SyncTokenResultsHandler && lastEntryCookie != null) {
-			SyncToken finalToken = new SyncToken(Base64.encode(lastEntryCookie));
+			SyncToken finalToken = new SyncToken(Base64.getEncoder().encodeToString(lastEntryCookie));
 			((SyncTokenResultsHandler)handler).handleResult(finalToken);
 		}
 	}
@@ -226,7 +226,7 @@ public class AdDirSyncStrategy<C extends AbstractLdapConfiguration> extends Sync
 		if (cookie == null) {
 			return null;
 		}
-		SyncToken token = new SyncToken(Base64.encode(cookie));
+		SyncToken token = new SyncToken(Base64.getEncoder().encodeToString(cookie));
 		LOG.ok("Found latest sync token: {0}", token);
 		return token;
 	}
@@ -240,7 +240,7 @@ public class AdDirSyncStrategy<C extends AbstractLdapConfiguration> extends Sync
 			Object tokenValue = fromToken.getValue();
 			if (tokenValue instanceof String) {
 				if (StringUtils.isNotBlank((String) tokenValue)) {
-					cookie = Base64.decode((String) tokenValue);
+					cookie = Base64.getDecoder().decode((String) tokenValue);
 				}
 			} else if (tokenValue instanceof byte[]) {
 				cookie = (byte[]) tokenValue;
@@ -260,7 +260,7 @@ public class AdDirSyncStrategy<C extends AbstractLdapConfiguration> extends Sync
 		if (LOG.isOk()) {
 			LOG.ok("Searching DN {0} with {1}, attrs: {2}, cookie: {3}",
 					baseContext, searchFilter, Arrays.toString(attributesToGet), 
-					cookie==null?null:Base64.encode(cookie));
+					cookie==null?null:Base64.getEncoder().encodeToString(cookie));
 		}
 		
 		SearchRequest req = new SearchRequestImpl();

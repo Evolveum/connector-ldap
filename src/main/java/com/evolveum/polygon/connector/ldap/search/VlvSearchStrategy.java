@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2014-2017 Evolveum
+ * Copyright (c) 2014-2018 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
  */
 package com.evolveum.polygon.connector.ldap.search;
 
+import java.util.Base64;
 import java.util.List;
 
 import org.apache.directory.api.ldap.extras.controls.vlv.VirtualListViewRequest;
@@ -40,7 +41,6 @@ import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
 import org.apache.directory.ldap.client.api.exception.InvalidConnectionException;
 import org.apache.directory.ldap.client.api.exception.LdapConnectionTimeOutException;
-import org.identityconnectors.common.Base64;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.framework.common.exceptions.ConfigurationException;
 import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
@@ -109,7 +109,7 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
         lastListSize = 0;
         cookie = null;
         if (getOptions() != null && getOptions().getPagedResultsCookie() != null) {
-        	cookie = Base64.decode(getOptions().getPagedResultsCookie());
+        	cookie = Base64.getDecoder().decode(getOptions().getPagedResultsCookie());
         }
 		
         LdapNetworkConnection connection = getConnection(baseDn);
@@ -217,7 +217,12 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
 			    		sb.append(vlvResponseControl.getContentCount());
 			    		if (vlvResponseControl.getContextId() != null) {
 			    			sb.append(", contextID=");
-			    			sb.append(Base64.encode(vlvResponseControl.getContextId()));
+			    			byte[] contextId = vlvResponseControl.getContextId();
+			    			if (contextId == null) {
+			    				sb.append("null");
+			    			} else {
+			    				sb.append(Base64.getEncoder().encodeToString(vlvResponseControl.getContextId()));
+			    			}
 			    		}
 			    		sb.append(", result=");
 			    		if (vlvResponseControl.getVirtualListViewResult() == null) {
@@ -344,6 +349,6 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
 		if (cookie == null) {
 			return null;
 		}
-		return Base64.encode(cookie);
+		return Base64.getEncoder().encodeToString(cookie);
 	}
 }
