@@ -17,6 +17,7 @@
 package com.evolveum.polygon.connector.ldap;
 
 import java.io.IOException;
+import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -341,6 +342,13 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 //    			connection.setSchemaManager(defSchemaManager);
 //    			connection.loadSchema(defSchemaManager);
     		} catch (LdapException e) {
+    			Throwable cause = e.getCause();
+    			if (cause instanceof ParseException) {
+    				// Schema parsing error
+    				// We are throwing InvalidAttributeValueException here, even though we should not.
+    				// But we take InvalidAttributeValueException to means general schema-related error.
+    				throw new InvalidAttributeValueException("Error parsing resource schema: "+cause.getMessage(), e);
+    			}
     			throw new ConnectorIOException(e.getMessage(), e);
     		} catch (Exception e) {
     			// Brutal. We cannot really do anything smarter here.
