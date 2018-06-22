@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015-2016 Evolveum
+ * Copyright (c) 2015-2018 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,10 +22,9 @@ import org.apache.directory.api.ldap.model.cursor.CursorException;
 import org.apache.directory.api.ldap.model.cursor.EntryCursor;
 import org.apache.directory.api.ldap.model.entry.Attribute;
 import org.apache.directory.api.ldap.model.entry.Entry;
-import org.apache.directory.api.ldap.model.entry.StringValue;
-import org.apache.directory.api.ldap.model.entry.Value;
 import org.apache.directory.api.ldap.model.exception.LdapException;
 import org.apache.directory.api.ldap.model.exception.LdapInvalidAttributeValueException;
+import org.apache.directory.api.ldap.model.exception.LdapSchemaException;
 import org.apache.directory.api.ldap.model.filter.GreaterEqNode;
 import org.apache.directory.api.ldap.model.ldif.LdifAttributesReader;
 import org.apache.directory.api.ldap.model.message.SearchScope;
@@ -299,8 +298,13 @@ public class SunChangelogSyncStrategy<C extends AbstractLdapConfiguration> exten
 
 	private String createSeachFilter(Integer fromTokenValue) {
 		String changeNumberAttributeName = getConfiguration().getChangeNumberAttribute();
-		Value<String> ldapValue = new StringValue(Integer.toString(fromTokenValue + 1));
-		GreaterEqNode<String> filterNode = new GreaterEqNode<String>(changeNumberAttributeName, ldapValue);
+		GreaterEqNode<String> filterNode;
+		String tokenValue = Integer.toString(fromTokenValue + 1);
+		try {
+			filterNode = new GreaterEqNode<String>(changeNumberAttributeName, tokenValue);
+		} catch (LdapSchemaException e) {
+			throw new IllegalArgumentException("Invalid token value "+tokenValue, e);
+		}
 		return filterNode.toString();
 	}
 

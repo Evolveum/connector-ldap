@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2016 Evolveum
+ * Copyright (c) 2016-2018 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -76,7 +76,7 @@ public class AdAttributeHandler implements AttributeHandler {
 							LOG.ok("no range attribute returned in response, breaking", attrOption);
 							break;
 						}
-						for (Value<?> rangeValue: rangeAttribute) {
+						for (Value rangeValue: rangeAttribute) {
 							try {
 								ldapAttribute.add(rangeValue);
 							} catch (LdapInvalidAttributeValueException e) {

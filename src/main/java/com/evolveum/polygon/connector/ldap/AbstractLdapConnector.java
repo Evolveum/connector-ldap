@@ -259,10 +259,8 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
     	LOG.ok("Last RDN: {0}", lastRdn);
     	LOG.ok("Last RDN AVA: {0}", lastRdn.getAva());
     	LOG.ok("Last RDN AVA name: {0}", lastRdn.getAva().getName());
-    	LOG.ok("Last RDN AVA norm name: {0}", lastRdn.getAva().getNormName());
     	LOG.ok("Last RDN AVA type: {0}", lastRdn.getAva().getType());
     	LOG.ok("Last RDN AVA attributeType: {0}", lastRdn.getAva().getAttributeType());
-    	LOG.ok("Last RDN norm value: {0}", lastRdn.getNormValue());
 	}
 
 	protected void testAncestor(String upper, String lower, boolean expectedMatch) {
@@ -832,7 +830,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 				continue;
 			}
 			AttributeType ldapAttrType = shcemaTranslator.toLdapAttribute(ldapStructuralObjectClass, icfAttr.getName());
-			List<Value<Object>> ldapValues = shcemaTranslator.toLdapValues(ldapAttrType, icfAttr.getValue());
+			List<Value> ldapValues = shcemaTranslator.toLdapValues(ldapAttrType, icfAttr.getValue());
 			// Do NOT set attributeType here. The attributeType may not match the type of the value.
 			entry.put(ldapAttrType.getName(), ldapValues.toArray(new Value[ldapValues.size()]));
 			// no simple way how to check if he attribute was added. It may end up with ERR_04451. So let's just
@@ -899,7 +897,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		} else if (uidLdapAttribute.size() > 1) {
 			throw new InvalidAttributeValueException("More than one value ("+uidLdapAttribute.size()+") for UID attribute "+uidAttributeName+" in object "+dnStringFromName);
 		}
-		Value<?> uidLdapAttributeValue = uidLdapAttribute.get();
+		Value uidLdapAttributeValue = uidLdapAttribute.get();
 		AttributeType uidLdapAttributeType = getSchemaManager().getAttributeType(uidAttributeName);
 		uid = new Uid(getSchemaTranslator().toIcfIdentifierValue(uidLdapAttributeValue, uidAttributeName, uidLdapAttributeType));
 		
@@ -1144,7 +1142,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 				&& !ArrayUtils.contains(configuration.getOperationalAttributes(), icfAttr.getName())) {
 			throw new InvalidAttributeValueException("Unknown attribute "+icfAttr.getName()+" in object class "+icfObjectClass);
 		}
-		List<Value<Object>> ldapValues = schemaTranslator.toLdapValues(attributeType, icfAttr.getValue());
+		List<Value> ldapValues = schemaTranslator.toLdapValues(attributeType, icfAttr.getValue());
 		if (ldapValues == null || ldapValues.isEmpty()) {
 			// Do NOT set AttributeType here
 			modifications.add(new DefaultModification(modOp, attributeType.getName()));					
@@ -1166,7 +1164,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		int i = 0;
 		for (final Modification modification: modifications) {
 			if (modification.getAttribute() != null && modification.getAttribute().get() != null) {
-				Value<?> val = modification.getAttribute().get();
+				Value val = modification.getAttribute().get();
 				if (val instanceof GuardedStringValue) {
 					((GuardedStringValue)val).getGuardedStringValue().access(new GuardedString.Accessor() {
 						@Override
@@ -1186,7 +1184,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 	// We want to decrypt GuardedString at the very last moment
 	private void processEntryBeforeCreate(Entry entry) {
 		for(final org.apache.directory.api.ldap.model.entry.Attribute attribute: entry.getAttributes()) {
-			Value<?> val = attribute.get();
+			Value val = attribute.get();
 			if (val instanceof GuardedStringValue) {
 				attribute.remove(val);
 				((GuardedStringValue)val).getGuardedStringValue().access(new GuardedString.Accessor() {
@@ -1345,7 +1343,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 				} 
 				ldapAttributeType = schemaTranslator.createFauxAttributeType(uidAttributeName);
 			}
-			Value<Object> ldapValue = getSchemaTranslator().toLdapIdentifierValue(ldapAttributeType, uid.getUidValue());
+			Value ldapValue = getSchemaTranslator().toLdapIdentifierValue(ldapAttributeType, uid.getUidValue());
 			ExprNode filterNode = new EqualityNode<Object>(ldapAttributeType, ldapValue);
 			LOG.ok("Resolving DN for UID {0}", uid);
 			Entry entry = searchSingleEntry(getConnectionManager(), baseDn, filterNode, scope,

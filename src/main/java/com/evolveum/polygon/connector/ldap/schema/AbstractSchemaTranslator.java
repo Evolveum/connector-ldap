@@ -16,6 +16,7 @@
 package com.evolveum.polygon.connector.ldap.schema;
 
 import java.io.UnsupportedEncodingException;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.text.ParseException;
@@ -32,9 +33,7 @@ import java.util.Random;
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.directory.api.ldap.extras.controls.vlv.VirtualListViewRequest;
 import org.apache.directory.api.ldap.model.constants.SchemaConstants;
-import org.apache.directory.api.ldap.model.entry.BinaryValue;
 import org.apache.directory.api.ldap.model.entry.Entry;
-import org.apache.directory.api.ldap.model.entry.StringValue;
 import org.apache.directory.api.ldap.model.entry.Value;
 import org.apache.directory.api.ldap.model.exception.LdapException;
 import org.apache.directory.api.ldap.model.exception.LdapInvalidAttributeValueException;
@@ -532,8 +531,8 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		return false;
 	}
 
-	public List<Value<Object>> toLdapValues(AttributeType ldapAttributeType, List<Object> icfAttributeValues) {
-		List<Value<Object>> ldapValues = new ArrayList<>(icfAttributeValues.size());
+	public List<Value> toLdapValues(AttributeType ldapAttributeType, List<Object> icfAttributeValues) {
+		List<Value> ldapValues = new ArrayList<>(icfAttributeValues.size());
 		for (Object icfValue: icfAttributeValues) {
 			ldapValues.add(toLdapValue(ldapAttributeType, icfValue));
 		}
@@ -541,13 +540,13 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 	}
 	
 	@SuppressWarnings({ "unchecked", "rawtypes" })
-	public Value<Object> toLdapValue(AttributeType ldapAttributeType, Object icfAttributeValue) {
+	public Value toLdapValue(AttributeType ldapAttributeType, Object icfAttributeValue) {
 		if (icfAttributeValue == null) {
 			return null;
 		}
 		if (ldapAttributeType == null) {
 			// We have no definition for this attribute. Assume string.
-			return (Value)new StringValue(icfAttributeValue.toString());
+			return new Value(icfAttributeValue.toString());
 		}
 		
 		if (ldapAttributeType.getName().equalsIgnoreCase(configuration.getPasswordAttribute())) {
@@ -558,26 +557,26 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 	}
 	
 	@SuppressWarnings({ "unchecked", "rawtypes" })
-	protected Value<Object> wrapInLdapValueClass(AttributeType ldapAttributeType, Object icfAttributeValue) {
+	protected Value wrapInLdapValueClass(AttributeType ldapAttributeType, Object icfAttributeValue) {
 		String syntaxOid = ldapAttributeType.getSyntaxOid();
 		if (SchemaConstants.GENERALIZED_TIME_SYNTAX.equals(syntaxOid)) {
 			if (icfAttributeValue instanceof Long) {
 				try {
-					return (Value)new StringValue(ldapAttributeType, LdapUtil.toGeneralizedTime((Long)icfAttributeValue, acceptsFractionalGeneralizedTime()));
+					return new Value(ldapAttributeType, LdapUtil.toGeneralizedTime((Long)icfAttributeValue, acceptsFractionalGeneralizedTime()));
 				} catch (LdapInvalidAttributeValueException e) {
 					throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
 						+"; attributeType="+ldapAttributeType, e);
 				}
 			} else if (icfAttributeValue instanceof ZonedDateTime) {
 				try {
-					return (Value)new StringValue(ldapAttributeType, LdapUtil.toGeneralizedTime((ZonedDateTime)icfAttributeValue, acceptsFractionalGeneralizedTime()));
+					return new Value(ldapAttributeType, LdapUtil.toGeneralizedTime((ZonedDateTime)icfAttributeValue, acceptsFractionalGeneralizedTime()));
 				} catch (LdapInvalidAttributeValueException e) {
 					throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
 						+"; attributeType="+ldapAttributeType, e);
 				}
 			} else if (icfAttributeValue instanceof String) {
 				try {
-						return (Value)new StringValue(ldapAttributeType, icfAttributeValue.toString());
+						return new Value(ldapAttributeType, icfAttributeValue.toString());
 					} catch (LdapInvalidAttributeValueException e) {
 						throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
 								+"; attributeType="+ldapAttributeType, e);
@@ -588,14 +587,14 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		} else if (icfAttributeValue instanceof Boolean) {
 			LOG.ok("Converting to LDAP: {0} ({1}): boolean", ldapAttributeType.getName(), syntaxOid);
 			try {
-				return (Value)new StringValue(ldapAttributeType, icfAttributeValue.toString().toUpperCase());
+				return new Value(ldapAttributeType, icfAttributeValue.toString().toUpperCase());
 			} catch (LdapInvalidAttributeValueException e) {
 				throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
 						+"; attributeType="+ldapAttributeType, e);
 			}
 		} else if (icfAttributeValue instanceof GuardedString) {
 			try {
-				return (Value)new GuardedStringValue(ldapAttributeType, (GuardedString) icfAttributeValue);
+				return new GuardedStringValue(ldapAttributeType, (GuardedString) icfAttributeValue);
 			} catch (LdapInvalidAttributeValueException e) {
 				throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
 						+"; attributeType="+ldapAttributeType, e);
@@ -608,7 +607,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 					// Do NOT set attributeType in the Value in this case.
 					// The attributeType might not match the Value class
 					// e.g. human-readable jpegPhoto attribute will expect StringValue
-					return (Value)new BinaryValue(null, (byte[])icfAttributeValue);
+					return new Value(null, (byte[])icfAttributeValue);
 				} catch (LdapInvalidAttributeValueException e) {
 					throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
 							+"; attributeType="+ldapAttributeType, e);
@@ -626,7 +625,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 					// Do NOT set attributeType in the Value in this case.
 					// The attributeType might not match the Value class
 					// e.g. human-readable jpegPhoto attribute will expect StringValue
-					return (Value)new BinaryValue(null, bytes);
+					return new Value(null, bytes);
 				} catch (LdapInvalidAttributeValueException e) {
 					throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
 							+"; attributeType="+ldapAttributeType, e);
@@ -638,7 +637,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		} else if (!isBinaryAttribute(syntaxOid)) {
 			LOG.ok("Converting to LDAP: {0} ({1}): explicit string", ldapAttributeType.getName(), syntaxOid);
 			try {
-				return (Value)new StringValue(ldapAttributeType, icfAttributeValue.toString());
+				return new Value(ldapAttributeType, icfAttributeValue.toString());
 			} catch (LdapInvalidAttributeValueException e) {
 				throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
 						+"; attributeType="+ldapAttributeType, e);
@@ -647,7 +646,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 			if (icfAttributeValue instanceof byte[]) {
 				LOG.ok("Converting to LDAP: {0} ({1}): detected binary", ldapAttributeType.getName(), syntaxOid);
 				try {
-					return (Value)new BinaryValue(ldapAttributeType, (byte[])icfAttributeValue);
+					return new Value(ldapAttributeType, (byte[])icfAttributeValue);
 				} catch (LdapInvalidAttributeValueException e) {
 					throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
 							+"; attributeType="+ldapAttributeType, e);
@@ -655,7 +654,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 			} else {
 				LOG.ok("Converting to LDAP: {0} ({1}): detected string", ldapAttributeType.getName(), syntaxOid);
 				try {
-					return (Value)new StringValue(ldapAttributeType, icfAttributeValue.toString());
+					return new Value(ldapAttributeType, icfAttributeValue.toString());
 				} catch (LdapInvalidAttributeValueException e) {
 					throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
 							+"; attributeType="+ldapAttributeType, e);
@@ -664,7 +663,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		}
 	}
 	
-	protected Value<Object> toLdapPasswordValue(AttributeType ldapAttributeType, Object icfAttributeValue) {
+	protected Value toLdapPasswordValue(AttributeType ldapAttributeType, Object icfAttributeValue) {
 		if (configuration.getPasswordHashAlgorithm() != null 
 				&& !LdapConfiguration.PASSWORD_HASH_ALGORITHM_NONE.equals(configuration.getPasswordHashAlgorithm())) {
 			icfAttributeValue = hashLdapPassword(icfAttributeValue);
@@ -680,13 +679,13 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 	 * Used to parse __UID__ and __NAME__.
 	 */
 	@SuppressWarnings({ "unchecked", "rawtypes" })
-	public Value<Object> toLdapIdentifierValue(AttributeType ldapAttributeType, String icfAttributeValue) {
+	public Value toLdapIdentifierValue(AttributeType ldapAttributeType, String icfAttributeValue) {
 		if (icfAttributeValue == null) {
 			return null;
 		}
 		if (ldapAttributeType == null) {
 			// We have no definition for this attribute. Assume string.
-			return (Value)new StringValue(icfAttributeValue);
+			return new Value(icfAttributeValue);
 		}
 		
 		String syntaxOid = ldapAttributeType.getSyntaxOid();
@@ -695,10 +694,10 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 			byte[] bytes = LdapUtil.hexToBinary(icfAttributeValue);
 			// Do NOT set attributeType in the Value in this case.
 			// The attributeType might not match the Value class
-			return (Value)new BinaryValue(bytes);
+			return new Value(bytes);
 		} else {
 			try {
-				return (Value)new StringValue(ldapAttributeType, icfAttributeValue);
+				return new Value(ldapAttributeType, icfAttributeValue);
 			} catch (LdapInvalidAttributeValueException e) {
 				throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
 						+"; attributeType="+ldapAttributeType, e);
@@ -706,7 +705,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		}
 	}
 
-	public Value<Object> toLdapValue(AttributeType ldapAttributeType, List<Object> icfAttributeValues) {
+	public Value toLdapValue(AttributeType ldapAttributeType, List<Object> icfAttributeValues) {
 		if (icfAttributeValues == null || icfAttributeValues.isEmpty()) {
 			return null;
 		}
@@ -716,12 +715,12 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		return toLdapValue(ldapAttributeType, icfAttributeValues.get(0));
 	}
 	
-	private Object toIcfValue(String icfAttributeName, Value<?> ldapValue, String ldapAttributeName, AttributeType ldapAttributeType) {
+	private Object toIcfValue(String icfAttributeName, Value ldapValue, String ldapAttributeName, AttributeType ldapAttributeType) {
 		if (ldapValue == null) {
 			return null;
 		}
 		if (OperationalAttributeInfos.PASSWORD.is(icfAttributeName)) {
-			return new GuardedString(ldapValue.getString().toCharArray());
+			return new GuardedString(ldapValue.getValue().toCharArray());
 		} else {
 			String syntaxOid = null;
 			if (ldapAttributeType != null) {
@@ -731,38 +730,38 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 				switch (getConfiguration().getTimestampPresentation()) {
 					case AbstractLdapConfiguration.TIMESTAMP_PRESENTATION_NATIVE:
 						try {
-							return LdapUtil.generalizedTimeStringToZonedDateTime(ldapValue.getString());
+							return LdapUtil.generalizedTimeStringToZonedDateTime(ldapValue.getValue());
 						} catch (ParseException e) {
 							throw new InvalidAttributeValueException("Wrong generalized time format in LDAP attribute "+ldapAttributeName+": "+e.getMessage(), e);
 						}
 					case AbstractLdapConfiguration.TIMESTAMP_PRESENTATION_UNIX_EPOCH:
 						try {
-							GeneralizedTime gt = new GeneralizedTime(ldapValue.getString());
+							GeneralizedTime gt = new GeneralizedTime(ldapValue.getValue());
 							return gt.getCalendar().getTimeInMillis();
 						} catch (ParseException e) {
 							throw new InvalidAttributeValueException("Wrong generalized time format in LDAP attribute "+ldapAttributeName+": "+e.getMessage(), e);
 						}
 					case AbstractLdapConfiguration.TIMESTAMP_PRESENTATION_STRING:
-						return ldapValue.getString();
+						return ldapValue.getValue();
 					default:
 						throw new IllegalArgumentException("Unknown value of timestampPresentation: "+getConfiguration().getTimestampPresentation());
 				}
 			} else if (SchemaConstants.BOOLEAN_SYNTAX.equals(syntaxOid)) {
-				return Boolean.parseBoolean(ldapValue.getString());
+				return Boolean.parseBoolean(ldapValue.getValue());
 			} else if (isIntegerSyntax(syntaxOid)) {
-				return Integer.parseInt(ldapValue.getString());
+				return Integer.parseInt(ldapValue.getValue());
 			} else if (isLongSyntax(syntaxOid)) {
-				return Long.parseLong(ldapValue.getString());
+				return Long.parseLong(ldapValue.getValue());
 			} else if (isBinarySyntax(syntaxOid)) {
 				LOG.ok("Converting to ICF: {0} (syntax {1}, value {2}): explicit binary", ldapAttributeName, syntaxOid, ldapValue.getClass());
 				return ldapValue.getBytes();
 			} else if (isStringSyntax(syntaxOid)) {
 				LOG.ok("Converting to ICF: {0} (syntax {1}, value {2}): explicit string", ldapAttributeName, syntaxOid, ldapValue.getClass());
-				return ldapValue.getString();
+				return ldapValue.getValue();
 			} else {
-				if (ldapValue instanceof StringValue) {
+				if (ldapValue.isHumanReadable()) {
 					LOG.ok("Converting to ICF: {0} (syntax {1}, value {2}): detected string", ldapAttributeName, syntaxOid, ldapValue.getClass());
-					return ldapValue.getString();
+					return ldapValue.getValue();
 				} else {
 					LOG.ok("Converting to ICF: {0} (syntax {1}, value {2}): detected binary", ldapAttributeName, syntaxOid, ldapValue.getClass());
 					return ldapValue.getBytes();
@@ -954,7 +953,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 	/**
 	 * Used to format __UID__ and __NAME__.
 	 */
-	public String toIcfIdentifierValue(Value<?> ldapValue, String ldapAttributeName, AttributeType ldapAttributeType) {
+	public String toIcfIdentifierValue(Value ldapValue, String ldapAttributeName, AttributeType ldapAttributeType) {
 		if (ldapValue == null) {
 			return null;
 		}
@@ -969,16 +968,12 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 			LOG.ok("Converting identifier to ICF: {0} (syntax {1}, value {2}): explicit binary", 
 			    ldapAttributeName, getSyntax(ldapAttributeType).getOid(), ldapValue.getClass());
 			
-			byte[] bytes;
+			byte[] bytes = ldapValue.getBytes();
 			
-			if (ldapValue instanceof BinaryValue) {
-				bytes = ldapValue.getBytes();
-			} else if (ldapValue instanceof StringValue) {
-                // Binary value incorrectly detected as string value. Conversion to Java string has broken the data.
-                // We need to do some magic to fix it.
-			    bytes = ldapValue.getBytes();
-			} else {
-				throw new IllegalStateException("Unexpected value type "+ldapValue.getClass());
+			if (bytes == null && ldapValue.getValue() != null) {
+                // Binary value incorrectly detected as string value.
+				// TODO: Conversion to Java string may has broken the data. Do we need to do some magic to fix it?
+			    bytes = ldapValue.getValue().getBytes(StandardCharsets.UTF_8);
 			}
 			
 			// Assume that identifiers are short. It is more readable to use hex representation than base64.
@@ -988,7 +983,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 				ldapAttributeType==null?null:getSyntax(ldapAttributeType).getOid(),
 			    ldapValue.getClass());
 			
-			return ldapValue.getString();
+			return ldapValue.getValue();
 		}
 	}
 	
@@ -1176,8 +1171,8 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		}
 		// Neither structural nor auxiliary. Should not happen. But it does.
 		List<org.apache.directory.api.ldap.model.schema.ObjectClass> outstandingObjectClasses = new ArrayList<>();
-		for (Value<?> objectClassVal: objectClassAttribute) {
-			String objectClassString = objectClassVal.getString();
+		for (Value objectClassVal: objectClassAttribute) {
+			String objectClassString = objectClassVal.getValue();
 			org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass;
 			try {
 				ldapObjectClass = schemaManager.lookupObjectClassRegistry(objectClassString);
@@ -1363,10 +1358,10 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 					throw new ConfigurationException("Unknown passoword read strategy "+configuration.getPasswordReadStrategy());
 			}
 		}
-		Iterator<Value<?>> iterator = ldapAttribute.iterator();
+		Iterator<Value> iterator = ldapAttribute.iterator();
 		boolean hasValidValue = false;
 		while (iterator.hasNext()) {
-			Value<?> ldapValue = iterator.next();
+			Value ldapValue = iterator.next();
 			Object icfValue = toIcfValue(icfAttributeName, ldapValue, ldapAttributeNameFromSchema, ldapAttributeType);
 			if (icfValue != null) {
 				if (!incompleteRead) {
@@ -1448,7 +1443,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 			return dn;
 		}
 		try {
-			dn.apply(schemaManager);
+			dn = new Dn(schemaManager, dn);
 		} catch (LdapInvalidDnException e) {
 			throw new InvalidAttributeValueException("Invalid DN '"+dn+"': "+e.getMessage(), e);
 		}

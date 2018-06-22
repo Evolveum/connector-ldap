@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015-2016 Evolveum
+ * Copyright (c) 2015-2018 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,8 +20,8 @@ import java.util.Collection;
 import java.util.List;
 
 import org.apache.directory.api.ldap.model.constants.SchemaConstants;
-import org.apache.directory.api.ldap.model.entry.StringValue;
 import org.apache.directory.api.ldap.model.entry.Value;
+import org.apache.directory.api.ldap.model.exception.LdapSchemaException;
 import org.apache.directory.api.ldap.model.filter.AndNode;
 import org.apache.directory.api.ldap.model.filter.EqualityNode;
 import org.apache.directory.api.ldap.model.filter.ExprNode;
@@ -92,8 +92,7 @@ public class LdapFilterTranslator<C extends AbstractLdapConfiguration> {
 	}
 	
 	private EqualityNode<String> createObjectClassEqFilter(ObjectClass ldapObjectClass) {
-		Value<String> ldapValue = new StringValue(ldapObjectClass.getName());
-		return new EqualityNode<String>(SchemaConstants.OBJECT_CLASS_AT, ldapValue);
+		return new EqualityNode<String>(SchemaConstants.OBJECT_CLASS_AT, ldapObjectClass.getName());
 	}
 
 
@@ -179,7 +178,7 @@ public class LdapFilterTranslator<C extends AbstractLdapConfiguration> {
         }
         
         AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, icfAttributeName);
-        List<Value<Object>> ldapValues = schemaTranslator.toLdapValues(ldapAttributeType, icfAttributeValue);
+        List<Value> ldapValues = schemaTranslator.toLdapValues(ldapAttributeType, icfAttributeValue);
         
         if (ldapValues == null || ldapValues.isEmpty()) {
             throw new IllegalArgumentException("Does it make sense to have empty ContainsAllValuesFilter?");
@@ -192,7 +191,7 @@ public class LdapFilterTranslator<C extends AbstractLdapConfiguration> {
         
         List<ExprNode> subNodes = new ArrayList<ExprNode>(ldapValues.size());
         
-        for (Value<Object> ldapValue: ldapValues) {
+        for (Value ldapValue: ldapValues) {
             subNodes.add(new EqualityNode<Object>(ldapAttributeType, ldapValue));
         }
         
@@ -253,8 +252,14 @@ public class LdapFilterTranslator<C extends AbstractLdapConfiguration> {
         }
         
         AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, icfAttributeName);
-        Value<Object> ldapValue = schemaTranslator.toLdapValue(ldapAttributeType, icfAttributeValue);
-        GreaterEqNode<Object> greaterEqNode = new GreaterEqNode<Object>(ldapAttributeType, ldapValue);
+        Value ldapValue = schemaTranslator.toLdapValue(ldapAttributeType, icfAttributeValue);
+        GreaterEqNode<Object> greaterEqNode;
+		try {
+			greaterEqNode = new GreaterEqNode<Object>(ldapAttributeType, ldapValue);
+		} catch (LdapSchemaException e) {
+			throw new IllegalArgumentException("Invalid value in filter for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
+					+"; attributeType="+ldapAttributeType, e);
+		}
         EqualityNode<Object> equalityNode = new EqualityNode<Object>(ldapAttributeType, ldapValue);
         
         return new ScopedFilter(new AndNode(greaterEqNode,new NotNode(equalityNode)));
@@ -275,9 +280,14 @@ public class LdapFilterTranslator<C extends AbstractLdapConfiguration> {
         }
         
         AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, icfAttributeName);
-        Value<Object> ldapValue = schemaTranslator.toLdapValue(ldapAttributeType, icfAttributeValue);
+        Value ldapValue = schemaTranslator.toLdapValue(ldapAttributeType, icfAttributeValue);
         
-        return new ScopedFilter(new GreaterEqNode<Object>(ldapAttributeType, ldapValue));
+        try {
+			return new ScopedFilter(new GreaterEqNode<Object>(ldapAttributeType, ldapValue));
+		} catch (LdapSchemaException e) {
+			throw new IllegalArgumentException("Invalid value in filter for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
+					+"; attributeType="+ldapAttributeType, e);
+		}
         
     }
 
@@ -296,8 +306,14 @@ public class LdapFilterTranslator<C extends AbstractLdapConfiguration> {
         }
         
         AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, icfAttributeName);
-        Value<Object> ldapValue = schemaTranslator.toLdapValue(ldapAttributeType, icfAttributeValue);
-        LessEqNode<Object> lessEqNode = new LessEqNode<Object>(ldapAttributeType, ldapValue);
+        Value ldapValue = schemaTranslator.toLdapValue(ldapAttributeType, icfAttributeValue);
+        LessEqNode<Object> lessEqNode;
+		try {
+			lessEqNode = new LessEqNode<Object>(ldapAttributeType, ldapValue);
+		} catch (LdapSchemaException e) {
+			throw new IllegalArgumentException("Invalid value in filter for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
+					+"; attributeType="+ldapAttributeType, e);
+		}
         EqualityNode<Object> equalityNode = new EqualityNode<Object>(ldapAttributeType, ldapValue);
         
         return new ScopedFilter(new AndNode(lessEqNode,new NotNode(equalityNode)));
@@ -318,9 +334,14 @@ public class LdapFilterTranslator<C extends AbstractLdapConfiguration> {
         }
         
         AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, icfAttributeName);
-        Value<Object> ldapValue = schemaTranslator.toLdapValue(ldapAttributeType, icfAttributeValue);
+        Value ldapValue = schemaTranslator.toLdapValue(ldapAttributeType, icfAttributeValue);
         
-        return new ScopedFilter(new LessEqNode<Object>(ldapAttributeType, ldapValue));
+        try {
+			return new ScopedFilter(new LessEqNode<Object>(ldapAttributeType, ldapValue));
+		} catch (LdapSchemaException e) {
+			throw new IllegalArgumentException("Invalid value in filter for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
+					+"; attributeType="+ldapAttributeType, e);
+		}
         
     }
 
@@ -373,7 +394,7 @@ public class LdapFilterTranslator<C extends AbstractLdapConfiguration> {
 			return new ScopedFilter(null, dn);
 		}
 		AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, icfAttributeName);
-		Value<Object> ldapValue;
+		Value ldapValue;
 		if (Uid.NAME.equals(icfAttributeName)) {
 			if (icfAttributeValue.size() != 1) {
 				throw new InvalidAttributeValueException("Expected single value for UID, but got " + icfAttributeValue);

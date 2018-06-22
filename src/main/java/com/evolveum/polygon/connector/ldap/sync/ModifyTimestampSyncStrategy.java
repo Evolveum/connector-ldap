@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015-2016 Evolveum
+ * Copyright (c) 2015-2018 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,9 +22,8 @@ import org.apache.directory.api.ldap.model.constants.SchemaConstants;
 import org.apache.directory.api.ldap.model.cursor.CursorException;
 import org.apache.directory.api.ldap.model.cursor.EntryCursor;
 import org.apache.directory.api.ldap.model.entry.Entry;
-import org.apache.directory.api.ldap.model.entry.StringValue;
-import org.apache.directory.api.ldap.model.entry.Value;
 import org.apache.directory.api.ldap.model.exception.LdapException;
+import org.apache.directory.api.ldap.model.exception.LdapSchemaException;
 import org.apache.directory.api.ldap.model.filter.AndNode;
 import org.apache.directory.api.ldap.model.filter.EqualityNode;
 import org.apache.directory.api.ldap.model.filter.ExprNode;
@@ -157,15 +156,18 @@ public class ModifyTimestampSyncStrategy<C extends AbstractLdapConfiguration> ex
 	}
 
 	private String createSeachFilter(String fromTokenValue, org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
-		Value<String> ldapValue = new StringValue(fromTokenValue);
-		ExprNode filterNode =
-				new OrNode(
-						new GreaterEqNode<String>(SchemaConstants.MODIFY_TIMESTAMP_AT, ldapValue),
-						new GreaterEqNode<String>(SchemaConstants.CREATE_TIMESTAMP_AT, ldapValue)
-				);
+		ExprNode filterNode;
+		try {
+			filterNode = new OrNode(
+					new GreaterEqNode<String>(SchemaConstants.MODIFY_TIMESTAMP_AT, fromTokenValue),
+					new GreaterEqNode<String>(SchemaConstants.CREATE_TIMESTAMP_AT, fromTokenValue)
+			);
+		} catch (LdapSchemaException e) {
+			throw new IllegalArgumentException("Invalid token value "+fromTokenValue, e);
+		}
 		if (ldapObjectClass != null) {
 			filterNode = new AndNode(new EqualityNode<String>(SchemaConstants.OBJECT_CLASS_AT, 
-					new StringValue(ldapObjectClass.getName())), filterNode);
+					ldapObjectClass.getName()), filterNode);
 		}
 		return filterNode.toString();
 	}

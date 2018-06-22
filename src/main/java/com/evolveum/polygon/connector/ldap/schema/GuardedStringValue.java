@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015 Evolveum
+ * Copyright (c) 2015-2018 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
  */
 package com.evolveum.polygon.connector.ldap.schema;
 
-import org.apache.directory.api.ldap.model.entry.StringValue;
+import org.apache.directory.api.ldap.model.entry.Value;
 import org.apache.directory.api.ldap.model.exception.LdapInvalidAttributeValueException;
 import org.apache.directory.api.ldap.model.schema.AttributeType;
 import org.identityconnectors.common.security.GuardedString;
@@ -28,7 +28,7 @@ import org.identityconnectors.common.security.GuardedString;
  * @author semancik
  *
  */
-public class GuardedStringValue extends StringValue {
+public class GuardedStringValue extends Value {
 
 	GuardedString guardedStringValue;
 	

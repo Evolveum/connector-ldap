@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015-2016 Evolveum
+ * Copyright (c) 2015-2018 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@ package com.evolveum.polygon.connector.ldap.edirectory;
 
 import java.util.List;
 
-import org.apache.directory.api.ldap.model.entry.StringValue;
+import org.apache.directory.api.ldap.model.exception.LdapSchemaException;
 import org.apache.directory.api.ldap.model.filter.AndNode;
 import org.apache.directory.api.ldap.model.filter.EqualityNode;
 import org.apache.directory.api.ldap.model.filter.ExprNode;
@@ -74,18 +74,21 @@ public class EDirectoryLdapFilterTranslator extends LdapFilterTranslator<EDirect
 	}
 
 	private ExprNode createLockoutFilter() {
-		return new AndNode(new EqualityNode<String>(EDirectoryConstants.ATTRIBUTE_LOCKOUT_LOCKED_NAME, 
-				new StringValue(AbstractLdapConfiguration.BOOLEAN_TRUE)
-			),
-			new GreaterEqNode<String>(EDirectoryConstants.ATTRIBUTE_LOCKOUT_RESET_TIME_NAME,
-				new StringValue(LdapUtil.toGeneralizedTime(System.currentTimeMillis(), false))
-			)
-		);
+		try {
+			return new AndNode(new EqualityNode<String>(EDirectoryConstants.ATTRIBUTE_LOCKOUT_LOCKED_NAME, 
+					AbstractLdapConfiguration.BOOLEAN_TRUE
+				),
+				new GreaterEqNode<String>(EDirectoryConstants.ATTRIBUTE_LOCKOUT_RESET_TIME_NAME,
+					LdapUtil.toGeneralizedTime(System.currentTimeMillis(), false)
+				)
+			);
+		} catch (LdapSchemaException e) {
+			throw new IllegalArgumentException("Invalid value in lockout filter", e);
+		}
 	}
 	
 	private ExprNode createLoginDisabledFilter(String value) {
-		return new EqualityNode<String>(EDirectoryConstants.ATTRIBUTE_LOGIN_DISABLED_NAME, 
-				new StringValue(value));
+		return new EqualityNode<String>(EDirectoryConstants.ATTRIBUTE_LOGIN_DISABLED_NAME, value);
 	}
 	
 }

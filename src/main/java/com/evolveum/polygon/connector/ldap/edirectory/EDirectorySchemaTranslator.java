@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015-2017 Evolveum
+ * Copyright (c) 2015-2018 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -76,7 +76,7 @@ public class EDirectorySchemaTranslator extends AbstractSchemaTranslator<EDirect
 	}
 	
 	@Override
-	public Value<Object> toLdapValue(AttributeType ldapAttributeType, Object icfAttributeValue) {
+	public Value toLdapValue(AttributeType ldapAttributeType, Object icfAttributeValue) {
 		if (EDirectoryConstants.ATTRIBUTE_LOGIN_DISABLED_NAME.equals(ldapAttributeType.getName())) {
 			// This is translated from __ENABLE__. So we need to negate it.
 			return super.toLdapValue(ldapAttributeType, !((Boolean)icfAttributeValue));

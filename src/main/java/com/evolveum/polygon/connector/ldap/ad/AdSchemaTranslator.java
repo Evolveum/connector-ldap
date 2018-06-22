@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015-2016 Evolveum
+ * Copyright (c) 2015-2018 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,7 +19,6 @@ import java.io.UnsupportedEncodingException;
 
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.directory.api.ldap.model.entry.Attribute;
-import org.apache.directory.api.ldap.model.entry.BinaryValue;
 import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.entry.Value;
 import org.apache.directory.api.ldap.model.exception.LdapInvalidAttributeValueException;
@@ -108,7 +107,7 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
 	}
 	
 	@Override
-	public Value<Object> toLdapValue(AttributeType ldapAttributeType, Object icfAttributeValue) {
+	public Value toLdapValue(AttributeType ldapAttributeType, Object icfAttributeValue) {
 		if (!getConfiguration().isRawUserAccountControlAttribute() && AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME.equals(ldapAttributeType.getName())) {
 			if ((Boolean)icfAttributeValue) {
 				// ENABLED
@@ -123,7 +122,7 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
 	}
 	
 	@Override
-	public Value<Object> toLdapIdentifierValue(AttributeType ldapAttributeType, String icfAttributeValue) {
+	public Value toLdapIdentifierValue(AttributeType ldapAttributeType, String icfAttributeValue) {
 		if (isGuid(ldapAttributeType)) {
 			icfAttributeValue = parseGuidFromDashedNotation(icfAttributeValue);
 		}
@@ -131,7 +130,7 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
 	}
 
 	@Override
-	public String toIcfIdentifierValue(Value<?> ldapValue, String ldapAttributeName, AttributeType ldapAttributeType) {
+	public String toIcfIdentifierValue(Value ldapValue, String ldapAttributeName, AttributeType ldapAttributeType) {
 		String icfIdentifierValue = super.toIcfIdentifierValue(ldapValue, ldapAttributeName, ldapAttributeType);
 		if (isGuid(ldapAttributeType)) {
 			icfIdentifierValue = formatGuidToDashedNotation(icfIdentifierValue);
@@ -171,7 +170,7 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
 	}
 
 	@Override
-	protected Value<Object> toLdapPasswordValue(AttributeType ldapAttributeType, Object icfAttributeValue) {
+	protected Value toLdapPasswordValue(AttributeType ldapAttributeType, Object icfAttributeValue) {
 		String password;
 		if (icfAttributeValue instanceof String) {
 				password = (String)icfAttributeValue;
@@ -197,7 +196,7 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
 		}
 		
 		try {
-			return (Value)new BinaryValue(ldapAttributeType, utf16PasswordBytes);
+			return new Value(ldapAttributeType, utf16PasswordBytes);
 		} catch (LdapInvalidAttributeValueException e) {
 			throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
 					+"; attributeType="+ldapAttributeType, e);

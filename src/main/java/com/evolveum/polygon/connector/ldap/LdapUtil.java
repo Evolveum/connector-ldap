@@ -33,7 +33,6 @@ import org.apache.directory.api.ldap.model.cursor.EntryCursor;
 import org.apache.directory.api.ldap.model.cursor.SearchCursor;
 import org.apache.directory.api.ldap.model.entry.Attribute;
 import org.apache.directory.api.ldap.model.entry.Entry;
-import org.apache.directory.api.ldap.model.entry.StringValue;
 import org.apache.directory.api.ldap.model.entry.Value;
 import org.apache.directory.api.ldap.model.exception.LdapAdminLimitExceededException;
 import org.apache.directory.api.ldap.model.exception.LdapAffectMultipleDsaException;
@@ -118,11 +117,11 @@ public class LdapUtil {
 		if (attribute == null) {
 			return null;
 		}
-		Value<?> value = attribute.get();
+		Value value = attribute.get();
 		if (value == null) {
 			return null;
 		}
-		return value.getString();
+		return value.getValue();
 	}
 	
 	public static Integer getIntegerAttribute(Entry entry, String attrName, Integer defaultVal) {
@@ -379,7 +378,7 @@ public class LdapUtil {
 	
 	public static ExprNode createObjectClassFilter(
 			org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
-		return new EqualityNode<>(SchemaConstants.OBJECT_CLASS_AT, new StringValue(ldapObjectClass.getName()));
+		return new EqualityNode<>(SchemaConstants.OBJECT_CLASS_AT, ldapObjectClass.getName());
 	}
 	
 	public static boolean containsFilter(ExprNode filterNode, String attrName) {
@@ -408,7 +407,7 @@ public class LdapUtil {
 	public static ExprNode createUidSearchFilter(String uidValue, 
 			org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass, AbstractSchemaTranslator schemaTranslator) {
 		AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, Uid.NAME);
-		Value<Object> ldapValue = schemaTranslator.toLdapIdentifierValue(ldapAttributeType, uidValue);
+		Value ldapValue = schemaTranslator.toLdapIdentifierValue(ldapAttributeType, uidValue);
 		return new EqualityNode<>(ldapAttributeType, ldapValue);
 	}
 
@@ -633,8 +632,8 @@ public class LdapUtil {
 		// It may be less efficient, but it looks like it is more reliable.
 		Attribute objectClassAttribute = entry.get(SchemaConstants.OBJECT_CLASS_AT); 
 		
-		for (Value<?> objectClassVal: objectClassAttribute) {
-			if (ldapObjectClass.getName().equalsIgnoreCase(objectClassVal.getString())) {
+		for (Value objectClassVal: objectClassAttribute) {
+			if (ldapObjectClass.getName().equalsIgnoreCase(objectClassVal.getValue())) {
 				return true;
 			}
 		}
@@ -643,6 +642,9 @@ public class LdapUtil {
 	}
 	
 	public static String binaryToHex(byte[] bytes) {
+		if (bytes == null) {
+			return null;
+		}
 		StringBuilder sb = new StringBuilder(bytes.length * 2);
 		for (byte b : bytes) {
 			sb.append(String.format("%02x", b & 0xff));
@@ -665,9 +667,9 @@ public class LdapUtil {
 		if (modifiersNameAttribute == null) {
 			return false;
 		}
-		for (Value<?> modifiersNameVal: modifiersNameAttribute) {
+		for (Value modifiersNameVal: modifiersNameAttribute) {
 			for (String modifiersNameToFilterOut: modifiersNamesToFilterOut) {
-				if (modifiersNameToFilterOut.equals(modifiersNameVal.getString())) {
+				if (modifiersNameToFilterOut.equals(modifiersNameVal.getValue())) {
 					return true;
 				}
 			}
