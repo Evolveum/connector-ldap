@@ -39,13 +39,18 @@ import org.apache.directory.api.ldap.model.message.SearchScope;
 import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.ldap.model.name.Rdn;
 import org.apache.directory.api.ldap.model.schema.AttributeType;
+import org.apache.directory.api.ldap.model.schema.LdapComparator;
 import org.apache.directory.api.ldap.model.schema.LdapSyntax;
 import org.apache.directory.api.ldap.model.schema.MatchingRule;
 import org.apache.directory.api.ldap.model.schema.MutableAttributeType;
 import org.apache.directory.api.ldap.model.schema.MutableMatchingRule;
+import org.apache.directory.api.ldap.model.schema.Normalizer;
 import org.apache.directory.api.ldap.model.schema.ObjectClass;
 import org.apache.directory.api.ldap.model.schema.SchemaManager;
 import org.apache.directory.api.ldap.model.schema.SchemaObject;
+import org.apache.directory.api.ldap.model.schema.comparators.ComparableComparator;
+import org.apache.directory.api.ldap.model.schema.comparators.NormalizingComparator;
+import org.apache.directory.api.ldap.model.schema.comparators.StringComparator;
 import org.apache.directory.api.ldap.model.schema.normalizers.DeepTrimToLowerNormalizer;
 import org.apache.directory.api.ldap.model.schema.registries.AttributeTypeRegistry;
 import org.apache.directory.api.ldap.model.schema.registries.MatchingRuleRegistry;
@@ -463,7 +468,11 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 		if (mrCaseIgnoreMatch == null) {
 			MutableMatchingRule correctMrCaseIgnoreMatch = new MutableMatchingRule(SchemaConstants.CASE_IGNORE_MATCH_MR_OID);
 			correctMrCaseIgnoreMatch.setSyntaxOid(SchemaConstants.DIRECTORY_STRING_SYNTAX);
-			correctMrCaseIgnoreMatch.setNormalizer(new DeepTrimToLowerNormalizer(SchemaConstants.CASE_IGNORE_MATCH_MR_OID));
+			Normalizer normalizer = new DeepTrimToLowerNormalizer(SchemaConstants.CASE_IGNORE_MATCH_MR_OID);
+			correctMrCaseIgnoreMatch.setNormalizer(normalizer);
+			LdapComparator<?> comparator = new NormalizingComparator(correctMrCaseIgnoreMatch.getOid(), normalizer, 
+			    new StringComparator(correctMrCaseIgnoreMatch.getOid()));
+			correctMrCaseIgnoreMatch.setLdapComparator(comparator);
 			mrCaseIgnoreMatch = correctMrCaseIgnoreMatch;
 			register(matchingRuleRegistry, correctMrCaseIgnoreMatch);
 		}
