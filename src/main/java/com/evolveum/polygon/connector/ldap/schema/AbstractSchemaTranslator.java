@@ -56,6 +56,7 @@ import org.identityconnectors.framework.common.exceptions.ConnectorException;
 import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException;
 import org.identityconnectors.framework.common.objects.Attribute;
 import org.identityconnectors.framework.common.objects.AttributeBuilder;
+import org.identityconnectors.framework.common.objects.AttributeDelta;
 import org.identityconnectors.framework.common.objects.AttributeInfo;
 import org.identityconnectors.framework.common.objects.AttributeInfoBuilder;
 import org.identityconnectors.framework.common.objects.AttributeValueCompleteness;
@@ -1387,6 +1388,13 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		} catch (IllegalArgumentException e) {
 			throw new IllegalArgumentException(e.getMessage() + ", attribute "+icfAttributeName+" (ldap: "+ldapAttributeName+")", e);
 		}
+	}
+	
+	public Dn toDn(AttributeDelta delta) {
+		if (delta == null) {
+			return null;
+		}
+		return toDn(SchemaUtil.getSingleStringNonBlankReplaceValue(delta));
 	}
 	
 	public Dn toDn(Attribute attribute) {

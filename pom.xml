@@ -107,12 +107,6 @@
 		     than non-working. -->		
 		
 		<dependency>
-		    <groupId>com.evolveum.polygon</groupId>
-		    <artifactId>connector-common</artifactId>
-			<version>1.4.2.18</version>
-		</dependency>
-		
-		<dependency>
 		  <groupId>com.evolveum.powerhell</groupId>
 		  <artifactId>powerhell</artifactId>
 		  <version>1.1</version>

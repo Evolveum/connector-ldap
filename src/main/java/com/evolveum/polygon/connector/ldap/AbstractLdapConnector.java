@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2016 Evolveum
+ * Copyright (c) 2015-2018 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ package com.evolveum.polygon.connector.ldap;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -79,6 +80,8 @@ import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
 import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException;
 import org.identityconnectors.framework.common.exceptions.UnknownUidException;
 import org.identityconnectors.framework.common.objects.Attribute;
+import org.identityconnectors.framework.common.objects.AttributeDelta;
+import org.identityconnectors.framework.common.objects.AttributeDeltaBuilder;
 import org.identityconnectors.framework.common.objects.ConnectorObject;
 import org.identityconnectors.framework.common.objects.Name;
 import org.identityconnectors.framework.common.objects.ObjectClass;
@@ -106,6 +109,7 @@ import org.identityconnectors.framework.spi.operations.SearchOp;
 import org.identityconnectors.framework.spi.operations.SyncOp;
 import org.identityconnectors.framework.spi.operations.TestOp;
 import org.identityconnectors.framework.spi.operations.UpdateAttributeValuesOp;
+import org.identityconnectors.framework.spi.operations.UpdateDeltaOp;
 
 import com.evolveum.polygon.common.SchemaUtil;
 import com.evolveum.polygon.connector.ldap.schema.GuardedStringValue;
@@ -122,7 +126,7 @@ import com.evolveum.polygon.connector.ldap.sync.SunChangelogSyncStrategy;
 import com.evolveum.polygon.connector.ldap.sync.SyncStrategy;
 
 public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration> implements PoolableConnector, TestOp, SchemaOp, SearchOp<Filter>, CreateOp, DeleteOp, 
-		UpdateAttributeValuesOp, SyncOp {
+		UpdateDeltaOp, SyncOp {
 
     private static final Log LOG = Log.getLog(AbstractLdapConnector.class);
     
@@ -914,25 +918,50 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		// Nothing to do here. Hooks for subclasses.
 	}
 
+	
+	
 	@Override
-	public Uid update(ObjectClass objectClass, Uid uid, Set<Attribute> replaceAttributes,
+	public Set<AttributeDelta> updateDelta(ObjectClass connIdObjectClass, Uid uid, Set<AttributeDelta> deltas,
 			OperationOptions options) {
     	
-		Dn newDn = null;
-		for (Attribute icfAttr: replaceAttributes) {
-			if (icfAttr.is(Name.NAME)) {
+		Dn dn = null;
+		for (AttributeDelta delta: deltas) {
+			if (delta.is(Name.NAME)) {
 				// This is rename. Which means change of DN. This is a special operation
-				
-				newDn = getSchemaTranslator().toDn(icfAttr);
-				ldapRename(objectClass, uid, newDn, options);
+				dn = getSchemaTranslator().toDn(delta);
+				ldapRename(connIdObjectClass, uid, dn, options);
 				
 				// Do NOT return here. There may still be other (non-name) attributes to update
 			}
 		}
     	
-    	return ldapUpdate(objectClass, uid, newDn, replaceAttributes, options, ModificationOperation.REPLACE_ATTRIBUTE);
+		org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass = getSchemaTranslator().toLdapObjectClass(connIdObjectClass);
+		
+		if (dn == null) {
+			
+			if (getConfiguration().isUseUnsafeNameHint() && uid.getNameHint() != null) {
+				String dnHintString = uid.getNameHintValue();
+				dn = getSchemaTranslator().toDn(dnHintString);
+				LOG.ok("Using (unsafe) DN from the name hint: {0} for update", dn);
+				try {
+					
+					return ldapUpdateAttempt(connIdObjectClass, uid, dn, deltas, options, ldapStructuralObjectClass);
+				
+				} catch (Throwable e) {
+					LOG.warn("Attempt to delete object with DN failed (DN taked from the name hint). The operation will continue with next attempt. Error: {0}",
+							e.getMessage(), e);
+				}
+			}
+			
+			dn = resolveDn(connIdObjectClass, uid, options);
+			LOG.ok("Resolved DN: {0}", dn);
+		}
+			
+		return ldapUpdateAttempt(connIdObjectClass, uid, dn, deltas, options, ldapStructuralObjectClass);
 	}
 	
+	
+
 	private void ldapRename(ObjectClass objectClass, Uid uid, Dn newDn, OperationOptions options) {
 		Dn oldDn;
 		
@@ -975,123 +1004,100 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			}
 		}
 	}
-    
-    @Override
-	public Uid addAttributeValues(ObjectClass objectClass, Uid uid, Set<Attribute> valuesToAdd,
-			OperationOptions options) {
 		
-		for (Attribute icfAttr: valuesToAdd) {
-			if (icfAttr.is(Name.NAME)) {
-				throw new InvalidAttributeValueException("Cannot add value of attribute "+Name.NAME);
-			}
-		}
+	private Set<AttributeDelta> ldapUpdateAttempt(ObjectClass connIdObjectClass, Uid uid, Dn dn, Set<AttributeDelta> deltas,
+			OperationOptions options, org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass) {
 		
-		return ldapUpdate(objectClass, uid, null, valuesToAdd, options, ModificationOperation.ADD_ATTRIBUTE);
-	}
-
-	@Override
-	public Uid removeAttributeValues(ObjectClass objectClass, Uid uid, Set<Attribute> valuesToRemove,
-			OperationOptions options) {
-		
-		for (Attribute icfAttr: valuesToRemove) {
-			if (icfAttr.is(Name.NAME)) {
-				throw new InvalidAttributeValueException("Cannot remove value of attribute "+Name.NAME);
-			}
-		}
-
-    	return ldapUpdate(objectClass, uid, null, valuesToRemove, options, ModificationOperation.REMOVE_ATTRIBUTE);
-	}
-	
-	private Uid ldapUpdate(ObjectClass icfObjectClass, Uid uid, Dn newDn, Set<Attribute> values,
-			OperationOptions options, ModificationOperation modOp) {
-		
-		org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass = getSchemaTranslator().toLdapObjectClass(icfObjectClass);
-		
-		Dn dn = newDn;
-		if (dn == null) {
-			
-			if (getConfiguration().isUseUnsafeNameHint() && uid.getNameHint() != null) {
-				String dnHintString = uid.getNameHintValue();
-				dn = getSchemaTranslator().toDn(dnHintString);
-				LOG.ok("Using (unsafe) DN from the name hint: {0} for update", dn);
-				try {
-					
-					return ldapUpdateAttempt(icfObjectClass, uid, dn, values, options, modOp, ldapStructuralObjectClass);
-				
-				} catch (Throwable e) {
-					LOG.warn("Attempt to delete object with DN failed (DN taked from the name hint). The operation will continue with next attempt. Error: {0}",
-							e.getMessage(), e);
-				}
-			}
-			
-			dn = resolveDn(icfObjectClass, uid, options);
-			LOG.ok("Resolved DN: {0}", dn);
-		}
-			
-		return ldapUpdateAttempt(icfObjectClass, uid, dn, values, options, modOp, ldapStructuralObjectClass);
-			
-	}
-		
-	private Uid ldapUpdateAttempt(ObjectClass icfObjectClass, Uid uid, Dn dn, Set<Attribute> values,
-			OperationOptions options, ModificationOperation modOp, org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass) {
-		
-		List<Modification> modifications = new ArrayList<Modification>(values.size());
-		for (Attribute icfAttr: values) {
-			if (icfAttr.is(Name.NAME)) {
+		List<Modification> ldapModifications = new ArrayList<Modification>();
+		for (AttributeDelta delta: deltas) {
+			if (delta.is(Name.NAME)) {
+				// Already processed
 				continue;
 			}
-			if (icfAttr.is(PredefinedAttributes.AUXILIARY_OBJECT_CLASS_NAME)) {
-				if (modOp == ModificationOperation.REPLACE_ATTRIBUTE) {
+			if (delta.is(PredefinedAttributes.AUXILIARY_OBJECT_CLASS_NAME)) {
+				List<Object> valuesToReplace = delta.getValuesToReplace();
+				if (valuesToReplace != null) {
 					// We need to keep structural object class
-					String[] stringValues = new String[icfAttr.getValue().size() + 1];
+					String[] stringValues = new String[valuesToReplace.size() + 1];
 					stringValues[0] = ldapStructuralObjectClass.getName();
 					int i = 1;
-					for(Object val: icfAttr.getValue()) {
+					for(Object val: valuesToReplace) {
 						stringValues[i] = (String)val;
 						i++;
 					}
-					modifications.add(new DefaultModification(modOp, SchemaConstants.OBJECT_CLASS_AT, stringValues));
+					ldapModifications.add(new DefaultModification(ModificationOperation.REPLACE_ATTRIBUTE, SchemaConstants.OBJECT_CLASS_AT, stringValues));
 				} else {
-					String[] stringValues = new String[icfAttr.getValue().size()];
-					int i = 0;
-					for(Object val: icfAttr.getValue()) {
-						stringValues[i] = (String)val;
-						i++;
-					}
-					modifications.add(new DefaultModification(modOp, SchemaConstants.OBJECT_CLASS_AT, stringValues));
+					addLdapModificationString(ldapModifications, ModificationOperation.ADD_ATTRIBUTE, SchemaConstants.OBJECT_CLASS_AT, delta.getValuesToAdd());
+					addLdapModificationString(ldapModifications, ModificationOperation.REMOVE_ATTRIBUTE, SchemaConstants.OBJECT_CLASS_AT, delta.getValuesToRemove());
 				}
 			} else {
-				addAttributeModification(dn, modifications, ldapStructuralObjectClass, icfObjectClass, icfAttr, modOp);
+				addAttributeModification(dn, ldapModifications, ldapStructuralObjectClass, connIdObjectClass, delta);
 			}
 		}
 		
-		if (modifications.isEmpty()) {
-			LOG.ok("Skipping modify({0}) operation as there are no modifications to execute", modOp);
+		if (ldapModifications.isEmpty()) {
+			LOG.ok("Skipping modify operation as there are no modifications to execute");
 		} else {
 		
-			modify(dn, modifications);
+			modify(dn, ldapModifications);
 			
-			postUpdate(icfObjectClass, uid, values, options, modOp, dn, ldapStructuralObjectClass, modifications);
+			postUpdate(connIdObjectClass, uid, deltas, options, dn, ldapStructuralObjectClass, ldapModifications);
 			
 		}
+		
+		Set<AttributeDelta> sideEffects = null;
 		
 		String uidAttributeName = configuration.getUidAttribute();
 		if (LdapUtil.isDnAttribute(uidAttributeName)) {
-			return new Uid(dn.toString());
+			sideEffects = new HashSet<>();
+			sideEffects.add(createUidDelta(dn.toString()));
+			return sideEffects;
 		}
 		
-		Uid returnUid = uid;
-		for (Attribute icfAttr: values) {
-			if (icfAttr.is(uidAttributeName)) {
-				returnUid = new Uid(SchemaUtil.getSingleStringNonBlankValue(icfAttr));
+		for (AttributeDelta delta: deltas) {
+			if (delta.is(uidAttributeName)) {
+				sideEffects = new HashSet<>();
+				sideEffects.add(createUidDelta(SchemaUtil.getSingleStringNonBlankReplaceValue(delta)));
 			}
 		}
 		
-		// if UID is not in the set of modified attributes then assume that it has not changed.
-		
-		return returnUid;
+		return sideEffects;
 	}
 	
+	private AttributeDelta createUidDelta(String string) {
+		return AttributeDeltaBuilder.build(Uid.NAME, string);
+	}
+
+	private void addLdapModificationString(List<Modification> ldapModifications,
+			ModificationOperation modOp, String ldapAttributeName, List<Object> values) {
+		if (values == null) {
+			return;
+		}
+		String[] stringValues = new String[values.size()];
+		int i = 0;
+		for(Object val: values) {
+			stringValues[i] = (String)val;
+			i++;
+		}
+		ldapModifications.add(new DefaultModification(modOp, ldapAttributeName, stringValues));
+
+	}
+	
+	private void addLdapModification(List<Modification> ldapModifications,
+			ModificationOperation modOp, AttributeType ldapAttributeType, List<Object> values) {
+		if (values == null) {
+			return;
+		}
+		List<Value<Object>> ldapValues = schemaTranslator.toLdapValues(ldapAttributeType, values);
+		if (ldapValues == null || ldapValues.isEmpty()) {
+			// Do NOT set AttributeType here
+			ldapModifications.add(new DefaultModification(modOp, ldapAttributeType.getName()));					
+		} else {
+			// Do NOT set AttributeType here
+			ldapModifications.add(new DefaultModification(modOp, ldapAttributeType.getName(), ldapValues.toArray(new Value[ldapValues.size()])));
+		}
+	}
+
 	protected void modify(Dn dn, List<Modification> modifications) {
 		LdapNetworkConnection connection = connectionManager.getConnection(dn);
 		try {
@@ -1137,26 +1143,21 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		
 	protected void addAttributeModification(Dn dn, List<Modification> modifications,
 			org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass,
-			ObjectClass icfObjectClass, Attribute icfAttr, ModificationOperation modOp) {
+			ObjectClass connIdObjectClass, AttributeDelta delta) {
 		AbstractSchemaTranslator<C> schemaTranslator = getSchemaTranslator();
-		AttributeType attributeType = schemaTranslator.toLdapAttribute(ldapStructuralObjectClass, icfAttr.getName());
-		if (attributeType == null && !configuration.isAllowUnknownAttributes() 
-				&& !ArrayUtils.contains(configuration.getOperationalAttributes(), icfAttr.getName())) {
-			throw new InvalidAttributeValueException("Unknown attribute "+icfAttr.getName()+" in object class "+icfObjectClass);
+		AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapStructuralObjectClass, delta.getName());
+		if (ldapAttributeType == null && !configuration.isAllowUnknownAttributes() 
+				&& !ArrayUtils.contains(configuration.getOperationalAttributes(), delta.getName())) {
+			throw new InvalidAttributeValueException("Unknown attribute "+delta.getName()+" in object class "+connIdObjectClass);
 		}
-		List<Value<Object>> ldapValues = schemaTranslator.toLdapValues(attributeType, icfAttr.getValue());
-		if (ldapValues == null || ldapValues.isEmpty()) {
-			// Do NOT set AttributeType here
-			modifications.add(new DefaultModification(modOp, attributeType.getName()));					
-		} else {
-			// Do NOT set AttributeType here
-			modifications.add(new DefaultModification(modOp, attributeType.getName(), ldapValues.toArray(new Value[ldapValues.size()])));
-		}
+		addLdapModification(modifications, ModificationOperation.REPLACE_ATTRIBUTE, ldapAttributeType, delta.getValuesToReplace());
+		addLdapModification(modifications, ModificationOperation.ADD_ATTRIBUTE, ldapAttributeType, delta.getValuesToAdd());
+		addLdapModification(modifications, ModificationOperation.REMOVE_ATTRIBUTE, ldapAttributeType, delta.getValuesToRemove());
 	}
 	
-	protected void postUpdate(ObjectClass icfObjectClass, Uid uid, Set<Attribute> values,
-			OperationOptions options, ModificationOperation modOp, 
-			Dn dn, org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass, List<Modification> modifications) {
+	protected void postUpdate(ObjectClass connIdObjectClass, Uid uid, Set<AttributeDelta> deltas,
+			OperationOptions options, 
+			Dn dn, org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass, List<Modification> ldapModifications) {
 		// Nothing to do here. Just for override in subclasses.
 	}
 
