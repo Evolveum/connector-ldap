@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2017 Evolveum
+ * Copyright (c) 2015-2018 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -70,8 +70,11 @@ import org.identityconnectors.framework.common.exceptions.ConnectorSecurityExcep
 import org.identityconnectors.framework.common.exceptions.UnknownUidException;
 import org.identityconnectors.framework.common.objects.Attribute;
 import org.identityconnectors.framework.common.objects.AttributeBuilder;
+import org.identityconnectors.framework.common.objects.AttributeDelta;
+import org.identityconnectors.framework.common.objects.AttributeDeltaBuilder;
 import org.identityconnectors.framework.common.objects.OperationOptions;
 import org.identityconnectors.framework.common.objects.OperationalAttributeInfos;
+import org.identityconnectors.framework.common.objects.OperationalAttributes;
 import org.identityconnectors.framework.common.objects.ResultsHandler;
 import org.identityconnectors.framework.common.objects.ScriptContext;
 import org.identityconnectors.framework.common.objects.Uid;
@@ -197,16 +200,16 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 
 	@Override
 	protected void addAttributeModification(Dn dn, List<Modification> modifications, ObjectClass ldapStructuralObjectClass,
-			org.identityconnectors.framework.common.objects.ObjectClass icfObjectClass, Attribute icfAttr, ModificationOperation modOp) {
+			org.identityconnectors.framework.common.objects.ObjectClass icfObjectClass, AttributeDelta delta) {
 		Rdn firstRdn = dn.getRdns().get(0);
 		String firstRdnAttrName = firstRdn.getAva().getType();
-		AttributeType modAttributeType = getSchemaTranslator().toLdapAttribute(ldapStructuralObjectClass, icfAttr.getName());
+		AttributeType modAttributeType = getSchemaTranslator().toLdapAttribute(ldapStructuralObjectClass, delta.getName());
 		if (firstRdnAttrName.equalsIgnoreCase(modAttributeType.getName())) {
 			// Ignore this modification. It is already done by the rename operation.
 			// Attempting to do it will result in an error.
 			return;
 		} else {
-			super.addAttributeModification(dn, modifications, ldapStructuralObjectClass, icfObjectClass, icfAttr, modOp);
+			super.addAttributeModification(dn, modifications, ldapStructuralObjectClass, icfObjectClass, delta);
 		}
 	}
 	
@@ -424,32 +427,42 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 	}
 	
 	@Override
-	protected void postUpdate(org.identityconnectors.framework.common.objects.ObjectClass icfObjectClass,
-			Uid uid, Set<Attribute> values, OperationOptions options, ModificationOperation modOp, 
+	protected void postUpdate(org.identityconnectors.framework.common.objects.ObjectClass connIdObjectClass,
+			Uid uid, Set<AttributeDelta> deltas, OperationOptions options,
 			Dn dn, org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass,
-			List<Modification> modifications) {
-		super.postUpdate(icfObjectClass, uid, values, options, modOp, dn, ldapStructuralObjectClass, modifications);
+			List<Modification> ldapModifications) {
+		super.postUpdate(connIdObjectClass, uid, deltas, options, dn, ldapStructuralObjectClass, ldapModifications);
 		
-		if (getConfiguration().isForcePasswordChangeAtNextLogon()) {
-			
-			//if password is in modifications set pwdLastSet=0 ("must change password at next logon")
-			if (getSchemaTranslator().isUserObjectClass(ldapStructuralObjectClass.getName())) {
-				for (Attribute icfAttr: values) {
-					
-					// coming from midpoint password is __PASSWORD__
-					// TODO: should we additionally ask for  icfAttr.getName().equals(getConfiguration().getPasswordAttribute()?
-					if (OperationalAttributeInfos.PASSWORD.is(icfAttr.getName())){
-						
-							List<Modification> modificationsPwdLastSet = new ArrayList<Modification>();	
-							Attribute attrPwdLastSet = AttributeBuilder.build(AdConstants.ATTRIBUTE_PWD_LAST_SET_NAME, "0");					
-							addAttributeModification(dn, modificationsPwdLastSet, ldapStructuralObjectClass, icfObjectClass, attrPwdLastSet, ModificationOperation.REPLACE_ATTRIBUTE);
-							modify(dn, modificationsPwdLastSet);
-							break;
-						}
+		AttributeDelta forcePasswordChangeDelta = SchemaUtil.findDelta(deltas, OperationalAttributes.FORCE_PASSWORD_CHANGE_NAME);
+		if (forcePasswordChangeDelta != null) {
+			Boolean forcePasswordChangeValue = SchemaUtil.getSingleReplaceValue(forcePasswordChangeDelta, Boolean.class);
+			// This may not be entirely correct: TODO review & test later
+			if (forcePasswordChangeValue != null && forcePasswordChangeValue) {
+				List<Modification> modificationsPwdLastSet = new ArrayList<Modification>();
+				AttributeDelta attrPwdLastSetDelta = AttributeDeltaBuilder.build(AdConstants.ATTRIBUTE_PWD_LAST_SET_NAME, "0");					
+				addAttributeModification(dn, modificationsPwdLastSet, ldapStructuralObjectClass, connIdObjectClass, attrPwdLastSetDelta);
+				modify(dn, modificationsPwdLastSet);
+			}
+		} else if (getConfiguration().isForcePasswordChangeAtNextLogon() && isUserPasswordChanged(deltas, ldapStructuralObjectClass)) {
+			List<Modification> modificationsPwdLastSet = new ArrayList<Modification>();
+			AttributeDelta attrPwdLastSetDelta = AttributeDeltaBuilder.build(AdConstants.ATTRIBUTE_PWD_LAST_SET_NAME, "0");					
+			addAttributeModification(dn, modificationsPwdLastSet, ldapStructuralObjectClass, connIdObjectClass, attrPwdLastSetDelta);
+			modify(dn, modificationsPwdLastSet);
+		}
+	}
+	
+	private boolean isUserPasswordChanged(Set<AttributeDelta> deltas, org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass) {
+		//if password is in modifications set pwdLastSet=0 ("must change password at next logon")
+		if (getSchemaTranslator().isUserObjectClass(ldapStructuralObjectClass.getName())) {
+			for (AttributeDelta delta: deltas) {
+				// coming from midpoint password is __PASSWORD__
+				// TODO: should we additionally ask for  icfAttr.getName().equals(getConfiguration().getPasswordAttribute()?
+				if (OperationalAttributeInfos.PASSWORD.is(delta.getName())) {
+					return true;
 				}
-				
 			}
 		}
+		return false;
 	}
 
 	@Override

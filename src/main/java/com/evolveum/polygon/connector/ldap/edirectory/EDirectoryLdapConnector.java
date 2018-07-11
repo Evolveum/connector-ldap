@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2016 Evolveum
+ * Copyright (c) 2015-2018 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,16 +29,17 @@ import org.apache.directory.api.ldap.model.message.AddResponse;
 import org.apache.directory.api.ldap.model.message.ModifyResponse;
 import org.apache.directory.api.ldap.model.message.ResultCodeEnum;
 import org.apache.directory.api.ldap.model.name.Dn;
-import org.apache.directory.api.ldap.model.schema.ObjectClass;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException;
-import org.identityconnectors.framework.common.objects.Attribute;
-import org.identityconnectors.framework.common.objects.AttributeBuilder;
+import org.identityconnectors.framework.common.objects.AttributeDelta;
+import org.identityconnectors.framework.common.objects.AttributeDeltaBuilder;
+import org.identityconnectors.framework.common.objects.ObjectClass;
 import org.identityconnectors.framework.common.objects.OperationOptions;
 import org.identityconnectors.framework.common.objects.OperationalAttributes;
 import org.identityconnectors.framework.common.objects.Uid;
 import org.identityconnectors.framework.spi.ConnectorClass;
 
+import com.evolveum.polygon.common.SchemaUtil;
 import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
 import com.evolveum.polygon.connector.ldap.AbstractLdapConnector;
 import com.evolveum.polygon.connector.ldap.schema.LdapFilterTranslator;
@@ -55,7 +56,7 @@ public class EDirectoryLdapConnector extends AbstractLdapConnector<EDirectoryLda
 	}
 
 	@Override
-	protected LdapFilterTranslator<EDirectoryLdapConfiguration> createLdapFilterTranslator(ObjectClass ldapObjectClass) {
+	protected LdapFilterTranslator<EDirectoryLdapConfiguration> createLdapFilterTranslator(org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
 		return new EDirectoryLdapFilterTranslator(getSchemaTranslator(), ldapObjectClass);
 	}
 
@@ -66,55 +67,66 @@ public class EDirectoryLdapConnector extends AbstractLdapConnector<EDirectoryLda
 	
 	@Override
 	protected void addAttributeModification(Dn dn, List<Modification> modifications,
-			ObjectClass ldapStructuralObjectClass,
-			org.identityconnectors.framework.common.objects.ObjectClass icfObjectClass, Attribute icfAttr,
-			ModificationOperation modOp) {
-		if (icfAttr.is(OperationalAttributes.ENABLE_NAME)) {
-			List<Object> values = icfAttr.getValue();
-			if (values.size() != 1) {
-				throw new InvalidAttributeValueException("Unexpected number of values in attribute "+icfAttr);
+			org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass,
+			ObjectClass connIdObjectClass, AttributeDelta delta) {
+		if (delta.is(OperationalAttributes.ENABLE_NAME)) {
+			Boolean enableValue = SchemaUtil.getSingleReplaceValue(delta, Boolean.class);
+			if (enableValue == null) {
+				enableValue = true;
 			}
-			Boolean value = (Boolean)values.get(0);
-			if (value) {
+			if (enableValue) {
 				modifications.add(
-						new DefaultModification(modOp, EDirectoryConstants.ATTRIBUTE_LOGIN_DISABLED_NAME, 
+						new DefaultModification(ModificationOperation.REPLACE_ATTRIBUTE, EDirectoryConstants.ATTRIBUTE_LOGIN_DISABLED_NAME, 
 								AbstractLdapConfiguration.BOOLEAN_FALSE));
 			} else {
 				modifications.add(
-						new DefaultModification(modOp, EDirectoryConstants.ATTRIBUTE_LOGIN_DISABLED_NAME, 
+						new DefaultModification(ModificationOperation.REPLACE_ATTRIBUTE, EDirectoryConstants.ATTRIBUTE_LOGIN_DISABLED_NAME, 
 								AbstractLdapConfiguration.BOOLEAN_TRUE));
 			}
-		} else if (icfAttr.is(OperationalAttributes.LOCK_OUT_NAME)) {
-			List<Object> values = icfAttr.getValue();
-			if (values.size() != 1) {
-				throw new InvalidAttributeValueException("Unexpected number of values in attribute "+icfAttr);
+		} else if (delta.is(OperationalAttributes.LOCK_OUT_NAME)) {
+			Boolean lockoutValue = SchemaUtil.getSingleReplaceValue(delta, Boolean.class);
+			if (lockoutValue == null) {
+				lockoutValue = false;
 			}
-			Boolean value = (Boolean)values.get(0);
-			if (value) {
+			if (lockoutValue) {
 				throw new UnsupportedOperationException("Locking object is not supported (only unlocking is)");
 			}
 			modifications.add(
-					new DefaultModification(modOp, EDirectoryConstants.ATTRIBUTE_LOCKOUT_LOCKED_NAME, 
+					new DefaultModification(ModificationOperation.REPLACE_ATTRIBUTE, EDirectoryConstants.ATTRIBUTE_LOCKOUT_LOCKED_NAME, 
 							AbstractLdapConfiguration.BOOLEAN_FALSE));
 			modifications.add(
-					new DefaultModification(modOp, EDirectoryConstants.ATTRIBUTE_LOCKOUT_RESET_TIME_NAME)); // no value
+					new DefaultModification(ModificationOperation.REPLACE_ATTRIBUTE, EDirectoryConstants.ATTRIBUTE_LOCKOUT_RESET_TIME_NAME)); // no value
 
 		} else if (getSchemaTranslator().isGroupObjectClass(ldapStructuralObjectClass.getName())) {
 			// modification handles modification of ordinary attributes - and also modification of "member" itself
-			super.addAttributeModification(dn, modifications, ldapStructuralObjectClass, icfObjectClass, icfAttr, modOp);
-			if (icfAttr.is(getConfiguration().getGroupObjectMemberAttribute())) {
+			super.addAttributeModification(dn, modifications, ldapStructuralObjectClass, connIdObjectClass, delta);
+			if (delta.is(getConfiguration().getGroupObjectMemberAttribute())) {
 				if (getConfiguration().isManageEquivalenceAttributes()) {
 					// do the same operation with a equivalentToMe attribute
-					super.addAttributeModification(dn, modifications, ldapStructuralObjectClass, icfObjectClass,
-							AttributeBuilder.build(EDirectoryConstants.ATTRIBUTE_EQUIVALENT_TO_ME_NAME, icfAttr.getValue()),
-							modOp);
+					super.addAttributeModification(dn, modifications, ldapStructuralObjectClass, connIdObjectClass, 
+							duplicateDelta(EDirectoryConstants.ATTRIBUTE_EQUIVALENT_TO_ME_NAME, delta));
 				}
 			}
 		} else {
-			super.addAttributeModification(dn, modifications, ldapStructuralObjectClass, icfObjectClass, icfAttr, modOp);
+			super.addAttributeModification(dn, modifications, ldapStructuralObjectClass, connIdObjectClass, delta);
 		}
 	}
 	
+	private AttributeDelta duplicateDelta(String newAttributeName, AttributeDelta origDelta) {
+		AttributeDeltaBuilder builder = new AttributeDeltaBuilder();
+		builder.setName(newAttributeName);
+		if (origDelta.getValuesToReplace() != null) {
+			builder.addValueToReplace(origDelta.getValuesToReplace());
+		}
+		if (origDelta.getValuesToAdd() != null) {
+			builder.addValueToAdd(origDelta.getValuesToAdd());
+		}
+		if (origDelta.getValuesToRemove() != null) {
+			builder.addValueToRemove(origDelta.getValuesToRemove());
+		}
+		return null;
+	}
+
 	@Override
 	protected RuntimeException processCreateResult(String dn, AddResponse addResponse) {
 		if (addResponse.getLdapResult().getResultCode() == ResultCodeEnum.CONSTRAINT_VIOLATION &&
@@ -143,53 +155,49 @@ public class EDirectoryLdapConnector extends AbstractLdapConnector<EDirectoryLda
 	}
 
 	@Override
-	protected void postUpdate(org.identityconnectors.framework.common.objects.ObjectClass icfObjectClass,
-			Uid uid, Set<Attribute> values, OperationOptions options, ModificationOperation modOp, 
-			Dn dn, org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass,
-			List<Modification> modifications) {
-		super.postUpdate(icfObjectClass, uid, values, options, modOp, dn, ldapStructuralObjectClass, modifications);
+	protected void postUpdate(ObjectClass connIdObjectClass, Uid uid, Set<AttributeDelta> deltas,
+			OperationOptions options, 
+			Dn dn, org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass, List<Modification> ldapModifications) {
+		super.postUpdate(connIdObjectClass, uid, deltas, options, dn, ldapStructuralObjectClass, ldapModifications);
 		if (!getConfiguration().isManageReciprocalGroupAttributes()) {
 			return;
 		}
 		if (getSchemaTranslator().isGroupObjectClass(ldapStructuralObjectClass.getName())) {
-			for (Attribute icfAttr: values) {
-				if (icfAttr.is(getConfiguration().getGroupObjectMemberAttribute())) {
-				// this is for group of users; "members"
-					for (Object val: icfAttr.getValue()) {
-						Dn memberDn = getSchemaTranslator().toDn((String)val);
-						List<Modification> rModifications = new ArrayList<Modification>(2);
-						rModifications.add(
-								new DefaultModification(modOp, EDirectoryConstants.ATTRIBUTE_GROUP_MEMBERSHIP_NAME, 
-										dn.toString()));
-						// No need to update securityEquals. eDirectory is doing that by itself
-						// (the question is why it cannot do also to the groupMemberhip?)
-//						if (getConfiguration().isManageEquivalenceAttributes()) {
-//							rModifications.add(
-//									new DefaultModification(modOp, EDirectoryConstants.ATTRIBUTE_SECURITY_EQUALS_NAME, 
-//											dn));
-//						}
-						modify(memberDn, rModifications);
+			for (AttributeDelta delta: deltas) {
+				if (delta.is(getConfiguration().getGroupObjectMemberAttribute())) {
+					// this is for group of users; "members"
+					if (delta.getValuesToReplace() != null) {
+						throw new UnsupportedOperationException("Replace of group members is not supported");
 					}
+					updateGroupMemeberShip(dn, delta);
 				}
-				if (icfAttr.is(getConfiguration().getGroupObjectGroupMemberAttribute())) {
-				// this is for group of groups (nested); "groupMember"
-					for (Object val: icfAttr.getValue()) {
-						Dn memberDn = getSchemaTranslator().toDn((String)val);
-						List<Modification> rModifications = new ArrayList<Modification>(2);
-						rModifications.add(
-								new DefaultModification(modOp, EDirectoryConstants.ATTRIBUTE_GROUP_MEMBERSHIP_NAME, 
-										dn.toString()));
-						// No need to update securityEquals. eDirectory is doing that by itself
-						// (the question is why it cannot do also to the groupMemberhip?)
-//						if (getConfiguration().isManageEquivalenceAttributes()) {
-//							rModifications.add(
-//									new DefaultModification(modOp, EDirectoryConstants.ATTRIBUTE_SECURITY_EQUALS_NAME, 
-//											dn));
-//						}
-						modify(memberDn, rModifications);
+				if (delta.is(getConfiguration().getGroupObjectGroupMemberAttribute())) {
+					// this is for group of groups (nested); "groupMember"
+					if (delta.getValuesToReplace() != null) {
+						throw new UnsupportedOperationException("Replace of group members is not supported");
 					}
+					updateGroupMemeberShip(dn, delta);
 				}
 			}
+		}
+	}
+	
+	private void updateGroupMemeberShip(Dn groupDn, AttributeDelta delta) {
+		addGroupMemeberShipModifications(groupDn, ModificationOperation.ADD_ATTRIBUTE, delta.getValuesToAdd());
+		addGroupMemeberShipModifications(groupDn, ModificationOperation.REMOVE_ATTRIBUTE, delta.getValuesToRemove());
+	}
+
+	private void addGroupMemeberShipModifications(Dn groupDn, ModificationOperation modOp, List<Object> values) {
+		if (values == null) {
+			return;
+		}
+		for (Object val: values) {
+			Dn memberDn = getSchemaTranslator().toDn((String)val);
+			List<Modification> mods = new ArrayList<Modification>(1);
+			mods.add(new DefaultModification(modOp, EDirectoryConstants.ATTRIBUTE_GROUP_MEMBERSHIP_NAME, groupDn.toString()));
+			// No need to update securityEquals. eDirectory is doing that by itself
+			// (the question is why it cannot do also to the groupMemberhip?)
+			modify(memberDn, mods);
 		}
 	}
     

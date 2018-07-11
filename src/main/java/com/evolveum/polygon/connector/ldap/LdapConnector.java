@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 Evolveum
+ * Copyright (c) 2015-2018 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,10 +26,12 @@ import org.apache.directory.api.ldap.model.name.Dn;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException;
 import org.identityconnectors.framework.common.objects.Attribute;
+import org.identityconnectors.framework.common.objects.AttributeDelta;
 import org.identityconnectors.framework.common.objects.ObjectClass;
 import org.identityconnectors.framework.common.objects.OperationalAttributes;
 import org.identityconnectors.framework.spi.ConnectorClass;
 
+import com.evolveum.polygon.common.SchemaUtil;
 import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
 
 @ConnectorClass(displayNameKey = "connector.ldap.display", configurationClass = LdapConfiguration.class)
@@ -45,23 +47,20 @@ public class LdapConnector extends AbstractLdapConnector<LdapConfiguration> {
 	@Override
 	protected void addAttributeModification(Dn dn, List<Modification> modifications,
 			org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass,
-			ObjectClass icfObjectClass, Attribute icfAttr, ModificationOperation modOp) {
+			ObjectClass icfObjectClass, AttributeDelta delta) {
 		
-		if (icfAttr.is(OperationalAttributes.LOCK_OUT_NAME) 
+		if (delta.is(OperationalAttributes.LOCK_OUT_NAME) 
 				&& LdapConfiguration.LOCKOUT_STRATEGY_OPENLDAP.equals(getConfiguration().getLockoutStrategy())) {
-			List<Object> values = icfAttr.getValue();
-			if (values.size() != 1) {
-				throw new InvalidAttributeValueException("Unexpected number of values in attribute "+icfAttr);
-			}
-			Boolean value = (Boolean)values.get(0);
-			if (value) {
+			Boolean value = SchemaUtil.getSingleReplaceValue(delta, Boolean.class);
+			// null value is OK, no valued means default which is "unlocked"
+			if (value != null && value) {
 				throw new UnsupportedOperationException("Locking object is not supported (only unlocking is)");
 			}
 			modifications.add(
-					new DefaultModification(modOp, SchemaConstants.PWD_ACCOUNT_LOCKED_TIME_AT)); // no value
+					new DefaultModification(ModificationOperation.REPLACE_ATTRIBUTE, SchemaConstants.PWD_ACCOUNT_LOCKED_TIME_AT)); // no value
 			
 		} else {
-			super.addAttributeModification(dn, modifications, ldapStructuralObjectClass, icfObjectClass, icfAttr, modOp);
+			super.addAttributeModification(dn, modifications, ldapStructuralObjectClass, icfObjectClass, delta);
 		}
 	}
     
