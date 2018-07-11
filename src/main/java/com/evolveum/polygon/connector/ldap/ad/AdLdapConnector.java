@@ -46,6 +46,7 @@ import org.apache.directory.api.ldap.model.schema.MutableAttributeType;
 import org.apache.directory.api.ldap.model.schema.MutableMatchingRule;
 import org.apache.directory.api.ldap.model.schema.Normalizer;
 import org.apache.directory.api.ldap.model.schema.ObjectClass;
+import org.apache.directory.api.ldap.model.schema.SchemaErrorHandler;
 import org.apache.directory.api.ldap.model.schema.SchemaManager;
 import org.apache.directory.api.ldap.model.schema.SchemaObject;
 import org.apache.directory.api.ldap.model.schema.comparators.ComparableComparator;
@@ -177,6 +178,13 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 	protected AdSchemaTranslator getSchemaTranslator() {
 		return (AdSchemaTranslator)super.getSchemaTranslator();
 	}
+	
+    protected SchemaErrorHandler createSchemaErrorHandler() {
+		// null by default. This means that a default logging error handler from directory API
+    	// will be used. May be overridden by subsclasses.
+		return new MutedLoggingSchemaErrorHandler();
+	}
+
 	
 	@Override
     protected boolean isLogSchemaErrors() {

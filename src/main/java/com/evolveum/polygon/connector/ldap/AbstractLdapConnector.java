@@ -67,6 +67,7 @@ import org.apache.directory.api.ldap.model.schema.LdapSyntax;
 import org.apache.directory.api.ldap.model.schema.MatchingRule;
 import org.apache.directory.api.ldap.model.schema.MutableAttributeType;
 import org.apache.directory.api.ldap.model.schema.Normalizer;
+import org.apache.directory.api.ldap.model.schema.SchemaErrorHandler;
 import org.apache.directory.api.ldap.model.schema.SchemaManager;
 import org.apache.directory.api.ldap.model.url.LdapUrl;
 import org.apache.directory.api.ldap.schema.manager.impl.DefaultSchemaManager;
@@ -320,6 +321,10 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
     			LOG.ok("Loading schema (quirksMode={0})", schemaQuirksMode);
     			DefaultSchemaLoader schemaLoader = new DefaultSchemaLoader(connectionManager.getDefaultConnection(), schemaQuirksMode);
     			DefaultSchemaManager defSchemaManager = new DefaultSchemaManager(schemaLoader);
+    			SchemaErrorHandler schemaErrorHandler = createSchemaErrorHandler();
+    			if (schemaErrorHandler != null) {
+    				defSchemaManager.setErrorHandler(schemaErrorHandler);
+    			}
     			try {
     				if (schemaQuirksMode) {
         				defSchemaManager.setRelaxed();
@@ -372,10 +377,16 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
     	return schemaManager;
     }
     
-    protected void patchSchemaManager(SchemaManager schemaManager) {
+	protected void patchSchemaManager(SchemaManager schemaManager) {
 		// Nothing to do here. But useful in subclasses.
 	}
 
+    protected SchemaErrorHandler createSchemaErrorHandler() {
+		// null by default. This means that a default logging error handler from directory API
+    	// will be used. May be overridden by subsclasses.
+		return null;
+	}
+	
 	protected boolean isLogSchemaErrors() {
 		return true;
 	}
