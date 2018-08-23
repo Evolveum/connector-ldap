@@ -604,15 +604,10 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 			LOG.ok("Converting to LDAP: {0} ({1}): explicit binary", ldapAttributeType.getName(), syntaxOid);
 			
 			if (icfAttributeValue instanceof byte[]) {
-				try {
-					// Do NOT set attributeType in the Value in this case.
-					// The attributeType might not match the Value class
-					// e.g. human-readable jpegPhoto attribute will expect StringValue
-					return new Value(null, (byte[])icfAttributeValue);
-				} catch (LdapInvalidAttributeValueException e) {
-					throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
-							+"; attributeType="+ldapAttributeType, e);
-				}
+				// Do NOT set attributeType in the Value in this case.
+				// The attributeType might not match the Value class
+				// e.g. human-readable jpegPhoto attribute will expect StringValue
+				return new Value((byte[])icfAttributeValue);
 			} else if (icfAttributeValue instanceof String) {
 				// this can happen for userPassword
 				byte[] bytes;
@@ -622,15 +617,10 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 					throw new IllegalArgumentException("Cannot encode attribute value to UTF-8 for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
 							+"; attributeType="+ldapAttributeType, e);
 				}
-				try {
-					// Do NOT set attributeType in the Value in this case.
-					// The attributeType might not match the Value class
-					// e.g. human-readable jpegPhoto attribute will expect StringValue
-					return new Value(null, bytes);
-				} catch (LdapInvalidAttributeValueException e) {
-					throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
-							+"; attributeType="+ldapAttributeType, e);
-				}
+				// Do NOT set attributeType in the Value in this case.
+				// The attributeType might not match the Value class
+				// e.g. human-readable jpegPhoto attribute will expect StringValue
+				return new Value(bytes);
 			} else {
 				throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": expected byte[] but got "+icfAttributeValue.getClass()
 						+"; attributeType="+ldapAttributeType);
@@ -1232,6 +1222,10 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		return ocs;
 	}
 	
+	/**
+	 * Returns true if any of the otherObjectClasses is a superclass of this objectClass.
+	 * I.e. if this objectClass is subclass of any of the otherObjectClasses.
+	 */
 	private boolean hasSubclass(org.apache.directory.api.ldap.model.schema.ObjectClass objectClass, 
 			List<org.apache.directory.api.ldap.model.schema.ObjectClass> otherObjectClasses) {
 //		LOG.ok("Trying {0} ({1})", structObjectClass.getName(), structObjectClass.getOid());

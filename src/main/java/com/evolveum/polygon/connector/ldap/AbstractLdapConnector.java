@@ -1108,10 +1108,15 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		List<Value> ldapValues = schemaTranslator.toLdapValues(ldapAttributeType, values);
 		if (ldapValues == null || ldapValues.isEmpty()) {
 			// Do NOT set AttributeType here
+			// The attributeType might not match the Value class
+			// e.g. human-readable jpegPhoto attribute will expect StringValue
 			ldapModifications.add(new DefaultModification(modOp, ldapAttributeType.getName()));					
 		} else {
 			// Do NOT set AttributeType here
-			ldapModifications.add(new DefaultModification(modOp, ldapAttributeType.getName(), ldapValues.toArray(new Value[ldapValues.size()])));
+			// The attributeType might not match the Value class
+			// e.g. human-readable jpegPhoto attribute will expect StringValue
+			DefaultAttribute ldapAttribute = new DefaultAttribute(ldapAttributeType.getName(),  ldapValues.toArray(new Value[ldapValues.size()]));
+			ldapModifications.add(new DefaultModification(modOp, ldapAttribute));
 		}
 	}
 
@@ -1229,11 +1234,26 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		StringBuilder sb = new StringBuilder("[");
 		for (Modification mod: modifications) {
 			sb.append(mod.getOperation()).append(":");
-			if (isSensitiveAttribute(mod.getAttribute())) {
-				sb.append(mod.getAttribute().getUpId()).append("=");
+			org.apache.directory.api.ldap.model.entry.Attribute attribute = mod.getAttribute();
+			sb.append(attribute.getUpId()).append("=");
+			if (isSensitiveAttribute(attribute)) {
 				sb.append("..hidden.value..");
 			} else {
-				sb.append(mod.getAttribute());
+				Value value = attribute.get();
+				if (value == null) {
+					sb.append("null");
+				} else {
+					if (value.isHumanReadable()) {
+						sb.append(value.getValue());
+					} else {
+						byte[] bytes = value.getBytes();
+						if (bytes == null) {
+							sb.append("null");
+						} else {
+							sb.append("binary value ").append(bytes.length).append(" bytes");
+						}
+					}
+				}
 			}
 			sb.append(",");
 		}
