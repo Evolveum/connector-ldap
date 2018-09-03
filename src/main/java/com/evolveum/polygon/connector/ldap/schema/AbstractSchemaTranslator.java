@@ -369,7 +369,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		} else {
 			aib.setReadable(true);
 		}
-		if (ldapAttributeType.isReadOnly() || !ldapAttributeType.isUserModifiable()) {
+		if (!ldapAttributeType.isUserModifiable()) {
 			aib.setCreateable(false);
 			aib.setUpdateable(false);
 		} else {
