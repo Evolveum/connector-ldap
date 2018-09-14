@@ -748,7 +748,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 	}
 
 	protected boolean isIntegerSyntax(String syntaxOid) {
-		return SchemaConstants.INTEGER_SYNTAX.equals(syntaxOid);
+		return false;
 	}
 	
 	protected boolean isLongSyntax(String syntaxOid) {
@@ -766,6 +766,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
      *   <li>OBJECT_CLASS_TYPE_SYNTAX</li>
      *   <li>DN_SYNTAX</li>
      *   <li>PRINTABLE_STRING_SYNTAX</li>
+     *   <li>INTEGER_SYNTAX</li>
      * </ul>  
      * @param syntaxOid The Syntax OID
      * @return <tt>true</tt> if the syntax OID is one of the listed syntaxes
@@ -781,6 +782,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
             case SchemaConstants.OBJECT_CLASS_TYPE_SYNTAX :
             case SchemaConstants.DN_SYNTAX :
             case SchemaConstants.PRINTABLE_STRING_SYNTAX :
+            case SchemaConstants.INTEGER_SYNTAX :
                 return true;
             default :
                 return false;
@@ -1550,7 +1552,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		addToSyntaxMap(SchemaConstants.GENERALIZED_TIME_SYNTAX, Date.class); // Date.class is a placeholder. It will be replaced by real value in the main code
 		addToSyntaxMap(SchemaConstants.GUIDE_SYNTAX, String.class);
 		addToSyntaxMap(SchemaConstants.IA5_STRING_SYNTAX, String.class);
-		addToSyntaxMap(SchemaConstants.INTEGER_SYNTAX, int.class);
+		addToSyntaxMap(SchemaConstants.INTEGER_SYNTAX, String.class);
 		addToSyntaxMap(SchemaConstants.JPEG_SYNTAX, byte[].class);
 		addToSyntaxMap(SchemaConstants.MASTER_AND_SHADOW_ACCESS_POINTS_SYNTAX, String.class);
 		addToSyntaxMap(SchemaConstants.MATCHING_RULE_DESCRIPTION_SYNTAX, String.class);
