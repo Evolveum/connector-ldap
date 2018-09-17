@@ -422,14 +422,14 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
     	}
 	}
     
-    private void prepareIcfSchema() {
+    private void prepareConnIdSchema() {
     	try {
-    		getSchemaTranslator().prepareIcfSchema(connectionManager);
+    		getSchemaTranslator().prepareConnIdSchema(connectionManager);
     	} catch (InvalidConnectionException e) {
     		// The connection might have been disconnected. Try to reconnect.
     		connectionManager.connect();
 			try {
-				getSchemaTranslator().prepareIcfSchema(connectionManager);
+				getSchemaTranslator().prepareConnIdSchema(connectionManager);
 			} catch (InvalidConnectionException e1) {
 				throw new ConnectorException("Reconnect error: "+e.getMessage(), e);
 			}
@@ -471,7 +471,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 
 	@Override
 	public void executeQuery(ObjectClass objectClass, Filter icfFilter, ResultsHandler handler, OperationOptions options) {
-		prepareIcfSchema();
+		prepareConnIdSchema();
 		org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass = getSchemaTranslator().toLdapObjectClass(objectClass);
 		
 		SearchStrategy<C> searchStrategy;
@@ -661,11 +661,11 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		}
 	}
 
-	private SearchStrategy<C> searchUsual(Filter icfFilter, ObjectClass objectClass, org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
+	private SearchStrategy<C> searchUsual(Filter connIdFilter, ObjectClass objectClass, org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
 			ResultsHandler handler, OperationOptions options) {
 		Dn baseDn = getBaseDn(options);
 		LdapFilterTranslator filterTranslator = createLdapFilterTranslator(ldapObjectClass);
-		ScopedFilter scopedFilter = filterTranslator.translate(icfFilter, ldapObjectClass);
+		ScopedFilter scopedFilter = filterTranslator.translate(connIdFilter, ldapObjectClass);
 		ExprNode filterNode = scopedFilter.getFilter();
 		String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
 		
@@ -872,7 +872,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		addRequest.setEntry(entry);
 		
 		Dn entryDn = addRequest.getEntryDn();
-		LdapNetworkConnection connection = connectionManager.getConnection(entryDn);
+		LdapNetworkConnection connection = connectionManager.getConnection(entryDn, options);
 		
 		OperationLog.logOperationReq(connection, "Add REQ Entry:\n{0}" , entry);
 		
@@ -883,10 +883,13 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			
 		} catch (LdapException e) {
 			OperationLog.logOperationErr(connection, "Add ERROR {0}: {1}", dnStringFromName, e.getMessage(), e);
+			connectionManager.returnConnection(connection);
 			throw processLdapException("Error adding LDAP entry "+dnStringFromName, e);
 		}
 		
 		OperationLog.logOperationRes(connection, "Add RES {0}: {1}", dnStringFromName, addResponse.getLdapResult());
+		
+		connectionManager.returnConnection(connection);
 		
 		if (addResponse.getLdapResult().getResultCode() != ResultCodeEnum.SUCCESS) {
 			throw processCreateResult(dnStringFromName, addResponse);
@@ -910,7 +913,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		// read the entry back and return UID
 		
 		Entry entryRead = searchSingleEntry(connectionManager, entry.getDn(), LdapUtil.createAllSearchFilter(), SearchScope.OBJECT, 
-				new String[]{ uidAttributeName }, "re-reading entry to get UID");
+				new String[]{ uidAttributeName }, "re-reading entry to get UID", options);
 		org.apache.directory.api.ldap.model.entry.Attribute uidLdapAttribute = entryRead.get(uidAttributeName);
 		if (uidLdapAttribute == null) {
 			throw new InvalidAttributeValueException("No value for UID attribute "+uidAttributeName+" in object "+dnStringFromName);
@@ -988,7 +991,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			LOG.ok("Using (unsafe) DN from the name hint: {0} for rename", oldDn);
 			try {
 				
-				ldapRenameAttempt(oldDn, newDn);
+				ldapRenameAttempt(oldDn, newDn, options);
 				return;
 			
 			} catch (Throwable e) {
@@ -1000,14 +1003,14 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		oldDn = resolveDn(objectClass, uid, options);
 		LOG.ok("Resolved DN: {0}", oldDn);
 		
-		ldapRenameAttempt(oldDn, newDn);
+		ldapRenameAttempt(oldDn, newDn, options);
 	}
 	
-	private void ldapRenameAttempt(Dn oldDn, Dn newDn) {
+	private void ldapRenameAttempt(Dn oldDn, Dn newDn, OperationOptions options) {
 		if (oldDn.equals(newDn)) {
 			// nothing to rename, just ignore
 		} else {
-			LdapNetworkConnection connection = connectionManager.getConnection(oldDn);
+			LdapNetworkConnection connection = connectionManager.getConnection(oldDn, options);
 			try {
 				OperationLog.logOperationReq(connection, "MoveAndRename REQ {0} -> {1}", oldDn, newDn);
 				// Make sure that DNs are passed in as (user-provided) strings. Otherwise the Directory API
@@ -1018,6 +1021,8 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			} catch (LdapException e) {
 				OperationLog.logOperationErr(connection, "MoveAndRename ERROR {0} -> {1}: {2}", oldDn, newDn, e.getMessage(), e);
 				throw processLdapException("Rename/move of LDAP entry from "+oldDn+" to "+newDn+" failed", e);
+			} finally {
+				connectionManager.returnConnection(connection);
 			}
 		}
 	}
@@ -1056,7 +1061,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			LOG.ok("Skipping modify operation as there are no modifications to execute");
 		} else {
 		
-			modify(dn, ldapModifications);
+			modify(dn, ldapModifications, options);
 			
 			postUpdate(connIdObjectClass, uid, deltas, options, dn, ldapStructuralObjectClass, ldapModifications);
 			
@@ -1120,8 +1125,8 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		}
 	}
 
-	protected void modify(Dn dn, List<Modification> modifications) {
-		LdapNetworkConnection connection = connectionManager.getConnection(dn);
+	protected void modify(Dn dn, List<Modification> modifications, OperationOptions options) {
+		LdapNetworkConnection connection = connectionManager.getConnection(dn, options);
 		try {
 			PermissiveModify permissiveModifyControl = null;
 			if (isUsePermissiveModify()) {
@@ -1152,6 +1157,8 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		} catch (LdapException e) {
 			OperationLog.logOperationErr(connection, "Modify ERROR {0}: {1}: {2}", dn, dumpModifications(modifications), e.getMessage(), e);
 			throw processModifyResult(dn.toString(), modifications, e);
+		} finally {
+			connectionManager.returnConnection(connection);
 		}
 	}
 
@@ -1268,7 +1275,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 	@Override
 	public void sync(ObjectClass objectClass, SyncToken token, SyncResultsHandler handler,
 			OperationOptions options) {
-		prepareIcfSchema();
+		prepareConnIdSchema();
 		SyncStrategy<C> strategy = chooseSyncStrategy();
 		strategy.sync(objectClass, token, handler, options);
 	}
@@ -1324,7 +1331,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			LOG.ok("Using (unsafe) DN from the name hint: {0}", dn);
 			try {
 				
-				deleteAttempt(dn, uid);
+				deleteAttempt(dn, uid, options);
 				
 				return;
 				
@@ -1337,11 +1344,11 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		dn = resolveDn(objectClass, uid, options);
 		LOG.ok("Resolved DN: {0}", dn);
 		
-		deleteAttempt(dn, uid);
+		deleteAttempt(dn, uid, options);
 	}
 		
-	private void deleteAttempt(Dn dn, Uid uid) {
-		LdapNetworkConnection connection = connectionManager.getConnection(dn);
+	private void deleteAttempt(Dn dn, Uid uid, OperationOptions options) {
+		LdapNetworkConnection connection = connectionManager.getConnection(dn, options);
 		
 		try {
 			OperationLog.logOperationReq(connection, "Delete REQ {0}", dn);
@@ -1352,6 +1359,8 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		} catch (LdapException e) {
 			OperationLog.logOperationErr(connection, "Delete ERROR {0}: {1}", dn, e.getMessage(), e);
 			throw processLdapException("Failed to delete entry with DN "+dn+" (UID="+uid+")", e);
+		} finally {
+			connectionManager.returnConnection(connection);
 		}
 	}
 	
@@ -1387,7 +1396,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			ExprNode filterNode = new EqualityNode<Object>(ldapAttributeType, ldapValue);
 			LOG.ok("Resolving DN for UID {0}", uid);
 			Entry entry = searchSingleEntry(getConnectionManager(), baseDn, filterNode, scope,
-					new String[]{uidAttributeName}, "LDAP entry for UID "+uid);
+					new String[]{uidAttributeName}, "LDAP entry for UID "+uid, options);
 			dn = entry.getDn();
 		}
 		
@@ -1398,9 +1407,9 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 	 * The most efficient simple search for a single entry. Follows referrals based on the configured strategy.
 	 */
 	protected Entry searchSingleEntry(ConnectionManager<C> connectionManager, Dn baseDn, ExprNode filterNode, 
-			SearchScope scope, String[] attributesToGet, String descMessage) {
+			SearchScope scope, String[] attributesToGet, String descMessage, OperationOptions options) {
 		return searchSingleEntry(connectionManager, baseDn, filterNode, 
-				scope, attributesToGet, descMessage, baseDn);
+				scope, attributesToGet, descMessage, baseDn, options);
 	}
 	
 	/**
@@ -1411,9 +1420,9 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 	 * good for that. 
 	 */
 	protected Entry searchSingleEntry(ConnectionManager<C> connectionManager, Dn baseDn, ExprNode filterNode, 
-			SearchScope scope, String[] attributesToGet, String descMessage, Dn dnHint) {
+			SearchScope scope, String[] attributesToGet, String descMessage, Dn dnHint, OperationOptions options) {
 		
-		LdapNetworkConnection connection = connectionManager.getConnection(dnHint);
+		LdapNetworkConnection connection = connectionManager.getConnection(dnHint, options);
 		String filterString = filterNode.toString();
 		
 		Entry entry = null;
@@ -1457,7 +1466,8 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 					} catch (LdapURLEncodingException ee) {
 						throw new InvalidAttributeValueException("Invalid URL in referral '"+e.getReferralInfo()+": "+ee.getMessage(), ee);
 					}
-					connection = connectionManager.getConnection(baseDn, referralUrl);
+					connectionManager.returnConnection(connection);
+					connection = connectionManager.getConnection(baseDn, referralUrl, options);
 					if (referralUrl.getDn() != null) {
 						baseDn = referralUrl.getDn();
 					}
@@ -1480,6 +1490,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 				if (cursor != null) {
 					LdapUtil.closeCursor(cursor);
 				}
+				connectionManager.returnConnection(connection);
 			}
 		}
 		return entry;

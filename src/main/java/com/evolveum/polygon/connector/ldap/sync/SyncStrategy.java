@@ -17,6 +17,7 @@ package com.evolveum.polygon.connector.ldap.sync;
 
 import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.schema.SchemaManager;
+import org.apache.directory.ldap.client.api.LdapNetworkConnection;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.framework.common.objects.ObjectClass;
 import org.identityconnectors.framework.common.objects.OperationOptions;
@@ -86,6 +87,10 @@ public abstract class SyncStrategy<C extends AbstractLdapConfiguration> {
 			}
 		}
 		return true;
+	}
+	
+	protected void returnConnection(LdapNetworkConnection connection) {
+		connectionManager.returnConnection(connection);
 	}
 	
 }

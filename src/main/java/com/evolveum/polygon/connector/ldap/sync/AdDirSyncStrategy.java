@@ -97,7 +97,7 @@ public class AdDirSyncStrategy<C extends AbstractLdapConfiguration> extends Sync
 		int numProcessedEntries = 0;
 		byte[] lastEntryCookie = null;
 		
-		LdapNetworkConnection connection = getConnectionManager().getConnection(req.getBase());
+		LdapNetworkConnection connection = getConnectionManager().getConnection(req.getBase(), options);
 		try {
 			SearchCursor searchCursor = connection.search(req);
 			while (searchCursor.next()) {
@@ -174,9 +174,8 @@ public class AdDirSyncStrategy<C extends AbstractLdapConfiguration> extends Sync
 			
 			LdapUtil.closeCursor(searchCursor);
 			LOG.ok("Search DN {0} with {1}: {2} entries, {3} processed", req.getBase(), req.getFilter(), numFoundEntries, numProcessedEntries);
-		} catch (LdapException e) {
-			throw new ConnectorIOException("Error searching for changes ("+req.getFilter()+"): "+e.getMessage(), e);
-		} catch (CursorException e) {
+		} catch (LdapException | CursorException e) {
+			returnConnection(connection);
 			throw new ConnectorIOException("Error searching for changes ("+req.getFilter()+"): "+e.getMessage(), e);
 		}
 		
@@ -187,13 +186,15 @@ public class AdDirSyncStrategy<C extends AbstractLdapConfiguration> extends Sync
 			SyncToken finalToken = new SyncToken(Base64.getEncoder().encodeToString(lastEntryCookie));
 			((SyncTokenResultsHandler)handler).handleResult(finalToken);
 		}
+		
+		returnConnection(connection);
 	}
 
 	@Override
 	public SyncToken getLatestSyncToken(ObjectClass objectClass) {
 		byte[] cookie = null;
 		SearchRequest req = createSearchRequest("(cn=__entry_like_this_is_unlikely_to_exist__)", null);
-		LdapNetworkConnection connection = getConnectionManager().getConnection(req.getBase());
+		LdapNetworkConnection connection = getConnectionManager().getConnection(req.getBase(), null);
 		try {
 			SearchCursor searchCursor = connection.search(req);
 			while (searchCursor.next()) {
@@ -218,8 +219,10 @@ public class AdDirSyncStrategy<C extends AbstractLdapConfiguration> extends Sync
 			}			
 			LdapUtil.closeCursor(searchCursor);
 		} catch (LdapException e) {
+			returnConnection(connection);
 			throw new ConnectorIOException("Error searching for changes ("+req.getFilter()+"): "+e.getMessage(), e);
 		} catch (CursorException e) {
+			returnConnection(connection);
 			throw new ConnectorIOException("Error searching for changes ("+req.getFilter()+"): "+e.getMessage(), e);
 		}
 		
@@ -228,6 +231,9 @@ public class AdDirSyncStrategy<C extends AbstractLdapConfiguration> extends Sync
 		}
 		SyncToken token = new SyncToken(Base64.getEncoder().encodeToString(cookie));
 		LOG.ok("Found latest sync token: {0}", token);
+		
+		returnConnection(connection);
+		
 		return token;
 	}
 

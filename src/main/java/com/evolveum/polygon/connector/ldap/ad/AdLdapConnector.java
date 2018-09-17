@@ -263,7 +263,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 						
 			Dn nameHintDn = getSchemaTranslator().toDn(uid.getNameHint());
 			SearchStrategy<AdLdapConfiguration> searchStrategy = getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
-			LdapNetworkConnection connection = getConnectionManager().getConnection(nameHintDn);
+			LdapNetworkConnection connection = getConnectionManager().getConnection(nameHintDn, options);
 			searchStrategy.setExplicitConnection(connection);
 			
 			Dn guidDn = getSchemaTranslator().getGuidDn(uidValue);
@@ -318,7 +318,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 		} else if (AdLdapConfiguration.GLOBAL_CATALOG_STRATEGY_RESOLVE.equals(getConfiguration().getGlobalCatalogStrategy())) {
 			Dn guidDn = getSchemaTranslator().getGuidDn(uidValue);
 			Entry entry = searchSingleEntry(globalCatalogConnectionManager, guidDn, LdapUtil.createAllSearchFilter(), SearchScope.OBJECT,
-					new String[]{AbstractLdapConfiguration.PSEUDO_ATTRIBUTE_DN_NAME}, "global catalog entry for GUID "+uidValue);
+					new String[]{AbstractLdapConfiguration.PSEUDO_ATTRIBUTE_DN_NAME}, "global catalog entry for GUID "+uidValue, options);
 			if (entry == null) {
 				throw new UnknownUidException("Entry for GUID "+uidValue+" was not found in global catalog");
 			}
@@ -332,7 +332,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 			// We also cannot use the DN from the global catalog as the base DN for the search.
 			// The global catalog may not be replicated yet and it may not have the correct DN
 			// (e.g. the case of quick read after rename)
-			LdapNetworkConnection connection = getConnectionManager().getConnection(dn);
+			LdapNetworkConnection connection = getConnectionManager().getConnection(dn, options);
 			searchStrategy.setExplicitConnection(connection);
 			
 			String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
@@ -402,7 +402,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 						
 			LOG.ok("Resolvig DN by search for {0} (no global catalog)", guidDn);
 			Entry entry = searchSingleEntry(getConnectionManager(), guidDn, LdapUtil.createAllSearchFilter(), SearchScope.OBJECT, 
-					new String[]{AbstractLdapConfiguration.PSEUDO_ATTRIBUTE_DN_NAME}, "LDAP entry for GUID "+guid, dnHint);
+					new String[]{AbstractLdapConfiguration.PSEUDO_ATTRIBUTE_DN_NAME}, "LDAP entry for GUID "+guid, dnHint, options);
 
 			if (entry != null) {
 					return entry.getDn();
@@ -416,7 +416,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 		if (AdLdapConfiguration.GLOBAL_CATALOG_STRATEGY_NONE.equals(getConfiguration().getGlobalCatalogStrategy())) {
 			LOG.ok("Resolvig DN by search for {0} (no global catalog)", guidDn);
 			Entry entry = searchSingleEntry(getConnectionManager(), guidDn, LdapUtil.createAllSearchFilter(), SearchScope.OBJECT, 
-					new String[]{AbstractLdapConfiguration.PSEUDO_ATTRIBUTE_DN_NAME}, "LDAP entry for GUID "+guid);
+					new String[]{AbstractLdapConfiguration.PSEUDO_ATTRIBUTE_DN_NAME}, "LDAP entry for GUID "+guid, options);
 			if (entry == null) {
 				throw new UnknownUidException("Entry for GUID "+guid+" was not found");
 			}
@@ -425,7 +425,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 		} else {
 			LOG.ok("Resolvig DN by search for {0} (global catalog)", guidDn);
 			Entry entry = searchSingleEntry(globalCatalogConnectionManager, guidDn, LdapUtil.createAllSearchFilter(), SearchScope.OBJECT, 
-					new String[]{AbstractLdapConfiguration.PSEUDO_ATTRIBUTE_DN_NAME}, "LDAP entry for GUID "+guid);
+					new String[]{AbstractLdapConfiguration.PSEUDO_ATTRIBUTE_DN_NAME}, "LDAP entry for GUID "+guid, options);
 			if (entry == null) {
 				throw new UnknownUidException("Entry for GUID "+guid+" was not found in global catalog");
 			}
@@ -449,13 +449,13 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 				List<Modification> modificationsPwdLastSet = new ArrayList<Modification>();
 				AttributeDelta attrPwdLastSetDelta = AttributeDeltaBuilder.build(AdConstants.ATTRIBUTE_PWD_LAST_SET_NAME, "0");					
 				addAttributeModification(dn, modificationsPwdLastSet, ldapStructuralObjectClass, connIdObjectClass, attrPwdLastSetDelta);
-				modify(dn, modificationsPwdLastSet);
+				modify(dn, modificationsPwdLastSet, options);
 			}
 		} else if (getConfiguration().isForcePasswordChangeAtNextLogon() && isUserPasswordChanged(deltas, ldapStructuralObjectClass)) {
 			List<Modification> modificationsPwdLastSet = new ArrayList<Modification>();
 			AttributeDelta attrPwdLastSetDelta = AttributeDeltaBuilder.build(AdConstants.ATTRIBUTE_PWD_LAST_SET_NAME, "0");					
 			addAttributeModification(dn, modificationsPwdLastSet, ldapStructuralObjectClass, connIdObjectClass, attrPwdLastSetDelta);
-			modify(dn, modificationsPwdLastSet);
+			modify(dn, modificationsPwdLastSet, options);
 		}
 	}
 	

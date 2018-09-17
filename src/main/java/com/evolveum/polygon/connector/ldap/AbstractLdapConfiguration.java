@@ -345,6 +345,19 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
      * Enabled more tolerant algorithm to detect which object class is structural and which is auxiliary.
      */
     private boolean alternativeObjectClassDetection = false;
+    
+    
+    public static final String RUN_AS_STRATEGY_NONE = "none";
+    public static final String RUN_AS_STRATEGY_BIND = "bind";
+    
+    /**
+     * Controls "run as" feature. This feature allows execution of operations under different identity
+     * that is configured in the connector. This feature is disabled by default because it is very
+     * difficult to correctly autoconfigure it. And there may be some risks involved.
+     * Possible values: "none", "bind"
+     * Default value: none
+     */
+    private String runAsStrategy = RUN_AS_STRATEGY_NONE;
 
     // TODO: failover, accountSynchronizationFilter
     // MAYBE TODO: respectResourcePasswordPolicyChangeAfterReset? filterWithOrInsteadOfAnd? 
@@ -701,6 +714,16 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 		this.alternativeObjectClassDetection = alternativeObjectClassDetection;
 	}
 
+	@ConfigurationProperty(order = 40)
+	public String getRunAsStrategy() {
+		return runAsStrategy;
+	}
+
+	public void setRunAsStrategy(String runAsStrategy) {
+		this.runAsStrategy = runAsStrategy;
+	}
+	
+
 	@Override
     public void validate() {
     	validateNotBlank(host, "host.blank");
@@ -711,7 +734,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
     	
         // TODO
     }
-	
+
 	private void validateNotBlank(String value, String errorKey) {
         if (isBlank(value)) {
         	throwConfigurationError(errorKey);

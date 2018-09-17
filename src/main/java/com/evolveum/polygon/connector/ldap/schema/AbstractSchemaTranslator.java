@@ -146,6 +146,11 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		schemaBuilder.defineOperationOption(OperationOptionInfoBuilder.buildContainer(), SearchOp.class);
 		schemaBuilder.defineOperationOption(OperationOptionInfoBuilder.buildScope(), SearchOp.class);
 		
+		if (!AbstractLdapConfiguration.RUN_AS_STRATEGY_NONE.equals(configuration.getRunAsStrategy())) {
+			schemaBuilder.defineOperationOption(OperationOptionInfoBuilder.buildRunWithUser());
+			schemaBuilder.defineOperationOption(OperationOptionInfoBuilder.buildRunWithPassword());
+		}
+		
 		List<String> supportedControls;
 		try {
 			supportedControls = connection.getDefaultConnection().getSupportedControls();
@@ -193,7 +198,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 	/**
 	 * Make sure that we have icfSchema  
 	 */
-	public void prepareIcfSchema(ConnectionManager<C> connectionManager) throws InvalidConnectionException {
+	public void prepareConnIdSchema(ConnectionManager<C> connectionManager) throws InvalidConnectionException {
 		if (connIdSchema == null) {
 			translateSchema(connectionManager);
 		}

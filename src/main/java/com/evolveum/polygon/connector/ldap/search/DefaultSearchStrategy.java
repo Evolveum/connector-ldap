@@ -81,6 +81,7 @@ public class DefaultSearchStrategy<C extends AbstractLdapConfiguration> extends 
 		OUTER: while (true) {
 			numAttempts++;
 			if (numAttempts > getConfiguration().getMaximumNumberOfAttempts()) {
+				returnConnection(connection);
 				// TODO: better exception. Maybe re-throw exception from the last error?
 				throw new ConnectorIOException("Maximum number of attemps exceeded");
 			}
@@ -100,7 +101,7 @@ public class DefaultSearchStrategy<C extends AbstractLdapConfiguration> extends 
 						// checkAlive or connection manager.
 						LOG.ok("Connection error ({0}), reconnecting", e.getMessage(), e);
 						LdapUtil.closeCursor(searchCursor);
-						connection = getConnectionReconnect(baseDn, referral);
+						connection = getConnectionReconnect(baseDn, referral, connection);
 						continue OUTER;
 					}
 					Response response = searchCursor.get();
@@ -146,6 +147,7 @@ public class DefaultSearchStrategy<C extends AbstractLdapConfiguration> extends 
 							break;
 						} else {
 							LOG.error("{0}", msg);
+							returnConnection(connection);
 							throw LdapUtil.processLdapResult("LDAP error during search in "+baseDn, ldapResult);
 						}
 					}
@@ -153,10 +155,13 @@ public class DefaultSearchStrategy<C extends AbstractLdapConfiguration> extends 
 				}
 				
 			} catch (CursorException e) {
+				returnConnection(connection);
 				// TODO: better error handling
 				throw new ConnectorIOException(e.getMessage(), e);
 			}
 		}
+		
+		returnConnection(connection);
 	}
 
 }

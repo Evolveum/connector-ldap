@@ -165,9 +165,7 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
 			decodeSidSubauthority(sb, bytes, 8 + 4*i);
 		}
 		
-		String string = sb.toString();
-		LOG.info("SID: {0}", string);
-		return string;
+		return sb.toString();
 	}
 
 	private void decodeSidAuthority(StringBuilder sb, byte[] bytes, int startByte) {

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2016 Evolveum
+ * Copyright (c) 2016-2018 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@ package com.evolveum.polygon.connector.ldap.ad;
 
 import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
+import org.identityconnectors.framework.common.objects.OperationOptions;
 
 import com.evolveum.polygon.connector.ldap.ConnectionManager;
 
@@ -36,7 +37,7 @@ public class GlobalCatalogConnectionManager extends ConnectionManager<AdLdapConf
 	}
 
 	@Override
-	public LdapNetworkConnection getConnection(Dn base) {
+	public LdapNetworkConnection getConnection(Dn base, OperationOptions options) {
 		return super.getRandomConnection();
 	}
 	

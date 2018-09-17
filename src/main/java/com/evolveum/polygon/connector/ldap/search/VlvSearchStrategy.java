@@ -162,12 +162,13 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
 						// checkAlive or connection manager.
 						retryAttempts++;
 		    			if (retryAttempts > getConfiguration().getMaximumNumberOfAttempts()) {
+		    				returnConnection(connection);
 		    				// TODO: better exception. Maybe re-throw exception from the last error?
 		    				throw new ConnectorIOException("Maximum reconnect number of attemps exceeded");
 		    			}
 						LOG.ok("Connection error ({0}), reconnecting", e.getMessage(), e);
 						LdapUtil.closeCursor(searchCursor);
-						connection = getConnectionReconnect(baseDn, referral);
+						connection = getConnectionReconnect(baseDn, referral, connection);
 						continue OUTER;
 					}
     				Response response = searchCursor.get();
@@ -258,6 +259,7 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
 			    			LOG.ok("Following referral {0}", referral);
 			    			retryAttempts++;
 			    			if (retryAttempts > getConfiguration().getMaximumNumberOfAttempts()) {
+			    				returnConnection(connection);
 			    				// TODO: better exception. Maybe re-throw exception from the last error?
 			    				throw new ConnectorIOException("Maximum number of attemps exceeded");
 			    			}
@@ -278,11 +280,12 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
 			    		// better way how to clean that up than to drop connection and reconnect.
 			    		retryAttempts++;
 		    			if (retryAttempts > getConfiguration().getMaximumNumberOfAttempts()) {
+		    				returnConnection(connection);
 		    				// TODO: better exception. Maybe re-throw exception from the last error?
 		    				throw new ConnectorIOException("Maximum number of attemps exceeded");
 		    			}
 			    		LOG.ok("Got BUSY response after VLV search. reconnecting and retrying");
-			    		connection = getConnectionReconnect(baseDn);
+			    		connection = getConnectionReconnect(baseDn, connection);
 			    		if (connection == null) {
 		    				throw new ConnectorIOException("Cannot reconnect (baseDn="+baseDn+")");
 		    			}
@@ -298,6 +301,7 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
 							break;
 						} else {
 							LOG.error("{0}", msg);
+							returnConnection(connection);
 							throw LdapUtil.processLdapResult("LDAP error during search in "+baseDn, ldapResult);
 						}
 					}
@@ -306,6 +310,7 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
     			
     			
     		} catch (CursorException e) {
+    			returnConnection(connection);
     			// TODO: better error handling
     			throw new ConnectorIOException(e.getMessage(), e);
     		}
@@ -323,10 +328,12 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
 				LOG.warn("Ending VLV search because received no results");
 				break;
 			}
-
+			
         }
         
         // TODO: close connection to purge the search state
+        
+        returnConnection(connection);
 	}
 
 	@Override

@@ -45,6 +45,7 @@ import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.common.exceptions.ConfigurationException;
 import org.identityconnectors.framework.common.exceptions.ConnectionFailedException;
 import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
+import org.identityconnectors.framework.common.objects.OperationOptions;
 
 import com.evolveum.polygon.common.GuardedStringAccessor;
 import com.evolveum.polygon.connector.ldap.ServerDefinition.Origin;
@@ -112,19 +113,16 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 		return getConnection(defaultServerDefinition);
 	}
 		
-	public LdapNetworkConnection getConnection(Dn base) {
-		LOG.ok("Selecting server for {0} from servers:\n{1}", base, dumpServers());
-		ServerDefinition server = selectServer(base);
-		return getConnection(server);
-	}
-		
-	public LdapNetworkConnection getConnectionReconnect(Dn base) {
-		return getConnectionReconnect(base, null);
+	public LdapNetworkConnection getConnectionReconnect(Dn base, OperationOptions options) {
+		return getConnectionReconnect(base, null, options);
 	}
 	
-	public LdapNetworkConnection getConnectionReconnect(Dn base, Referral referral) {
+	public LdapNetworkConnection getConnectionReconnect(Dn base, Referral referral, OperationOptions options) {
 		LdapUrl ldapUrl = getLdapUrl(referral);
 		ServerDefinition server = selectServer(base, ldapUrl);
+		if (needsSpecialConnection(options)) {
+			return createSpecialConnection(server, options);
+		}
 		LOG.ok("Reconnecting server {0}", server);
 		if (server.isConnected()) {
 			try {
@@ -138,8 +136,17 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 		return server.getConnection();
 	}
 	
-	public LdapNetworkConnection getConnection(Dn base, Referral referral) {
-		return getConnection(base, getLdapUrl(referral));
+	public LdapNetworkConnection getConnection(Dn base, OperationOptions options) {
+		LOG.ok("Selecting server for {0} from servers:\n{1}", base, dumpServers());
+		ServerDefinition server = selectServer(base);
+		if (needsSpecialConnection(options)) {
+			return createSpecialConnection(server, options);
+		}
+		return getConnection(server);
+	}
+	
+	public LdapNetworkConnection getConnection(Dn base, Referral referral, OperationOptions options) {
+		return getConnection(base, getLdapUrl(referral), options);
 	}
 	
 	private LdapUrl getLdapUrl(Referral referral) {
@@ -160,8 +167,11 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 		return ldapUrl;
 	}
 
-	public LdapNetworkConnection getConnection(Dn base, LdapUrl url) {
+	public LdapNetworkConnection getConnection(Dn base, LdapUrl url, OperationOptions options) {
 		ServerDefinition server = selectServer(base, url);
+		if (needsSpecialConnection(options)) {
+			return createSpecialConnection(server, options);
+		}
 		if (!server.isConnected()) {
 			connectServer(server);
 		}
@@ -390,7 +400,7 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 			}
 		}
 		final LdapConnectionConfig connectionConfig = createLdapConnectionConfig(server);
-		LdapNetworkConnection connection = connectConnection(connectionConfig);
+		LdapNetworkConnection connection = connectConnection(connectionConfig, configuration.getBindDn());
 		try {
 			bind(connection, server);
 		} catch (RuntimeException e) {
@@ -404,11 +414,11 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 		server.setConnection(connection);
     }
 	
-	private LdapNetworkConnection connectConnection(LdapConnectionConfig connectionConfig) {
+	private LdapNetworkConnection connectConnection(LdapConnectionConfig connectionConfig, String userDn) {
 		LOG.ok("Creating connection object");
 		LdapNetworkConnection connection = new LdapNetworkConnection(connectionConfig);
 		try {
-			LOG.info("Connecting to {0}:{1} as {2}", connectionConfig.getLdapHost(), connectionConfig.getLdapPort(), configuration.getBindDn());
+			LOG.info("Connecting to {0}:{1} as {2}", connectionConfig.getLdapHost(), connectionConfig.getLdapPort(), userDn);
 			if (LOG.isOk()) {
 				String connectionSecurity = "none";
 				if (connectionConfig.isUseSsl()) {
@@ -436,17 +446,19 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 		
 		return connection;
 	}
-		
+	
 	private void bind(LdapNetworkConnection connection, ServerDefinition server) {
+		bind(connection, server, server.getBindDn(), server.getBindPassword());
+	}
+	
+	private void bind(LdapNetworkConnection connection, ServerDefinition server, String bindDn, GuardedString bindPassword) {
 		final BindRequest bindRequest = new BindRequestImpl();
-		String bindDn = server.getBindDn();
 		try {
 			bindRequest.setDn(new Dn(createBindSchemaManager(), bindDn));
 		} catch (LdapInvalidDnException e) {
 			throw new ConfigurationException("bindDn is not in DN format: "+e.getMessage(), e);
 		}
 		
-		GuardedString bindPassword = server.getBindPassword();
     	if (bindPassword != null) {
     		// I hate this GuardedString!
     		bindPassword.access(new GuardedStringAccessor() {
@@ -488,6 +500,60 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 		schemaManager.setRelaxed();
 		return schemaManager;
 	}
+	
+	private boolean needsSpecialConnection(OperationOptions options) {
+		if (options == null) {
+			return false;
+		}
+		if (options.getRunAsUser() == null) {
+			return false;
+		}
+		switch (configuration.getRunAsStrategy()) {
+			case AbstractLdapConfiguration.RUN_AS_STRATEGY_NONE:
+				LOG.ok("runAsUser option present, but runAsStrategy set to none, ignoring the option");
+				return false;
+			case AbstractLdapConfiguration.RUN_AS_STRATEGY_BIND:
+				if (options.getRunWithPassword() == null) {
+					LOG.ok("runAsUser option present, but runWithPassword NOT present, ignoring the option");
+					return false;
+				} else {
+					return true;
+				}
+			default:
+				throw new IllegalArgumentException("Unknown runAsStrategy: "+configuration.getRunAsStrategy());
+		}
+	}
+	
+	private LdapNetworkConnection createSpecialConnection(ServerDefinition server, OperationOptions options) {
+		switch (configuration.getRunAsStrategy()) {
+			case AbstractLdapConfiguration.RUN_AS_STRATEGY_BIND:
+				return createSpecialConnectionBind(server, options);
+			default:
+				throw new IllegalArgumentException("Internal error with runAsStrategy "+configuration.getRunAsStrategy());
+		}
+	}
+
+
+	private LdapNetworkConnection createSpecialConnectionBind(ServerDefinition server,
+			OperationOptions options) {
+		String runAsUser = options.getRunAsUser();
+		GuardedString runWithPassword = options.getRunWithPassword();
+		
+		final LdapConnectionConfig connectionConfig = createLdapConnectionConfig(server);
+		LOG.ok("Connecting to server {0} as user {1} (runAs)", connectionConfig.getLdapHost(), runAsUser);
+		LdapNetworkConnection connection = connectConnection(connectionConfig, runAsUser);
+		try {
+			bind(connection, server, runAsUser, runWithPassword);
+		} catch (RuntimeException e) {
+			try {
+				connection.close();
+			} catch (IOException e1) {
+				LOG.error("Error closing conection (error handling of a bind of a new connection): {1}", e.getMessage(), e);
+			}
+			throw e;
+		}
+		return connection;
+	}
 
 	public boolean isAlive() {
 		if (defaultServerDefinition == null) {
@@ -502,6 +568,41 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 		}
 		// TODO: try some NOOP operation
 		return true;
+	}
+	
+	/**
+	 *  Returns connection back to connection manager for future use.
+	 *  This would not be normally needed for concurrency purposes, as connectors
+	 *  are single-threaded. But we want to make sure that connections are closed
+	 *  and there are no leaks. 
+	 */
+	public void returnConnection(LdapNetworkConnection connection) {
+		if (connection == null) {
+			return;
+		}
+		if (isServerConnection(connection)) {
+			// We do not care about connections that are associated with server.
+			// We leave those open for reuse. That won't leak much as there is
+			// only one connection per server - and the number of servers is small.
+			return;
+		} else {
+			// Those are "special" connections that are not default server connections.
+			// For example connections that were created for runAs feature.
+			try {
+				connection.close();
+			} catch (IOException e) {
+				LOG.error("Error closing special connection: {0}", e.getMessage(), e);
+			}
+		}
+	}
+
+	private boolean isServerConnection(LdapNetworkConnection connection) {
+		for (ServerDefinition server : servers) {
+			if (server.getConnection() == connection) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private <T> T selectRandomItem(Collection<T> collection) {

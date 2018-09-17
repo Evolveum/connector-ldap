@@ -181,6 +181,7 @@ public abstract class SearchStrategy<C extends AbstractLdapConfiguration> {
 			searchCursor = connection.search(req);
 		} catch (LdapReferralException e) {
 			logSearchError(connection, e);
+			returnConnection(connection);
 			String referralStrategy = configuration.getReferralStrategy();
 			if (configuration.isReferralStrategyFollow()) {
 				// This should not happen!
@@ -195,6 +196,7 @@ public abstract class SearchStrategy<C extends AbstractLdapConfiguration> {
 			}
 		} catch (LdapException e) {
 			logSearchError(connection, e);
+			returnConnection(connection);
 			throw e;
 		}
 		return searchCursor;
@@ -273,25 +275,26 @@ public abstract class SearchStrategy<C extends AbstractLdapConfiguration> {
 		if (explicitConnection != null) {
 			return explicitConnection;
 		}
-		return connectionManager.getConnection(getEffectiveBase(base));
+		return connectionManager.getConnection(getEffectiveBase(base), options);
 	}
 
 	protected LdapNetworkConnection getConnection(Dn base, Referral referral) {
 		if (explicitConnection != null) {
 			return explicitConnection;
 		}
-		return connectionManager.getConnection(getEffectiveBase(base), referral);
+		return connectionManager.getConnection(getEffectiveBase(base), referral, options);
 	}
 	
-	protected LdapNetworkConnection getConnectionReconnect(Dn base) {
-		return getConnectionReconnect(base, null);
+	protected LdapNetworkConnection getConnectionReconnect(Dn base, LdapNetworkConnection oldConnection) {
+		return getConnectionReconnect(base, null, oldConnection);
 	}
 	
-	protected LdapNetworkConnection getConnectionReconnect(Dn base, Referral referral) {
+	protected LdapNetworkConnection getConnectionReconnect(Dn base, Referral referral, LdapNetworkConnection oldConnection) {
 		if (explicitConnection != null) {
 			return explicitConnection;
 		}
-		return connectionManager.getConnectionReconnect(getEffectiveBase(base), referral);
+		connectionManager.returnConnection(oldConnection);
+		return connectionManager.getConnectionReconnect(getEffectiveBase(base), referral, options);
 	}
 	
 	private Dn getEffectiveBase(Dn origBase) {
@@ -314,6 +317,10 @@ public abstract class SearchStrategy<C extends AbstractLdapConfiguration> {
 				return origBase;
 			}
 		}
+	}
+	
+	protected void returnConnection(LdapNetworkConnection connection) {
+		connectionManager.returnConnection(connection);
 	}
 	
 	protected ExprNode preProcessSearchFilter(ExprNode filterNode) {

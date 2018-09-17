@@ -133,7 +133,7 @@ public class SunChangelogSyncStrategy<C extends AbstractLdapConfiguration> exten
 		LOG.ok("Searching changelog {0} with {1}", changelogDn, changelogSearchFilter);
 		int numChangelogEntries = 0;
 		int numProcessedEntries = 0;
-		LdapNetworkConnection connection = getConnectionManager().getConnection(getSchemaTranslator().toDn(changelogDn));
+		LdapNetworkConnection connection = getConnectionManager().getConnection(getSchemaTranslator().toDn(changelogDn), options);
 		try {
 			EntryCursor searchCursor = connection.search(changelogDn, changelogSearchFilter, SearchScope.ONELEVEL, 
 					changeNumberAttributeName,
@@ -282,18 +282,16 @@ public class SunChangelogSyncStrategy<C extends AbstractLdapConfiguration> exten
 			}
 			searchCursor.close();
 			LOG.ok("Search changelog {0} with {1}: {2} entries, {3} processed", changelogDn, changelogSearchFilter, numChangelogEntries, numProcessedEntries);
-		} catch (LdapException e) {
-			throw new ConnectorIOException("Error searching changelog ("+changelogDn+"): "+e.getMessage(), e);
-		} catch (CursorException e) {
-			throw new ConnectorIOException("Error searching changelog ("+changelogDn+"): "+e.getMessage(), e);
-		} catch (IOException e) {
+		} catch (LdapException | CursorException | IOException e) {
+			returnConnection(connection);
 			throw new ConnectorIOException("Error searching changelog ("+changelogDn+"): "+e.getMessage(), e);
 		}
 		
 		if (handler instanceof SyncTokenResultsHandler && finalToken != null) {
 			((SyncTokenResultsHandler)handler).handleResult(finalToken);
 		}
-				
+
+		returnConnection(connection);
 	}
 
 	private String createSeachFilter(Integer fromTokenValue) {

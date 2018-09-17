@@ -141,12 +141,13 @@ public class SimplePagedResultsSearchStrategy<C extends AbstractLdapConfiguratio
 						// checkAlive or connection manager.
 						retryAttempts++;
 		    			if (retryAttempts > getConfiguration().getMaximumNumberOfAttempts()) {
+		    				returnConnection(connection);
 		    				// TODO: better exception. Maybe re-throw exception from the last error?
 		    				throw new ConnectorIOException("Maximum number of reconnect attemps exceeded");
 		    			}
 						LOG.ok("Connection error ({0}), reconnecting", e.getMessage(), e);
 						LdapUtil.closeCursor(searchCursor);
-						connection = getConnectionReconnect(baseDn, referral);
+						connection = getConnectionReconnect(baseDn, referral, connection);
 						continue OUTER;
 					}
     				Response response = searchCursor.get();
@@ -212,6 +213,7 @@ public class SimplePagedResultsSearchStrategy<C extends AbstractLdapConfiguratio
 			    			LOG.ok("Following referral {0}", referral);
 			    			retryAttempts++;
 			    			if (retryAttempts > getConfiguration().getMaximumNumberOfAttempts()) {
+			    				returnConnection(connection);
 			    				// TODO: better exception. Maybe re-throw exception from the last error?
 			    				throw new ConnectorIOException("Maximum number of attemps exceeded");
 			    			}
@@ -241,6 +243,7 @@ public class SimplePagedResultsSearchStrategy<C extends AbstractLdapConfiguratio
     			}
     			
     		} catch (CursorException e) {
+    			returnConnection(connection);
     			// TODO: better error handling
     			LOG.error("Error:", e);
     			throw new ConnectorIOException(e.getMessage(), e);
@@ -261,6 +264,8 @@ public class SimplePagedResultsSearchStrategy<C extends AbstractLdapConfiguratio
         } while (cookie != null);
         
         // TODO: properly abandon the paged search by sending request with size=0 and cookie=lastCookie
+        
+        returnConnection(connection);
 	}
 
 	@Override

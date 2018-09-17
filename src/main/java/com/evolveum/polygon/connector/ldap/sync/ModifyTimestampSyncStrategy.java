@@ -111,7 +111,7 @@ public class ModifyTimestampSyncStrategy<C extends AbstractLdapConfiguration> ex
 		int numFoundEntries = 0;
 		int numProcessedEntries = 0;
 		
-		LdapNetworkConnection connection = getConnectionManager().getConnection(getSchemaTranslator().toDn(baseContext));
+		LdapNetworkConnection connection = getConnectionManager().getConnection(getSchemaTranslator().toDn(baseContext), options);
 		try {
 			EntryCursor searchCursor = connection.search(baseContext, searchFilter, SearchScope.SUBTREE, attributesToGet);
 			while (searchCursor.next()) {
@@ -141,9 +141,8 @@ public class ModifyTimestampSyncStrategy<C extends AbstractLdapConfiguration> ex
 			}
 			LdapUtil.closeCursor(searchCursor);
 			LOG.ok("Search DN {0} with {1}: {2} entries, {3} processed", baseContext, searchFilter, numFoundEntries, numProcessedEntries);
-		} catch (LdapException e) {
-			throw new ConnectorIOException("Error searching for changes ("+searchFilter+"): "+e.getMessage(), e);
-		} catch (CursorException e) {
+		} catch (LdapException | CursorException e) {
+			returnConnection(connection);
 			throw new ConnectorIOException("Error searching for changes ("+searchFilter+"): "+e.getMessage(), e);
 		}
 		
@@ -153,6 +152,8 @@ public class ModifyTimestampSyncStrategy<C extends AbstractLdapConfiguration> ex
 		if (handler instanceof SyncTokenResultsHandler) {
 			((SyncTokenResultsHandler)handler).handleResult(finalToken);
 		}
+		
+		returnConnection(connection);
 	}
 
 	private String createSeachFilter(String fromTokenValue, org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
