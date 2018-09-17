@@ -21,6 +21,7 @@ package com.evolveum.polygon.connector.ldap.ad;
  */
 public class AdConstants {
 	
+	public static final String ATTRIBUTE_OBJECT_SID_NAME = "objectSid";
 	public static final String ATTRIBUTE_SAM_ACCOUNT_NAME_NAME = "sAMAccountName";
 	public static final String ATTRIBUTE_CN_NAME = "cn";
 	public static final String ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME = "userAccountControl";

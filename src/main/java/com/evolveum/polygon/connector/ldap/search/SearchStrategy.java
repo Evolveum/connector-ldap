@@ -231,7 +231,7 @@ public abstract class SearchStrategy<C extends AbstractLdapConfiguration> {
 	
 	protected boolean handleResult(LdapNetworkConnection connection, Entry entry) {
 		numberOfEntriesFound++;
-		return handler.handle(schemaTranslator.toIcfObject(connection, objectClass, entry, attributeHandler));
+		return handler.handle(schemaTranslator.toConnIdObject(connection, objectClass, entry, attributeHandler));
 	}
 
 	protected boolean hasSortOption() {

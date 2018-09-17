@@ -27,6 +27,7 @@ import org.apache.directory.api.ldap.model.schema.AttributeType;
 import org.apache.directory.api.ldap.model.schema.SchemaManager;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.common.security.GuardedString;
+import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException;
 import org.identityconnectors.framework.common.objects.AttributeInfoBuilder;
 import org.identityconnectors.framework.common.objects.ConnectorObjectBuilder;
 import org.identityconnectors.framework.common.objects.ObjectClassInfoBuilder;
@@ -72,9 +73,16 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
 		if (getConfiguration().isTweakSchema()) {
 			// Account and groups need samAccountName attribute. But it is not in the declared schema.
 			if (isUserObjectClass(ldapObjectClass.getName()) || isGroupObjectClass(ldapObjectClass.getName())) {
+				
 				AttributeInfoBuilder samAccountNameAttr = new AttributeInfoBuilder(AdConstants.ATTRIBUTE_SAM_ACCOUNT_NAME_NAME);
 				samAccountNameAttr.setType(String.class);
 				ocib.addAttributeInfo(samAccountNameAttr.build());
+				
+				AttributeInfoBuilder objectSidAttr = new AttributeInfoBuilder(AdConstants.ATTRIBUTE_OBJECT_SID_NAME);
+				objectSidAttr.setType(String.class);
+				objectSidAttr.setCreateable(false);
+				objectSidAttr.setUpdateable(false);
+				ocib.addAttributeInfo(objectSidAttr.build());
 			}
 		}
 		
@@ -122,16 +130,75 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
 	}
 	
 	@Override
-	public Value toLdapIdentifierValue(AttributeType ldapAttributeType, String icfAttributeValue) {
-		if (isGuid(ldapAttributeType)) {
-			icfAttributeValue = parseGuidFromDashedNotation(icfAttributeValue);
+	protected Object toConnIdValue(String connIdAttributeName, Value ldapValue, String ldapAttributeName, AttributeType ldapAttributeType) {
+		if (AdConstants.ATTRIBUTE_OBJECT_SID_NAME.equals(ldapAttributeName)) {
+			return sidToString(ldapValue.getBytes());
+		} else {
+			return super.toConnIdValue(connIdAttributeName, ldapValue, ldapAttributeName, ldapAttributeType);
 		}
-		return super.toLdapIdentifierValue(ldapAttributeType, icfAttributeValue);
+	}
+	
+	private String sidToString(byte[] bytes) {
+		if (bytes == null || bytes.length == 0) {
+			return null;
+		}
+		if (bytes.length < 8) {
+			throw new InvalidAttributeValueException("Wrong SID syntax, expected at least 8 bytes, but got "+bytes.length+" bytes");
+		}
+		
+		StringBuilder sb = new StringBuilder("S-1");
+		
+		// Byte 0: revision
+		int revision = bytes[0];
+		if (revision != 1) {
+			throw new InvalidAttributeValueException("Unexpected SID revision: "+revision);
+		}
+		
+		// Byte 1: subAuthorityCount
+		int subAuthorityCount = bytes[1];
+		
+		// Byte 2-7: IdentifierAuthority (SID_IDENTIFIER_AUTHORITY)
+		decodeSidAuthority(sb, bytes, 2);
+		
+		// Bytes 8-...: SubAuthority
+		for (int i = 0; i < subAuthorityCount; i ++) {
+			decodeSidSubauthority(sb, bytes, 8 + 4*i);
+		}
+		
+		String string = sb.toString();
+		LOG.info("SID: {0}", string);
+		return string;
+	}
+
+	private void decodeSidAuthority(StringBuilder sb, byte[] bytes, int startByte) {
+		long value = 0;
+		for (int i = startByte; i < startByte + 6; i++) {
+			value <<= 8;
+			value |= bytes[i] & 0xFF;
+		}
+		sb.append("-").append(value);
+	}
+	
+	private void decodeSidSubauthority(StringBuilder sb, byte[] bytes, int startByte) {
+		long value = 0;
+		for (int i = startByte + 3; i >= startByte; i--) {
+			value <<= 8;
+			value |= bytes[i] & 0xFF;
+		}
+		sb.append("-").append(value);
 	}
 
 	@Override
-	public String toIcfIdentifierValue(Value ldapValue, String ldapAttributeName, AttributeType ldapAttributeType) {
-		String icfIdentifierValue = super.toIcfIdentifierValue(ldapValue, ldapAttributeName, ldapAttributeType);
+	public Value toLdapIdentifierValue(AttributeType ldapAttributeType, String connIdAttributeValue) {
+		if (isGuid(ldapAttributeType)) {
+			connIdAttributeValue = parseGuidFromDashedNotation(connIdAttributeValue);
+		}
+		return super.toLdapIdentifierValue(ldapAttributeType, connIdAttributeValue);
+	}
+
+	@Override
+	public String toConnIdIdentifierValue(Value ldapValue, String ldapAttributeName, AttributeType ldapAttributeType) {
+		String icfIdentifierValue = super.toConnIdIdentifierValue(ldapValue, ldapAttributeName, ldapAttributeType);
 		if (isGuid(ldapAttributeType)) {
 			icfIdentifierValue = formatGuidToDashedNotation(icfIdentifierValue);
 		}
@@ -223,7 +290,7 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
 	
 	public String getGuidAsDashedString(Entry entry) {
 		Attribute guidAttribute = entry.get(AdLdapConfiguration.ATTRIBUTE_OBJECT_GUID_NAME);
-		String hexNotation = super.toIcfIdentifierValue(guidAttribute.get(), AdLdapConfiguration.ATTRIBUTE_OBJECT_GUID_NAME, 
+		String hexNotation = super.toConnIdIdentifierValue(guidAttribute.get(), AdLdapConfiguration.ATTRIBUTE_OBJECT_GUID_NAME, 
 				getGuidAttributeType());
 		return formatGuidToDashedNotation(hexNotation);
 	}

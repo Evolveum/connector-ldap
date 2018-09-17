@@ -196,7 +196,7 @@ public class SunChangelogSyncStrategy<C extends AbstractLdapConfiguration> exten
 							LOG.ok("Changelog entry {0} does not match object class, skipping", targetEntry.getDn());
 							continue;
 						}
-						ConnectorObject targetObject = getSchemaTranslator().toIcfObject(connection, icfObjectClassInfo, targetEntry);
+						ConnectorObject targetObject = getSchemaTranslator().toConnIdObject(connection, icfObjectClassInfo, targetEntry);
 						deltaBuilder.setObject(targetObject);
 						
 					} else if (CHANGE_TYPE_ADD.equals(changeType)) {
@@ -221,7 +221,7 @@ public class SunChangelogSyncStrategy<C extends AbstractLdapConfiguration> exten
 								continue;
 							}
 						}
-						ConnectorObject targetObject = getSchemaTranslator().toIcfObject(connection, icfObjectClassInfo, targetEntry, targetDn);
+						ConnectorObject targetObject = getSchemaTranslator().toConnIdObject(connection, icfObjectClassInfo, targetEntry, targetDn);
 						deltaBuilder.setObject(targetObject);
 						
 					} else if (CHANGE_TYPE_DELETE.equals(changeType)) {
@@ -265,7 +265,7 @@ public class SunChangelogSyncStrategy<C extends AbstractLdapConfiguration> exten
 							LOG.ok("Sending simulated delete delta for {0}", oldDn.getName());
 							handler.handle(deleteDeltaBuilder.build());
 						}
-						ConnectorObject targetObject = getSchemaTranslator().toIcfObject(connection, icfObjectClassInfo, targetEntry);
+						ConnectorObject targetObject = getSchemaTranslator().toConnIdObject(connection, icfObjectClassInfo, targetEntry);
 						deltaBuilder.setObject(targetObject);
 						LOG.ok("ModRdn Obj UID: {0},  changelog UID: {1}", targetObject.getUid(), oldUid);
 						

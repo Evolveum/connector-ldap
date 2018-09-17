@@ -95,7 +95,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 	
 	private SchemaManager schemaManager;
 	private C configuration;
-	private Schema icfSchema = null;
+	private Schema connIdSchema = null;
 	
 	public AbstractSchemaTranslator(SchemaManager schemaManager, C configuration) {
 		super();
@@ -103,8 +103,8 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		this.configuration = configuration;
 	}
 	
-	public Schema getIcfSchema() {
-		return icfSchema;
+	public Schema getConnIdSchema() {
+		return connIdSchema;
 	}
 
 	public SchemaManager getSchemaManager() {
@@ -168,9 +168,9 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 			schemaBuilder.defineOperationOption(OperationOptionInfoBuilder.buildSortKeys(), SearchOp.class);
 		}
 		
-		icfSchema = schemaBuilder.build();
-		LOG.ok("Translated schema {0}", icfSchema);
-		return icfSchema;
+		connIdSchema = schemaBuilder.build();
+		LOG.ok("Translated schema {0}", connIdSchema);
+		return connIdSchema;
 	}
 
 	protected void extendObjectClassDefinition(ObjectClassInfoBuilder ocib,
@@ -194,7 +194,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 	 * Make sure that we have icfSchema  
 	 */
 	public void prepareIcfSchema(ConnectionManager<C> connectionManager) throws InvalidConnectionException {
-		if (icfSchema == null) {
+		if (connIdSchema == null) {
 			translateSchema(connectionManager);
 		}
 	}
@@ -706,11 +706,11 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		return toLdapValue(ldapAttributeType, icfAttributeValues.get(0));
 	}
 	
-	private Object toIcfValue(String icfAttributeName, Value ldapValue, String ldapAttributeName, AttributeType ldapAttributeType) {
+	protected Object toConnIdValue(String connIdAttributeName, Value ldapValue, String ldapAttributeName, AttributeType ldapAttributeType) {
 		if (ldapValue == null) {
 			return null;
 		}
-		if (OperationalAttributeInfos.PASSWORD.is(icfAttributeName)) {
+		if (OperationalAttributeInfos.PASSWORD.is(connIdAttributeName)) {
 			return new GuardedString(ldapValue.getValue().toCharArray());
 		} else {
 			String syntaxOid = null;
@@ -944,7 +944,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 	/**
 	 * Used to format __UID__ and __NAME__.
 	 */
-	public String toIcfIdentifierValue(Value ldapValue, String ldapAttributeName, AttributeType ldapAttributeType) {
+	public String toConnIdIdentifierValue(Value ldapValue, String ldapAttributeName, AttributeType ldapAttributeType) {
 		if (ldapValue == null) {
 			return null;
 		}
@@ -979,7 +979,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 	}
 	
 	public ObjectClassInfo findObjectClassInfo(ObjectClass icfObjectClass) {
-		return icfSchema.findObjectClassInfo(icfObjectClass.getObjectClassValue());
+		return connIdSchema.findObjectClassInfo(icfObjectClass.getObjectClassValue());
 	}
 	
     /**
@@ -998,43 +998,43 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
         }
     }
 
-	public ConnectorObject toIcfObject(LdapNetworkConnection connection, ObjectClass icfObjectClass, Entry entry, AttributeHandler attributeHandler) {
+	public ConnectorObject toConnIdObject(LdapNetworkConnection connection, ObjectClass icfObjectClass, Entry entry, AttributeHandler attributeHandler) {
 		ObjectClassInfo icfObjectClassInfo = findObjectClassInfo(icfObjectClass);
 		if (icfObjectClassInfo == null) {
 			throw new InvalidAttributeValueException("No definition for object class "+icfObjectClass);
 		}
-		return toIcfObject(connection, icfObjectClassInfo, entry, null, attributeHandler);
+		return toConnIdObject(connection, icfObjectClassInfo, entry, null, attributeHandler);
 	}
 
-	public ConnectorObject toIcfObject(LdapNetworkConnection connection, ObjectClassInfo icfStructuralObjectClassInfo, Entry entry) {
-		return toIcfObject(connection, icfStructuralObjectClassInfo, entry, null, null);
+	public ConnectorObject toConnIdObject(LdapNetworkConnection connection, ObjectClassInfo icfStructuralObjectClassInfo, Entry entry) {
+		return toConnIdObject(connection, icfStructuralObjectClassInfo, entry, null, null);
 	}
 	
-	public ConnectorObject toIcfObject(LdapNetworkConnection connection, ObjectClassInfo icfStructuralObjectClassInfo, Entry entry, String dn) {
-		return toIcfObject(connection, icfStructuralObjectClassInfo, entry, dn, null);
+	public ConnectorObject toConnIdObject(LdapNetworkConnection connection, ObjectClassInfo icfStructuralObjectClassInfo, Entry entry, String dn) {
+		return toConnIdObject(connection, icfStructuralObjectClassInfo, entry, dn, null);
 	}
 	
-	public ConnectorObject toIcfObject(LdapNetworkConnection connection, ObjectClassInfo icfStructuralObjectClassInfo, Entry entry, String dn, AttributeHandler attributeHandler) {
+	public ConnectorObject toConnIdObject(LdapNetworkConnection connection, ObjectClassInfo connIdStructuralObjectClassInfo, Entry entry, String dn, AttributeHandler attributeHandler) {
 		LdapObjectClasses ldapObjectClasses = processObjectClasses(entry);
-		if (icfStructuralObjectClassInfo == null) {
-			icfStructuralObjectClassInfo = icfSchema.findObjectClassInfo(ldapObjectClasses.getLdapLowestStructuralObjectClass().getName());
+		if (connIdStructuralObjectClassInfo == null) {
+			connIdStructuralObjectClassInfo = connIdSchema.findObjectClassInfo(ldapObjectClasses.getLdapLowestStructuralObjectClass().getName());
 		}
 		ConnectorObjectBuilder cob = new ConnectorObjectBuilder();
 		if (dn == null) {
 			dn = getDn(entry);
 		}
 		cob.setName(dn);
-		cob.setObjectClass(new ObjectClass(icfStructuralObjectClassInfo.getType()));
+		cob.setObjectClass(new ObjectClass(connIdStructuralObjectClassInfo.getType()));
 		
-		List<ObjectClassInfo> icfAuxiliaryObjectClassInfos = new ArrayList<>(ldapObjectClasses.getLdapAuxiliaryObjectClasses().size());
+		List<ObjectClassInfo> connIdAuxiliaryObjectClassInfos = new ArrayList<>(ldapObjectClasses.getLdapAuxiliaryObjectClasses().size());
 		if (!ldapObjectClasses.getLdapAuxiliaryObjectClasses().isEmpty()) {
 			AttributeBuilder auxAttrBuilder = new AttributeBuilder();
 			auxAttrBuilder.setName(PredefinedAttributes.AUXILIARY_OBJECT_CLASS_NAME);
 			for (org.apache.directory.api.ldap.model.schema.ObjectClass ldapAuxiliaryObjectClass: ldapObjectClasses.getLdapAuxiliaryObjectClasses()) {
 				auxAttrBuilder.addValue(ldapAuxiliaryObjectClass.getName());
-				ObjectClassInfo objectClassInfo = icfSchema.findObjectClassInfo(ldapAuxiliaryObjectClass.getName());
+				ObjectClassInfo objectClassInfo = connIdSchema.findObjectClassInfo(ldapAuxiliaryObjectClass.getName());
 //				LOG.ok("ConnId object class info for auxiliary object class {0}:\n{1}", ldapAuxiliaryObjectClass.getName(), objectClassInfo);
-				icfAuxiliaryObjectClassInfos.add(objectClassInfo);
+				connIdAuxiliaryObjectClassInfos.add(objectClassInfo);
 			}
 			cob.addAttribute(auxAttrBuilder.build());
 		}
@@ -1052,7 +1052,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 				throw new IllegalArgumentException("LDAP entry "+dn+" has more than one value for UID attribute "+uidAttributeName);
 			}
 			AttributeType attributeType = schemaManager.getAttributeType(uidAttribute.getId());
-			uid = toIcfIdentifierValue(uidAttribute.get(), uidAttribute.getId(), attributeType);
+			uid = toConnIdIdentifierValue(uidAttribute.get(), uidAttribute.getId(), attributeType);
 		}
 		cob.setUid(uid);
 		
@@ -1078,15 +1078,15 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 			if (uidAttributeName.equals(ldapAttributeNameFromSchema)) {
 				continue;
 			}
-			Attribute icfAttribute = toIcfAttribute(connection, entry, ldapAttribute, attributeHandler);
+			Attribute connIdAttribute = toConnIdAttribute(connection, entry, ldapAttribute, attributeHandler);
 //			LOG.ok("ConnId attribute for {0}: {1}", ldapAttrName, icfAttribute);
-			if (icfAttribute == null) {
+			if (connIdAttribute == null) {
 				continue;
 			}
-			AttributeInfo attributeInfo = SchemaUtil.findAttributeInfo(icfStructuralObjectClassInfo, icfAttribute);
+			AttributeInfo attributeInfo = SchemaUtil.findAttributeInfo(connIdStructuralObjectClassInfo, connIdAttribute);
 			if (attributeInfo == null) {
-				for (ObjectClassInfo icfAuxiliaryObjectClassInfo: icfAuxiliaryObjectClassInfos) {
-					attributeInfo = SchemaUtil.findAttributeInfo(icfAuxiliaryObjectClassInfo, icfAttribute);
+				for (ObjectClassInfo icfAuxiliaryObjectClassInfo: connIdAuxiliaryObjectClassInfos) {
+					attributeInfo = SchemaUtil.findAttributeInfo(icfAuxiliaryObjectClassInfo, connIdAttribute);
 //					LOG.ok("Looking for ConnId attribute {0} info in auxiliary class {1}: {2}", icfAttribute, icfAuxiliaryObjectClassInfo==null?null:icfAuxiliaryObjectClassInfo.getType(), attributeInfo);
 					if (attributeInfo != null) {
 						break;
@@ -1097,14 +1097,14 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 //			LOG.ok("ConnId attribute info for {0} ({1}): {2}", icfAttribute.getName(), ldapAttrName, attributeInfo);
 			if (attributeInfo != null) {
 				// Avoid sending unknown attributes (such as createtimestamp)
-				cob.addAttribute(icfAttribute);
+				cob.addAttribute(connIdAttribute);
 			} else {
-				LOG.ok("ConnId attribute {0} is not part of ConnId schema, skipping", icfAttribute.getName());
+				LOG.ok("ConnId attribute {0} is not part of ConnId schema, skipping", connIdAttribute.getName());
 			}
 			
 		}
 		
-		extendConnectorObject(cob, entry, icfStructuralObjectClassInfo.getType());
+		extendConnectorObject(cob, entry, connIdStructuralObjectClassInfo.getType());
 		
 		return cob.build();
 	}
@@ -1319,7 +1319,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
         return resSb.toString();
     }
 
-	private Attribute toIcfAttribute(LdapNetworkConnection connection, Entry entry, org.apache.directory.api.ldap.model.entry.Attribute ldapAttribute, AttributeHandler attributeHandler) {
+	private Attribute toConnIdAttribute(LdapNetworkConnection connection, Entry entry, org.apache.directory.api.ldap.model.entry.Attribute ldapAttribute, AttributeHandler attributeHandler) {
 		AttributeBuilder ab = new AttributeBuilder();
 		String ldapAttributeName = getLdapAttributeName(ldapAttribute);
 		AttributeType ldapAttributeType = schemaManager.getAttributeType(ldapAttributeName);
@@ -1357,7 +1357,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		boolean hasValidValue = false;
 		while (iterator.hasNext()) {
 			Value ldapValue = iterator.next();
-			Object icfValue = toIcfValue(icfAttributeName, ldapValue, ldapAttributeNameFromSchema, ldapAttributeType);
+			Object icfValue = toConnIdValue(icfAttributeName, ldapValue, ldapAttributeNameFromSchema, ldapAttributeType);
 			if (icfValue != null) {
 				if (!incompleteRead) {
 					ab.addValue(icfValue);
