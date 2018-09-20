@@ -15,6 +15,9 @@
  */
 package com.evolveum.polygon.connector.ldap.ad;
 
+import java.util.Arrays;
+import java.util.Collection;
+
 import org.identityconnectors.framework.common.exceptions.AlreadyExistsException;
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
 import org.identityconnectors.framework.common.exceptions.ConnectorSecurityException;
@@ -22,6 +25,7 @@ import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueE
 import org.identityconnectors.framework.common.exceptions.InvalidPasswordException;
 import org.identityconnectors.framework.common.exceptions.PermissionDeniedException;
 import org.identityconnectors.framework.common.exceptions.UnknownUidException;
+import org.identityconnectors.framework.common.objects.OperationalAttributes;
 
 /**
  * Based on http://www.ldapwiki.com/wiki/WILL_NOT_PERFORM
@@ -45,9 +49,12 @@ public enum WillNotPerform {
 	MEMBER_IN_GROUP(0x528, "Either the specified user account is already a member of the specified group, or the specified group cannot be deleted because it contains a member", ConnectorException.class),
 	MEMBER_NOT_IN_GROUP(0x529, "The specified user account is not a member of the specified group account", ConnectorException.class),
 	LAST_ADMIN(0x52a, "The last remaining administration account cannot be disabled or deleted", PermissionDeniedException.class),
-	WRONG_PASSWORD(0x52b, "Unable to update the password. The value provided as the current password is incorrect", InvalidPasswordException.class),
-	ILL_FORMED_PASSWORD(0x52c, "Unable to update the password. The value provided for the new password contains values that are not allowed in passwords", InvalidPasswordException.class),
-	PASSWORD_RESTRICTION(0x52d, "Unable to update the password. The value provided for the new password does not meet the length, complexity, or history requirement of the domain", InvalidPasswordException.class),
+	WRONG_PASSWORD(0x52b, "Unable to update the password. The value provided as the current password is incorrect",
+			InvalidAttributeValueException.class, OperationalAttributes.PASSWORD_NAME),
+	ILL_FORMED_PASSWORD(0x52c, "Unable to update the password. The value provided for the new password contains values that are not allowed in passwords",
+			InvalidAttributeValueException.class, OperationalAttributes.PASSWORD_NAME),
+	PASSWORD_RESTRICTION(0x52d, "Unable to update the password. The value provided for the new password does not meet the length, complexity, or history requirement of the domain",
+			InvalidAttributeValueException.class, OperationalAttributes.PASSWORD_NAME),
 	LOGON_FAILURE(0x52e, "Logon failure unknown user name or bad password", PermissionDeniedException.class),
 	ACCOUNT_RESTRICTION(0x52f, "Logon failure user account restriction. Possible reasons are blank passwords not allowed, logon hour restrictions, or a policy restriction has been enforced", PermissionDeniedException.class),
 	INVALID_LOGON_HOURS(0x530, "Logon failure account logon time restriction violation", PermissionDeniedException.class),
@@ -65,11 +72,15 @@ public enum WillNotPerform {
 	private int code;
 	private String message;
 	private Class<? extends RuntimeException> exceptionClass;
+	private Collection<String> affectedAttributes;
 	
-	private WillNotPerform(int code, String message, Class<? extends RuntimeException> exceptionClass) {
+	private WillNotPerform(int code, String message, Class<? extends RuntimeException> exceptionClass, String... affectedAttributes) {
 		this.code = code;
 		this.message = message;
 		this.exceptionClass = exceptionClass;
+		if (affectedAttributes != null && affectedAttributes.length != 0) {
+			this.affectedAttributes = Arrays.asList(affectedAttributes);
+		}
 	}
 	
 	public int getCode() {
@@ -82,6 +93,10 @@ public enum WillNotPerform {
 
 	public Class<? extends RuntimeException> getExceptionClass() {
 		return exceptionClass;
+	}
+	
+	public Collection<String> getAffectedAttributes() {
+		return affectedAttributes;
 	}
 
 	public static WillNotPerform parseDiagnosticMessage(String diagnosticMessage) {

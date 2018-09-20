@@ -204,7 +204,7 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
 	}
 
 	private boolean isGuid(AttributeType ldapAttributeType) {
-		return ldapAttributeType.getName().equalsIgnoreCase(AdLdapConfiguration.ATTRIBUTE_OBJECT_GUID_NAME);
+		return ldapAttributeType.getName().equalsIgnoreCase(AdConstants.ATTRIBUTE_OBJECT_GUID_NAME);
 	}
 
 	@Override
@@ -287,15 +287,15 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
 	
 	
 	public String getGuidAsDashedString(Entry entry) {
-		Attribute guidAttribute = entry.get(AdLdapConfiguration.ATTRIBUTE_OBJECT_GUID_NAME);
-		String hexNotation = super.toConnIdIdentifierValue(guidAttribute.get(), AdLdapConfiguration.ATTRIBUTE_OBJECT_GUID_NAME, 
+		Attribute guidAttribute = entry.get(AdConstants.ATTRIBUTE_OBJECT_GUID_NAME);
+		String hexNotation = super.toConnIdIdentifierValue(guidAttribute.get(), AdConstants.ATTRIBUTE_OBJECT_GUID_NAME, 
 				getGuidAttributeType());
 		return formatGuidToDashedNotation(hexNotation);
 	}
 	
 	private AttributeType getGuidAttributeType() {
 		if (guidAttributeType == null) {
-			guidAttributeType = getSchemaManager().getAttributeType(AdLdapConfiguration.ATTRIBUTE_OBJECT_GUID_NAME);
+			guidAttributeType = getSchemaManager().getAttributeType(AdConstants.ATTRIBUTE_OBJECT_GUID_NAME);
 		}
 		return guidAttributeType;
 	}

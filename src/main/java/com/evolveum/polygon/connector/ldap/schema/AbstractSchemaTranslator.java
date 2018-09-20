@@ -225,7 +225,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
         uidAib.setType(String.class);
 
 		if (uidAttributeLdapType != null) {
-			uidAib.setSubtype(toIcfSubtype(String.class, uidAttributeLdapType, Uid.NAME));
+			uidAib.setSubtype(toConnIdSubtype(String.class, uidAttributeLdapType, Uid.NAME));
 			setAttributeMultiplicityAndPermissions(uidAttributeLdapType, Uid.NAME, uidAib);
 		} else {
 			uidAib.setCreateable(false);
@@ -270,9 +270,9 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 			
 			if (attributeType != null) {
 				LdapSyntax ldapSyntax = getSyntax(attributeType);
-				Class<?> icfType = toIcfType(ldapSyntax, operationalAttributeLdapName);
+				Class<?> icfType = toConnIdType(ldapSyntax, operationalAttributeLdapName);
 				aib.setType(icfType);
-				aib.setSubtype(toIcfSubtype(icfType, attributeType, operationalAttributeLdapName));
+				aib.setSubtype(toConnIdSubtype(icfType, attributeType, operationalAttributeLdapName));
 				LOG.ok("Translating {0} -> {1} ({2} -> {3}) (operational)", operationalAttributeLdapName, operationalAttributeLdapName, 
 						ldapSyntax==null?null:ldapSyntax.getOid(), icfType);
 				setAttributeMultiplicityAndPermissions(attributeType, operationalAttributeLdapName, aib);
@@ -320,7 +320,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 				// This is handled separately as __UID__ attribute
 				continue;
 			}
-			String icfAttributeName = toIcfAttributeName(ldapAttribute.getName());
+			String icfAttributeName = toConnIdAttributeName(ldapAttribute.getName());
 			if (containsAttribute(attrInfoList, icfAttributeName)) {
 				LOG.ok("Skipping translation of attribute {0} because it is already translated", ldapAttribute.getName());
 				continue;
@@ -333,9 +333,9 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 				LOG.warn("No syntax for attribute: {0}", ldapAttribute.getName());
 			}
 			
-			Class<?> icfType = toIcfType(ldapSyntax, icfAttributeName);
+			Class<?> icfType = toConnIdType(ldapSyntax, icfAttributeName);
 			aib.setType(icfType);
-			aib.setSubtype(toIcfSubtype(icfType, ldapAttribute, icfAttributeName));
+			aib.setSubtype(toConnIdSubtype(icfType, ldapAttribute, icfAttributeName));
 			aib.setNativeName(ldapAttribute.getName());
 			if (isOperational(ldapAttribute)) {
 				aib.setReturnedByDefault(false);
@@ -387,7 +387,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 	    return attrInfoList.containsKey( icfAttributeName );
 	}
 
-	private String toIcfAttributeName(String ldapAttributeName) {
+	private String toConnIdAttributeName(String ldapAttributeName) {
 		if (ldapAttributeName.equalsIgnoreCase(configuration.getPasswordAttribute())) {
 			return OperationalAttributeInfos.PASSWORD.getName();
 		}
@@ -446,7 +446,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		return mutableLdapAttributeType;
 	}
 
-	public Class<?> toIcfType(LdapSyntax syntax, String icfAttributeName) {
+	public Class<?> toConnIdType(LdapSyntax syntax, String icfAttributeName) {
 		if (OperationalAttributeInfos.PASSWORD.is(icfAttributeName)) {
 			return GuardedString.class;
 		}
@@ -485,7 +485,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
     	}
 	}
 	
-	public String toIcfSubtype(Class<?> icfType, AttributeType ldapAttribute, String icfAttributeName) {
+	public String toConnIdSubtype(Class<?> icfType, AttributeType ldapAttribute, String icfAttributeName) {
 		if (OperationalAttributeInfos.PASSWORD.is(icfAttributeName)) {
 			return null;
 		}
@@ -1338,7 +1338,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		} else {
 			ldapAttributeNameFromSchema = ldapAttributeType.getName();
 		}
-		String icfAttributeName = toIcfAttributeName(ldapAttributeNameFromSchema);
+		String icfAttributeName = toConnIdAttributeName(ldapAttributeNameFromSchema);
 		ab.setName(icfAttributeName);
 		if (attributeHandler != null) {
 			attributeHandler.handle(connection, entry, ldapAttribute, ab);

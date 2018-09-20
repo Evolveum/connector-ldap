@@ -441,7 +441,14 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 			} catch (IOException e1) {
 				LOG.error("Error closing conection (handling error during creation of a new connection): {1}", e.getMessage(), e);
 			}
-			throw LdapUtil.processLdapException("Unable to connect to LDAP server "+configuration.getHost()+":"+configuration.getPort(), e);
+			RuntimeException processedException = LdapUtil.processLdapException("Unable to connect to LDAP server "+configuration.getHost()+":"+configuration.getPort(), e);
+			// This is always connection failed, even if other error is indicated.
+			// E.g. if this is a wrong password, we do nor really want to indicate wrong password.
+			// If we did and if this happen during password change operation, then midPoint code could
+			// think that the new password does not satisfy password policies. Which would be wrong.
+			// Therefore just use the message from the processed exception. But always clearly indicate
+			// that this is a connection problem.
+			throw new ConnectionFailedException(processedException.getMessage(), e);
 		}
 		
 		return connection;
@@ -473,9 +480,16 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 		try {
 			bindResponse = connection.bind(bindRequest);
 		} catch (LdapException e) {
-			throw LdapUtil.processLdapException("Unable to bind to LDAP server "
+			RuntimeException processedException = LdapUtil.processLdapException("Unable to bind to LDAP server "
 					+ connection.getConfig().getLdapHost() + ":" + connection.getConfig().getLdapPort() 
 					+ " as " + bindDn, e);
+			// This is always connection failed, even if other error is indicated.
+			// E.g. if this is a wrong password, we do nor really want to indicate wrong password.
+			// If we did and if this happen during password change operation, then midPoint code could
+			// think that the new password does not satisfy password policies. Which would be wrong.
+			// Therefore just use the message from the processed exception. But always clearly indicate
+			// that this is a connection problem.
+			throw new ConnectionFailedException(processedException.getMessage(), e);
 		}
 		LdapResult ldapResult = bindResponse.getLdapResult();
 		if (ldapResult.getResultCode() != ResultCodeEnum.SUCCESS) {
@@ -484,7 +498,7 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 					+ ": " + LdapUtil.sanitizeString(ldapResult.getResultCode().getMessage()) + ": " 
 					+ LdapUtil.sanitizeString(ldapResult.getDiagnosticMessage() )
 					+ " (" + ldapResult.getResultCode().getResultCode() + ")";
-			throw new ConfigurationException(msg);
+			throw new ConnectionFailedException(msg);
 		}
 		LOG.info("Bound to {0}:{1} as {2}: {3} ({4})", 
 				connection.getConfig().getLdapHost(), connection.getConfig().getLdapPort(), 

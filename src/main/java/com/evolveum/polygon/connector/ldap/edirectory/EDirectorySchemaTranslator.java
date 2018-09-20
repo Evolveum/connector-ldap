@@ -125,7 +125,7 @@ public class EDirectorySchemaTranslator extends AbstractSchemaTranslator<EDirect
 	// TODO: OID_NOVELL_SYNTAX_NDS_TIMESTAMP
 	
 	@Override
-	public Class<?> toIcfType(LdapSyntax syntax, String icfAttributeName) {
+	public Class<?> toConnIdType(LdapSyntax syntax, String icfAttributeName) {
 		if (syntax != null && (EDirectoryConstants.OID_NOVELL_SYNTAX_CASE_IGNORE_LIST.equals(syntax.getOid())
 				|| EDirectoryConstants.OID_NOVELL_SYNTAX_TAGGED_STRING.equals(syntax.getOid())
 				|| EDirectoryConstants.OID_NOVELL_SYNTAX_TAGGED_NAME_AND_STRING.equals(syntax.getOid())
@@ -141,7 +141,7 @@ public class EDirectorySchemaTranslator extends AbstractSchemaTranslator<EDirect
 		} else if (syntax != null && EDirectoryConstants.OID_NOVELL_SYNTAX_NETADDRESS.equals(syntax.getOid())) {
 			return byte[].class;
 		}
-		return super.toIcfType(syntax, icfAttributeName);
+		return super.toConnIdType(syntax, icfAttributeName);
 	}
 	
 	@Override

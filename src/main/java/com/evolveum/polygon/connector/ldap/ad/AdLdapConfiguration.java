@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2017 Evolveum
+ * Copyright (c) 2015-2018 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,8 +33,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 	
 	private static final Log LOG = Log.getLog(AdLdapConfiguration.class);
 
-	public static final String ATTRIBUTE_OBJECT_GUID_NAME = "objectGUID";
-	public static final String ATTRIBUTE_UNICODE_PWD_NAME = "unicodePwd";
+	
 	
 	/**
 	 * Execution of PowerShell using a single WinRM (WS-MAN) command.
@@ -367,10 +366,10 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 	@Override
 	public void recompute() {
 		if (getPasswordAttribute() == null) {
-			setPasswordAttribute(ATTRIBUTE_UNICODE_PWD_NAME);
+			setPasswordAttribute(AdConstants.ATTRIBUTE_UNICODE_PWD_NAME);
 		}
 		if (getUidAttribute() == null) {
-			setUidAttribute(ATTRIBUTE_OBJECT_GUID_NAME);
+			setUidAttribute(AdConstants.ATTRIBUTE_OBJECT_GUID_NAME);
 		}
 		if (getSynchronizationStrategy() == null) {
     		setSynchronizationStrategy(SYNCHRONIZATION_STRATEGY_AD_DIR_SYNC);

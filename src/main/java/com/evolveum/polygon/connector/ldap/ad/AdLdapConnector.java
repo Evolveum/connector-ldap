@@ -19,6 +19,8 @@ package com.evolveum.polygon.connector.ldap.ad;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -34,6 +36,7 @@ import org.apache.directory.api.ldap.model.exception.LdapException;
 import org.apache.directory.api.ldap.model.exception.LdapOperationException;
 import org.apache.directory.api.ldap.model.exception.LdapOtherException;
 import org.apache.directory.api.ldap.model.message.LdapResult;
+import org.apache.directory.api.ldap.model.message.ModifyResponse;
 import org.apache.directory.api.ldap.model.message.ResultCodeEnum;
 import org.apache.directory.api.ldap.model.message.SearchScope;
 import org.apache.directory.api.ldap.model.name.Dn;
@@ -68,6 +71,7 @@ import org.identityconnectors.framework.common.exceptions.ConnectionFailedExcept
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
 import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
 import org.identityconnectors.framework.common.exceptions.ConnectorSecurityException;
+import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException;
 import org.identityconnectors.framework.common.exceptions.UnknownUidException;
 import org.identityconnectors.framework.common.objects.Attribute;
 import org.identityconnectors.framework.common.objects.AttributeBuilder;
@@ -472,6 +476,20 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 		}
 		return false;
 	}
+	
+	@Override
+	protected RuntimeException processModifyResult(Dn dn, List<Modification> modifications, ModifyResponse modifyResponse) {
+		ResultCodeEnum resultCode = modifyResponse.getLdapResult().getResultCode();
+		if (ResultCodeEnum.CONSTRAINT_VIOLATION.equals(resultCode)) {
+			if (modifyResponse.getLdapResult().getDiagnosticMessage().contains(getConfiguration().getPasswordAttribute())) {
+				// This is in fact password policy error, e.g. attempt to set the same password as current password
+				InvalidAttributeValueException e = new InvalidAttributeValueException("Error modifying LDAP entry "+dn+": "+LdapUtil.formatLdapMessage(modifyResponse.getLdapResult()));
+				e.setAffectedAttributeNames(Collections.singleton(OperationalAttributes.PASSWORD_NAME));
+				throw e;
+			}
+		}
+		return super.processModifyResult(dn, modifications, modifyResponse);
+	}
 
 	@Override
 	protected void patchSchemaManager(SchemaManager schemaManager) {
@@ -584,6 +602,9 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 					String exceptionMessage = LdapUtil.sanitizeString(ldapResult.getDiagnosticMessage()) + ": " + willNotPerform.name() + ": " + willNotPerform.getMessage();
 					RuntimeException exception = exceptionConstructor.newInstance(exceptionMessage);
 					LdapUtil.logOperationError(connectorMessage, ldapResult, exceptionMessage);
+					if (exception instanceof InvalidAttributeValueException) {
+						((InvalidAttributeValueException)exception).setAffectedAttributeNames(willNotPerform.getAffectedAttributes());
+					}
 					throw exception;
 				} catch (NoSuchMethodException | SecurityException | InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
 					LOG.error("Error during LDAP error handling: {0}: {1}", e.getClass(), e.getMessage(), e);
