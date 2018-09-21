@@ -409,7 +409,13 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 			} catch (IOException e1) {
 				LOG.error("Error closing conection (error handling of a bind of a new connection): {1}", e.getMessage(), e);
 			}
-			throw e;
+			// This is always connection failed, even if other error is indicated.
+			// E.g. if this is a wrong password, we do nor really want to indicate wrong password.
+			// If we did and if this happen during password change operation, then midPoint code could
+			// think that the new password does not satisfy password policies. Which would be wrong.
+			// Therefore just use the message from the processed exception. But always clearly indicate
+			// that this is a connection problem.
+			throw new ConnectionFailedException(e.getMessage(), e);
 		}
 		server.setConnection(connection);
     }
@@ -480,25 +486,15 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 		try {
 			bindResponse = connection.bind(bindRequest);
 		} catch (LdapException e) {
-			RuntimeException processedException = LdapUtil.processLdapException("Unable to bind to LDAP server "
+			throw LdapUtil.processLdapException("Unable to bind to LDAP server "
 					+ connection.getConfig().getLdapHost() + ":" + connection.getConfig().getLdapPort() 
 					+ " as " + bindDn, e);
-			// This is always connection failed, even if other error is indicated.
-			// E.g. if this is a wrong password, we do nor really want to indicate wrong password.
-			// If we did and if this happen during password change operation, then midPoint code could
-			// think that the new password does not satisfy password policies. Which would be wrong.
-			// Therefore just use the message from the processed exception. But always clearly indicate
-			// that this is a connection problem.
-			throw new ConnectionFailedException(processedException.getMessage(), e);
 		}
 		LdapResult ldapResult = bindResponse.getLdapResult();
 		if (ldapResult.getResultCode() != ResultCodeEnum.SUCCESS) {
-			String msg = "Unable to bind to LDAP server " + connection.getConfig().getLdapHost() 
-					+ ":" + connection.getConfig().getLdapPort() + " as " + bindDn
-					+ ": " + LdapUtil.sanitizeString(ldapResult.getResultCode().getMessage()) + ": " 
-					+ LdapUtil.sanitizeString(ldapResult.getDiagnosticMessage() )
-					+ " (" + ldapResult.getResultCode().getResultCode() + ")";
-			throw new ConnectionFailedException(msg);
+			throw LdapUtil.processLdapResult("Unable to bind to LDAP server "
+					+ connection.getConfig().getLdapHost() + ":" + connection.getConfig().getLdapPort() 
+					+ " as " + bindDn, ldapResult);
 		}
 		LOG.info("Bound to {0}:{1} as {2}: {3} ({4})", 
 				connection.getConfig().getLdapHost(), connection.getConfig().getLdapPort(), 
@@ -562,8 +558,15 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 			try {
 				connection.close();
 			} catch (IOException e1) {
-				LOG.error("Error closing conection (error handling of a bind of a new connection): {1}", e.getMessage(), e);
+				LOG.error("Error closing conection (error handling of a bind of a new connection): {1}", e1.getMessage(), e1);
 			}
+			// This is a special runAs situation. We really want to throw the real error here. 
+			// If we would throw ConnectionFailedException here, then midPoint would consider that to be a network error.
+			// But here we know that this is no ordinary network error. It is an authentication error.
+			//
+			// This may be some kind of a gray zone here. But we cannot throw just generic ConnectionFailedException
+			// here. In that case midPoint would think that this is a common communication error and it would retry.
+			// We do not wan to retry in case that user has supplied wrong password.
 			throw e;
 		}
 		return connection;
