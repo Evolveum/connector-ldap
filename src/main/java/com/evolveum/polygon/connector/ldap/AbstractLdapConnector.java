@@ -470,31 +470,31 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 	}
 
 	@Override
-	public void executeQuery(ObjectClass objectClass, Filter icfFilter, ResultsHandler handler, OperationOptions options) {
+	public void executeQuery(ObjectClass objectClass, Filter connIdFilter, ResultsHandler handler, OperationOptions options) {
 		prepareConnIdSchema();
 		org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass = getSchemaTranslator().toLdapObjectClass(objectClass);
 		
 		SearchStrategy<C> searchStrategy;
-		if (isEqualsFilter(icfFilter, Name.NAME)) {
+		if (isEqualsFilter(connIdFilter, Name.NAME)) {
 			// Search by __NAME__, which means DN. This translated to a base search.
-			searchStrategy = searchByDn(schemaTranslator.toDn(((EqualsFilter)icfFilter).getAttribute()),
+			searchStrategy = searchByDn(schemaTranslator.toDn(((EqualsFilter)connIdFilter).getAttribute()),
 					objectClass, ldapObjectClass, handler, options);
 			
-		} else if (isEqualsFilter(icfFilter, Uid.NAME)) {
+		} else if (isEqualsFilter(connIdFilter, Uid.NAME)) {
 			// Search by __UID__. Special case for performance.
-			searchStrategy = searchByUid((Uid)((EqualsFilter)icfFilter).getAttribute(),
+			searchStrategy = searchByUid((Uid)((EqualsFilter)connIdFilter).getAttribute(),
 					objectClass, ldapObjectClass, handler, options);
 				
-		} else if (isSecondaryIdentifierOrFilter(icfFilter)) {
+		} else if (isSecondaryIdentifierOrFilter(connIdFilter)) {
 			// Very special case. Search by DN or other secondary identifier value. It is used by IDMs to get object by 
 			// This is not supported by LDAP. But it can be quite common. Therefore we want to support it as a special
 			// case by executing two searches.
 			
-			searchStrategy = searchBySecondaryIdenfiers(icfFilter, objectClass, ldapObjectClass, handler, options);
+			searchStrategy = searchBySecondaryIdenfiers(connIdFilter, objectClass, ldapObjectClass, handler, options);
 			
 		} else {
 
-			searchStrategy = searchUsual(icfFilter, objectClass, ldapObjectClass, handler, options);
+			searchStrategy = searchUsual(connIdFilter, objectClass, ldapObjectClass, handler, options);
 			
 		}
 		

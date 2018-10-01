@@ -407,18 +407,17 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 	 * Throws exception if the attribute is illegal.
 	 * Return null if the attribute is legal, but we do not have any definition for it.
 	 */
-	public AttributeType toLdapAttribute(org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
-			String icfAttributeName) {
-		if (Name.NAME.equals(icfAttributeName)) {
+	public AttributeType toLdapAttribute(org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass, String connIdAttributeName) {
+		if (Name.NAME.equals(connIdAttributeName)) {
 			return null;
 		}
 		String ldapAttributeName;
-		if (Uid.NAME.equals(icfAttributeName)) {
+		if (Uid.NAME.equals(connIdAttributeName)) {
 			ldapAttributeName = configuration.getUidAttribute();
-		} else if (OperationalAttributeInfos.PASSWORD.is(icfAttributeName)) {
+		} else if (OperationalAttributeInfos.PASSWORD.is(connIdAttributeName)) {
 			ldapAttributeName = configuration.getPasswordAttribute();
 		} else {
-			ldapAttributeName = icfAttributeName;
+			ldapAttributeName = connIdAttributeName;
 		}
 		try {
 			AttributeType attributeType = schemaManager.lookupAttributeTypeRegistry(ldapAttributeName);
@@ -434,7 +433,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 				attributeType.setNames(ldapAttributeName);
 				return attributeType;
 			} else {
-				throw new IllegalArgumentException("Unknown LDAP attribute "+ldapAttributeName+" (translated from ICF attribute "+icfAttributeName+")", e);
+				throw new IllegalArgumentException("Unknown LDAP attribute "+ldapAttributeName+" (translated from ICF attribute "+connIdAttributeName+")", e);
 			}
 		}
 	}
@@ -563,44 +562,44 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 	}
 	
 	@SuppressWarnings({ "unchecked", "rawtypes" })
-	protected Value wrapInLdapValueClass(AttributeType ldapAttributeType, Object icfAttributeValue) {
+	protected Value wrapInLdapValueClass(AttributeType ldapAttributeType, Object connIdAttributeValue) {
 		String syntaxOid = ldapAttributeType.getSyntaxOid();
 		if (SchemaConstants.GENERALIZED_TIME_SYNTAX.equals(syntaxOid)) {
-			if (icfAttributeValue instanceof Long) {
+			if (connIdAttributeValue instanceof Long) {
 				try {
-					return new Value(ldapAttributeType, LdapUtil.toGeneralizedTime((Long)icfAttributeValue, acceptsFractionalGeneralizedTime()));
+					return new Value(ldapAttributeType, LdapUtil.toGeneralizedTime((Long)connIdAttributeValue, acceptsFractionalGeneralizedTime()));
 				} catch (LdapInvalidAttributeValueException e) {
 					throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
 						+"; attributeType="+ldapAttributeType, e);
 				}
-			} else if (icfAttributeValue instanceof ZonedDateTime) {
+			} else if (connIdAttributeValue instanceof ZonedDateTime) {
 				try {
-					return new Value(ldapAttributeType, LdapUtil.toGeneralizedTime((ZonedDateTime)icfAttributeValue, acceptsFractionalGeneralizedTime()));
+					return new Value(ldapAttributeType, LdapUtil.toGeneralizedTime((ZonedDateTime)connIdAttributeValue, acceptsFractionalGeneralizedTime()));
 				} catch (LdapInvalidAttributeValueException e) {
 					throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
 						+"; attributeType="+ldapAttributeType, e);
 				}
-			} else if (icfAttributeValue instanceof String) {
+			} else if (connIdAttributeValue instanceof String) {
 				try {
-						return new Value(ldapAttributeType, icfAttributeValue.toString());
+						return new Value(ldapAttributeType, connIdAttributeValue.toString());
 					} catch (LdapInvalidAttributeValueException e) {
 						throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
 								+"; attributeType="+ldapAttributeType, e);
 					}
 			} else {
-				throw new InvalidAttributeValueException("Wrong type for attribute "+ldapAttributeType+": "+icfAttributeValue.getClass());
+				throw new InvalidAttributeValueException("Wrong type for attribute "+ldapAttributeType+": "+connIdAttributeValue.getClass());
 			}
-		} else if (icfAttributeValue instanceof Boolean) {
+		} else if (connIdAttributeValue instanceof Boolean) {
 			LOG.ok("Converting to LDAP: {0} ({1}): boolean", ldapAttributeType.getName(), syntaxOid);
 			try {
-				return new Value(ldapAttributeType, icfAttributeValue.toString().toUpperCase());
+				return new Value(ldapAttributeType, connIdAttributeValue.toString().toUpperCase());
 			} catch (LdapInvalidAttributeValueException e) {
 				throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
 						+"; attributeType="+ldapAttributeType, e);
 			}
-		} else if (icfAttributeValue instanceof GuardedString) {
+		} else if (connIdAttributeValue instanceof GuardedString) {
 			try {
-				return new GuardedStringValue(ldapAttributeType, (GuardedString) icfAttributeValue);
+				return new GuardedStringValue(ldapAttributeType, (GuardedString) connIdAttributeValue);
 			} catch (LdapInvalidAttributeValueException e) {
 				throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
 						+"; attributeType="+ldapAttributeType, e);
@@ -608,16 +607,16 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		} else if (isBinarySyntax(syntaxOid)) {
 			LOG.ok("Converting to LDAP: {0} ({1}): explicit binary", ldapAttributeType.getName(), syntaxOid);
 			
-			if (icfAttributeValue instanceof byte[]) {
+			if (connIdAttributeValue instanceof byte[]) {
 				// Do NOT set attributeType in the Value in this case.
 				// The attributeType might not match the Value class
 				// e.g. human-readable jpegPhoto attribute will expect StringValue
-				return new Value((byte[])icfAttributeValue);
-			} else if (icfAttributeValue instanceof String) {
+				return new Value((byte[])connIdAttributeValue);
+			} else if (connIdAttributeValue instanceof String) {
 				// this can happen for userPassword
 				byte[] bytes;
 				try {
-					bytes = ((String)icfAttributeValue).getBytes("UTF-8");
+					bytes = ((String)connIdAttributeValue).getBytes("UTF-8");
 				} catch (UnsupportedEncodingException e) {
 					throw new IllegalArgumentException("Cannot encode attribute value to UTF-8 for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
 							+"; attributeType="+ldapAttributeType, e);
@@ -627,22 +626,22 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 				// e.g. human-readable jpegPhoto attribute will expect StringValue
 				return new Value(bytes);
 			} else {
-				throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": expected byte[] but got "+icfAttributeValue.getClass()
+				throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": expected byte[] but got "+connIdAttributeValue.getClass()
 						+"; attributeType="+ldapAttributeType);
 			}
-		} else if (!isBinaryAttribute(syntaxOid)) {
+		} else if (!isBinarySyntax(syntaxOid)) {
 			LOG.ok("Converting to LDAP: {0} ({1}): explicit string", ldapAttributeType.getName(), syntaxOid);
 			try {
-				return new Value(ldapAttributeType, icfAttributeValue.toString());
+				return new Value(ldapAttributeType, connIdAttributeValue.toString());
 			} catch (LdapInvalidAttributeValueException e) {
 				throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
 						+"; attributeType="+ldapAttributeType, e);
 			}
 		} else {
-			if (icfAttributeValue instanceof byte[]) {
+			if (connIdAttributeValue instanceof byte[]) {
 				LOG.ok("Converting to LDAP: {0} ({1}): detected binary", ldapAttributeType.getName(), syntaxOid);
 				try {
-					return new Value(ldapAttributeType, (byte[])icfAttributeValue);
+					return new Value(ldapAttributeType, (byte[])connIdAttributeValue);
 				} catch (LdapInvalidAttributeValueException e) {
 					throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
 							+"; attributeType="+ldapAttributeType, e);
@@ -650,7 +649,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 			} else {
 				LOG.ok("Converting to LDAP: {0} ({1}): detected string", ldapAttributeType.getName(), syntaxOid);
 				try {
-					return new Value(ldapAttributeType, icfAttributeValue.toString());
+					return new Value(ldapAttributeType, connIdAttributeValue.toString());
 				} catch (LdapInvalidAttributeValueException e) {
 					throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
 							+"; attributeType="+ldapAttributeType, e);

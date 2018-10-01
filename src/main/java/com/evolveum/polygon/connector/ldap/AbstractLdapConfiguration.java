@@ -359,6 +359,11 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
      */
     private String runAsStrategy = RUN_AS_STRATEGY_NONE;
 
+    /**
+     * Search filter that will be added to all searche operations that the connector does.
+     */
+    private String additionalSearchFilter;
+    
     // TODO: failover, accountSynchronizationFilter
     // MAYBE TODO: respectResourcePasswordPolicyChangeAfterReset? filterWithOrInsteadOfAnd? 
     //			   removeLogEntryObjectClassFromFilter? synchronizePasswords? passwordAttributeToSynchronize?
@@ -723,6 +728,14 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 		this.runAsStrategy = runAsStrategy;
 	}
 	
+	@ConfigurationProperty(order = 41)
+	public String getAdditionalSearchFilter() {
+		return additionalSearchFilter;
+	}
+
+	public void setAdditionalSearchFilter(String additionalSearchFilter) {
+		this.additionalSearchFilter = additionalSearchFilter;
+	}
 
 	@Override
     public void validate() {

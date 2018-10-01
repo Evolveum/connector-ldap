@@ -61,6 +61,7 @@ import org.apache.directory.api.ldap.model.exception.LdapUnwillingToPerformExcep
 import org.apache.directory.api.ldap.model.filter.AndNode;
 import org.apache.directory.api.ldap.model.filter.EqualityNode;
 import org.apache.directory.api.ldap.model.filter.ExprNode;
+import org.apache.directory.api.ldap.model.filter.FilterParser;
 import org.apache.directory.api.ldap.model.filter.PresenceNode;
 import org.apache.directory.api.ldap.model.message.Control;
 import org.apache.directory.api.ldap.model.message.LdapResult;
@@ -409,6 +410,14 @@ public class LdapUtil {
 		AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, Uid.NAME);
 		Value ldapValue = schemaTranslator.toLdapIdentifierValue(ldapAttributeType, uidValue);
 		return new EqualityNode<>(ldapAttributeType, ldapValue);
+	}
+	
+	public static ExprNode parseSearchFilter(String stringFilter) {
+		try {
+			return FilterParser.parse(stringFilter);
+		} catch (ParseException e) {
+			throw new InvalidAttributeValueException(e.getMessage(), e);
+		}
 	}
 
 	public static String getUidValue(Entry entry, org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
