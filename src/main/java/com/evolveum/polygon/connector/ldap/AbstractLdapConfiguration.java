@@ -262,6 +262,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
     public static final String SYNCHRONIZATION_STRATEGY_AUTO = "auto";
     public static final String SYNCHRONIZATION_STRATEGY_SUN_CHANGE_LOG = "sunChangeLog";
     public static final String SYNCHRONIZATION_STRATEGY_MODIFY_TIMESTAMP = "modifyTimestamp";
+	public static final String SYNCHRONIZATION_STRATEGY_OPEN_LDAP_ACCESSLOG = "openLdapAccessLog";
     public static final String SYNCHRONIZATION_STRATEGY_AD_DIR_SYNC = "adDirSync";
     
     /**

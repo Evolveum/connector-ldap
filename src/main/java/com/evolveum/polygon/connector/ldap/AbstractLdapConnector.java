@@ -122,6 +122,7 @@ import com.evolveum.polygon.connector.ldap.search.DefaultSearchStrategy;
 import com.evolveum.polygon.connector.ldap.search.SearchStrategy;
 import com.evolveum.polygon.connector.ldap.search.SimplePagedResultsSearchStrategy;
 import com.evolveum.polygon.connector.ldap.search.VlvSearchStrategy;
+import com.evolveum.polygon.connector.ldap.sync.OpenLdapAccessLogSyncStrategy;
 import com.evolveum.polygon.connector.ldap.sync.AdDirSyncStrategy;
 import com.evolveum.polygon.connector.ldap.sync.ModifyTimestampSyncStrategy;
 import com.evolveum.polygon.connector.ldap.sync.SunChangelogSyncStrategy;
@@ -1296,6 +1297,9 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 					break;
 				case LdapConfiguration.SYNCHRONIZATION_STRATEGY_MODIFY_TIMESTAMP:
 					syncStrategy = new ModifyTimestampSyncStrategy<>(configuration, connectionManager, getSchemaManager(), getSchemaTranslator());
+					break;
+				case LdapConfiguration.SYNCHRONIZATION_STRATEGY_OPEN_LDAP_ACCESSLOG:
+					syncStrategy = new OpenLdapAccessLogSyncStrategy<>(configuration, connectionManager, getSchemaManager(), getSchemaTranslator());
 					break;
 				case LdapConfiguration.SYNCHRONIZATION_STRATEGY_AD_DIR_SYNC:
 					syncStrategy = new AdDirSyncStrategy<>(configuration, connectionManager, getSchemaManager(), getSchemaTranslator());
