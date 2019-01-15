@@ -40,7 +40,17 @@ public class LdapConfiguration extends AbstractLdapConfiguration {
     
     public static final String LOCKOUT_STRATEGY_NONE = "none";
     public static final String LOCKOUT_STRATEGY_OPENLDAP = "openldap";
+	
+    /**
+	 * DN of the OpenLDAP access log 
+	 */
+	private String openLdapAccessLogDn;
 
+	/**
+	 * optional additional search filter in the OpenLDAP access log
+	 */
+	private String openLdapAccessLogAdditionalFilter;
+    
     @ConfigurationProperty(order = 100)
 	public String getLockoutStrategy() {
 		return lockoutStrategy;
@@ -56,6 +66,24 @@ public class LdapConfiguration extends AbstractLdapConfiguration {
 			setUidAttribute(SchemaConstants.ENTRY_UUID_AT);
 		}
 		super.recompute();
+	}
+	
+	@ConfigurationProperty(order = 42)
+	public String getOpenLdapAccessLogDn() {
+		return this.openLdapAccessLogDn;
+	}
+
+	public void setOpenLdapAccessLogDn(String accessLogDn) {
+		this.openLdapAccessLogDn = accessLogDn;
+	}
+
+	@ConfigurationProperty(order = 43)
+	public String getOpenLdapAccessLogAdditionalFilter() {
+		return this.openLdapAccessLogAdditionalFilter;
+	}
+
+	public void setOpenLdapAccessLogAdditionalFilter(String accessLogAditionalFilter) {
+		this.openLdapAccessLogAdditionalFilter = accessLogAditionalFilter;
 	}
 
 }
