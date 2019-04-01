@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import org.apache.commons.lang.ArrayUtils;
@@ -846,19 +847,30 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		}
 		entry.put("objectClass", ldapObjectClassNames);
 		
-		for (Attribute icfAttr: createAttributes) {
-			if (icfAttr.is(Name.NAME)) {
+		for (Attribute connIdAttr: createAttributes) {
+			if (connIdAttr.is(Name.NAME)) {
 				continue;
 			}
-			if (icfAttr.is(PredefinedAttributes.AUXILIARY_OBJECT_CLASS_NAME)) {
+			if (connIdAttr.is(PredefinedAttributes.AUXILIARY_OBJECT_CLASS_NAME)) {
 				continue;
 			}
-			AttributeType ldapAttrType = shcemaTranslator.toLdapAttribute(ldapStructuralObjectClass, icfAttr.getName());
-			List<Value> ldapValues = shcemaTranslator.toLdapValues(ldapAttrType, icfAttr.getValue());
-			// Do NOT set attributeType here. The attributeType may not match the type of the value.
-			entry.put(ldapAttrType.getName(), ldapValues.toArray(new Value[ldapValues.size()]));
-			// no simple way how to check if he attribute was added. It may end up with ERR_04451. So let's just
-			// hope that it worked well. It should - unless there is a connector bug.
+			AttributeType ldapAttributeType = shcemaTranslator.toLdapAttribute(ldapStructuralObjectClass, connIdAttr.getName());
+			List<Object> connIdAttrValues = connIdAttr.getValue();
+			
+			if (schemaTranslator.isPolyAttribute(ldapAttributeType, connIdAttrValues)) {
+				Map<String,List<Value>> valueMap = schemaTranslator.toLdapPolyValues(ldapAttributeType, connIdAttrValues);
+				for (Map.Entry<String, List<Value>> valueMapEntry : valueMap.entrySet()) {
+					LOG.ok("Adding poly attribute {0}: {1}", valueMapEntry.getKey(), valueMapEntry.getValue());
+					// Do NOT set attributeType here. The attributeType may not match the type of the value.
+					entry.put(valueMapEntry.getKey(), valueMapEntry.getValue().toArray(new Value[valueMapEntry.getValue().size()]));
+				}
+			} else {
+				List<Value> ldapValues = shcemaTranslator.toLdapValues(ldapAttributeType, connIdAttrValues);
+				// Do NOT set attributeType here. The attributeType may not match the type of the value.
+				entry.put(ldapAttributeType.getName(), ldapValues.toArray(new Value[ldapValues.size()]));
+				// no simple way how to check if he attribute was added. It may end up with ERR_04451. So let's just
+				// hope that it worked well. It should - unless there is a connector bug.
+			}
 		}
 		
 		preCreate(ldapStructuralObjectClass, entry);
@@ -1107,22 +1119,33 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 	}
 	
 	private void addLdapModification(List<Modification> ldapModifications,
-			ModificationOperation modOp, AttributeType ldapAttributeType, List<Object> values) {
-		if (values == null) {
+			ModificationOperation modOp, AttributeType ldapAttributeType, List<Object> connIdValues) {
+		if (connIdValues == null) {
 			return;
 		}
-		List<Value> ldapValues = schemaTranslator.toLdapValues(ldapAttributeType, values);
-		if (ldapValues == null || ldapValues.isEmpty()) {
-			// Do NOT set AttributeType here
-			// The attributeType might not match the Value class
-			// e.g. human-readable jpegPhoto attribute will expect StringValue
-			ldapModifications.add(new DefaultModification(modOp, ldapAttributeType.getName()));					
+		if (schemaTranslator.isPolyAttribute(ldapAttributeType, connIdValues)) {
+			Map<String,List<Value>> valueMap = schemaTranslator.toLdapPolyValues(ldapAttributeType, connIdValues);
+			for (Map.Entry<String, List<Value>> valueMapEntry : valueMap.entrySet()) {
+				// Do NOT set AttributeType here
+				// The attributeType might not match the Value class
+				// e.g. human-readable jpegPhoto attribute will expect StringValue
+				DefaultAttribute ldapAttribute = new DefaultAttribute(valueMapEntry.getKey(),  valueMapEntry.getValue().toArray(new Value[valueMapEntry.getValue().size()]));
+				ldapModifications.add(new DefaultModification(modOp, ldapAttribute));
+			}
 		} else {
-			// Do NOT set AttributeType here
-			// The attributeType might not match the Value class
-			// e.g. human-readable jpegPhoto attribute will expect StringValue
-			DefaultAttribute ldapAttribute = new DefaultAttribute(ldapAttributeType.getName(),  ldapValues.toArray(new Value[ldapValues.size()]));
-			ldapModifications.add(new DefaultModification(modOp, ldapAttribute));
+			List<Value> ldapValues = schemaTranslator.toLdapValues(ldapAttributeType, connIdValues);
+			if (ldapValues == null || ldapValues.isEmpty()) {
+				// Do NOT set AttributeType here
+				// The attributeType might not match the Value class
+				// e.g. human-readable jpegPhoto attribute will expect StringValue
+				ldapModifications.add(new DefaultModification(modOp, ldapAttributeType.getName()));
+			} else {
+				// Do NOT set AttributeType here
+				// The attributeType might not match the Value class
+				// e.g. human-readable jpegPhoto attribute will expect StringValue
+				DefaultAttribute ldapAttribute = new DefaultAttribute(ldapAttributeType.getName(),  ldapValues.toArray(new Value[ldapValues.size()]));
+				ldapModifications.add(new DefaultModification(modOp, ldapAttribute));
+			}
 		}
 	}
 

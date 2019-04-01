@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2016 Evolveum
+ * Copyright (c) 2015-2019 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -50,6 +50,11 @@ public class LdapConfiguration extends AbstractLdapConfiguration {
 	 * optional additional search filter in the OpenLDAP access log
 	 */
 	private String openLdapAccessLogAdditionalFilter;
+	
+	/**
+	 * Attribute that supports language tag (RFC 3866).
+	 */
+	private String[] languageTagAttributes;
     
     @ConfigurationProperty(order = 100)
 	public String getLockoutStrategy() {
@@ -68,7 +73,7 @@ public class LdapConfiguration extends AbstractLdapConfiguration {
 		super.recompute();
 	}
 	
-	@ConfigurationProperty(order = 42)
+	@ConfigurationProperty(order = 101)
 	public String getOpenLdapAccessLogDn() {
 		return this.openLdapAccessLogDn;
 	}
@@ -77,7 +82,7 @@ public class LdapConfiguration extends AbstractLdapConfiguration {
 		this.openLdapAccessLogDn = accessLogDn;
 	}
 
-	@ConfigurationProperty(order = 43)
+	@ConfigurationProperty(order = 102)
 	public String getOpenLdapAccessLogAdditionalFilter() {
 		return this.openLdapAccessLogAdditionalFilter;
 	}
@@ -85,5 +90,16 @@ public class LdapConfiguration extends AbstractLdapConfiguration {
 	public void setOpenLdapAccessLogAdditionalFilter(String accessLogAditionalFilter) {
 		this.openLdapAccessLogAdditionalFilter = accessLogAditionalFilter;
 	}
+
+	@ConfigurationProperty(order = 103)
+	public String[] getLanguageTagAttributes() {
+		return languageTagAttributes;
+	}
+
+	public void setLanguageTagAttributes(String[] languageTagAttribute) {
+		this.languageTagAttributes = languageTagAttribute;
+	}
+	
+	
 
 }

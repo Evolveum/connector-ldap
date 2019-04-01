@@ -320,12 +320,12 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 				// This is handled separately as __UID__ attribute
 				continue;
 			}
-			String icfAttributeName = toConnIdAttributeName(ldapAttribute.getName());
-			if (containsAttribute(attrInfoList, icfAttributeName)) {
+			String connIdAttributeName = toConnIdAttributeName(ldapAttribute.getName());
+			if (containsAttribute(attrInfoList, connIdAttributeName)) {
 				LOG.ok("Skipping translation of attribute {0} because it is already translated", ldapAttribute.getName());
 				continue;
 			}
-			AttributeInfoBuilder aib = new AttributeInfoBuilder(icfAttributeName);
+			AttributeInfoBuilder aib = new AttributeInfoBuilder(connIdAttributeName);
 			aib.setRequired(isRequired);
 			
 			LdapSyntax ldapSyntax = getSyntax(ldapAttribute);
@@ -333,16 +333,16 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 				LOG.warn("No syntax for attribute: {0}", ldapAttribute.getName());
 			}
 			
-			Class<?> icfType = toConnIdType(ldapSyntax, icfAttributeName);
-			aib.setType(icfType);
-			aib.setSubtype(toConnIdSubtype(icfType, ldapAttribute, icfAttributeName));
+			Class<?> connIdType = toConnIdType(ldapSyntax, connIdAttributeName);
+			aib.setType(connIdType);
+			aib.setSubtype(toConnIdSubtype(connIdType, ldapAttribute, connIdAttributeName));
 			aib.setNativeName(ldapAttribute.getName());
 			if (isOperational(ldapAttribute)) {
 				aib.setReturnedByDefault(false);
 			}
-			setAttributeMultiplicityAndPermissions(ldapAttribute, icfAttributeName, aib);
-			LOG.ok("Translating {0} -> {1} ({2} -> {3})", ldapAttribute.getName(), icfAttributeName, 
-					ldapSyntax==null?null:ldapSyntax.getOid(), icfType);
+			setAttributeMultiplicityAndPermissions(ldapAttribute, connIdAttributeName, aib);
+			LOG.ok("Translating {0} -> {1} ({2} -> {3})", ldapAttribute.getName(), connIdAttributeName, 
+					ldapSyntax==null?null:ldapSyntax.getOid(), connIdType);
 			AttributeInfo attributeInfo = aib.build();
 			attrInfoList.put(attributeInfo.getName(), attributeInfo);
 		}
@@ -445,8 +445,8 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		return mutableLdapAttributeType;
 	}
 
-	public Class<?> toConnIdType(LdapSyntax syntax, String icfAttributeName) {
-		if (OperationalAttributeInfos.PASSWORD.is(icfAttributeName)) {
+	public Class<?> toConnIdType(LdapSyntax syntax, String connIdAttributeName) {
+		if (OperationalAttributeInfos.PASSWORD.is(connIdAttributeName)) {
 			return GuardedString.class;
 		}
 		if (syntax == null) {
@@ -484,8 +484,8 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
     	}
 	}
 	
-	public String toConnIdSubtype(Class<?> icfType, AttributeType ldapAttribute, String icfAttributeName) {
-		if (OperationalAttributeInfos.PASSWORD.is(icfAttributeName)) {
+	public String toConnIdSubtype(Class<?> connIdType, AttributeType ldapAttribute, String connIdAttributeName) {
+		if (OperationalAttributeInfos.PASSWORD.is(connIdAttributeName)) {
 			return null;
 		}
 		if (ldapAttribute == null) {
@@ -505,7 +505,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 			return null;
 		} 
 		if (SYNTAX_MAP.get(syntaxOid) == null) {
-			if (icfType == String.class) {
+			if (connIdType == String.class) {
 				return AttributeInfo.Subtypes.STRING_CASE_IGNORE.toString();
 			} else {
 				return null;
@@ -535,6 +535,14 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		}
 		return false;
 	}
+	
+	public boolean isPolyAttribute(AttributeType ldapAttributeType, List<Object> connIdValues) {
+		return false;
+	}
+	
+	public boolean isPolyAttribute(AttributeInfo connIdAttributeInfo) {
+		return false;
+	}
 
 	public List<Value> toLdapValues(AttributeType ldapAttributeType, List<Object> icfAttributeValues) {
 		List<Value> ldapValues = new ArrayList<>(icfAttributeValues.size());
@@ -542,6 +550,15 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 			ldapValues.add(toLdapValue(ldapAttributeType, icfValue));
 		}
 		return ldapValues;
+	}
+	
+	/**
+	 * Method to convert "poly" values, such as PolyString. 
+	 * 
+	 * @return map with attribute name as a key (with option) and list of values as value.
+	 */
+	public Map<String, List<Value>> toLdapPolyValues(AttributeType ldapAttributeType, List<Object> values) {
+		throw new UnsupportedOperationException("Poly-attributes are not supported (attribute '"+ldapAttributeType.getName()+"'");
 	}
 	
 	@SuppressWarnings({ "unchecked", "rawtypes" })
@@ -1018,6 +1035,16 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		return toConnIdObject(connection, icfStructuralObjectClassInfo, entry, dn, null);
 	}
 	
+	// TODO: use version from SchemaUtil
+	private AttributeInfo findAttributeInfo(ObjectClassInfo connIdObjectClassInfo, String connIdAttributeName) {
+		for (AttributeInfo attributeInfo: connIdObjectClassInfo.getAttributeInfo()) {
+			if (attributeInfo.is(connIdAttributeName)) {
+				return attributeInfo;
+			}
+		}
+		return null;
+	}
+	
 	public ConnectorObject toConnIdObject(LdapNetworkConnection connection, ObjectClassInfo connIdStructuralObjectClassInfo, Entry entry, String dn, AttributeHandler attributeHandler) {
 		LdapObjectClasses ldapObjectClasses = processObjectClasses(entry);
 		if (connIdStructuralObjectClassInfo == null) {
@@ -1060,57 +1087,183 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		}
 		cob.setUid(uid);
 		
+		Map<String,PolyAttributeStruct> polyAttributes = new HashMap<>();
+		
 		Iterator<org.apache.directory.api.ldap.model.entry.Attribute> iterator = entry.iterator();
 		while (iterator.hasNext()) {
 			org.apache.directory.api.ldap.model.entry.Attribute ldapAttribute = iterator.next();
 			String ldapAttrName = getLdapAttributeName(ldapAttribute);
-//			LOG.ok("Processing attribute {0}", ldapAttrName);
+			LOG.ok("Processing attribute {0} (UP: {1})", ldapAttrName, ldapAttribute.getUpId());
 			if (!shouldTranslateAttribute(ldapAttrName)) {
 //				LOG.ok("Should not translate attribute {0}, skipping", ldapAttrName);
 				continue;
 			}
-			AttributeType attributeType = schemaManager.getAttributeType(ldapAttrName);
+			AttributeType ldapAttributeType = schemaManager.getAttributeType(ldapAttrName);
 //			LOG.ok("Type for attribute {0}: {1}", ldapAttrName, attributeType);
 			String ldapAttributeNameFromSchema = ldapAttrName;
-			if (attributeType == null) {
+			if (ldapAttributeType == null) {
 				if (!configuration.isAllowUnknownAttributes()) {
 					throw new InvalidAttributeValueException("Unknown LDAP attribute " + ldapAttrName + " (not present in LDAP schema)");
 				}
 			} else {
-				ldapAttributeNameFromSchema = attributeType.getName();
+				ldapAttributeNameFromSchema = ldapAttributeType.getName();
 			}
 			if (uidAttributeName.equals(ldapAttributeNameFromSchema)) {
 				continue;
 			}
-			Attribute connIdAttribute = toConnIdAttribute(connection, entry, ldapAttribute, attributeHandler);
-//			LOG.ok("ConnId attribute for {0}: {1}", ldapAttrName, icfAttribute);
-			if (connIdAttribute == null) {
+			
+			PolyAttributeStruct polyStruct = polyAttributes.get(ldapAttributeNameFromSchema);
+			if (polyStruct != null) {
+				// We know that this attribute is poly. Just collect the data.
+				// And we can avoid the rest of the processing because it was done already. 
+				polyStruct.addAttribute(ldapAttribute);
 				continue;
 			}
-			AttributeInfo attributeInfo = SchemaUtil.findAttributeInfo(connIdStructuralObjectClassInfo, connIdAttribute);
-			if (attributeInfo == null) {
+			
+			String connIdAttributeName = toConnIdAttributeName(ldapAttributeNameFromSchema);
+
+			// TODO: use version of findAttributeInfo from SchemaUtil
+			AttributeInfo connIdAttributeInfo = findAttributeInfo(connIdStructuralObjectClassInfo, connIdAttributeName);
+			if (connIdAttributeInfo == null) {
 				for (ObjectClassInfo icfAuxiliaryObjectClassInfo: connIdAuxiliaryObjectClassInfos) {
-					attributeInfo = SchemaUtil.findAttributeInfo(icfAuxiliaryObjectClassInfo, connIdAttribute);
+					// TODO: use version of findAttributeInfo from SchemaUtil
+					connIdAttributeInfo = findAttributeInfo(icfAuxiliaryObjectClassInfo, connIdAttributeName);
 //					LOG.ok("Looking for ConnId attribute {0} info in auxiliary class {1}: {2}", icfAttribute, icfAuxiliaryObjectClassInfo==null?null:icfAuxiliaryObjectClassInfo.getType(), attributeInfo);
-					if (attributeInfo != null) {
+					if (connIdAttributeInfo != null) {
 						break;
 					}
 //					LOG.ok("Failed to find attribute in: {0}", icfAuxiliaryObjectClassInfo);
 				}
 			}
 //			LOG.ok("ConnId attribute info for {0} ({1}): {2}", icfAttribute.getName(), ldapAttrName, attributeInfo);
-			if (attributeInfo != null) {
-				// Avoid sending unknown attributes (such as createtimestamp)
-				cob.addAttribute(connIdAttribute);
-			} else {
-				LOG.ok("ConnId attribute {0} is not part of ConnId schema, skipping", connIdAttribute.getName());
+			
+			if (connIdAttributeInfo == null) {
+				LOG.ok("ConnId attribute {0} is not part of ConnId schema, skipping", connIdAttributeName);
+				continue;
 			}
 			
+			if (isPolyAttribute(connIdAttributeInfo)) {
+				
+				// Defer processing poly attributes for later. We do not have all the values yet. Just collect the values now.
+				polyAttributes.put(ldapAttributeNameFromSchema, new PolyAttributeStruct(ldapAttributeType, connIdAttributeName, ldapAttribute));
+				
+			} else {
+				
+				// Process simple (non-poly) attributes right here. We are not waiting for anything else.
+				
+				Attribute connIdAttribute = toConnIdAttribute(connIdAttributeName, ldapAttributeNameFromSchema, ldapAttributeType, ldapAttribute,
+						connection, entry, attributeHandler);
+	//			LOG.ok("ConnId attribute for {0}: {1}", ldapAttrName, icfAttribute);
+				if (connIdAttribute != null) {
+					cob.addAttribute(connIdAttribute);
+				}
+			}
+			
+		}
+		
+		for (Map.Entry<String, PolyAttributeStruct> polyAttributesEntry : polyAttributes.entrySet()) {
+			String ldapAttributeNameFromSchema = polyAttributesEntry.getKey();
+			
+			Attribute connIdAttribute = toConnIdAttributePoly(polyAttributesEntry.getValue().getConnIdAttributeName(), ldapAttributeNameFromSchema, polyAttributesEntry.getValue().getLdapAttributeType(),
+					polyAttributesEntry.getValue().getLdapAttributes(),
+					connection, entry, attributeHandler);
+			
+			if (connIdAttribute != null) {
+				cob.addAttribute(connIdAttribute);
+			}
+
 		}
 		
 		extendConnectorObject(cob, entry, connIdStructuralObjectClassInfo.getType());
 		
 		return cob.build();
+	}
+	
+	class PolyAttributeStruct {
+
+		private AttributeType ldapAttributeType;
+		private String connIdAttributeName;
+		private List<org.apache.directory.api.ldap.model.entry.Attribute> ldapAttributes = new ArrayList<>();
+		
+		public PolyAttributeStruct(AttributeType ldapAttributeType,
+				String connIdAttributeName, org.apache.directory.api.ldap.model.entry.Attribute ldapAttribute) {
+			super();
+			this.ldapAttributeType = ldapAttributeType;
+			this.connIdAttributeName = connIdAttributeName;
+			this.ldapAttributes.add(ldapAttribute);
+		}
+
+		public AttributeType getLdapAttributeType() {
+			return ldapAttributeType;
+		}
+
+		public String getConnIdAttributeName() {
+			return connIdAttributeName;
+		}
+
+		public List<org.apache.directory.api.ldap.model.entry.Attribute> getLdapAttributes() {
+			return ldapAttributes;
+		}
+
+		public void addAttribute(org.apache.directory.api.ldap.model.entry.Attribute ldapAttribute) {
+			ldapAttributes.add(ldapAttribute);
+		}
+		
+	}
+	
+	private Attribute toConnIdAttribute(String connIdAttributeName, String ldapAttributeNameFromSchema, AttributeType ldapAttributeType,
+			org.apache.directory.api.ldap.model.entry.Attribute ldapAttribute,
+			LdapNetworkConnection connection, Entry entry, AttributeHandler attributeHandler) {
+		AttributeBuilder ab = new AttributeBuilder();
+		ab.setName(connIdAttributeName);
+		if (attributeHandler != null) {
+			attributeHandler.handle(connection, entry, ldapAttribute, ab);
+		}
+		boolean incompleteRead = false;
+		if (OperationalAttributeInfos.PASSWORD.is(connIdAttributeName)) {
+			switch (configuration.getPasswordReadStrategy()) {
+				case AbstractLdapConfiguration.PASSWORD_READ_STRATEGY_READABLE:
+					// Nothing to do. Proceed with ordinary read.
+					break;
+				case AbstractLdapConfiguration.PASSWORD_READ_STRATEGY_INCOMPLETE_READ:
+					incompleteRead = true;
+					break;
+				case AbstractLdapConfiguration.PASSWORD_READ_STRATEGY_UNREADABLE:
+					return null;
+				default:
+					throw new ConfigurationException("Unknown passoword read strategy "+configuration.getPasswordReadStrategy());
+			}
+		}
+		Iterator<Value> iterator = ldapAttribute.iterator();
+		boolean hasValidValue = false;
+		while (iterator.hasNext()) {
+			Value ldapValue = iterator.next();
+			Object connIdValue = toConnIdValue(connIdAttributeName, ldapValue, ldapAttributeNameFromSchema, ldapAttributeType);
+			if (connIdValue != null) {
+				if (!incompleteRead) {
+					ab.addValue(connIdValue);
+				}
+				hasValidValue = true;
+			}
+		}
+		if (!hasValidValue) {
+			// Do not even try to build. The build will fail.
+			return null;
+		}
+		if (incompleteRead) {
+			ab.setAttributeValueCompleteness(AttributeValueCompleteness.INCOMPLETE);
+		}
+		try {
+			return ab.build();
+		} catch (IllegalArgumentException e) {
+			throw new IllegalArgumentException(e.getMessage() + ", attribute "+connIdAttributeName+" (ldap: "+ldapAttributeNameFromSchema+")", e);
+		}
+	}
+	
+	protected Attribute toConnIdAttributePoly(String connIdAttributeName, String ldapAttributeNameFromSchema, AttributeType ldapAttributeType,
+			List<org.apache.directory.api.ldap.model.entry.Attribute> ldapAttributes,
+			LdapNetworkConnection connection, Entry entry, AttributeHandler attributeHandler) {
+		throw new UnsupportedOperationException("Poly-attributes are not supported (attribute '"+ldapAttributeNameFromSchema+"'");
 	}
 	
 	public String getDn(Entry entry) {
@@ -1148,6 +1301,20 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		}
 		
 		return attributeId.substring(0, iSemicolon);
+	}
+	
+	public String getLdapAttributeOption(org.apache.directory.api.ldap.model.entry.Attribute ldapAttribute) {
+		return getLdapAttributeOption(ldapAttribute.getUpId());
+	}
+	
+	public String getLdapAttributeOption(String attributeUpId) {
+		int iSemicolon = attributeUpId.indexOf(';');
+		
+		if (iSemicolon < 0) {
+			return null;
+		}
+		
+		return attributeUpId.substring(iSemicolon + 1);
 	}
 
 	protected boolean shouldTranslateAttribute(String attrName) {
@@ -1323,65 +1490,6 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
         return resSb.toString();
     }
 
-	private Attribute toConnIdAttribute(LdapNetworkConnection connection, Entry entry, org.apache.directory.api.ldap.model.entry.Attribute ldapAttribute, AttributeHandler attributeHandler) {
-		AttributeBuilder ab = new AttributeBuilder();
-		String ldapAttributeName = getLdapAttributeName(ldapAttribute);
-		AttributeType ldapAttributeType = schemaManager.getAttributeType(ldapAttributeName);
-		String ldapAttributeNameFromSchema;
-		if (ldapAttributeType == null) {
-			if (configuration.isAllowUnknownAttributes()) {
-				ldapAttributeNameFromSchema = ldapAttributeName;
-			} else {
-				throw new InvalidAttributeValueException("Unknown LDAP attribute " + ldapAttributeName + " (not present in LDAP schema)");
-			}
-		} else {
-			ldapAttributeNameFromSchema = ldapAttributeType.getName();
-		}
-		String icfAttributeName = toConnIdAttributeName(ldapAttributeNameFromSchema);
-		ab.setName(icfAttributeName);
-		if (attributeHandler != null) {
-			attributeHandler.handle(connection, entry, ldapAttribute, ab);
-		}
-		boolean incompleteRead = false;
-		if (OperationalAttributeInfos.PASSWORD.is(icfAttributeName)) {
-			switch (configuration.getPasswordReadStrategy()) {
-				case AbstractLdapConfiguration.PASSWORD_READ_STRATEGY_READABLE:
-					// Nothing to do. Proceed with ordinary read.
-					break;
-				case AbstractLdapConfiguration.PASSWORD_READ_STRATEGY_INCOMPLETE_READ:
-					incompleteRead = true;
-					break;
-				case AbstractLdapConfiguration.PASSWORD_READ_STRATEGY_UNREADABLE:
-					return null;
-				default:
-					throw new ConfigurationException("Unknown passoword read strategy "+configuration.getPasswordReadStrategy());
-			}
-		}
-		Iterator<Value> iterator = ldapAttribute.iterator();
-		boolean hasValidValue = false;
-		while (iterator.hasNext()) {
-			Value ldapValue = iterator.next();
-			Object icfValue = toConnIdValue(icfAttributeName, ldapValue, ldapAttributeNameFromSchema, ldapAttributeType);
-			if (icfValue != null) {
-				if (!incompleteRead) {
-					ab.addValue(icfValue);
-				}
-				hasValidValue = true;
-			}
-		}
-		if (!hasValidValue) {
-			// Do not even try to build. The build will fail.
-			return null;
-		}
-		if (incompleteRead) {
-			ab.setAttributeValueCompleteness(AttributeValueCompleteness.INCOMPLETE);
-		}
-		try {
-			return ab.build();
-		} catch (IllegalArgumentException e) {
-			throw new IllegalArgumentException(e.getMessage() + ", attribute "+icfAttributeName+" (ldap: "+ldapAttributeName+")", e);
-		}
-	}
 	
 	public Dn toDn(AttributeDelta delta) {
 		if (delta == null) {
