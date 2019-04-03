@@ -53,6 +53,9 @@ public class LdapConfiguration extends AbstractLdapConfiguration {
 	
 	/**
 	 * Attribute that supports language tag (RFC 3866).
+	 * Those attributes will be presented as Map in the schema. They are designed to match
+	 * midPoint PolyString, especially its "lang" part. 
+	 * EXPERIMENTAL. Not officially supported. Use at your own risk only.
 	 */
 	private String[] languageTagAttributes;
     
