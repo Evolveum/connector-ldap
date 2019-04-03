@@ -161,7 +161,7 @@ public class LdapSchemaTranslator extends AbstractSchemaTranslator<LdapConfigura
 		}
 		return ldapValueMap;
 	}
-
+	
 	@Override
 	public AttributeType toLdapAttribute(org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
 			String icfAttributeName) {
@@ -190,31 +190,13 @@ public class LdapSchemaTranslator extends AbstractSchemaTranslator<LdapConfigura
 		Map<String,Object> connIdValueMap = new HashMap<>();
 		for (org.apache.directory.api.ldap.model.entry.Attribute ldapAttribute : ldapAttributes) {
 			
-			String option = getLdapAttributeOption(ldapAttribute);
-			if (option != null && !option.startsWith("lang-")) {
-				LOG.ok("Skipping unknown option {0} on attribute {1}", option, ldapAttributeNameFromSchema);
+			String connIdMapKey = determinePolyKey(ldapAttribute);
+			if (connIdMapKey == null) {
 				continue;
 			}
 			
-			if (ldapAttribute.size() == 0) {
-				LOG.ok("Skipping empty attribute {0};{1}", ldapAttributeNameFromSchema, option);
-				continue;
-			}
-			
-			if (ldapAttribute.size() > 1) {
-				throw new InvalidAttributeValueException("Multi-valued multi-attributes are not supported, attribute "+ldapAttributeNameFromSchema
-						+";"+option+" on "+entry.getDn());
-			}
-						
 			if (attributeHandler != null) {
 				attributeHandler.handle(connection, entry, ldapAttribute, ab);
-			}
-			
-			String connIdMapKey;
-			if (option == null) {
-				connIdMapKey = POLYSTRING_ORIG_KEY;
-			} else {
-				connIdMapKey = option.substring("lang-".length());
 			}
 			
 			Value ldapValue = ldapAttribute.get();
@@ -231,6 +213,31 @@ public class LdapSchemaTranslator extends AbstractSchemaTranslator<LdapConfigura
 			return ab.build();
 		} catch (IllegalArgumentException e) {
 			throw new IllegalArgumentException(e.getMessage() + ", attribute "+connIdAttributeName+" (ldap: "+ldapAttributeNameFromSchema+")", e);
+		}
+	}
+	
+	@Override
+	public String determinePolyKey(org.apache.directory.api.ldap.model.entry.Attribute ldapAttribute) {
+		String option = getLdapAttributeOption(ldapAttribute);
+		if (option != null && !option.startsWith("lang-")) {
+			LOG.ok("Unknown option {0} on attribute {1}", option, ldapAttribute.getUpId());
+			return null;
+		}
+		
+		if (ldapAttribute.size() == 0) {
+			LOG.ok("Empty attribute {0};{1}", ldapAttribute.getUpId(), option);
+			return null;
+		}
+		
+		if (ldapAttribute.size() > 1) {
+			throw new InvalidAttributeValueException("Multi-valued multi-attributes are not supported, attribute "+ldapAttribute.getUpId()
+					+";"+option);
+		}
+					
+		if (option == null) {
+			return POLYSTRING_ORIG_KEY;
+		} else {
+			return option.substring("lang-".length());
 		}
 	}
 

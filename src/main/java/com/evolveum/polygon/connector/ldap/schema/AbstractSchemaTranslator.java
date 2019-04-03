@@ -1093,7 +1093,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		while (iterator.hasNext()) {
 			org.apache.directory.api.ldap.model.entry.Attribute ldapAttribute = iterator.next();
 			String ldapAttrName = getLdapAttributeName(ldapAttribute);
-			LOG.ok("Processing attribute {0} (UP: {1})", ldapAttrName, ldapAttribute.getUpId());
+//			LOG.ok("Processing attribute {0} (UP: {1})", ldapAttrName, ldapAttribute.getUpId());
 			if (!shouldTranslateAttribute(ldapAttrName)) {
 //				LOG.ok("Should not translate attribute {0}, skipping", ldapAttrName);
 				continue;
@@ -1122,7 +1122,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 			
 			String connIdAttributeName = toConnIdAttributeName(ldapAttributeNameFromSchema);
 
-			// TODO: use version of findAttributeInfo from SchemaUtil
+			// TODO: use findAttributeInfo from SchemaUtil
 			AttributeInfo connIdAttributeInfo = findAttributeInfo(connIdStructuralObjectClassInfo, connIdAttributeName);
 			if (connIdAttributeInfo == null) {
 				for (ObjectClassInfo icfAuxiliaryObjectClassInfo: connIdAuxiliaryObjectClassInfos) {
@@ -1144,7 +1144,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 			
 			if (isPolyAttribute(connIdAttributeInfo)) {
 				
-				// Defer processing poly attributes for later. We do not have all the values yet. Just collect the values now.
+				// Defer processing of poly attributes for later. We do not have all the values yet. Just collect the values now.
 				polyAttributes.put(ldapAttributeNameFromSchema, new PolyAttributeStruct(ldapAttributeType, connIdAttributeName, ldapAttribute));
 				
 			} else {
@@ -1264,6 +1264,10 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 			List<org.apache.directory.api.ldap.model.entry.Attribute> ldapAttributes,
 			LdapNetworkConnection connection, Entry entry, AttributeHandler attributeHandler) {
 		throw new UnsupportedOperationException("Poly-attributes are not supported (attribute '"+ldapAttributeNameFromSchema+"'");
+	}
+	
+	public String determinePolyKey(org.apache.directory.api.ldap.model.entry.Attribute ldapAttribute) {
+		throw new UnsupportedOperationException("Poly-attributes are not supported");
 	}
 	
 	public String getDn(Entry entry) {

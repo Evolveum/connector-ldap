@@ -21,6 +21,7 @@ import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -927,6 +928,9 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		
 		Entry entryRead = searchSingleEntry(connectionManager, entry.getDn(), LdapUtil.createAllSearchFilter(), SearchScope.OBJECT, 
 				new String[]{ uidAttributeName }, "re-reading entry to get UID", options);
+		if (entryRead == null) {
+			throw new UnknownUidException("Cannot re-reading entry to get UID, entry was not found: "+entry.getDn());
+		}
 		org.apache.directory.api.ldap.model.entry.Attribute uidLdapAttribute = entryRead.get(uidAttributeName);
 		if (uidLdapAttribute == null) {
 			throw new InvalidAttributeValueException("No value for UID attribute "+uidAttributeName+" in object "+dnStringFromName);
@@ -1103,52 +1107,6 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		return AttributeDeltaBuilder.build(Uid.NAME, string);
 	}
 
-	private void addLdapModificationString(List<Modification> ldapModifications,
-			ModificationOperation modOp, String ldapAttributeName, List<Object> values) {
-		if (values == null) {
-			return;
-		}
-		String[] stringValues = new String[values.size()];
-		int i = 0;
-		for(Object val: values) {
-			stringValues[i] = (String)val;
-			i++;
-		}
-		ldapModifications.add(new DefaultModification(modOp, ldapAttributeName, stringValues));
-
-	}
-	
-	private void addLdapModification(List<Modification> ldapModifications,
-			ModificationOperation modOp, AttributeType ldapAttributeType, List<Object> connIdValues) {
-		if (connIdValues == null) {
-			return;
-		}
-		if (schemaTranslator.isPolyAttribute(ldapAttributeType, connIdValues)) {
-			Map<String,List<Value>> valueMap = schemaTranslator.toLdapPolyValues(ldapAttributeType, connIdValues);
-			for (Map.Entry<String, List<Value>> valueMapEntry : valueMap.entrySet()) {
-				// Do NOT set AttributeType here
-				// The attributeType might not match the Value class
-				// e.g. human-readable jpegPhoto attribute will expect StringValue
-				DefaultAttribute ldapAttribute = new DefaultAttribute(valueMapEntry.getKey(),  valueMapEntry.getValue().toArray(new Value[valueMapEntry.getValue().size()]));
-				ldapModifications.add(new DefaultModification(modOp, ldapAttribute));
-			}
-		} else {
-			List<Value> ldapValues = schemaTranslator.toLdapValues(ldapAttributeType, connIdValues);
-			if (ldapValues == null || ldapValues.isEmpty()) {
-				// Do NOT set AttributeType here
-				// The attributeType might not match the Value class
-				// e.g. human-readable jpegPhoto attribute will expect StringValue
-				ldapModifications.add(new DefaultModification(modOp, ldapAttributeType.getName()));
-			} else {
-				// Do NOT set AttributeType here
-				// The attributeType might not match the Value class
-				// e.g. human-readable jpegPhoto attribute will expect StringValue
-				DefaultAttribute ldapAttribute = new DefaultAttribute(ldapAttributeType.getName(),  ldapValues.toArray(new Value[ldapValues.size()]));
-				ldapModifications.add(new DefaultModification(modOp, ldapAttribute));
-			}
-		}
-	}
-
 	protected void modify(Dn dn, List<Modification> modifications, OperationOptions options) {
 		LdapNetworkConnection connection = connectionManager.getConnection(dn, options);
 		try {
@@ -1203,10 +1161,106 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 				&& !ArrayUtils.contains(configuration.getOperationalAttributes(), delta.getName())) {
 			throw new InvalidAttributeValueException("Unknown attribute "+delta.getName()+" in object class "+connIdObjectClass);
 		}
-		addLdapModification(modifications, ModificationOperation.REPLACE_ATTRIBUTE, ldapAttributeType, delta.getValuesToReplace());
-		addLdapModification(modifications, ModificationOperation.ADD_ATTRIBUTE, ldapAttributeType, delta.getValuesToAdd());
-		addLdapModification(modifications, ModificationOperation.REMOVE_ATTRIBUTE, ldapAttributeType, delta.getValuesToRemove());
+		addLdapModification(dn, modifications, ModificationOperation.REPLACE_ATTRIBUTE, ldapAttributeType, delta.getValuesToReplace());
+		addLdapModification(dn, modifications, ModificationOperation.ADD_ATTRIBUTE, ldapAttributeType, delta.getValuesToAdd());
+		addLdapModification(dn, modifications, ModificationOperation.REMOVE_ATTRIBUTE, ldapAttributeType, delta.getValuesToRemove());
 	}
+	
+	private void addLdapModificationString(List<Modification> ldapModifications,
+			ModificationOperation modOp, String ldapAttributeName, List<Object> values) {
+		if (values == null) {
+			return;
+		}
+		String[] stringValues = new String[values.size()];
+		int i = 0;
+		for(Object val: values) {
+			stringValues[i] = (String)val;
+			i++;
+		}
+		ldapModifications.add(new DefaultModification(modOp, ldapAttributeName, stringValues));
+
+	}
+	
+	private void addLdapModification(Dn dn, List<Modification> ldapModifications,
+			ModificationOperation modOp, AttributeType ldapAttributeType, List<Object> connIdValues) {
+		if (connIdValues == null) {
+			return;
+		}
+		
+		if (schemaTranslator.isPolyAttribute(ldapAttributeType, connIdValues)) {
+			addLdapModificationPoly(dn, ldapModifications, modOp, ldapAttributeType, connIdValues);
+		} else {
+			addLdapModificationSimple(dn, ldapModifications, modOp, ldapAttributeType, connIdValues);
+		}
+	}
+	
+	/**
+	 * For simple (non-poly) attributes. The usual stuff. Used for most cases.
+	 */
+	private void addLdapModificationSimple(Dn dn, List<Modification> ldapModifications,
+			ModificationOperation modOp, AttributeType ldapAttributeType, List<Object> connIdValues) {
+		List<Value> ldapValues = schemaTranslator.toLdapValues(ldapAttributeType, connIdValues);
+		if (ldapValues == null || ldapValues.isEmpty()) {
+			// Do NOT set AttributeType here
+			// The attributeType might not match the Value class
+			// e.g. human-readable jpegPhoto attribute will expect StringValue
+			ldapModifications.add(new DefaultModification(modOp, ldapAttributeType.getName()));
+		} else {
+			// Do NOT set AttributeType here
+			// The attributeType might not match the Value class
+			// e.g. human-readable jpegPhoto attribute will expect StringValue
+			DefaultAttribute ldapAttribute = new DefaultAttribute(ldapAttributeType.getName(),  ldapValues.toArray(new Value[ldapValues.size()]));
+			ldapModifications.add(new DefaultModification(modOp, ldapAttribute));
+		}
+	}
+
+	/**
+	 * For poly attributes, such as language tags.
+	 */
+	private void addLdapModificationPoly(Dn dn, List<Modification> ldapModifications,
+			ModificationOperation modOp, AttributeType ldapAttributeType, List<Object> connIdValues) {
+		
+		// Add modifications for values that are in the input polystring
+		
+		// Map key: option(language tag or null), value: LDAP value
+		Map<String,List<Value>> ldapValueMap = schemaTranslator.toLdapPolyValues(ldapAttributeType, connIdValues);
+		for (Map.Entry<String, List<Value>> valueMapEntry : ldapValueMap.entrySet()) {
+			// Do NOT set AttributeType here
+			// The attributeType might not match the Value class
+			// e.g. human-readable jpegPhoto attribute will expect StringValue
+			DefaultAttribute ldapAttribute = new DefaultAttribute(valueMapEntry.getKey(),  valueMapEntry.getValue().toArray(new Value[valueMapEntry.getValue().size()]));
+			ldapModifications.add(new DefaultModification(modOp, ldapAttribute));
+		}
+		
+		// We are going to delete all other existing attributes with options. But to do that, we need to read the entry first.
+		
+		// Question: how to query only for a single attribute, but with all the options? something like description;*
+		// For now just query for everything.
+		Entry existingEntry = searchSingleEntry(connectionManager, dn, null, SearchScope.OBJECT, null /* see above */, 
+				"pre-read of entry to eliminate extra optioned attribute values for attribute "+ldapAttributeType.getName(), null);
+		LOG.ok("Pre-read entry for {0}:\n{1}", ldapAttributeType.getName(), existingEntry);
+		if (existingEntry == null) {
+			// Strange. We are going to modify something that is not there?
+			throw new UnknownUidException("Cannot pre-read of entry to eliminate extra optioned attribute values for attribute "+ldapAttributeType.getName() + ": "+dn);
+		} else {
+			Iterator<org.apache.directory.api.ldap.model.entry.Attribute> iterator = existingEntry.iterator();
+			while (iterator.hasNext()) {
+				org.apache.directory.api.ldap.model.entry.Attribute existingLdapAttribute = iterator.next();
+				String existingLdapAttrName = schemaTranslator.getLdapAttributeName(existingLdapAttribute);
+				if (!ldapAttributeType.getName().equals(existingLdapAttrName)) {
+					continue;
+				}
+				List<Value> expectedValue = ldapValueMap.get(existingLdapAttribute.getUpId());
+				if (expectedValue == null) {
+					// We want this attribute cleared
+					LOG.ok("Clearing poly attribute {0}", existingLdapAttribute.getUpId());
+					DefaultAttribute ldapAttribute = new DefaultAttribute(existingLdapAttribute.getUpId() /* no value*/);
+					ldapModifications.add(new DefaultModification(ModificationOperation.REPLACE_ATTRIBUTE, ldapAttribute));
+				}
+			}
+		}
+	}
+	
 	
 	protected void postUpdate(ObjectClass connIdObjectClass, Uid uid, Set<AttributeDelta> deltas,
 			OperationOptions options, 
@@ -1424,6 +1478,9 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			LOG.ok("Resolving DN for UID {0}", uid);
 			Entry entry = searchSingleEntry(getConnectionManager(), baseDn, filterNode, scope,
 					new String[]{uidAttributeName}, "LDAP entry for UID "+uid, options);
+			if (entry == null) {
+				throw new UnknownUidException("LDAP entry for UID " + uid + " was not found");
+			}
 			dn = entry.getDn();
 		}
 		
@@ -1450,6 +1507,10 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			SearchScope scope, String[] attributesToGet, String descMessage, Dn dnHint, OperationOptions options) {
 		
 		LdapNetworkConnection connection = connectionManager.getConnection(dnHint, options);
+		
+		if (filterNode == null) {
+			filterNode = LdapUtil.createAllSearchFilter();
+		}
 		String filterString = filterNode.toString();
 		
 		Entry entry = null;
@@ -1465,7 +1526,9 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			searchReq.setBase(baseDn);
 			searchReq.setFilter(filterNode);
 			searchReq.setScope(scope);
-			searchReq.addAttributes(attributesToGet);
+			if (attributesToGet != null) {
+				searchReq.addAttributes(attributesToGet);
+			}
 			searchReq.setDerefAliases(AliasDerefMode.NEVER_DEREF_ALIASES);
 			
 			SearchCursor cursor = null;
@@ -1481,8 +1544,8 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 						break;
 					}
 				} else {
-					// Something wrong happened, the entry was not created.
-					throw new UnknownUidException(descMessage + " was not found");
+					// Entry is not there.
+					return null;
 				}
 			} catch (CursorLdapReferralException e) {
 				LOG.ok("Got cursor referral exception while resolving {0}: {1}", descMessage, e.getReferralInfo());
