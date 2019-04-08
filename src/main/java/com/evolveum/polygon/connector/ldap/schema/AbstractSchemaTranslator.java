@@ -1058,15 +1058,27 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		cob.setObjectClass(new ObjectClass(connIdStructuralObjectClassInfo.getType()));
 		
 		List<ObjectClassInfo> connIdAuxiliaryObjectClassInfos = new ArrayList<>(ldapObjectClasses.getLdapAuxiliaryObjectClasses().size());
-		if (!ldapObjectClasses.getLdapAuxiliaryObjectClasses().isEmpty()) {
-			AttributeBuilder auxAttrBuilder = new AttributeBuilder();
-			auxAttrBuilder.setName(PredefinedAttributes.AUXILIARY_OBJECT_CLASS_NAME);
-			for (org.apache.directory.api.ldap.model.schema.ObjectClass ldapAuxiliaryObjectClass: ldapObjectClasses.getLdapAuxiliaryObjectClasses()) {
-				auxAttrBuilder.addValue(ldapAuxiliaryObjectClass.getName());
-				ObjectClassInfo objectClassInfo = connIdSchema.findObjectClassInfo(ldapAuxiliaryObjectClass.getName());
-//				LOG.ok("ConnId object class info for auxiliary object class {0}:\n{1}", ldapAuxiliaryObjectClass.getName(), objectClassInfo);
+
+		for (org.apache.directory.api.ldap.model.schema.ObjectClass ldapAuxiliaryObjectClass : ldapObjectClasses.getLdapAuxiliaryObjectClasses()) {
+			connIdAuxiliaryObjectClassInfos.add(connIdSchema.findObjectClassInfo(ldapAuxiliaryObjectClass.getName()));
+		}
+		for (org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass : ldapObjectClasses.getLdapStructuralObjectClasses()) {
+			ObjectClassInfo objectClassInfo = connIdSchema.findObjectClassInfo(ldapStructuralObjectClass.getName());
+
+			if ((!connIdStructuralObjectClassInfo.equals(objectClassInfo)) && (!hasSubclass(ldapStructuralObjectClass, ldapObjectClasses.getLdapStructuralObjectClasses()))) {
 				connIdAuxiliaryObjectClassInfos.add(objectClassInfo);
 			}
+		}
+
+		if (!connIdAuxiliaryObjectClassInfos.isEmpty()) {
+			AttributeBuilder auxAttrBuilder = new AttributeBuilder();
+
+			auxAttrBuilder.setName(PredefinedAttributes.AUXILIARY_OBJECT_CLASS_NAME);
+
+			for (ObjectClassInfo objectClassInfo : connIdAuxiliaryObjectClassInfos) {
+				auxAttrBuilder.addValue(objectClassInfo.getType());
+			}
+
 			cob.addAttribute(auxAttrBuilder.build());
 		}
 		
