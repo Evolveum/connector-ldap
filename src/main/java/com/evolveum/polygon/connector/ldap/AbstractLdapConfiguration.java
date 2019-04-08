@@ -347,6 +347,11 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
      */
     private boolean alternativeObjectClassDetection = false;
     
+    /**
+     * If set to true, adds all additional structural object classes without children to the auxiliary object classes list on the connector.
+     */
+    private boolean structuralObjectClassesToAuxiliary = false;
+    
     
     public static final String RUN_AS_STRATEGY_NONE = "none";
     public static final String RUN_AS_STRATEGY_BIND = "bind";
@@ -719,8 +724,17 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 	public void setAlternativeObjectClassDetection(boolean alternativeObjectClassDetection) {
 		this.alternativeObjectClassDetection = alternativeObjectClassDetection;
 	}
-
+	
 	@ConfigurationProperty(order = 40)
+	public boolean isStructuralObjectClassesToAuxiliary() {
+		return structuralObjectClassesToAuxiliary;
+	}
+
+	public void setStructuralObjectClassesToAuxiliary(boolean structuralObjectClassesToAuxiliary) {
+		this.structuralObjectClassesToAuxiliary = structuralObjectClassesToAuxiliary;
+	}
+
+	@ConfigurationProperty(order = 41)
 	public String getRunAsStrategy() {
 		return runAsStrategy;
 	}
@@ -729,7 +743,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 		this.runAsStrategy = runAsStrategy;
 	}
 	
-	@ConfigurationProperty(order = 41)
+	@ConfigurationProperty(order = 42)
 	public String getAdditionalSearchFilter() {
 		return additionalSearchFilter;
 	}

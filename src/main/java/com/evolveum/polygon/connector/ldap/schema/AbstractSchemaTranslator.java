@@ -1062,11 +1062,14 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		for (org.apache.directory.api.ldap.model.schema.ObjectClass ldapAuxiliaryObjectClass : ldapObjectClasses.getLdapAuxiliaryObjectClasses()) {
 			connIdAuxiliaryObjectClassInfos.add(connIdSchema.findObjectClassInfo(ldapAuxiliaryObjectClass.getName()));
 		}
-		for (org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass : ldapObjectClasses.getLdapStructuralObjectClasses()) {
-			ObjectClassInfo objectClassInfo = connIdSchema.findObjectClassInfo(ldapStructuralObjectClass.getName());
-
-			if ((!connIdStructuralObjectClassInfo.equals(objectClassInfo)) && (!hasSubclass(ldapStructuralObjectClass, ldapObjectClasses.getLdapStructuralObjectClasses()))) {
-				connIdAuxiliaryObjectClassInfos.add(objectClassInfo);
+		
+		if (configuration.isStructuralObjectClassesToAuxiliary()) {
+			for (org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass : ldapObjectClasses.getLdapStructuralObjectClasses()) {
+				ObjectClassInfo objectClassInfo = connIdSchema.findObjectClassInfo(ldapStructuralObjectClass.getName());
+	
+				if ((!connIdStructuralObjectClassInfo.equals(objectClassInfo)) && (!hasSubclass(ldapStructuralObjectClass, ldapObjectClasses.getLdapStructuralObjectClasses()))) {
+					connIdAuxiliaryObjectClassInfos.add(objectClassInfo);
+				}
 			}
 		}
 
