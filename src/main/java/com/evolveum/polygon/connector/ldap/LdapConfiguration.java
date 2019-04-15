@@ -58,6 +58,20 @@ public class LdapConfiguration extends AbstractLdapConfiguration {
 	 * EXPERIMENTAL. Not officially supported. Use at your own risk only.
 	 */
 	private String[] languageTagAttributes;
+	
+	/**
+	 * Normally, when multivalue attribute is used as single-valued attribute then an error is thrown.
+	 * This is the default behavior, as it is much better at detecting errors in the data. However, it
+	 * may be a problem, because throwing hard error may prohibit further attempts to correct the value.
+	 * 
+	 * This configuration property changes that behavior. If tolerateMultivalueReduction is set to true,
+	 * then the connector will discard all the extra values. Just one of the values will be kept.
+	 * Connector will try to use the first value. But as LDAP does not guarantee value ordering,
+	 * that value may be quite arbitrary.
+	 * 
+	 * EXPERIMENTAL. Not officially supported. Use at your own risk only.
+	 */
+	private boolean tolerateMultivalueReduction;
     
     @ConfigurationProperty(order = 100)
 	public String getLockoutStrategy() {
@@ -102,7 +116,15 @@ public class LdapConfiguration extends AbstractLdapConfiguration {
 	public void setLanguageTagAttributes(String[] languageTagAttribute) {
 		this.languageTagAttributes = languageTagAttribute;
 	}
-	
+
+	@ConfigurationProperty(order = 104)
+	public boolean isTolerateMultivalueReduction() {
+		return tolerateMultivalueReduction;
+	}
+
+	public void setTolerateMultivalueReduction(boolean tolerateMultivalueReduction) {
+		this.tolerateMultivalueReduction = tolerateMultivalueReduction;
+	}
 	
 
 }

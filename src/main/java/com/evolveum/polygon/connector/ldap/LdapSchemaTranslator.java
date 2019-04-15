@@ -199,6 +199,20 @@ public class LdapSchemaTranslator extends AbstractSchemaTranslator<LdapConfigura
 				attributeHandler.handle(connection, entry, ldapAttribute, ab);
 			}
 			
+			if (ldapAttribute.size() == 0) {
+				LOG.ok("Empty attribute {0} on {1}", ldapAttribute.getUpId(), entry.getDn());
+				continue;
+			}
+			
+			if (ldapAttribute.size() > 1) {
+				if (!getConfiguration().isTolerateMultivalueReduction()) {
+					throw new InvalidAttributeValueException("Multi-valued multi-attributes are not supported, attribute "+ldapAttribute.getUpId()+ " on "+entry.getDn());
+				} else {
+					LOG.warn("Reducing multiple values of attribute {0} on {1} to a single value", ldapAttribute.getUpId(), entry.getDn());
+					ab.setAttributeValueCompleteness(AttributeValueCompleteness.INCOMPLETE);
+				}
+			}
+			
 			Value ldapValue = ldapAttribute.get();
 
 			Object connIdValue = toConnIdValue(connIdAttributeName, ldapValue, ldapAttributeNameFromSchema, ldapAttributeType);
@@ -224,16 +238,6 @@ public class LdapSchemaTranslator extends AbstractSchemaTranslator<LdapConfigura
 			return null;
 		}
 		
-		if (ldapAttribute.size() == 0) {
-			LOG.ok("Empty attribute {0};{1}", ldapAttribute.getUpId(), option);
-			return null;
-		}
-		
-		if (ldapAttribute.size() > 1) {
-			throw new InvalidAttributeValueException("Multi-valued multi-attributes are not supported, attribute "+ldapAttribute.getUpId()
-					+";"+option);
-		}
-					
 		if (option == null) {
 			return POLYSTRING_ORIG_KEY;
 		} else {
