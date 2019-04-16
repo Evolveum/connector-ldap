@@ -76,7 +76,14 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
      * E.g. SSL, SSLv2, SSLv3, TLS, TLSv1, TLSv1.1, TLSv1.2
      */
     private String sslProtocol = null;
-    
+
+	/**
+	 * Whether connector skips certificate validity check against its default truststore (e.g. Java cacerts)
+	 * When set to false, connector checks server certificate validity in SSL/TLS mode (recommended).
+	 * When set to true, connector does not check server certificate validity. Do not use this option in the production.
+	 */
+	private boolean allowUntrustedSsl = false;
+
     /**
      * Set of security protocols that are acceptable for protocol negotiation.
      * This name is used to set up SSLEngine.
@@ -696,6 +703,15 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 
 	public void setAlternativeObjectClassDetection(boolean alternativeObjectClassDetection) {
 		this.alternativeObjectClassDetection = alternativeObjectClassDetection;
+	}
+
+	@ConfigurationProperty(order = 43)
+	public boolean isAllowUntrustedSsl() {
+		return allowUntrustedSsl;
+	}
+
+	public void setAllowUntrustedSsl(boolean allowUntrustedSsl) {
+		this.allowUntrustedSsl = allowUntrustedSsl;
 	}
 
 	@Override

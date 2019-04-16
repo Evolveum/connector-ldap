@@ -17,6 +17,9 @@ package com.evolveum.polygon.connector.ldap;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.security.KeyStore;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
@@ -40,6 +43,7 @@ import org.apache.directory.api.ldap.model.url.LdapUrl;
 import org.apache.directory.api.ldap.schema.manager.impl.DefaultSchemaManager;
 import org.apache.directory.ldap.client.api.LdapConnectionConfig;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
+import org.apache.directory.ldap.client.api.NoVerificationTrustManager;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.common.exceptions.ConfigurationException;
@@ -49,6 +53,9 @@ import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
 import com.evolveum.polygon.common.GuardedStringAccessor;
 import com.evolveum.polygon.connector.ldap.ServerDefinition.Origin;
 import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
+
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.TrustManagerFactory;
 
 /**
  * @author Radovan Semancik
@@ -355,8 +362,10 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
     		// Nothing to do
     	} else if (LdapConfiguration.CONNECTION_SECURITY_SSL.equals(connectionSecurity)) {
     		connectionConfig.setUseSsl(true);
+    		connectionConfig.setTrustManagers(createTrustManager());
     	} else if (LdapConfiguration.CONNECTION_SECURITY_STARTTLS.equals(connectionSecurity)) {
     		connectionConfig.setUseTls(true);
+			connectionConfig.setTrustManagers(createTrustManager());
     	} else {
     		throw new ConfigurationException("Unknown value for connectionSecurity: "+connectionSecurity);
     	}
@@ -403,7 +412,23 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 		}
 		server.setConnection(connection);
     }
-	
+
+    private TrustManager[] createTrustManager() {
+		if (configuration.isAllowUntrustedSsl()) {
+			return new TrustManager[]{new NoVerificationTrustManager()}; // this is apache ldap default
+		}
+
+		String defaultAlgorithm = TrustManagerFactory.getDefaultAlgorithm();
+		try {
+			TrustManagerFactory tmf = TrustManagerFactory.getInstance(defaultAlgorithm);
+			tmf.init((KeyStore) null); // load system default keystore (e.g. JDK cacerts)
+			return tmf.getTrustManagers();
+		} catch (NoSuchAlgorithmException | KeyStoreException e) {
+			LOG.error("Error creating trust manager: {0}", e);
+		}
+		throw new ConnectionFailedException("Unable to create trust manager.");
+	}
+
 	private LdapNetworkConnection connectConnection(LdapConnectionConfig connectionConfig) {
 		LOG.ok("Creating connection object");
 		LdapNetworkConnection connection = new LdapNetworkConnection(connectionConfig);
