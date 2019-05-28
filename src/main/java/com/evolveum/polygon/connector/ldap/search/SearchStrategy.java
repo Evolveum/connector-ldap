@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015-2017 Evolveum
+ * Copyright (c) 2015-2019 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@ import org.apache.directory.api.ldap.model.message.Referral;
 import org.apache.directory.api.ldap.model.message.SearchRequest;
 import org.apache.directory.api.ldap.model.message.SearchScope;
 import org.apache.directory.api.ldap.model.message.controls.SortRequest;
-import org.apache.directory.api.ldap.model.message.controls.SortRequestControlImpl;
+import org.apache.directory.api.ldap.model.message.controls.SortRequestImpl;
 import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.ldap.model.schema.AttributeType;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
@@ -243,7 +243,7 @@ public abstract class SearchStrategy<C extends AbstractLdapConfiguration> {
 	protected SortRequest createSortControl(String defaultSortLdapAttribute, String defaultSortOrderingRule) {
 		SortRequest sortReqControl = null;
 		if (hasSortOption()) {
-			sortReqControl = new SortRequestControlImpl();
+			sortReqControl = new SortRequestImpl();
 			sortReqControl.setCritical(true);
 			for (SortKey icfSortKey: getOptions().getSortKeys()) {
 				AttributeType attributeType = getSchemaTranslator().toLdapAttribute(getLdapObjectClass(), icfSortKey.getField());
@@ -258,7 +258,7 @@ public abstract class SearchStrategy<C extends AbstractLdapConfiguration> {
 				sortReqControl.addSortKey(ldapSortKey);
 			}
 		} else if (defaultSortLdapAttribute != null) {
-			sortReqControl = new SortRequestControlImpl();
+			sortReqControl = new SortRequestImpl();
 			AttributeType attributeType = getSchemaTranslator().toLdapAttribute(getLdapObjectClass(), defaultSortLdapAttribute);
 			String matchingRuleId = attributeType.getOrderingOid();
 			if (matchingRuleId == null) {

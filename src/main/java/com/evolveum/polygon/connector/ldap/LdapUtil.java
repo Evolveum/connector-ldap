@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015-2018 Evolveum
+ * Copyright (c) 2015-2019 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -122,7 +122,7 @@ public class LdapUtil {
 		if (value == null) {
 			return null;
 		}
-		return value.getValue();
+		return value.getString();
 	}
 	
 	public static Integer getIntegerAttribute(Entry entry, String attrName, Integer defaultVal) {
@@ -642,7 +642,7 @@ public class LdapUtil {
 		Attribute objectClassAttribute = entry.get(SchemaConstants.OBJECT_CLASS_AT); 
 		
 		for (Value objectClassVal: objectClassAttribute) {
-			if (ldapObjectClass.getName().equalsIgnoreCase(objectClassVal.getValue())) {
+			if (ldapObjectClass.getName().equalsIgnoreCase(objectClassVal.getString())) {
 				return true;
 			}
 		}
@@ -678,7 +678,7 @@ public class LdapUtil {
 		}
 		for (Value modifiersNameVal: modifiersNameAttribute) {
 			for (String modifiersNameToFilterOut: modifiersNamesToFilterOut) {
-				if (modifiersNameToFilterOut.equals(modifiersNameVal.getValue())) {
+				if (modifiersNameToFilterOut.equals(modifiersNameVal.getString())) {
 					return true;
 				}
 			}

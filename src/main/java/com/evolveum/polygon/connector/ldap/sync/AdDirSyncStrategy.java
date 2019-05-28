@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015-2018 Evolveum
+ * Copyright (c) 2015-2019 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,11 +18,11 @@ package com.evolveum.polygon.connector.ldap.sync;
 import java.util.Arrays;
 import java.util.Base64;
 
-import org.apache.commons.lang.StringUtils;
+import org.apache.directory.api.ldap.extras.controls.ad.AdDirSyncRequestImpl;
+import org.apache.directory.api.ldap.extras.controls.ad.AdDirSyncResponse;
 import org.apache.directory.api.ldap.extras.controls.ad.AdShowDeleted;
 import org.apache.directory.api.ldap.extras.controls.ad.AdShowDeletedImpl;
-import org.apache.directory.api.ldap.extras.controls.ad.AdDirSync;
-import org.apache.directory.api.ldap.extras.controls.ad.AdDirSyncImpl;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.directory.api.ldap.model.cursor.CursorException;
 import org.apache.directory.api.ldap.model.cursor.SearchCursor;
 import org.apache.directory.api.ldap.model.entry.Entry;
@@ -108,7 +108,7 @@ public class AdDirSyncStrategy<C extends AbstractLdapConfiguration> extends Sync
 					numFoundEntries++;
 					
 					byte[] entryCookie = null;
-					AdDirSync dirSyncRespControl = (AdDirSync) response.getControl(AdDirSync.OID);
+					AdDirSyncResponse dirSyncRespControl = (AdDirSyncResponse) response.getControl(AdDirSyncResponse.OID);
 					if (dirSyncRespControl != null) {
 						entryCookie = dirSyncRespControl.getCookie();
 						if (entryCookie != null) {
@@ -161,7 +161,7 @@ public class AdDirSyncStrategy<C extends AbstractLdapConfiguration> extends Sync
 			
 			SearchResultDone searchResultDone = searchCursor.getSearchResultDone();
 			if (searchResultDone != null) {
-				AdDirSync dirSyncRespControl = (AdDirSync) searchResultDone.getControl(AdDirSync.OID);
+				AdDirSyncResponse dirSyncRespControl = (AdDirSyncResponse) searchResultDone.getControl(AdDirSyncResponse.OID);
 				if (dirSyncRespControl == null) {
 					LOG.warn("No DirSync response control in search done response");
 				} else {
@@ -207,7 +207,7 @@ public class AdDirSyncStrategy<C extends AbstractLdapConfiguration> extends Sync
 			
 			SearchResultDone searchResultDone = searchCursor.getSearchResultDone();
 			if (searchResultDone != null) {
-				AdDirSync dirSyncRespControl = (AdDirSync) searchResultDone.getControl(AdDirSync.OID);
+				AdDirSyncResponse dirSyncRespControl = (AdDirSyncResponse) searchResultDone.getControl(AdDirSyncResponse.OID);
 				if (dirSyncRespControl == null) {
 					LOG.warn("No DirSync response control in search done response");
 				} else {
@@ -239,7 +239,7 @@ public class AdDirSyncStrategy<C extends AbstractLdapConfiguration> extends Sync
 
 	private SearchRequest createSearchRequest(String searchFilter, SyncToken fromToken) {
 		
-		AdDirSync dirSyncReqControl = new AdDirSyncImpl();
+		AdDirSyncRequestImpl dirSyncReqControl = new AdDirSyncRequestImpl();
 		dirSyncReqControl.setCritical(true);
 		byte[] cookie = null;
 		if (fromToken != null) {

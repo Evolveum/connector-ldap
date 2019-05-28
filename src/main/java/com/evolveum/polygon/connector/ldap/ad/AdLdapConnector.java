@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2018 Evolveum
+ * Copyright (c) 2015-2019 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,7 +19,6 @@ package com.evolveum.polygon.connector.ldap.ad;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -31,7 +30,6 @@ import javax.net.ssl.HostnameVerifier;
 import org.apache.directory.api.ldap.model.constants.SchemaConstants;
 import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.entry.Modification;
-import org.apache.directory.api.ldap.model.entry.ModificationOperation;
 import org.apache.directory.api.ldap.model.exception.LdapException;
 import org.apache.directory.api.ldap.model.exception.LdapOperationException;
 import org.apache.directory.api.ldap.model.exception.LdapOtherException;
@@ -45,14 +43,11 @@ import org.apache.directory.api.ldap.model.schema.AttributeType;
 import org.apache.directory.api.ldap.model.schema.LdapComparator;
 import org.apache.directory.api.ldap.model.schema.LdapSyntax;
 import org.apache.directory.api.ldap.model.schema.MatchingRule;
-import org.apache.directory.api.ldap.model.schema.MutableAttributeType;
-import org.apache.directory.api.ldap.model.schema.MutableMatchingRule;
 import org.apache.directory.api.ldap.model.schema.Normalizer;
 import org.apache.directory.api.ldap.model.schema.ObjectClass;
 import org.apache.directory.api.ldap.model.schema.SchemaErrorHandler;
 import org.apache.directory.api.ldap.model.schema.SchemaManager;
 import org.apache.directory.api.ldap.model.schema.SchemaObject;
-import org.apache.directory.api.ldap.model.schema.comparators.ComparableComparator;
 import org.apache.directory.api.ldap.model.schema.comparators.NormalizingComparator;
 import org.apache.directory.api.ldap.model.schema.comparators.StringComparator;
 import org.apache.directory.api.ldap.model.schema.normalizers.DeepTrimToLowerNormalizer;
@@ -67,14 +62,11 @@ import org.apache.http.client.config.AuthSchemes;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.common.exceptions.ConfigurationException;
-import org.identityconnectors.framework.common.exceptions.ConnectionFailedException;
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
 import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
 import org.identityconnectors.framework.common.exceptions.ConnectorSecurityException;
 import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException;
 import org.identityconnectors.framework.common.exceptions.UnknownUidException;
-import org.identityconnectors.framework.common.objects.Attribute;
-import org.identityconnectors.framework.common.objects.AttributeBuilder;
 import org.identityconnectors.framework.common.objects.AttributeDelta;
 import org.identityconnectors.framework.common.objects.AttributeDeltaBuilder;
 import org.identityconnectors.framework.common.objects.OperationOptions;
@@ -106,14 +98,10 @@ import com.evolveum.powerhell.PowerHellException;
 import com.evolveum.powerhell.PowerHellExecutionException;
 import com.evolveum.powerhell.PowerHellLocalExecImpl;
 import com.evolveum.powerhell.PowerHellLocalExecPowerShellImpl;
-import com.evolveum.powerhell.PowerHellLocalExecWinRsPowerShellImpl;
 import com.evolveum.powerhell.PowerHellSecurityException;
 import com.evolveum.powerhell.PowerHellWinRmExecImpl;
 import com.evolveum.powerhell.PowerHellWinRmExecPowerShellImpl;
 import com.evolveum.powerhell.PowerHellWinRmLoopImpl;
-
-import io.cloudsoft.winrm4j.winrm.WinRmTool;
-import io.cloudsoft.winrm4j.winrm.WinRmToolResponse;
 
 import org.apache.cxf.Bus;
 import org.apache.cxf.BusFactory;
@@ -505,7 +493,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 		MatchingRule mrCaseIgnoreMatch = matchingRuleRegistry.get(SchemaConstants.CASE_IGNORE_MATCH_MR_OID);
 		// Microsoft ignores matching rules. Completely. There is not even a single definition.
 		if (mrCaseIgnoreMatch == null) {
-			MutableMatchingRule correctMrCaseIgnoreMatch = new MutableMatchingRule(SchemaConstants.CASE_IGNORE_MATCH_MR_OID);
+			MatchingRule correctMrCaseIgnoreMatch = new MatchingRule(SchemaConstants.CASE_IGNORE_MATCH_MR_OID);
 			correctMrCaseIgnoreMatch.setSyntaxOid(SchemaConstants.DIRECTORY_STRING_SYNTAX);
 			Normalizer normalizer = new DeepTrimToLowerNormalizer(SchemaConstants.CASE_IGNORE_MATCH_MR_OID);
 			correctMrCaseIgnoreMatch.setNormalizer(normalizer);
@@ -540,17 +528,17 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 		
 		AttributeType attrDcType = attributeTypeRegistry.get(attrOid);
 		if (attrDcType == null || attrDcType.getEquality() == null) {
-			MutableAttributeType correctAttrDcType;
+			AttributeType correctAttrDcType;
 			if (attrDcType != null) {
 				try {
 					attributeTypeRegistry.unregister(attrDcType);
 				} catch (LdapException e) {
 					throw new IllegalStateException("Error unregistering "+attrDcType+": "+e.getMessage(), e);
 				}
-				correctAttrDcType = new MutableAttributeType(attrDcType.getOid());
+				correctAttrDcType = new AttributeType(attrDcType.getOid());
 				correctAttrDcType.setNames(attrDcType.getNames());
 			} else {
-				correctAttrDcType = new MutableAttributeType(attrOid);
+				correctAttrDcType = new AttributeType(attrOid);
 				correctAttrDcType.setNames(attrName);
 			}
 			

@@ -26,7 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.commons.lang.ArrayUtils;
+import org.apache.commons.lang3.ArrayUtils;
 import org.apache.directory.api.ldap.extras.controls.permissiveModify.PermissiveModify;
 import org.apache.directory.api.ldap.extras.controls.permissiveModify.PermissiveModifyImpl;
 import org.apache.directory.api.ldap.extras.controls.vlv.VirtualListViewRequest;
@@ -67,7 +67,6 @@ import org.apache.directory.api.ldap.model.name.Rdn;
 import org.apache.directory.api.ldap.model.schema.AttributeType;
 import org.apache.directory.api.ldap.model.schema.LdapSyntax;
 import org.apache.directory.api.ldap.model.schema.MatchingRule;
-import org.apache.directory.api.ldap.model.schema.MutableAttributeType;
 import org.apache.directory.api.ldap.model.schema.Normalizer;
 import org.apache.directory.api.ldap.model.schema.SchemaErrorHandler;
 import org.apache.directory.api.ldap.model.schema.SchemaManager;
@@ -112,7 +111,6 @@ import org.identityconnectors.framework.spi.operations.SchemaOp;
 import org.identityconnectors.framework.spi.operations.SearchOp;
 import org.identityconnectors.framework.spi.operations.SyncOp;
 import org.identityconnectors.framework.spi.operations.TestOp;
-import org.identityconnectors.framework.spi.operations.UpdateAttributeValuesOp;
 import org.identityconnectors.framework.spi.operations.UpdateDeltaOp;
 
 import com.evolveum.polygon.common.SchemaUtil;
@@ -1329,7 +1327,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 					sb.append("null");
 				} else {
 					if (value.isHumanReadable()) {
-						sb.append(value.getValue());
+						sb.append(value.getString());
 					} else {
 						byte[] bytes = value.getBytes();
 						if (bytes == null) {

@@ -193,6 +193,9 @@ public class SimplePagedResultsSearchStrategy<C extends AbstractLdapConfiguratio
 			    		}
 			    		extra = sb.toString();
 			    		cookie = pagedResultsResponseControl.getCookie();
+			    		if (cookie.length == 0) {
+			    			cookie = null;
+			    		}
 			    		lastListSize = pagedResultsResponseControl.getSize();
 			    		if (lastListSize == 0) {
 			    			// RFC2696 specifies zero as "I do not know". We use -1 for that.

@@ -30,7 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
-import org.apache.commons.lang.ArrayUtils;
+import org.apache.commons.lang3.ArrayUtils;
 import org.apache.directory.api.ldap.extras.controls.vlv.VirtualListViewRequest;
 import org.apache.directory.api.ldap.model.constants.SchemaConstants;
 import org.apache.directory.api.ldap.model.entry.Entry;
@@ -43,7 +43,6 @@ import org.apache.directory.api.ldap.model.message.controls.SortRequest;
 import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.ldap.model.schema.AttributeType;
 import org.apache.directory.api.ldap.model.schema.LdapSyntax;
-import org.apache.directory.api.ldap.model.schema.MutableAttributeType;
 import org.apache.directory.api.ldap.model.schema.SchemaManager;
 import org.apache.directory.api.util.GeneralizedTime;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
@@ -439,7 +438,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 	}
 	
 	public AttributeType createFauxAttributeType(String attributeName) {
-		MutableAttributeType mutableLdapAttributeType = new MutableAttributeType(attributeName);
+		AttributeType mutableLdapAttributeType = new AttributeType(attributeName);
 		mutableLdapAttributeType.setNames(attributeName);
 		mutableLdapAttributeType.setSyntaxOid(SchemaConstants.DIRECTORY_STRING_SYNTAX);
 		return mutableLdapAttributeType;
@@ -732,7 +731,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 			return null;
 		}
 		if (OperationalAttributeInfos.PASSWORD.is(connIdAttributeName)) {
-			return new GuardedString(ldapValue.getValue().toCharArray());
+			return new GuardedString(ldapValue.getString().toCharArray());
 		} else {
 			String syntaxOid = null;
 			if (ldapAttributeType != null) {
@@ -742,38 +741,38 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 				switch (getConfiguration().getTimestampPresentation()) {
 					case AbstractLdapConfiguration.TIMESTAMP_PRESENTATION_NATIVE:
 						try {
-							return LdapUtil.generalizedTimeStringToZonedDateTime(ldapValue.getValue());
+							return LdapUtil.generalizedTimeStringToZonedDateTime(ldapValue.getString());
 						} catch (ParseException e) {
 							throw new InvalidAttributeValueException("Wrong generalized time format in LDAP attribute "+ldapAttributeName+": "+e.getMessage(), e);
 						}
 					case AbstractLdapConfiguration.TIMESTAMP_PRESENTATION_UNIX_EPOCH:
 						try {
-							GeneralizedTime gt = new GeneralizedTime(ldapValue.getValue());
+							GeneralizedTime gt = new GeneralizedTime(ldapValue.getString());
 							return gt.getCalendar().getTimeInMillis();
 						} catch (ParseException e) {
 							throw new InvalidAttributeValueException("Wrong generalized time format in LDAP attribute "+ldapAttributeName+": "+e.getMessage(), e);
 						}
 					case AbstractLdapConfiguration.TIMESTAMP_PRESENTATION_STRING:
-						return ldapValue.getValue();
+						return ldapValue.getString();
 					default:
 						throw new IllegalArgumentException("Unknown value of timestampPresentation: "+getConfiguration().getTimestampPresentation());
 				}
 			} else if (SchemaConstants.BOOLEAN_SYNTAX.equals(syntaxOid)) {
-				return Boolean.parseBoolean(ldapValue.getValue());
+				return Boolean.parseBoolean(ldapValue.getString());
 			} else if (isIntegerSyntax(syntaxOid)) {
-				return Integer.parseInt(ldapValue.getValue());
+				return Integer.parseInt(ldapValue.getString());
 			} else if (isLongSyntax(syntaxOid)) {
-				return Long.parseLong(ldapValue.getValue());
+				return Long.parseLong(ldapValue.getString());
 			} else if (isBinarySyntax(syntaxOid)) {
 				LOG.ok("Converting to ICF: {0} (syntax {1}, value {2}): explicit binary", ldapAttributeName, syntaxOid, ldapValue.getClass());
 				return ldapValue.getBytes();
 			} else if (isStringSyntax(syntaxOid)) {
 				LOG.ok("Converting to ICF: {0} (syntax {1}, value {2}): explicit string", ldapAttributeName, syntaxOid, ldapValue.getClass());
-				return ldapValue.getValue();
+				return ldapValue.getString();
 			} else {
 				if (ldapValue.isHumanReadable()) {
 					LOG.ok("Converting to ICF: {0} (syntax {1}, value {2}): detected string", ldapAttributeName, syntaxOid, ldapValue.getClass());
-					return ldapValue.getValue();
+					return ldapValue.getString();
 				} else {
 					LOG.ok("Converting to ICF: {0} (syntax {1}, value {2}): detected binary", ldapAttributeName, syntaxOid, ldapValue.getClass());
 					return ldapValue.getBytes();
@@ -982,10 +981,10 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 			
 			byte[] bytes = ldapValue.getBytes();
 			
-			if (bytes == null && ldapValue.getValue() != null) {
+			if (bytes == null && ldapValue.getString() != null) {
                 // Binary value incorrectly detected as string value.
 				// TODO: Conversion to Java string may has broken the data. Do we need to do some magic to fix it?
-			    bytes = ldapValue.getValue().getBytes(StandardCharsets.UTF_8);
+			    bytes = ldapValue.getString().getBytes(StandardCharsets.UTF_8);
 			}
 			
 			// Assume that identifiers are short. It is more readable to use hex representation than base64.
@@ -995,7 +994,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 				ldapAttributeType==null?null:getSyntax(ldapAttributeType).getOid(),
 			    ldapValue.getClass());
 			
-			return ldapValue.getValue();
+			return ldapValue.getString();
 		}
 	}
 	
@@ -1353,7 +1352,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		// Neither structural nor auxiliary. Should not happen. But it does.
 		List<org.apache.directory.api.ldap.model.schema.ObjectClass> outstandingObjectClasses = new ArrayList<>();
 		for (Value objectClassVal: objectClassAttribute) {
-			String objectClassString = objectClassVal.getValue();
+			String objectClassString = objectClassVal.getString();
 			org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass;
 			try {
 				ldapObjectClass = schemaManager.lookupObjectClassRegistry(objectClassString);

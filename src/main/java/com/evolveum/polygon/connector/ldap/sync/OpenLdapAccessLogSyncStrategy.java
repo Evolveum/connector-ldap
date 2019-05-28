@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015-2018 DAASI International
+ * Copyright (c) 2015-2019 DAASI International and Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@ package com.evolveum.polygon.connector.ldap.sync;
 import java.util.Arrays;
 import java.util.Iterator;
 
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.directory.api.ldap.model.constants.SchemaConstants;
 import org.apache.directory.api.ldap.model.cursor.CursorException;
 import org.apache.directory.api.ldap.model.cursor.EntryCursor;
@@ -166,14 +166,14 @@ public class OpenLdapAccessLogSyncStrategy<C extends AbstractLdapConfiguration> 
 					Iterator<Value> atrValIterator = uidAttribute.iterator();
 					while (atrValIterator.hasNext()) {
 						Value next = atrValIterator.next();
-						if (next.getValue().contains(uidAttributeName + ":")) {
+						if (next.getString().contains(uidAttributeName + ":")) {
 							LOG.ok("Found uid attribute");
 							foundUidAttr = true;
 							// spliting at first ':'. Everything after that is the uid attribute
 							// this is pretty safe because it's not possible to but ':' in an attribute
 							// deffinition
 							try {
-								String[] splitArr = next.getValue().split(":");
+								String[] splitArr = next.getString().split(":");
 								oldUid = String.join("", Arrays.copyOfRange(splitArr, 1, splitArr.length)).trim();
 							} catch (Exception e) {
 								LOG.info(

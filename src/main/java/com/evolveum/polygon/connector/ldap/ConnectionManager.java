@@ -26,7 +26,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
 
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.directory.api.ldap.model.exception.LdapException;
 import org.apache.directory.api.ldap.model.exception.LdapInvalidDnException;
 import org.apache.directory.api.ldap.model.exception.LdapURLEncodingException;
@@ -415,7 +415,7 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 		} catch (RuntimeException e) {
 			try {
 				connection.close();
-			} catch (IOException e1) {
+			} catch (Exception e1) {
 				LOG.error("Error closing conection (error handling of a bind of a new connection): {1}", e.getMessage(), e);
 			}
 			// This is always connection failed, even if other error is indicated.
@@ -469,7 +469,7 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 		} catch (LdapException e) {
 			try {
 				connection.close();
-			} catch (IOException e1) {
+			} catch (Exception e1) {
 				LOG.error("Error closing conection (handling error during creation of a new connection): {1}", e.getMessage(), e);
 			}
 			RuntimeException processedException = LdapUtil.processLdapException("Unable to connect to LDAP server "+configuration.getHost()+":"+configuration.getPort(), e);
@@ -582,7 +582,7 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 		} catch (RuntimeException e) {
 			try {
 				connection.close();
-			} catch (IOException e1) {
+			} catch (Exception e1) {
 				LOG.error("Error closing conection (error handling of a bind of a new connection): {1}", e1.getMessage(), e1);
 			}
 			// This is a special runAs situation. We really want to throw the real error here. 
@@ -632,7 +632,7 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 			// For example connections that were created for runAs feature.
 			try {
 				connection.close();
-			} catch (IOException e) {
+			} catch (Exception e) {
 				LOG.error("Error closing special connection: {0}", e.getMessage(), e);
 			}
 		}
