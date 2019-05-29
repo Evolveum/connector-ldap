@@ -15,21 +15,12 @@
  */
 package com.evolveum.polygon.connector.ldap.schema;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-
-import org.apache.directory.api.ldap.model.constants.SchemaConstants;
+import com.evolveum.polygon.common.SchemaUtil;
+import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
+import com.evolveum.polygon.connector.ldap.LdapUtil;
 import org.apache.directory.api.ldap.model.entry.Value;
 import org.apache.directory.api.ldap.model.exception.LdapSchemaException;
-import org.apache.directory.api.ldap.model.filter.AndNode;
-import org.apache.directory.api.ldap.model.filter.EqualityNode;
-import org.apache.directory.api.ldap.model.filter.ExprNode;
-import org.apache.directory.api.ldap.model.filter.GreaterEqNode;
-import org.apache.directory.api.ldap.model.filter.LessEqNode;
-import org.apache.directory.api.ldap.model.filter.NotNode;
-import org.apache.directory.api.ldap.model.filter.OrNode;
-import org.apache.directory.api.ldap.model.filter.SubstringNode;
+import org.apache.directory.api.ldap.model.filter.*;
 import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.ldap.model.schema.AttributeType;
 import org.apache.directory.api.ldap.model.schema.ObjectClass;
@@ -37,24 +28,11 @@ import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueE
 import org.identityconnectors.framework.common.objects.Attribute;
 import org.identityconnectors.framework.common.objects.Name;
 import org.identityconnectors.framework.common.objects.Uid;
-import org.identityconnectors.framework.common.objects.filter.AndFilter;
-import org.identityconnectors.framework.common.objects.filter.ContainsAllValuesFilter;
-import org.identityconnectors.framework.common.objects.filter.ContainsFilter;
-import org.identityconnectors.framework.common.objects.filter.EndsWithFilter;
-import org.identityconnectors.framework.common.objects.filter.EqualsFilter;
-import org.identityconnectors.framework.common.objects.filter.ExternallyChainedFilter;
-import org.identityconnectors.framework.common.objects.filter.Filter;
-import org.identityconnectors.framework.common.objects.filter.GreaterThanFilter;
-import org.identityconnectors.framework.common.objects.filter.GreaterThanOrEqualFilter;
-import org.identityconnectors.framework.common.objects.filter.LessThanFilter;
-import org.identityconnectors.framework.common.objects.filter.LessThanOrEqualFilter;
-import org.identityconnectors.framework.common.objects.filter.NotFilter;
-import org.identityconnectors.framework.common.objects.filter.OrFilter;
-import org.identityconnectors.framework.common.objects.filter.StartsWithFilter;
+import org.identityconnectors.framework.common.objects.filter.*;
 
-import com.evolveum.polygon.common.SchemaUtil;
-import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
-import com.evolveum.polygon.connector.ldap.LdapUtil;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 
 /**
  * @author Radovan Semancik
@@ -176,33 +154,60 @@ public class LdapFilterTranslator<C extends AbstractLdapConfiguration> {
             return new ScopedFilter(new EqualityNode<Object>(ldapAttributeType, ldapValues.get(0)));
         }
         
-        List<ExprNode> subNodes = new ArrayList<ExprNode>(ldapValues.size());
+        List<ExprNode> subNodes = new ArrayList<>(ldapValues.size());
         
         for (Value ldapValue: ldapValues) {
-            subNodes.add(new EqualityNode<Object>(ldapAttributeType, ldapValue));
+            subNodes.add(new EqualityNode<>(ldapAttributeType, ldapValue));
         }
         
         return new ScopedFilter(new AndNode(subNodes));
     }
 
+    public ScopedFilter translate(StartsWithFilter icfFilter) {
+        return translate(icfFilter, true, false);
+    }
+
+    public ScopedFilter translate(EndsWithFilter icfFilter) {
+        return translate(icfFilter, false, true);
+    }
 
     public ScopedFilter translate(ContainsFilter icfFilter) {
+        return translate(icfFilter, false, false);
+    }
+
+    public ScopedFilter translate(StringFilter icfFilter, boolean anchorStart, boolean anchorEnd) {
         if (icfFilter == null) {
             return null;
         }
-        
+
         Attribute icfAttribute = icfFilter.getAttribute();
         String icfAttributeName = icfAttribute.getName();
-        
+
         if (Name.NAME.equals(icfAttributeName)) {
             throw new IllegalArgumentException("Cannot use wildcard filter on DN (__NAME__)");
         }
-        
+
         AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, icfAttributeName);
-        List<String> anyPattern = new ArrayList<String>(1);
-        anyPattern.add(SchemaUtil.getSingleStringNonBlankValue(icfAttribute));
-        
-        return new ScopedFilter(new SubstringNode(anyPattern, ldapAttributeType, null, null));
+        String value = SchemaUtil.getSingleStringNonBlankValue(icfAttribute);
+
+        SubstringNode node;
+        if (!anchorStart && !anchorEnd) {
+            //substring
+            List<String> anyPattern = new ArrayList<>(1);
+            anyPattern.add(value);
+
+            node = new SubstringNode(anyPattern, ldapAttributeType, null, null);
+        } else if (anchorStart && !anchorEnd) {
+            //start with
+            node = new SubstringNode(ldapAttributeType, value, null);
+        } else if (!anchorStart && anchorEnd) {
+            //ends with
+            node = new SubstringNode(ldapAttributeType, null, value);
+        } else {
+            throw new IllegalStateException("Shouldn't happen");
+        }
+
+        return new ScopedFilter(node);
     }
 
 
@@ -352,15 +357,17 @@ public class LdapFilterTranslator<C extends AbstractLdapConfiguration> {
 			return translateEqualsFilter((EqualsFilter)connIdFilter);
 		} else if (connIdFilter instanceof ContainsAllValuesFilter) {
             return translate((ContainsAllValuesFilter)connIdFilter);
-		} else if (connIdFilter instanceof ContainsFilter) {
-            return translate((ContainsFilter)connIdFilter);
-		} else if ((connIdFilter instanceof StartsWithFilter) || (connIdFilter instanceof EndsWithFilter)) {
-            return translate((EqualsFilter)connIdFilter);
-		} else if (connIdFilter instanceof GreaterThanFilter) {			
-            return translate((GreaterThanFilter)connIdFilter);
-		} else if (connIdFilter instanceof GreaterThanOrEqualFilter) {
-            return translate((GreaterThanOrEqualFilter)connIdFilter);
-		} else if (connIdFilter instanceof LessThanFilter) {
+        } else if (connIdFilter instanceof ContainsFilter) {
+            return translate((ContainsFilter) connIdFilter);
+        } else if (connIdFilter instanceof StartsWithFilter) {
+            return translate((StartsWithFilter) connIdFilter);
+        } else if (connIdFilter instanceof EndsWithFilter) {
+            return translate((EndsWithFilter) connIdFilter);
+        } else if (connIdFilter instanceof GreaterThanFilter) {
+            return translate((GreaterThanFilter) connIdFilter);
+        } else if (connIdFilter instanceof GreaterThanOrEqualFilter) {
+            return translate((GreaterThanOrEqualFilter) connIdFilter);
+        } else if (connIdFilter instanceof LessThanFilter) {
             return translate((LessThanFilter)connIdFilter);
 		} else if (connIdFilter instanceof LessThanOrEqualFilter) {
             return translate((LessThanOrEqualFilter)connIdFilter);
