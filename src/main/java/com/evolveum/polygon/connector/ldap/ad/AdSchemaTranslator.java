@@ -260,7 +260,6 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
 			throw new IllegalStateException("Error converting password to UTF-16: "+e.getMessage(), e);
 		}
 		
-		LOG.info("#### PASSWORD BYTES ({0}): {1}", utf16PasswordBytes.length, LdapUtil.binaryToHex(utf16PasswordBytes));
 		try {
 			return new Value(ldapAttributeType, utf16PasswordBytes);
 		} catch (LdapInvalidAttributeValueException e) {
