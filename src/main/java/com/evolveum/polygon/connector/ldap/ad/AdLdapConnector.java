@@ -57,6 +57,7 @@ import org.apache.directory.api.ldap.model.schema.registries.ObjectClassRegistry
 import org.apache.directory.api.ldap.model.schema.registries.Registries;
 import org.apache.directory.api.ldap.model.schema.registries.SchemaObjectRegistry;
 import org.apache.directory.api.ldap.model.schema.syntaxCheckers.DirectoryStringSyntaxChecker;
+import org.apache.directory.api.ldap.model.schema.syntaxCheckers.OctetStringSyntaxChecker;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
 import org.apache.http.client.config.AuthSchemes;
 import org.identityconnectors.common.logging.Log;
@@ -506,11 +507,15 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 		
 		// Microsoft violates RFC4519
 		fixAttribute(schemaManager, SchemaConstants.CN_AT_OID, SchemaConstants.CN_AT,
-				createStringSyntax(SchemaConstants.DIRECTORY_STRING_SYNTAX), mrCaseIgnoreMatch);
+				createStringSyntax(SchemaConstants.DIRECTORY_STRING_SYNTAX), mrCaseIgnoreMatch, false);
 		fixAttribute(schemaManager, SchemaConstants.DOMAIN_COMPONENT_AT_OID, SchemaConstants.DC_AT,
-				createStringSyntax(SchemaConstants.DIRECTORY_STRING_SYNTAX), mrCaseIgnoreMatch);
+				createStringSyntax(SchemaConstants.DIRECTORY_STRING_SYNTAX), mrCaseIgnoreMatch, false);
 		fixAttribute(schemaManager, SchemaConstants.OU_AT_OID, SchemaConstants.OU_AT,
-				createStringSyntax(SchemaConstants.DIRECTORY_STRING_SYNTAX), mrCaseIgnoreMatch);
+				createStringSyntax(SchemaConstants.DIRECTORY_STRING_SYNTAX), mrCaseIgnoreMatch, false);
+		
+		// unicodePwd is not detected as binary, but it should be
+		fixAttribute(schemaManager, AdConstants.ATTRIBUTE_UNICODE_PWD_OID, AdConstants.ATTRIBUTE_UNICODE_PWD_NAME,
+				createBinarySyntax(SchemaConstants.OCTET_STRING_SYNTAX), null, true);
 	}
 	
 	private LdapSyntax createStringSyntax(String syntaxOid) {
@@ -519,35 +524,44 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 		syntax.setSyntaxChecker(DirectoryStringSyntaxChecker.INSTANCE);
 		return syntax;
 	}
+	
+	private LdapSyntax createBinarySyntax(String syntaxOid) {
+		LdapSyntax syntax = new LdapSyntax(syntaxOid);
+		syntax.setHumanReadable(false);
+		syntax.setSyntaxChecker(OctetStringSyntaxChecker.INSTANCE);
+		return syntax;
+	}
 
 	private void fixAttribute(SchemaManager schemaManager, String attrOid, String attrName,
-			LdapSyntax syntax, MatchingRule equalityMr) {
+			LdapSyntax syntax, MatchingRule equalityMr, boolean force) {
 		Registries registries = schemaManager.getRegistries();
 		AttributeTypeRegistry attributeTypeRegistry = registries.getAttributeTypeRegistry();
 		ObjectClassRegistry objectClassRegistry = registries.getObjectClassRegistry();
 		
-		AttributeType attrDcType = attributeTypeRegistry.get(attrOid);
-		if (attrDcType == null || attrDcType.getEquality() == null) {
-			AttributeType correctAttrDcType;
-			if (attrDcType != null) {
+		AttributeType existingAttrType = attributeTypeRegistry.get(attrOid);
+		if (force || existingAttrType == null || existingAttrType.getEquality() == null) {
+			AttributeType correctAttrType;
+			if (existingAttrType != null) {
 				try {
-					attributeTypeRegistry.unregister(attrDcType);
+					attributeTypeRegistry.unregister(existingAttrType);
 				} catch (LdapException e) {
-					throw new IllegalStateException("Error unregistering "+attrDcType+": "+e.getMessage(), e);
+					throw new IllegalStateException("Error unregistering "+existingAttrType+": "+e.getMessage(), e);
 				}
-				correctAttrDcType = new AttributeType(attrDcType.getOid());
-				correctAttrDcType.setNames(attrDcType.getNames());
+				correctAttrType = new AttributeType(existingAttrType.getOid());
+				correctAttrType.setNames(existingAttrType.getNames());
 			} else {
-				correctAttrDcType = new AttributeType(attrOid);
-				correctAttrDcType.setNames(attrName);
+				correctAttrType = new AttributeType(attrOid);
+				correctAttrType.setNames(attrName);
 			}
 			
-			correctAttrDcType.setSyntax(syntax);
-			correctAttrDcType.setEquality(equalityMr);
-			correctAttrDcType.setSingleValued(true);
-			LOG.ok("Registering replacement attributeType: {0}", correctAttrDcType);
-			register(attributeTypeRegistry, correctAttrDcType);
-			fixObjectClasses(objectClassRegistry, attrDcType, correctAttrDcType);
+			correctAttrType.setSyntax(syntax);
+			if (equalityMr != null) {
+				correctAttrType.setEquality(equalityMr);
+			}
+			correctAttrType.setSingleValued(true);
+			LOG.ok("Registering replacement attributeType: {0}", correctAttrType);
+			register(attributeTypeRegistry, correctAttrType);
+			fixObjectClasses(objectClassRegistry, existingAttrType, correctAttrType);
 		}
 		
 	}

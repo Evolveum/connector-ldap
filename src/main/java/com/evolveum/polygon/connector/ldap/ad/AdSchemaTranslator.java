@@ -260,6 +260,7 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
 			throw new IllegalStateException("Error converting password to UTF-16: "+e.getMessage(), e);
 		}
 		
+		LOG.info("#### PASSWORD BYTES ({0}): {1}", utf16PasswordBytes.length, LdapUtil.binaryToHex(utf16PasswordBytes));
 		try {
 			return new Value(ldapAttributeType, utf16PasswordBytes);
 		} catch (LdapInvalidAttributeValueException e) {
@@ -271,6 +272,9 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
 	@Override
 	public boolean isBinaryAttribute(String attributeId) {
 		if (AdConstants.ATTRIBUTE_NT_SECURITY_DESCRIPTOR.equalsIgnoreCase(attributeId)) {
+			return true;
+		}
+		if (AdConstants.ATTRIBUTE_UNICODE_PWD_NAME.equalsIgnoreCase(attributeId)) {
 			return true;
 		}
 		return super.isBinaryAttribute(attributeId);
