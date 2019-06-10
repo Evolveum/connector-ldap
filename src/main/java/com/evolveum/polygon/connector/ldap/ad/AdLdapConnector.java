@@ -55,9 +55,12 @@ import org.apache.directory.api.ldap.model.schema.registries.AttributeTypeRegist
 import org.apache.directory.api.ldap.model.schema.registries.MatchingRuleRegistry;
 import org.apache.directory.api.ldap.model.schema.registries.ObjectClassRegistry;
 import org.apache.directory.api.ldap.model.schema.registries.Registries;
+import org.apache.directory.api.ldap.model.schema.registries.Schema;
 import org.apache.directory.api.ldap.model.schema.registries.SchemaObjectRegistry;
 import org.apache.directory.api.ldap.model.schema.syntaxCheckers.DirectoryStringSyntaxChecker;
 import org.apache.directory.api.ldap.model.schema.syntaxCheckers.OctetStringSyntaxChecker;
+import org.apache.directory.api.ldap.schema.manager.impl.DefaultSchemaManager;
+import org.apache.directory.ldap.client.api.DefaultSchemaLoader;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
 import org.apache.http.client.config.AuthSchemes;
 import org.identityconnectors.common.logging.Log;
@@ -154,6 +157,11 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 	}
 	
 	@Override
+	protected void extraTests() {
+		super.extraTests();
+	}
+	
+	@Override
 	protected void reconnectAfterTest() {
 	}
 
@@ -165,6 +173,21 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 	@Override
 	protected LdapFilterTranslator<AdLdapConfiguration> createLdapFilterTranslator(ObjectClass ldapObjectClass) {
 		return new AdLdapFilterTranslator(getSchemaTranslator(), ldapObjectClass);
+	}
+	
+	@Override
+	protected DefaultSchemaManager createSchemaManager(boolean schemaQuirksMode) throws LdapException {
+		// Construction of SchemaLoader actually loads all the schemas from server.
+		AdSchemaLoader schemaLoader = new AdSchemaLoader(getConnectionManager().getDefaultConnection());
+		
+		if (LOG.isOk()) {
+			LOG.ok("AD Schema loader: {0} schemas ({1} enabled)", schemaLoader.getAllSchemas().size(), schemaLoader.getAllEnabled().size());
+			for (Schema schema : schemaLoader.getAllSchemas()) {
+				LOG.ok("AD Schema loader: schema {0}: enabled={1}, {2} objects", schema.getSchemaName(), schema.isEnabled(), schema.getContent().size());
+			}
+		}
+		
+		return new AdSchemaManager(schemaLoader);
 	}
 
 	@Override

@@ -59,6 +59,24 @@ public class LdapConstants {
 	public static final String SYNTAX_AD_CASE_IGNORE_STRING_TELETEX_SYNTAX = "1.2.840.113556.1.4.905";
 	public static final String SYNTAX_AD_CASE_IGNORE_STRING_SYNTAX = "1.2.840.113556.1.4.1221";
 	public static final String SYNTAX_AD_INTEGER8_SYNTAX = "1.2.840.113556.1.4.906";
+	public static final String SYNTAX_AD_OBJECT_DS_DN = "2.5.5.1";
+	public static final String SYNTAX_AD_STRING_OBJECT_IDENTIFIER = "2.5.5.2";
+	public static final String SYNTAX_AD_STRING_CASE = "2.5.5.3";
+	public static final String SYNTAX_AD_STRING_TELETEX = "2.5.5.4";
+	public static final String SYNTAX_AD_STRING_IA5 = "2.5.5.5";
+	public static final String SYNTAX_AD_STRING_NUMERIC = "2.5.5.6";
+	public static final String SYNTAX_AD_OBJECT_DN_BINARY = "2.5.5.7";
+	public static final String SYNTAX_AD_ADSTYPE_BOOLEAN = "2.5.5.8";
+	public static final String SYNTAX_AD_ADSTYPE_INTEGER = "2.5.5.9";
+	public static final String SYNTAX_AD_ADSTYPE_OCTET_STRING = "2.5.5.10";
+	public static final String SYNTAX_AD_UTC_TIME = "2.5.5.11";
+	public static final String SYNTAX_AD_STRING_UNICODE = "2.5.5.12";
 	public static final String SYNTAX_AD_SECURITY_DESCRIPTOR_SYNTAX = "1.2.840.113556.1.4.907";
+	public static final String SYNTAX_AD_OBJECT_PRESENTATION_ADDRESS = "2.5.5.13";
+	public static final String SYNTAX_AD_OBJECT_ACCESS_POINT = "2.5.5.14";
+	public static final String SYNTAX_AD_ADSTYPE_NT_SECURITY_DESCRIPTOR = "2.5.5.15";
+	
+	public static final String SYNTAX_AD_LARGE_INTEGER = "2.5.5.16";
+	public static final String SYNTAX_AD_STRING_SID = "2.5.5.17";
 	
 }

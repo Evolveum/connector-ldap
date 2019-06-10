@@ -320,35 +320,38 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
     		try {
     			boolean schemaQuirksMode = configuration.isSchemaQuirksMode();
     			LOG.ok("Loading schema (quirksMode={0})", schemaQuirksMode);
-    			DefaultSchemaLoader schemaLoader = new DefaultSchemaLoader(connectionManager.getDefaultConnection(), schemaQuirksMode);
-    			DefaultSchemaManager defSchemaManager = new DefaultSchemaManager(schemaLoader);
+    			
+    			// Construction of SchemaManager actually loads all the schemas from server.
+    			// They are just not completely parsed and processed yet.
+    			DefaultSchemaManager newSchemaManager = createSchemaManager(schemaQuirksMode);
+    			
     			SchemaErrorHandler schemaErrorHandler = createSchemaErrorHandler();
     			if (schemaErrorHandler != null) {
-    				defSchemaManager.setErrorHandler(schemaErrorHandler);
+    				newSchemaManager.setErrorHandler(schemaErrorHandler);
     			}
     			try {
     				if (schemaQuirksMode) {
-        				defSchemaManager.setRelaxed();
-        				defSchemaManager.loadAllEnabledRelaxed();
+        				newSchemaManager.setRelaxed();
+        				newSchemaManager.loadAllEnabledRelaxed();
     				} else {
-    					defSchemaManager.loadAllEnabled();
+    					newSchemaManager.loadAllEnabled();
     				}
 				} catch (Exception e) {
 					throw new ConnectorIOException(e.getMessage(), e);
 				}
-    			if ( !defSchemaManager.getErrors().isEmpty() ) {
+    			if ( !newSchemaManager.getErrors().isEmpty() ) {
     				if (schemaQuirksMode) {
-    					LOG.ok("There are {0} schema errors, but we are in quirks mode so we are ignoring them", defSchemaManager.getErrors().size());
+    					LOG.ok("There are {0} schema errors, but we are in quirks mode so we are ignoring them", newSchemaManager.getErrors().size());
     					if (isLogSchemaErrors()) {
-	    					for (Throwable error: defSchemaManager.getErrors()) {
+	    					for (Throwable error: newSchemaManager.getErrors()) {
 	    						LOG.ok("Schema error (ignored): {0}: {1}", error.getClass().getName(), error.getMessage());
 	    					}
     					}
     				} else {
-    					throw new ConnectorIOException("Errors loading schema "+defSchemaManager.getErrors());
+    					throw new ConnectorIOException("Errors loading schema "+newSchemaManager.getErrors());
     				}
     			}
-    			schemaManager = defSchemaManager;
+    			schemaManager = newSchemaManager;
 //    			connection.setSchemaManager(defSchemaManager);
 //    			connection.loadSchema(defSchemaManager);
     		} catch (LdapException e) {
@@ -366,9 +369,11 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			}
     		
     		try {
-				LOG.info("Schema loaded, {0} schemas, {1} object classes, {2} errors",
+				LOG.info("Schema loaded, {0} schemas, {1} object classes, {2} attributes, {3} syntaxes, {4} errors",
 						schemaManager.getAllSchemas().size(),
 						schemaManager.getObjectClassRegistry().size(),
+						schemaManager.getAttributeTypeRegistry().size(),
+						schemaManager.getLdapSyntaxRegistry().size(),
 						schemaManager.getErrors().size());
 			} catch (Exception e) {
 				throw new RuntimeException(e.getMessage(),e);
@@ -378,6 +383,12 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
     	return schemaManager;
     }
     
+	protected DefaultSchemaManager createSchemaManager(boolean schemaQuirksMode) throws LdapException {
+		// Construction of SchemaLoader actually loads all the schemas from server.
+		DefaultSchemaLoader schemaLoader = new DefaultSchemaLoader(connectionManager.getDefaultConnection(), schemaQuirksMode);
+		return new DefaultSchemaManager(schemaLoader); 
+	}
+	
 	protected void patchSchemaManager(SchemaManager schemaManager) {
 		// Nothing to do here. But useful in subclasses.
 	}

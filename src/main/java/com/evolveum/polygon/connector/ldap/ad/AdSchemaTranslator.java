@@ -312,6 +312,9 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
 		if (hexValue == null) {
 			return null;
 		}
+		if (hexValue.length() != 32) {
+			throw new InvalidAttributeValueException("Unexpected GUID format: "+hexValue);
+		}
 		StringBuilder sb = new StringBuilder();
 		sb.append(hexValue.substring(6, 8));
 		sb.append(hexValue.substring(4, 6));
@@ -338,6 +341,9 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
 	public String parseGuidFromDashedNotation(String guidDashedNotation) {
 		if (guidDashedNotation == null) {
 			return null;
+		}
+		if (guidDashedNotation.length() != 36) {
+			throw new InvalidAttributeValueException("Unexpected GUID format: "+guidDashedNotation);
 		}
 		StringBuilder sb = new StringBuilder();
 		sb.append(guidDashedNotation.substring(6, 8));

@@ -1756,8 +1756,25 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		addToSyntaxMap(LdapConstants.SYNTAX_AD_CASE_IGNORE_STRING_SYNTAX, String.class, AttributeInfo.Subtypes.STRING_CASE_IGNORE);
 		addToSyntaxMap(LdapConstants.SYNTAX_AD_DN_WITH_STRING_SYNTAX, String.class);
 		addToSyntaxMap(LdapConstants.SYNTAX_AD_DN_WITH_BINARY_SYNTAX, String.class);
+		addToSyntaxMap(LdapConstants.SYNTAX_AD_OBJECT_DS_DN, String.class);
+		addToSyntaxMap(LdapConstants.SYNTAX_AD_STRING_OBJECT_IDENTIFIER, String.class);
+		addToSyntaxMap(LdapConstants.SYNTAX_AD_STRING_CASE, String.class);
+		addToSyntaxMap(LdapConstants.SYNTAX_AD_STRING_TELETEX, String.class);
+		addToSyntaxMap(LdapConstants.SYNTAX_AD_STRING_IA5, String.class);
+		addToSyntaxMap(LdapConstants.SYNTAX_AD_STRING_NUMERIC, String.class);
+		addToSyntaxMap(LdapConstants.SYNTAX_AD_OBJECT_DN_BINARY, String.class);
+		addToSyntaxMap(LdapConstants.SYNTAX_AD_ADSTYPE_INTEGER, int.class);
 		addToSyntaxMap(LdapConstants.SYNTAX_AD_INTEGER8_SYNTAX, long.class);
+		addToSyntaxMap(LdapConstants.SYNTAX_AD_LARGE_INTEGER, long.class);
+		addToSyntaxMap(LdapConstants.SYNTAX_AD_ADSTYPE_OCTET_STRING, byte[].class);
 		addToSyntaxMap(LdapConstants.SYNTAX_AD_SECURITY_DESCRIPTOR_SYNTAX, byte[].class);
+		addToSyntaxMap(LdapConstants.SYNTAX_AD_ADSTYPE_NT_SECURITY_DESCRIPTOR, byte[].class);
+		addToSyntaxMap(LdapConstants.SYNTAX_AD_ADSTYPE_BOOLEAN, Boolean.class);
+		addToSyntaxMap(LdapConstants.SYNTAX_AD_UTC_TIME, ZonedDateTime.class);
+		addToSyntaxMap(LdapConstants.SYNTAX_AD_STRING_UNICODE, String.class);
+		addToSyntaxMap(LdapConstants.SYNTAX_AD_OBJECT_PRESENTATION_ADDRESS, String.class);
+		addToSyntaxMap(LdapConstants.SYNTAX_AD_OBJECT_ACCESS_POINT, String.class);
+		addToSyntaxMap(LdapConstants.SYNTAX_AD_STRING_SID, String.class);
 		
 		// AD strangeness
 		addToSyntaxMap("OctetString", byte[].class);
