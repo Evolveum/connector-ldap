@@ -21,8 +21,14 @@ package com.evolveum.polygon.connector.ldap.ad;
  */
 public class AdConstants {
 	
+	/**
+	 * Name used for native AD schema in Apache Directory API.
+	 */
+	public static final String AD_SCHEMA_NAME = "AD";
+	
 	public static final String ATTRIBUTE_OBJECT_GUID_NAME = "objectGUID";
 	public static final String ATTRIBUTE_OBJECT_SID_NAME = "objectSid";
+	public static final String ATTRIBUTE_OBJECT_CATEGORY_NAME = "objectCategory";
 	public static final String ATTRIBUTE_SAM_ACCOUNT_NAME_NAME = "sAMAccountName";
 	public static final String ATTRIBUTE_UNICODE_PWD_NAME = "unicodePwd";
 	public static final String ATTRIBUTE_UNICODE_PWD_OID = "1.2.840.113556.1.4.90";
@@ -47,6 +53,7 @@ public class AdConstants {
 	public static final String ATTRIBUTE_SYSTEM_ONLY_NAME = "systemOnly";
 	public static final String ATTRIBUTE_SUB_CLASS_OF_NAME = "subClassOf";
 	public static final String ATTRIBUTE_AUXILIARY_CLASS_NAME = "auxiliaryClass";
+	public static final String ATTRIBUTE_DEFAULT_OBJECT_CATEGORY_NAME = "defaultObjectCategory";
 	
 	public static final int USER_ACCOUNT_CONTROL_NORMAL = 0x0200;
 	public static final int USER_ACCOUNT_CONTROL_DISABLED = 0x0002;
@@ -56,9 +63,6 @@ public class AdConstants {
 	public static final String OBJECT_CLASS_ATTRIBUTE_SCHEMA = "attributeSchema";
 	public static final String OBJECT_CLASS_DMD = "dMD";
 	public static final String OBJECT_CLASS_SUB_SCHEMA = "subSchema";
-	
-	
-	
 	
 
 }

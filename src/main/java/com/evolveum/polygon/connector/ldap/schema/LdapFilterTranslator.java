@@ -49,16 +49,42 @@ public class LdapFilterTranslator<C extends AbstractLdapConfiguration> {
 		this.ldapObjectClass = ldapObjectClass;
 	}
 
+	protected C getConfiguration() {
+		return schemaTranslator.getConfiguration();
+	}
+	
 	/**
 	 * Translate filter, also add AND statement for objectClass.
 	 */
 	public ScopedFilter translate(Filter connIdFilter, ObjectClass ldapObjectClass) {
 		ScopedFilter plainScopedFilter = translate(connIdFilter);
 		if (plainScopedFilter != null) {
-			return plainScopedFilter;
+			if (getConfiguration().isIncludeObjectClassFilter()) {
+				ExprNode filterWithObjectClass = LdapUtil.filterAnd(
+						createObjectClassFilter(ldapObjectClass),
+						plainScopedFilter.getFilter());
+				return applyAdditionalFilter(new ScopedFilter(filterWithObjectClass, plainScopedFilter.getBaseDn()));
+			} else {
+				return applyAdditionalFilter(plainScopedFilter);
+			}
 		} else {
-			return new ScopedFilter(LdapUtil.createObjectClassFilter(ldapObjectClass));
+			return applyAdditionalFilter(new ScopedFilter(createObjectClassFilter(ldapObjectClass)));
 		}
+	}
+	
+	protected ScopedFilter applyAdditionalFilter(ScopedFilter scopedFilter) {
+		if (getConfiguration().getAdditionalSearchFilter() == null) {
+			return scopedFilter;
+		} else {
+			ExprNode filterNode = LdapUtil.filterAnd(
+					scopedFilter.getFilter(),
+					LdapUtil.parseSearchFilter(getConfiguration().getAdditionalSearchFilter()));
+			return new ScopedFilter(filterNode, scopedFilter.getBaseDn());
+		}
+	}
+
+	protected ExprNode createObjectClassFilter(org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
+		return LdapUtil.createObjectClassFilter(ldapObjectClass);
 	}
 	
 	public ScopedFilter translate(AndFilter connIdFilter) {

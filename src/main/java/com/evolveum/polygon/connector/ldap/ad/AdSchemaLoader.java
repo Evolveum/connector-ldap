@@ -138,7 +138,7 @@ public class AdSchemaLoader extends DefaultSchemaLoader {
 	private LdapSyntax addSyntax(String syntaxOid, String description, boolean isHumanReadable) {
 		LdapSyntax syntax = new LdapSyntax(syntaxOid, description, isHumanReadable);
 		syntax.setEnabled(true);
-		syntax.setSchemaName(MetaSchemaConstants.SCHEMA_OTHER);
+		syntax.setSchemaName(AdConstants.AD_SCHEMA_NAME);
 		updateSchemas(syntax);
 		return syntax;
 	}
@@ -264,7 +264,7 @@ public class AdSchemaLoader extends DefaultSchemaLoader {
 //		attributeType.setOrdering(ordering);
 //		attributeType.setSubstring(substring);
 		
-		attributeType.setSchemaName(MetaSchemaConstants.SCHEMA_OTHER);
+		attributeType.setSchemaName(AdConstants.AD_SCHEMA_NAME);
 		updateSchemas(attributeType);
 	}
 
@@ -303,7 +303,9 @@ public class AdSchemaLoader extends DefaultSchemaLoader {
 		// Name of this method says "oid" but what it really mean is "name"
 		objectClass.setMayAttributeTypeOids(mayAttributeNames);
 		
-		objectClass.setSchemaName(MetaSchemaConstants.SCHEMA_OTHER);
+		objectClass.setDefaultObjectCategory(LdapUtil.getStringAttribute(schemaEntry, AdConstants.ATTRIBUTE_DEFAULT_OBJECT_CATEGORY_NAME));
+		
+		objectClass.setSchemaName(AdConstants.AD_SCHEMA_NAME);
 //		LOG.ok("Registering object class {0} ({1}):\n{2}", className, oid, objectClass);
 		updateSchemas(objectClass);
 	}

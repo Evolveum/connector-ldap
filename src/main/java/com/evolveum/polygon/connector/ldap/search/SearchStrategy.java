@@ -324,16 +324,6 @@ public abstract class SearchStrategy<C extends AbstractLdapConfiguration> {
 	}
 	
 	protected ExprNode preProcessSearchFilter(ExprNode filterNode) {
-		if (configuration.isIncludeObjectClassFilter() && !LdapUtil.containsObjectClassFilter(filterNode)) {
-			filterNode = LdapUtil.filterAnd(
-					LdapUtil.createObjectClassFilter(ldapObjectClass),
-					filterNode);
-		}
-		if (configuration.getAdditionalSearchFilter() != null) {
-			filterNode = LdapUtil.filterAnd(
-					filterNode,
-					LdapUtil.parseSearchFilter(configuration.getAdditionalSearchFilter()));
-		}
 		return filterNode;
 	}
 

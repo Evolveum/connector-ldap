@@ -15,8 +15,13 @@
  */
 package com.evolveum.polygon.connector.ldap.ad;
 
+import java.io.IOException;
+
+import org.apache.directory.api.ldap.model.exception.LdapException;
+import org.apache.directory.api.ldap.model.schema.SchemaObjectWrapper;
+import org.apache.directory.api.ldap.model.schema.registries.Registries;
+import org.apache.directory.api.ldap.model.schema.registries.Schema;
 import org.apache.directory.api.ldap.schema.manager.impl.DefaultSchemaManager;
-import org.apache.directory.ldap.client.api.DefaultSchemaLoader;
 
 /**
  * @author semancik
@@ -28,5 +33,11 @@ public class AdSchemaManager extends DefaultSchemaManager {
 		super(schemaLoader);
 	}
 
+	@Override
+	protected void addSchemaObjects( Schema schema, Registries registries ) throws LdapException {
+		for (SchemaObjectWrapper objectWrapper : schema.getContent()) {
+			addSchemaObject(registries, objectWrapper.get(), schema);
+		}
+	}
 	
 }
