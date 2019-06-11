@@ -21,6 +21,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -28,9 +29,12 @@ import java.util.Set;
 import javax.net.ssl.HostnameVerifier;
 
 import org.apache.directory.api.ldap.model.constants.SchemaConstants;
+import org.apache.directory.api.ldap.model.entry.DefaultModification;
 import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.entry.Modification;
+import org.apache.directory.api.ldap.model.entry.ModificationOperation;
 import org.apache.directory.api.ldap.model.exception.LdapException;
+import org.apache.directory.api.ldap.model.exception.LdapInvalidDnException;
 import org.apache.directory.api.ldap.model.exception.LdapOperationException;
 import org.apache.directory.api.ldap.model.exception.LdapOtherException;
 import org.apache.directory.api.ldap.model.message.LdapResult;
@@ -70,9 +74,11 @@ import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueE
 import org.identityconnectors.framework.common.exceptions.UnknownUidException;
 import org.identityconnectors.framework.common.objects.AttributeDelta;
 import org.identityconnectors.framework.common.objects.AttributeDeltaBuilder;
+import org.identityconnectors.framework.common.objects.Name;
 import org.identityconnectors.framework.common.objects.OperationOptions;
 import org.identityconnectors.framework.common.objects.OperationalAttributeInfos;
 import org.identityconnectors.framework.common.objects.OperationalAttributes;
+import org.identityconnectors.framework.common.objects.PredefinedAttributes;
 import org.identityconnectors.framework.common.objects.ResultsHandler;
 import org.identityconnectors.framework.common.objects.ScriptContext;
 import org.identityconnectors.framework.common.objects.Uid;
@@ -198,6 +204,72 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 			}
 		}
 	}
+	
+	@Override
+	protected Set<AttributeDelta> prepareDeltas(org.identityconnectors.framework.common.objects.ObjectClass connIdObjectClass, Uid uid, Set<AttributeDelta> deltas, OperationOptions options)  {
+		
+		if (getConfiguration().isRawUserAccountControlAttribute()) return deltas;
+		
+		Set<AdConstants.UAC> uacAddSet = new HashSet<AdConstants.UAC>();
+		Set<AdConstants.UAC> uacDelSet = new HashSet<AdConstants.UAC>();
+		
+		Set<AttributeDelta> newDelta = new HashSet<AttributeDelta>();
+		
+		for (AttributeDelta delta : deltas) {
+			AdConstants.UAC uacVal = Enum.valueOf(AdConstants.UAC.class, delta.getName());
+			if (delta.getName().equals(OperationalAttributes.ENABLE_NAME) || Enum.valueOf(AdConstants.UAC.class, delta.getName()) != null) {
+				//
+				
+				List<Object> valuesToReplace = delta.getValuesToReplace();
+				if (valuesToReplace != null && valuesToReplace.size() >0) {
+					Object val = valuesToReplace.get(0);
+					if (val instanceof Boolean) {												
+						if ((Boolean)val) uacAddSet.add(uacVal);
+						else uacDelSet.add(uacVal);
+					}
+				}
+			}
+			else newDelta.add(delta);
+		}
+		
+		if (uacDelSet.isEmpty() && uacAddSet.isEmpty()) return deltas;
+		
+		// We need oroginal value
+
+			Entry existingEntry;
+			try {
+				//TODO: (String)uid.getValue().get(0) uid: invaliddn
+				existingEntry = searchSingleEntry(getConnectionManager(), new Dn((String)uid.getNameHintValue()), null, SearchScope.OBJECT, null /* see above */, 
+"pre-read of entry to eliminate extra optioned attribute values for attribute "+AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME, null);
+			} catch (LdapInvalidDnException e) {
+				throw new InvalidAttributeValueException("Cannot pre-read of entry for attribute "+ AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME + ": "+uid);
+			}
+		LOG.ok("Pre-read entry for {0}:\n{1}", AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME, existingEntry);
+		
+
+		if (existingEntry == null) {
+			throw new UnknownUidException("Cannot pre-read of entry for attribute "+ AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME + ": "+uid);
+		}
+		
+		Integer userAccountControl = LdapUtil.getIntegerAttribute(existingEntry, AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME, null);
+
+		for (AdConstants.UAC uac : uacAddSet) {
+			if ((userAccountControl & uac.getBit()) == 0) {
+				userAccountControl = userAccountControl + uac.getBit();
+            }
+		}
+		for (AdConstants.UAC uac : uacDelSet) {
+			if ((userAccountControl & uac.getBit()) != 0) {
+				userAccountControl = userAccountControl - uac.getBit();
+            }
+		}
+		
+		AttributeDelta uacAttrDelta = AttributeDeltaBuilder.build(AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME, userAccountControl);
+		newDelta.add(uacAttrDelta);
+		
+		return newDelta;
+	}
+		
 
 	@Override
 	protected void addAttributeModification(Dn dn, List<Modification> modifications, ObjectClass ldapStructuralObjectClass,

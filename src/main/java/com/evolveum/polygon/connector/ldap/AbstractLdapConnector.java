@@ -952,12 +952,17 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 	protected void preCreate(org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass, Entry entry) {
 		// Nothing to do here. Hooks for subclasses.
 	}
-
+	
+	protected Set<AttributeDelta> prepareDeltas(ObjectClass connIdObjectClass, Uid uid, Set<AttributeDelta> deltas, OperationOptions options) {
+		// Nothing to do here. Hooks for subclasses.
+		return deltas;
+	}
 	
 	
 	@Override
 	public Set<AttributeDelta> updateDelta(ObjectClass connIdObjectClass, Uid uid, Set<AttributeDelta> deltas,
 			OperationOptions options) {
+			deltas = prepareDeltas(connIdObjectClass, uid, deltas, options);
     	
 		Dn dn = null;
 		for (AttributeDelta delta: deltas) {
@@ -994,6 +999,8 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 			
 		return ldapUpdateAttempt(connIdObjectClass, uid, dn, deltas, options, ldapStructuralObjectClass);
 	}
+	
+	
 	
 	
 
@@ -1042,7 +1049,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		}
 	}
 		
-	private Set<AttributeDelta> ldapUpdateAttempt(ObjectClass connIdObjectClass, Uid uid, Dn dn, Set<AttributeDelta> deltas,
+	protected Set<AttributeDelta> ldapUpdateAttempt(ObjectClass connIdObjectClass, Uid uid, Dn dn, Set<AttributeDelta> deltas,
 			OperationOptions options, org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass) {
 		
 		List<Modification> ldapModifications = new ArrayList<Modification>();
