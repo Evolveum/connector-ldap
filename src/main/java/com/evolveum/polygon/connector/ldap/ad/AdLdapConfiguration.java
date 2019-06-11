@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2018 Evolveum
+ * Copyright (c) 2015-2019 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -147,6 +147,14 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
      * EXPERIMENTAL. Not completely tested yet.
      */
     private boolean includeObjectCategoryFilter = false;
+    
+    /**
+     * If set to true then the connector will automatically add default object category to all created objects.
+     * Object category is automatically determined from schema. Only works if native AD schema is enabled.
+     * Default value: false.
+     * EXPERIMENTAL. Not completely tested yet.
+     */
+    private boolean addDefaultObjectCategory = false;
     
     /**
      * If set to true then the connector will force password change at next log-on
@@ -310,8 +318,17 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 	public void setIncludeObjectCategoryFilter(boolean includeObjectCategoryFilter) {
 		this.includeObjectCategoryFilter = includeObjectCategoryFilter;
 	}
-
+	
 	@ConfigurationProperty(order = 110)
+	public boolean isAddDefaultObjectCategory() {
+		return addDefaultObjectCategory;
+	}
+
+	public void setAddDefaultObjectCategory(boolean addDefaultObjectCategory) {
+		this.addDefaultObjectCategory = addDefaultObjectCategory;
+	}
+
+	@ConfigurationProperty(order = 111)
 	public boolean isForcePasswordChangeAtNextLogon() {
 		return forcePasswordChangeAtNextLogon;
 	}
@@ -320,7 +337,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.forcePasswordChangeAtNextLogon = forcePasswordChangeAtNextLogon;
 	}
 
-	@ConfigurationProperty(order = 111)
+	@ConfigurationProperty(order = 112)
 	public String getScriptExecutionMechanism() {
 		return scriptExecutionMechanism;
 	}
@@ -329,7 +346,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.scriptExecutionMechanism = scriptExecitionMechanism;
 	}
 
-	@ConfigurationProperty(order = 112)
+	@ConfigurationProperty(order = 113)
 	public String getWinRmHost() {
 		return winRmHost;
 	}
@@ -338,7 +355,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.winRmHost = winRmHost;
 	}
 
-	@ConfigurationProperty(order = 113)
+	@ConfigurationProperty(order = 114)
 	public String getWinRmUsername() {
 		return winRmUsername;
 	}
@@ -347,7 +364,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.winRmUsername = winRmUsername;
 	}
 	
-	@ConfigurationProperty(order = 114)
+	@ConfigurationProperty(order = 115)
 	public String getWinRmDomain() {
 		return winRmDomain;
 	}
@@ -356,7 +373,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.winRmDomain = winRmDomain;
 	}
 
-	@ConfigurationProperty(order = 115)
+	@ConfigurationProperty(order = 116)
 	public GuardedString getWinRmPassword() {
 		return winRmPassword;
 	}
@@ -365,7 +382,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.winRmPassword = winRmPassword;
 	}
 	
-	@ConfigurationProperty(order = 116)
+	@ConfigurationProperty(order = 117)
 	public String getWinRmAuthenticationScheme() {
 		return winRmAuthenticationScheme;
 	}
@@ -374,7 +391,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.winRmAuthenticationScheme = winRmAuthenticationScheme;
 	}
 
-	@ConfigurationProperty(order = 117)
+	@ConfigurationProperty(order = 118)
 	public int getWinRmPort() {
 		return winRmPort;
 	}
@@ -383,7 +400,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.winRmPort = winRmPort;
 	}
 
-	@ConfigurationProperty(order = 118)
+	@ConfigurationProperty(order = 119)
 	public boolean isWinRmUseHttps() {
 		return winRmUseHttps;
 	}
@@ -392,7 +409,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.winRmUseHttps = winRmUseHttps;
 	}
 
-	@ConfigurationProperty(order = 119)
+	@ConfigurationProperty(order = 120)
 	public String getPowershellArgumentStyle() {
 		return powershellArgumentStyle;
 	}

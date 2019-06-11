@@ -95,13 +95,15 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
 		}
 	}
 	
-	
-	
 	@Override
 	protected void setAttributeMultiplicityAndPermissions(AttributeType ldapAttributeType, String connidAttributeName,
 			AttributeInfoBuilder aib) {
 		super.setAttributeMultiplicityAndPermissions(ldapAttributeType, connidAttributeName, aib);
 		if (ArrayUtils.contains(OPTIONAL_TOP_ATTRIBUTES, ldapAttributeType.getName().toLowerCase())) {
+			aib.setRequired(false);
+		}
+		if (getConfiguration().isAddDefaultObjectCategory() && AdConstants.ATTRIBUTE_OBJECT_CATEGORY_NAME.equals(ldapAttributeType.getName())) {
+			// Connector is going to manage objectCategory. Therefore from the point of view of IDM the objectCategory is optional.
 			aib.setRequired(false);
 		}
 	}

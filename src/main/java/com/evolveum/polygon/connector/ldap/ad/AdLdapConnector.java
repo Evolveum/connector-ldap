@@ -215,12 +215,35 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 	@Override
 	protected void preCreate(org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass, Entry entry) {
 		super.preCreate(ldapStructuralObjectClass, entry);
+		
+		// objectCategory
+		if (getConfiguration().isAddDefaultObjectCategory()) {
+			if (ldapStructuralObjectClass instanceof AdObjectClass) {
+				String existingObjectCategory = LdapUtil.getStringAttribute(entry, AdConstants.ATTRIBUTE_OBJECT_CATEGORY_NAME);
+				if (existingObjectCategory == null) {
+					String defaultObjectCategory = ((AdObjectClass)ldapStructuralObjectClass).getDefaultObjectCategory();
+					if (defaultObjectCategory == null) {
+						LOG.warn("Requested to add default object class, but there is no default object category definition in object class {0}", ldapStructuralObjectClass.getName());
+					} else {
+						try {
+							entry.add(AdConstants.ATTRIBUTE_OBJECT_CATEGORY_NAME, defaultObjectCategory);
+						} catch (LdapException e) {
+							throw new IllegalStateException("Error adding attribute "+AdConstants.ATTRIBUTE_OBJECT_CATEGORY_NAME+" to entry: "+e.getMessage(), e);
+						}
+					}
+				}
+			} else {
+				LOG.warn("Requested to add default object class, but native AD schema is not available for object class {0}", ldapStructuralObjectClass.getName());
+			}
+		}
+		
+		// userAccountControl
 		if (getSchemaTranslator().isUserObjectClass(ldapStructuralObjectClass.getName()) && !getConfiguration().isRawUserAccountControlAttribute()) {
 			if (entry.get(AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME) == null) {
 				try {
 					entry.add(AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME, Integer.toString(AdConstants.USER_ACCOUNT_CONTROL_NORMAL));
 				} catch (LdapException e) {
-					throw new IllegalStateException("Error adding attribute "+AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME+" to entry");
+					throw new IllegalStateException("Error adding attribute "+AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME+" to entry: "+e.getMessage(), e);
 				}
 			}
 		}
