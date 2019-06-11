@@ -119,6 +119,13 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
     private boolean rawUserAccountControlAttribute = false;
     
     /**
+     * If set to true, then the connector will use native AD schema definition.
+     * If set to false, connector will use LDAP-like schema definition exposed by the AD server.
+     * Default value: false
+     */
+    private boolean nativeAdSchema = false;
+    
+    /**
      * Extend the declared AD schema with tweaks that allow practical usage of the schema.
      * AD will generally allow any attribute to be set to any object regardless for the schema.
      * This is often used is practice. E.g. declared AD schema for users and groups does not
@@ -265,6 +272,15 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 	}
 	
 	@ConfigurationProperty(order = 107)
+	public boolean isNativeAdSchema() {
+		return nativeAdSchema;
+	}
+
+	public void setNativeAdSchema(boolean nativeAdSchema) {
+		this.nativeAdSchema = nativeAdSchema;
+	}
+
+	@ConfigurationProperty(order = 108)
 	public boolean isTweakSchema() {
 		return tweakSchema;
 	}
@@ -273,7 +289,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.tweakSchema = tweakSchema;
 	}
 	
-	@ConfigurationProperty(order = 108)
+	@ConfigurationProperty(order = 109)
 	public boolean isForcePasswordChangeAtNextLogon() {
 		return forcePasswordChangeAtNextLogon;
 	}
@@ -282,7 +298,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.forcePasswordChangeAtNextLogon = forcePasswordChangeAtNextLogon;
 	}
 
-	@ConfigurationProperty(order = 109)
+	@ConfigurationProperty(order = 110)
 	public String getScriptExecutionMechanism() {
 		return scriptExecutionMechanism;
 	}
@@ -291,7 +307,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.scriptExecutionMechanism = scriptExecitionMechanism;
 	}
 
-	@ConfigurationProperty(order = 110)
+	@ConfigurationProperty(order = 111)
 	public String getWinRmHost() {
 		return winRmHost;
 	}
@@ -300,7 +316,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.winRmHost = winRmHost;
 	}
 
-	@ConfigurationProperty(order = 111)
+	@ConfigurationProperty(order = 112)
 	public String getWinRmUsername() {
 		return winRmUsername;
 	}
@@ -309,7 +325,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.winRmUsername = winRmUsername;
 	}
 	
-	@ConfigurationProperty(order = 112)
+	@ConfigurationProperty(order = 113)
 	public String getWinRmDomain() {
 		return winRmDomain;
 	}
@@ -318,7 +334,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.winRmDomain = winRmDomain;
 	}
 
-	@ConfigurationProperty(order = 113)
+	@ConfigurationProperty(order = 114)
 	public GuardedString getWinRmPassword() {
 		return winRmPassword;
 	}
@@ -327,7 +343,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.winRmPassword = winRmPassword;
 	}
 	
-	@ConfigurationProperty(order = 114)
+	@ConfigurationProperty(order = 115)
 	public String getWinRmAuthenticationScheme() {
 		return winRmAuthenticationScheme;
 	}
@@ -336,7 +352,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.winRmAuthenticationScheme = winRmAuthenticationScheme;
 	}
 
-	@ConfigurationProperty(order = 115)
+	@ConfigurationProperty(order = 116)
 	public int getWinRmPort() {
 		return winRmPort;
 	}
@@ -345,7 +361,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.winRmPort = winRmPort;
 	}
 
-	@ConfigurationProperty(order = 116)
+	@ConfigurationProperty(order = 117)
 	public boolean isWinRmUseHttps() {
 		return winRmUseHttps;
 	}
@@ -354,7 +370,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 		this.winRmUseHttps = winRmUseHttps;
 	}
 
-	@ConfigurationProperty(order = 117)
+	@ConfigurationProperty(order = 118)
 	public String getPowershellArgumentStyle() {
 		return powershellArgumentStyle;
 	}

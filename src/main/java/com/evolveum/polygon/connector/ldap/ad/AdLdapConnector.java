@@ -177,17 +177,21 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 	
 	@Override
 	protected DefaultSchemaManager createSchemaManager(boolean schemaQuirksMode) throws LdapException {
-		// Construction of SchemaLoader actually loads all the schemas from server.
-		AdSchemaLoader schemaLoader = new AdSchemaLoader(getConnectionManager().getDefaultConnection());
-		
-		if (LOG.isOk()) {
-			LOG.ok("AD Schema loader: {0} schemas ({1} enabled)", schemaLoader.getAllSchemas().size(), schemaLoader.getAllEnabled().size());
-			for (Schema schema : schemaLoader.getAllSchemas()) {
-				LOG.ok("AD Schema loader: schema {0}: enabled={1}, {2} objects", schema.getSchemaName(), schema.isEnabled(), schema.getContent().size());
+		if (getConfiguration().isNativeAdSchema()) {
+			// Construction of SchemaLoader actually loads all the schemas from server.
+			AdSchemaLoader schemaLoader = new AdSchemaLoader(getConnectionManager().getDefaultConnection());
+			
+			if (LOG.isOk()) {
+				LOG.ok("AD Schema loader: {0} schemas ({1} enabled)", schemaLoader.getAllSchemas().size(), schemaLoader.getAllEnabled().size());
+				for (Schema schema : schemaLoader.getAllSchemas()) {
+					LOG.ok("AD Schema loader: schema {0}: enabled={1}, {2} objects", schema.getSchemaName(), schema.isEnabled(), schema.getContent().size());
+				}
 			}
+			
+			return new AdSchemaManager(schemaLoader);
+		} else {
+			return super.createSchemaManager(schemaQuirksMode);
 		}
-		
-		return new AdSchemaManager(schemaLoader);
 	}
 
 	@Override

@@ -129,9 +129,10 @@ public class AdSchemaLoader extends DefaultSchemaLoader {
 		addSyntax(LdapConstants.SYNTAX_AD_STRING_UNICODE, "String(Unicode)", true);						// 2.5.5.12
 		addSyntax(LdapConstants.SYNTAX_AD_OBJECT_PRESENTATION_ADDRESS, "Object(Presentation-Address)", true); // 2.5.5.13
 		addSyntax(LdapConstants.SYNTAX_AD_OBJECT_ACCESS_POINT, "Object(Access-Point)", true);			// 2.5.5.14
-		addSyntax(LdapConstants.SYNTAX_AD_ADSTYPE_NT_SECURITY_DESCRIPTOR, "ADSTYPE_NT_SECURITY_DESCRIPTOR", true); // 2.5.5.15
+		addSyntax(LdapConstants.SYNTAX_AD_ADSTYPE_NT_SECURITY_DESCRIPTOR, "ADSTYPE_NT_SECURITY_DESCRIPTOR", false); // 2.5.5.15
 		addSyntax(LdapConstants.SYNTAX_AD_LARGE_INTEGER, "LargeInteger", true);							// 2.5.5.16
-		addSyntax(LdapConstants.SYNTAX_AD_STRING_SID, "String(Sid)", true);								// 2.5.5.17
+		// Even though this is "String(Sid)", it is not really string. It is binary.
+		addSyntax(LdapConstants.SYNTAX_AD_STRING_SID, "String(Sid)", false);							// 2.5.5.17
 	}
 	
 	private LdapSyntax addSyntax(String syntaxOid, String description, boolean isHumanReadable) {
@@ -176,7 +177,7 @@ public class AdSchemaLoader extends DefaultSchemaLoader {
 				Response response = schemaCursor.get();
 				if (response instanceof SearchResultEntry) {
 					Entry schemaEntry = ((SearchResultEntry)response).getEntry();
-//					LOG.info("AD schema entry: {0}", schemaEntry);
+//					LOG.ok("AD schema entry: {0}", schemaEntry);
 					switch (getSchemaObjectClass(schemaEntry)) {
 						case AdConstants.OBJECT_CLASS_CLASS_SCHEMA:
 							addToEntryMap(classEntryMap, schemaEntry);

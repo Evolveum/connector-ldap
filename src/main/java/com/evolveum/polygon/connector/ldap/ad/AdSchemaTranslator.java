@@ -18,6 +18,7 @@ package com.evolveum.polygon.connector.ldap.ad;
 import java.io.UnsupportedEncodingException;
 
 import org.apache.commons.lang3.ArrayUtils;
+import org.apache.directory.api.ldap.model.constants.SchemaConstants;
 import org.apache.directory.api.ldap.model.entry.Attribute;
 import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.entry.Value;
@@ -33,6 +34,7 @@ import org.identityconnectors.framework.common.objects.ConnectorObjectBuilder;
 import org.identityconnectors.framework.common.objects.ObjectClassInfoBuilder;
 import org.identityconnectors.framework.common.objects.OperationalAttributes;
 
+import com.evolveum.polygon.connector.ldap.LdapConstants;
 import com.evolveum.polygon.connector.ldap.LdapUtil;
 import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
 
@@ -268,6 +270,22 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
 		}
 	}
 
+	@Override
+	protected boolean isBinarySyntax(String syntaxOid) {
+    	if (syntaxOid == null) {
+    		return false;
+    	}
+        switch (syntaxOid) {
+            case LdapConstants.SYNTAX_AD_ADSTYPE_OCTET_STRING:
+            case LdapConstants.SYNTAX_AD_ADSTYPE_NT_SECURITY_DESCRIPTOR:
+            	// Even though this is "String(Sid)", it is not really string. It is binary.
+            case LdapConstants.SYNTAX_AD_STRING_SID:
+                return true;
+            default :
+                return super.isBinarySyntax(syntaxOid);
+        }
+    }
+	
 	@Override
 	public boolean isBinaryAttribute(String attributeId) {
 		if (AdConstants.ATTRIBUTE_NT_SECURITY_DESCRIPTOR.equalsIgnoreCase(attributeId)) {

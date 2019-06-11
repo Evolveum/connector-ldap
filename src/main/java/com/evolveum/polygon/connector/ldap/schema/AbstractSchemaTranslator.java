@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2014-2018 Evolveum
+ * Copyright (c) 2014-2019 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -580,7 +580,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	protected Value wrapInLdapValueClass(AttributeType ldapAttributeType, Object connIdAttributeValue) {
 		String syntaxOid = ldapAttributeType.getSyntaxOid();
-		if (SchemaConstants.GENERALIZED_TIME_SYNTAX.equals(syntaxOid)) {
+		if (isTimeSyntax(syntaxOid)) {
 			if (connIdAttributeValue instanceof Long) {
 				try {
 					return new Value(ldapAttributeType, LdapUtil.toGeneralizedTime((Long)connIdAttributeValue, acceptsFractionalGeneralizedTime()));
@@ -737,7 +737,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 			if (ldapAttributeType != null) {
 				syntaxOid = ldapAttributeType.getSyntaxOid();
 			}
-			if (SchemaConstants.GENERALIZED_TIME_SYNTAX.equals(syntaxOid)) {
+			if (isTimeSyntax(syntaxOid)) {
 				switch (getConfiguration().getTimestampPresentation()) {
 					case AbstractLdapConfiguration.TIMESTAMP_PRESENTATION_NATIVE:
 						try {
@@ -782,15 +782,29 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 	}
 
 	protected boolean isIntegerSyntax(String syntaxOid) {
-		return SchemaConstants.INTEGER_SYNTAX.equals(syntaxOid);
+		TypeSubType typeSubType = SYNTAX_MAP.get(syntaxOid);
+		if (typeSubType == null) {
+			return false;
+		}
+		return int.class.equals(typeSubType.type);
 	}
 	
 	protected boolean isLongSyntax(String syntaxOid) {
-		return SchemaConstants.JAVA_LONG_SYNTAX.equals(syntaxOid) ||
-				LdapConstants.SYNTAX_AD_INTEGER8_SYNTAX.equals(syntaxOid);
+		TypeSubType typeSubType = SYNTAX_MAP.get(syntaxOid);
+		if (typeSubType == null) {
+			return false;
+		}
+		return long.class.equals(typeSubType.type);
 	}
 
-
+	protected boolean isTimeSyntax(String syntaxOid) {
+		TypeSubType typeSubType = SYNTAX_MAP.get(syntaxOid);
+		if (typeSubType == null) {
+			return false;
+		}
+		return ZonedDateTime.class.equals(typeSubType.type);
+	}
+	
     /**
      * Tells if the given Syntax OID is String. It checks only a subset of
      * know syntaxes :
@@ -841,13 +855,13 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
     		return false;
     	}
         switch (syntaxOid) {
-            case SchemaConstants.OCTET_STRING_SYNTAX :
-            case SchemaConstants.JPEG_SYNTAX :
-            case SchemaConstants.BINARY_SYNTAX :
-            case SchemaConstants.BIT_STRING_SYNTAX :
-            case SchemaConstants.CERTIFICATE_SYNTAX :
-            case SchemaConstants.CERTIFICATE_LIST_SYNTAX :
-            case SchemaConstants.CERTIFICATE_PAIR_SYNTAX :
+            case SchemaConstants.OCTET_STRING_SYNTAX:
+            case SchemaConstants.JPEG_SYNTAX:
+            case SchemaConstants.BINARY_SYNTAX:
+            case SchemaConstants.BIT_STRING_SYNTAX:
+            case SchemaConstants.CERTIFICATE_SYNTAX:
+            case SchemaConstants.CERTIFICATE_LIST_SYNTAX:
+            case SchemaConstants.CERTIFICATE_PAIR_SYNTAX:
                 return true;
             default :
                 return false;
@@ -1727,7 +1741,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		addToSyntaxMap(SchemaConstants.TELEPHONE_NUMBER_SYNTAX, String.class);
 		addToSyntaxMap(SchemaConstants.TELETEX_TERMINAL_IDENTIFIER_SYNTAX, String.class);
 		addToSyntaxMap(SchemaConstants.TELEX_NUMBER_SYNTAX, String.class);
-		addToSyntaxMap(SchemaConstants.UTC_TIME_SYNTAX, long.class);
+		addToSyntaxMap(SchemaConstants.UTC_TIME_SYNTAX, ZonedDateTime.class);
 		addToSyntaxMap(SchemaConstants.LDAP_SYNTAX_DESCRIPTION_SYNTAX, String.class);
 		addToSyntaxMap(SchemaConstants.MODIFY_RIGHTS_SYNTAX, String.class);
 		addToSyntaxMap(SchemaConstants.LDAP_SCHEMA_DEFINITION_SYNTAX, String.class);
@@ -1774,6 +1788,8 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 		addToSyntaxMap(LdapConstants.SYNTAX_AD_STRING_UNICODE, String.class);
 		addToSyntaxMap(LdapConstants.SYNTAX_AD_OBJECT_PRESENTATION_ADDRESS, String.class);
 		addToSyntaxMap(LdapConstants.SYNTAX_AD_OBJECT_ACCESS_POINT, String.class);
+		// Even though this is "String(Sid)", it is not really string. It is binary as long as LDAP is concerned.
+		// But we convert that in the connector to a string form. Therefore the ConnId it really can see as String.
 		addToSyntaxMap(LdapConstants.SYNTAX_AD_STRING_SID, String.class);
 		
 		// AD strangeness
