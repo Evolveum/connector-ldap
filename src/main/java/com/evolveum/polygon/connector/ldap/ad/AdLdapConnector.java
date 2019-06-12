@@ -226,20 +226,23 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 		
 		for (AttributeDelta delta : deltas) {
 			AdConstants.UAC uacVal = Enum.valueOf(AdConstants.UAC.class, delta.getName());
+			//collect deltas affecting uac. Will be processed below 
 			if (delta.getName().equals(OperationalAttributes.ENABLE_NAME) || Enum.valueOf(AdConstants.UAC.class, delta.getName()) != null) {
-				//
-				
 				List<Object> valuesToReplace = delta.getValuesToReplace();
 				if (valuesToReplace != null && valuesToReplace.size() >0) {
 					Object val = valuesToReplace.get(0);
-					if (val instanceof Boolean) {												
+					if (val instanceof Boolean) {
+						//value was changed to true
 						if ((Boolean)val) uacAddSet.add(uacVal);
+						//value was changed to false
 						else uacDelSet.add(uacVal);
 					}
 				}
 			}
+			//all others remain unchanged
 			else newDeltas.add(delta);
 		}
+		//no uac attributes affected: return original deltas
 		if (uacDelSet.isEmpty() && uacAddSet.isEmpty()) {	
 			return deltas;
 		}
@@ -259,18 +262,21 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 		}
 		
 		Integer userAccountControl = LdapUtil.getIntegerAttribute(existingEntry, AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME, null);
-
+		
+		//if bit is not set: add it
 		for (AdConstants.UAC uac : uacAddSet) {
 			if ((userAccountControl & uac.getBit()) == 0) {
 				userAccountControl = userAccountControl + uac.getBit();
             }
 		}
+		//if bit is set: remove it
 		for (AdConstants.UAC uac : uacDelSet) {
 			if ((userAccountControl & uac.getBit()) != 0) {
 				userAccountControl = userAccountControl - uac.getBit();
             }
 		}
 		
+		//create new delta for useraccountcontrol, having new value
 		AttributeDelta uacAttrDelta = AttributeDeltaBuilder.build(AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME, userAccountControl);
 		newDeltas.add(uacAttrDelta);
 		

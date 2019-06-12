@@ -88,13 +88,14 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
 			}
 		}
 		
+		//create uac attributes
 		if (!getConfiguration().isRawUserAccountControlAttribute()) {
 			//enable is ICF
 			AttributeInfoBuilder enableAb = new AttributeInfoBuilder(OperationalAttributes.ENABLE_NAME);
 			enableAb.setType(boolean.class);
 			ocib.addAttributeInfo(enableAb.build());
 			
-			//uac
+			//all uac attributes defined in AdConstants
 			for (UAC uac : AdConstants.UAC.values()) {
 				AttributeInfoBuilder uacAb = new AttributeInfoBuilder(uac.name());
 				uacAb.setType(boolean.class);
