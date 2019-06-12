@@ -36,7 +36,9 @@ import org.identityconnectors.framework.common.objects.OperationalAttributes;
 
 import com.evolveum.polygon.connector.ldap.LdapConstants;
 import com.evolveum.polygon.connector.ldap.LdapUtil;
+import com.evolveum.polygon.connector.ldap.ad.AdConstants.UAC;
 import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
+
 
 /**
  * @author semancik
@@ -88,10 +90,21 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
 			}
 		}
 		
+		//create uac attributes
 		if (!getConfiguration().isRawUserAccountControlAttribute()) {
+			//enable is ICF
 			AttributeInfoBuilder enableAb = new AttributeInfoBuilder(OperationalAttributes.ENABLE_NAME);
 			enableAb.setType(boolean.class);
 			ocib.addAttributeInfo(enableAb.build());
+			
+			//all uac attributes defined in AdConstants
+			for (UAC uac : AdConstants.UAC.values()) {
+				AttributeInfoBuilder uacAb = new AttributeInfoBuilder(uac.name());
+				uacAb.setType(boolean.class);
+				uacAb.setUpdateable(!uac.isReadOnly());
+				
+				ocib.addAttributeInfo(uacAb.build()); 
+			}
 		}
 	}
 	
@@ -118,20 +131,20 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
 		}
 	}
 	
-	@Override
-	public Value toLdapValue(AttributeType ldapAttributeType, Object icfAttributeValue) {
-		if (!getConfiguration().isRawUserAccountControlAttribute() && AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME.equals(ldapAttributeType.getName())) {
-			if ((Boolean)icfAttributeValue) {
-				// ENABLED
-				return super.toLdapValue(ldapAttributeType, Integer.toString(AdConstants.USER_ACCOUNT_CONTROL_NORMAL));
-			} else {
-				// DISABLED
-				return super.toLdapValue(ldapAttributeType, Integer.toString(
-						AdConstants.USER_ACCOUNT_CONTROL_NORMAL + AdConstants.USER_ACCOUNT_CONTROL_DISABLED));
-			}
-		}
-		return super.toLdapValue(ldapAttributeType, icfAttributeValue);
-	}
+//	@Override
+//	public Value toLdapValue(AttributeType ldapAttributeType, Object icfAttributeValue) {
+//		if (!getConfiguration().isRawUserAccountControlAttribute() && AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME.equals(ldapAttributeType.getName())) {
+//			if ((Boolean)icfAttributeValue) {
+//				// ENABLED
+//				return super.toLdapValue(ldapAttributeType, Integer.toString(AdConstants.USER_ACCOUNT_CONTROL_NORMAL));
+//			} else {
+//				// DISABLED
+//				return super.toLdapValue(ldapAttributeType, Integer.toString(
+//						AdConstants.USER_ACCOUNT_CONTROL_NORMAL + AdConstants.USER_ACCOUNT_CONTROL_DISABLED));
+//			}
+//		}
+//		return super.toLdapValue(ldapAttributeType, icfAttributeValue);
+//	}
 	
 	@Override
 	protected Object toConnIdValue(String connIdAttributeName, Value ldapValue, String ldapAttributeName, AttributeType ldapAttributeType) {
@@ -226,6 +239,13 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
 				} else {
 					cob.addAttribute(OperationalAttributes.ENABLE_NAME, Boolean.FALSE);
 				}
+                for (UAC uac : UAC.values()) {
+                    if ((userAccountControl & uac.getBit()) == 0) {
+                        cob.addAttribute(uac.name(), Boolean.FALSE);
+                    } else {
+                        cob.addAttribute(uac.name(), Boolean.TRUE);
+                    }
+                }
 			}
 		}
 	}
