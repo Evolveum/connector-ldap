@@ -225,15 +225,28 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 		Set<AttributeDelta> newDeltas = new HashSet<AttributeDelta>();
 		
 		for (AttributeDelta delta : deltas) {
-			AdConstants.UAC uacVal = Enum.valueOf(AdConstants.UAC.class, delta.getName());
-			//collect deltas affecting uac. Will be processed below 
-			if (delta.getName().equals(OperationalAttributes.ENABLE_NAME) || Enum.valueOf(AdConstants.UAC.class, delta.getName()) != null) {
+			//collect deltas affecting uac. Will be processed below
+			String deltaName = delta.getName();
+			if (deltaName.equals(OperationalAttributes.ENABLE_NAME) || Enum.valueOf(AdConstants.UAC.class, deltaName) != null) {
+				//OperationalAttributes.ENABLE_NAME is replaced by dConstants.UAC.ADS_UF_ACCOUNTDISABLE.name()
+				AdConstants.UAC uacVal = Enum.valueOf(AdConstants.UAC.class, deltaName.equals(OperationalAttributes.ENABLE_NAME)? AdConstants.UAC.ADS_UF_ACCOUNTDISABLE.name() : deltaName);
 				List<Object> valuesToReplace = delta.getValuesToReplace();
 				if (valuesToReplace != null && valuesToReplace.size() >0) {
 					Object val = valuesToReplace.get(0);
+					
 					if (val instanceof Boolean) {
+						//OperationalAttributes.ENABLE_NAME = true means AdConstants.UAC.ADS_UF_ACCOUNTDISABLE = false
+						if (deltaName.equals(OperationalAttributes.ENABLE_NAME)) {
+							if ((Boolean)val) {
+								val = new Boolean(false);
+							}
+							else val = new Boolean(true);
+						}
+						
 						//value was changed to true
-						if ((Boolean)val) uacAddSet.add(uacVal);
+						if ((Boolean)val) {
+							uacAddSet.add(uacVal);
+						}
 						//value was changed to false
 						else uacDelSet.add(uacVal);
 					}

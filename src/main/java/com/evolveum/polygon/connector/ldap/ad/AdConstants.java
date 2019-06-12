@@ -49,7 +49,8 @@ public class AdConstants {
 		//Workstation/server: 0x1000 (4096)
 		
 		ADS_UF_SCRIPT (0x00000001), //The logon script is executed.
-		ADS_UF_ACCOUNTDISABLE (0x00000002), //The user account is disabled.
+		//readonly because OperationalAttributes.ENABLE_NAME is master
+		ADS_UF_ACCOUNTDISABLE (0x00000002, true), //The user account is disabled.
 		ADS_UF_HOMEDIR_REQUIRED (0x00000008), //The home directory is required.
 		ADS_UF_LOCKOUT (0x00000010, true), //The account is currently locked out.
 		ADS_UF_PASSWD_NOTREQD (0x00000020), //No password is required.
