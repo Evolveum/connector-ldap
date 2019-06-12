@@ -21,6 +21,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -28,9 +29,12 @@ import java.util.Set;
 import javax.net.ssl.HostnameVerifier;
 
 import org.apache.directory.api.ldap.model.constants.SchemaConstants;
+import org.apache.directory.api.ldap.model.entry.DefaultModification;
 import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.entry.Modification;
+import org.apache.directory.api.ldap.model.entry.ModificationOperation;
 import org.apache.directory.api.ldap.model.exception.LdapException;
+import org.apache.directory.api.ldap.model.exception.LdapInvalidDnException;
 import org.apache.directory.api.ldap.model.exception.LdapOperationException;
 import org.apache.directory.api.ldap.model.exception.LdapOtherException;
 import org.apache.directory.api.ldap.model.message.LdapResult;
@@ -70,9 +74,11 @@ import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueE
 import org.identityconnectors.framework.common.exceptions.UnknownUidException;
 import org.identityconnectors.framework.common.objects.AttributeDelta;
 import org.identityconnectors.framework.common.objects.AttributeDeltaBuilder;
+import org.identityconnectors.framework.common.objects.Name;
 import org.identityconnectors.framework.common.objects.OperationOptions;
 import org.identityconnectors.framework.common.objects.OperationalAttributeInfos;
 import org.identityconnectors.framework.common.objects.OperationalAttributes;
+import org.identityconnectors.framework.common.objects.PredefinedAttributes;
 import org.identityconnectors.framework.common.objects.ResultsHandler;
 import org.identityconnectors.framework.common.objects.ScriptContext;
 import org.identityconnectors.framework.common.objects.Uid;
@@ -198,6 +204,98 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 			}
 		}
 	}
+	
+	@Override
+	public Set<AttributeDelta> updateDelta(org.identityconnectors.framework.common.objects.ObjectClass connIdObjectClass, Uid uid, Set<AttributeDelta> deltas,
+			OperationOptions options) {
+		
+		if (getConfiguration().isRawUserAccountControlAttribute()) {
+			return super.updateDelta(connIdObjectClass, uid, deltas, options);
+		}
+		else return super.updateDelta(connIdObjectClass, uid, prepareDeltas(uid, deltas), options);
+		
+	}
+	
+	
+	private Set<AttributeDelta> prepareDeltas(Uid uid, Set<AttributeDelta> deltas)  {
+		
+		Set<AdConstants.UAC> uacAddSet = new HashSet<AdConstants.UAC>();
+		Set<AdConstants.UAC> uacDelSet = new HashSet<AdConstants.UAC>();
+		
+		Set<AttributeDelta> newDeltas = new HashSet<AttributeDelta>();
+		
+		for (AttributeDelta delta : deltas) {
+			//collect deltas affecting uac. Will be processed below
+			String deltaName = delta.getName();
+			if (deltaName.equals(OperationalAttributes.ENABLE_NAME) || Enum.valueOf(AdConstants.UAC.class, deltaName) != null) {
+				//OperationalAttributes.ENABLE_NAME is replaced by dConstants.UAC.ADS_UF_ACCOUNTDISABLE.name()
+				AdConstants.UAC uacVal = Enum.valueOf(AdConstants.UAC.class, deltaName.equals(OperationalAttributes.ENABLE_NAME)? AdConstants.UAC.ADS_UF_ACCOUNTDISABLE.name() : deltaName);
+				List<Object> valuesToReplace = delta.getValuesToReplace();
+				if (valuesToReplace != null && valuesToReplace.size() >0) {
+					Object val = valuesToReplace.get(0);
+					
+					if (val instanceof Boolean) {
+						//OperationalAttributes.ENABLE_NAME = true means AdConstants.UAC.ADS_UF_ACCOUNTDISABLE = false
+						if (deltaName.equals(OperationalAttributes.ENABLE_NAME)) {
+							if ((Boolean)val) {
+								val = new Boolean(false);
+							}
+							else val = new Boolean(true);
+						}
+						
+						//value was changed to true
+						if ((Boolean)val) {
+							uacAddSet.add(uacVal);
+						}
+						//value was changed to false
+						else uacDelSet.add(uacVal);
+					}
+				}
+			}
+			//all others remain unchanged
+			else newDeltas.add(delta);
+		}
+		//no uac attributes affected: return original deltas
+		if (uacDelSet.isEmpty() && uacAddSet.isEmpty()) {	
+			return deltas;
+		}
+		// We need original value
+		Entry existingEntry;
+		try {
+			//TODO: (String)uid.getValue().get(0) uid: invaliddn
+			existingEntry = searchSingleEntry(getConnectionManager(), new Dn((String)uid.getNameHintValue()), null, SearchScope.OBJECT, null, 
+					"pre-read of entry values for attribute "+AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME, null);
+			} catch (LdapInvalidDnException e) {
+				throw new InvalidAttributeValueException("Cannot pre-read of entry for attribute "+ AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME + ": "+uid);
+			}
+			LOG.ok("Pre-read entry for {0}:\n{1}", AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME, existingEntry);
+		
+		if (existingEntry == null) {
+			throw new UnknownUidException("Cannot pre-read of entry for attribute "+ AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME + ": "+uid);
+		}
+		
+		Integer userAccountControl = LdapUtil.getIntegerAttribute(existingEntry, AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME, null);
+		
+		//if bit is not set: add it
+		for (AdConstants.UAC uac : uacAddSet) {
+			if ((userAccountControl & uac.getBit()) == 0) {
+				userAccountControl = userAccountControl + uac.getBit();
+            }
+		}
+		//if bit is set: remove it
+		for (AdConstants.UAC uac : uacDelSet) {
+			if ((userAccountControl & uac.getBit()) != 0) {
+				userAccountControl = userAccountControl - uac.getBit();
+            }
+		}
+		
+		//create new delta for useraccountcontrol, having new value
+		AttributeDelta uacAttrDelta = AttributeDeltaBuilder.build(AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME, userAccountControl);
+		newDeltas.add(uacAttrDelta);
+		
+		return newDeltas;
+	}
+		
 
 	@Override
 	protected void addAttributeModification(Dn dn, List<Modification> modifications, ObjectClass ldapStructuralObjectClass,
