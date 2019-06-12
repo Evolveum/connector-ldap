@@ -33,9 +33,6 @@ public class AdConstants {
 	public static final String ATTRIBUTE_DISTINGUISHED_NAME_NAME = "distinguishedName";
 	public static final String ATTRIBUTE_PWD_LAST_SET_NAME = "pwdLastSet";
 	
-	public static final int USER_ACCOUNT_CONTROL_NORMAL = 0x0200;
-	public static final int USER_ACCOUNT_CONTROL_DISABLED = 0x0002;
-	
 	/*
 	 * https://docs.microsoft.com/en-us/windows/desktop/adschema/a-useraccountcontrol
 	 * 
@@ -96,6 +93,17 @@ public class AdConstants {
         public boolean isReadOnly()
         {
             return readOnly;
+        }
+        
+        private static final UAC[] copyOfValues = values();
+
+        public static UAC forName(String name) {
+            for (UAC value : copyOfValues) {
+                if (value.name().equals(name)) {
+                    return value;
+                }
+            }
+            return null;
         }
     }
 

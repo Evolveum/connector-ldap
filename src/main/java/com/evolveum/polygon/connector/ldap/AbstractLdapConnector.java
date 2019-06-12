@@ -871,9 +871,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 				// hope that it worked well. It should - unless there is a connector bug.
 			}
 		}
-		
-		preCreate(ldapStructuralObjectClass, entry);
-		
+
 		if (LOG.isOk()) {
 			LOG.ok("Adding entry: {0}", entry);
 		}
@@ -948,12 +946,6 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 	protected RuntimeException processCreateResult(String dn, AddResponse addResponse) {
 		 return processLdapResult("Error adding LDAP entry " + dn, addResponse.getLdapResult());
 	}
-
-	protected void preCreate(org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass, Entry entry) {
-		// Nothing to do here. Hooks for subclasses.
-	}
-
-	
 	
 	@Override
 	public Set<AttributeDelta> updateDelta(ObjectClass connIdObjectClass, Uid uid, Set<AttributeDelta> deltas,

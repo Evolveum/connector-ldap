@@ -127,21 +127,6 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
 		}
 	}
 	
-//	@Override
-//	public Value toLdapValue(AttributeType ldapAttributeType, Object icfAttributeValue) {
-//		if (!getConfiguration().isRawUserAccountControlAttribute() && AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME.equals(ldapAttributeType.getName())) {
-//			if ((Boolean)icfAttributeValue) {
-//				// ENABLED
-//				return super.toLdapValue(ldapAttributeType, Integer.toString(AdConstants.USER_ACCOUNT_CONTROL_NORMAL));
-//			} else {
-//				// DISABLED
-//				return super.toLdapValue(ldapAttributeType, Integer.toString(
-//						AdConstants.USER_ACCOUNT_CONTROL_NORMAL + AdConstants.USER_ACCOUNT_CONTROL_DISABLED));
-//			}
-//		}
-//		return super.toLdapValue(ldapAttributeType, icfAttributeValue);
-//	}
-	
 	@Override
 	protected Object toConnIdValue(String connIdAttributeName, Value ldapValue, String ldapAttributeName, AttributeType ldapAttributeType) {
 		if (AdConstants.ATTRIBUTE_OBJECT_SID_NAME.equals(ldapAttributeName)) {
@@ -230,7 +215,7 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
 					cob.addAttribute(OperationalAttributes.ENABLE_NAME, Boolean.FALSE);
 				}
 			} else {
-				if ((userAccountControl & AdConstants.USER_ACCOUNT_CONTROL_DISABLED) == 0) {
+				if ((userAccountControl & AdConstants.UAC.ADS_UF_ACCOUNTDISABLE.getBit()) == 0) {
 					cob.addAttribute(OperationalAttributes.ENABLE_NAME, Boolean.TRUE);
 				} else {
 					cob.addAttribute(OperationalAttributes.ENABLE_NAME, Boolean.FALSE);
