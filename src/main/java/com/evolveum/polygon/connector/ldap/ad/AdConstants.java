@@ -36,29 +36,41 @@ public class AdConstants {
 	public static final int USER_ACCOUNT_CONTROL_NORMAL = 0x0200;
 	public static final int USER_ACCOUNT_CONTROL_DISABLED = 0x0002;
 	
+	/*
+	 * https://docs.microsoft.com/en-us/windows/desktop/adschema/a-useraccountcontrol
+	 * 
+	 * 
+	 */
 	protected static enum UAC {
-		UAC_SCRIPT(0x0001), //1
-		UAC_ACCOUNTDISABLE(0x0002, true), //2
-		UAC_HOMEDIR_REQUIRED(0x0008, true), //8
-		//UAC_LOCKOUT(0x0010, true), //16
-		UAC_PASSWD_NOTREQD(0x0020), //32
-		UAC_PASSWD_CANT_CHANGE(0x0040, true), //64
-		UAC_ENCRYPTED_TEXT_PWD_ALLOWED(0x0080, true), //128
-		UAC_TEMP_DUPLICATE_ACCOUNT(0x0100, true), //256
-		UAC_NORMAL_ACCOUNT(0x0200, true), //512
-		UAC_INTERDOMAIN_TRUST_ACCOUNT(0x0800, true), //2048
-		UAC_WORKSTATION_TRUST_ACCOUNT(0x1000, true), //4096
-		UAC_SERVER_TRUST_ACCOUNT(0x2000, true), //8192
-		UAC_DONT_EXPIRE_PASSWORD(0x10000), //65536
-		UAC_MNS_LOGON_ACCOUNT(0x20000, true), //131072
-		UAC_SMARTCARD_REQUIRED(0x40000), //262144
-		UAC_TRUSTED_FOR_DELEGATION(0x80000, true), //524288
-		UAC_PARTIAL_SECRETS_ACCOUNT(0x04000000, true), //67108864
-		UAC_NOT_DELEGATED(0x100000, true), //1048576
-		UAC_USE_DES_KEY_ONLY(0x200000, true), //2097152
-		UAC_DONT_REQ_PREAUTH(0x400000, true), //4194304
-		//UAC_PASSWORD_EXPIRED(0x800000, true), //8388608
-		UAC_TRUSTED_TO_AUTH_FOR_DELEGATION(0x1000000, true) //16777216
+		//TODO: which attributes should be readOnly
+		//account types, only typical user for now
+		//Typical user : 0x200 (512)
+		//Domain controller : 0x82000 (532480)
+		//Workstation/server: 0x1000 (4096)
+		
+		ADS_UF_SCRIPT (0x00000001), //The logon script is executed.
+		ADS_UF_ACCOUNTDISABLE (0x00000002), //The user account is disabled.
+		ADS_UF_HOMEDIR_REQUIRED (0x00000008), //The home directory is required.
+		ADS_UF_LOCKOUT (0x00000010, true), //The account is currently locked out.
+		ADS_UF_PASSWD_NOTREQD (0x00000020), //No password is required.
+		ADS_UF_PASSWD_CANT_CHANGE (0x00000040), //The user cannot change the password. [!Note]You cannot assign the permission settings of PASSWD_CANT_CHANGE by directly modifying the UserAccountControl attribute. For more information and a code example that shows how to prevent a user from changing the password, see User Cannot Change Password.
+		ADS_UF_ENCRYPTED_TEXT_PASSWORD_ALLOWED (0x00000080), //The user can send an encrypted password.
+		ADS_UF_TEMP_DUPLICATE_ACCOUNT (0x00000100, true), //This is an account for users whose primary account is in another domain. This account provides user access to this domain, but not to any domain that trusts this domain. Also known as a local user account.
+		ADS_UF_NORMAL_ACCOUNT (0x00000200, true), //This is a default account type that represents a typical user.
+		ADS_UF_INTERDOMAIN_TRUST_ACCOUNT (0x00000800, true), //This is a permit to trust account for a system domain that trusts other domains.
+		ADS_UF_WORKSTATION_TRUST_ACCOUNT (0x00001000, true), //This is a computer account for a computer that is a member of this domain.
+		ADS_UF_SERVER_TRUST_ACCOUNT (0x00002000, true), //This is a computer account for a system backup domain controller that is a member of this domain.
+		//N/A (0x00004000), //Not used.
+		//N/A (0x00008000), //Not used.
+		ADS_UF_DONT_EXPIRE_PASSWD (0x00010000), //The password for this account will never expire.
+		ADS_UF_MNS_LOGON_ACCOUNT (0x00020000), //This is an MNS logon account.
+		ADS_UF_SMARTCARD_REQUIRED (0x00040000), //The user must log on using a smart card.
+		ADS_UF_TRUSTED_FOR_DELEGATION (0x00080000), //The service account (user or computer account), under which a service runs, is trusted for Kerberos delegation. Any such service can impersonate a client requesting the service.
+		ADS_UF_NOT_DELEGATED (0x00100000), //The security context of the user will not be delegated to a service even if the service account is set as trusted for Kerberos delegation.
+		ADS_UF_USE_DES_KEY_ONLY (0x00200000), //Restrict this principal to use only Data Encryption Standard (DES) encryption types for keys.
+		ADS_UF_DONT_REQUIRE_PREAUTH (0x00400000), //This account does not require Kerberos pre-authentication for logon.
+		ADS_UF_PASSWORD_EXPIRED (0x00800000, true), //The user password has expired. This flag is created by the system using data from the Pwd-Last-Set attribute and the domain policy.
+		ADS_UF_TRUSTED_TO_AUTHENTICATE_FOR_DELEGATION (0x01000000), //The account is enabled for delegation. This is a security-sensitive setting; accounts with this option enabled should be strictly controlled. This setting enables a service running under the account to assume a client identity and authenticate as that user to other remote servers on the network.
         ;
 
 		private final int bit;

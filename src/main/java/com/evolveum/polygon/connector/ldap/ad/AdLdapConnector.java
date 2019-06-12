@@ -206,14 +206,23 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 	}
 	
 	@Override
-	protected Set<AttributeDelta> prepareDeltas(org.identityconnectors.framework.common.objects.ObjectClass connIdObjectClass, Uid uid, Set<AttributeDelta> deltas, OperationOptions options)  {
+	public Set<AttributeDelta> updateDelta(org.identityconnectors.framework.common.objects.ObjectClass connIdObjectClass, Uid uid, Set<AttributeDelta> deltas,
+			OperationOptions options) {
 		
-		if (getConfiguration().isRawUserAccountControlAttribute()) return deltas;
+		if (getConfiguration().isRawUserAccountControlAttribute()) {
+			return super.updateDelta(connIdObjectClass, uid, deltas, options);
+		}
+		else return super.updateDelta(connIdObjectClass, uid, prepareDeltas(uid, deltas), options);
+		
+	}
+	
+	
+	private Set<AttributeDelta> prepareDeltas(Uid uid, Set<AttributeDelta> deltas)  {
 		
 		Set<AdConstants.UAC> uacAddSet = new HashSet<AdConstants.UAC>();
 		Set<AdConstants.UAC> uacDelSet = new HashSet<AdConstants.UAC>();
 		
-		Set<AttributeDelta> newDelta = new HashSet<AttributeDelta>();
+		Set<AttributeDelta> newDeltas = new HashSet<AttributeDelta>();
 		
 		for (AttributeDelta delta : deltas) {
 			AdConstants.UAC uacVal = Enum.valueOf(AdConstants.UAC.class, delta.getName());
@@ -229,24 +238,22 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 					}
 				}
 			}
-			else newDelta.add(delta);
+			else newDeltas.add(delta);
 		}
-		
-		if (uacDelSet.isEmpty() && uacAddSet.isEmpty()) return deltas;
-		
-		// We need oroginal value
-
-			Entry existingEntry;
-			try {
-				//TODO: (String)uid.getValue().get(0) uid: invaliddn
-				existingEntry = searchSingleEntry(getConnectionManager(), new Dn((String)uid.getNameHintValue()), null, SearchScope.OBJECT, null /* see above */, 
-"pre-read of entry to eliminate extra optioned attribute values for attribute "+AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME, null);
+		if (uacDelSet.isEmpty() && uacAddSet.isEmpty()) {	
+			return deltas;
+		}
+		// We need original value
+		Entry existingEntry;
+		try {
+			//TODO: (String)uid.getValue().get(0) uid: invaliddn
+			existingEntry = searchSingleEntry(getConnectionManager(), new Dn((String)uid.getNameHintValue()), null, SearchScope.OBJECT, null, 
+					"pre-read of entry values for attribute "+AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME, null);
 			} catch (LdapInvalidDnException e) {
 				throw new InvalidAttributeValueException("Cannot pre-read of entry for attribute "+ AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME + ": "+uid);
 			}
-		LOG.ok("Pre-read entry for {0}:\n{1}", AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME, existingEntry);
+			LOG.ok("Pre-read entry for {0}:\n{1}", AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME, existingEntry);
 		
-
 		if (existingEntry == null) {
 			throw new UnknownUidException("Cannot pre-read of entry for attribute "+ AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME + ": "+uid);
 		}
@@ -265,9 +272,9 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 		}
 		
 		AttributeDelta uacAttrDelta = AttributeDeltaBuilder.build(AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME, userAccountControl);
-		newDelta.add(uacAttrDelta);
+		newDeltas.add(uacAttrDelta);
 		
-		return newDelta;
+		return newDeltas;
 	}
 		
 
