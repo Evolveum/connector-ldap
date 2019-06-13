@@ -29,10 +29,8 @@ import java.util.Set;
 import javax.net.ssl.HostnameVerifier;
 
 import org.apache.directory.api.ldap.model.constants.SchemaConstants;
-import org.apache.directory.api.ldap.model.entry.DefaultModification;
 import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.entry.Modification;
-import org.apache.directory.api.ldap.model.entry.ModificationOperation;
 import org.apache.directory.api.ldap.model.exception.LdapException;
 import org.apache.directory.api.ldap.model.exception.LdapInvalidDnException;
 import org.apache.directory.api.ldap.model.exception.LdapOperationException;
@@ -75,13 +73,13 @@ import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
 import org.identityconnectors.framework.common.exceptions.ConnectorSecurityException;
 import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException;
 import org.identityconnectors.framework.common.exceptions.UnknownUidException;
+import org.identityconnectors.framework.common.objects.Attribute;
+import org.identityconnectors.framework.common.objects.AttributeBuilder;
 import org.identityconnectors.framework.common.objects.AttributeDelta;
 import org.identityconnectors.framework.common.objects.AttributeDeltaBuilder;
-import org.identityconnectors.framework.common.objects.Name;
 import org.identityconnectors.framework.common.objects.OperationOptions;
 import org.identityconnectors.framework.common.objects.OperationalAttributeInfos;
 import org.identityconnectors.framework.common.objects.OperationalAttributes;
-import org.identityconnectors.framework.common.objects.PredefinedAttributes;
 import org.identityconnectors.framework.common.objects.ResultsHandler;
 import org.identityconnectors.framework.common.objects.ScriptContext;
 import org.identityconnectors.framework.common.objects.Uid;
@@ -217,7 +215,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 		// There are too many built-in schema errors in AD that this only pollutes the logs
 		return false;
 	}
-
+	
 	@Override
 	protected void preCreate(org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass, Entry entry) {
 		super.preCreate(ldapStructuralObjectClass, entry);
@@ -242,17 +240,76 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 				LOG.warn("Requested to add default object class, but native AD schema is not available for object class {0}", ldapStructuralObjectClass.getName());
 			}
 		}
+	}
+	
+	public Uid create(org.identityconnectors.framework.common.objects.ObjectClass icfObjectClass, Set<Attribute> createAttributes, OperationOptions options) {
+		if (getConfiguration().isRawUserAccountControlAttribute()) {
+			return super.create(icfObjectClass, createAttributes, options);
+		}
 		
-		// userAccountControl
-		if (getSchemaTranslator().isUserObjectClass(ldapStructuralObjectClass.getName()) && !getConfiguration().isRawUserAccountControlAttribute()) {
-			if (entry.get(AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME) == null) {
-				try {
-					entry.add(AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME, Integer.toString(AdConstants.USER_ACCOUNT_CONTROL_NORMAL));
-				} catch (LdapException e) {
-					throw new IllegalStateException("Error adding attribute "+AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME+" to entry: "+e.getMessage(), e);
+		return super.create(icfObjectClass, prepareCreateAttributes(createAttributes), options);
+	}
+	
+	private Set<Attribute> prepareCreateAttributes(Set<Attribute> createAttributes)  {
+		
+		Set<AdConstants.UAC> uacAddSet = new HashSet<AdConstants.UAC>();
+		Set<AdConstants.UAC> uacDelSet = new HashSet<AdConstants.UAC>();
+		
+		Set<Attribute> newCreateAttributes = new HashSet<Attribute>();
+		
+		for (Attribute createAttr : createAttributes) {
+			//collect deltas affecting uac. Will be processed below
+			String createAttrName = createAttr.getName();
+			if (createAttrName.equals(OperationalAttributes.ENABLE_NAME) || AdConstants.UAC.forName(createAttrName) != null) {
+				//OperationalAttributes.ENABLE_NAME is replaced by dConstants.UAC.ADS_UF_ACCOUNTDISABLE.name()
+				AdConstants.UAC uacVal = Enum.valueOf(AdConstants.UAC.class, createAttrName.equals(OperationalAttributes.ENABLE_NAME)? AdConstants.UAC.ADS_UF_ACCOUNTDISABLE.name() : createAttrName);
+				List<Object> values = createAttr.getValue();
+				if (values != null && values.size() >0) {
+					Object val = values.get(0);
+					
+					if (val instanceof Boolean) {
+						//OperationalAttributes.ENABLE_NAME = true means AdConstants.UAC.ADS_UF_ACCOUNTDISABLE = false
+						if (createAttrName.equals(OperationalAttributes.ENABLE_NAME)) {
+							if ((Boolean)val) {
+								val = new Boolean(false);
+							}
+							else val = new Boolean(true);
+						}
+						
+						//value was changed to true
+						if ((Boolean)val) {
+							uacAddSet.add(uacVal);
+						}
+						//value was changed to false
+						else uacDelSet.add(uacVal);
+					}
 				}
 			}
+			//all others remain unchanged
+			else newCreateAttributes.add(createAttr);
 		}
+		//no uac attributes affected? we cannot return, we have to set at least  AdConstants.UAC.ADS_UF_NORMAL_ACCOUNT
+		
+		Integer userAccountControl = AdConstants.UAC.ADS_UF_NORMAL_ACCOUNT.getBit();
+		
+		//if bit is not set: add it
+		for (AdConstants.UAC uac : uacAddSet) {
+			if ((userAccountControl & uac.getBit()) == 0) {
+				userAccountControl = userAccountControl + uac.getBit();
+            }
+		}
+		//if bit is set: remove it
+		for (AdConstants.UAC uac : uacDelSet) {
+			if ((userAccountControl & uac.getBit()) != 0) {
+				userAccountControl = userAccountControl - uac.getBit();
+            }
+		}
+		
+		//create new attribute for useraccountcontrol, having new value
+		Attribute uacAttr = AttributeBuilder.build(AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME, userAccountControl);
+		newCreateAttributes.add(uacAttr);
+		
+		return newCreateAttributes;
 	}
 	
 	@Override
@@ -277,7 +334,8 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 		for (AttributeDelta delta : deltas) {
 			//collect deltas affecting uac. Will be processed below
 			String deltaName = delta.getName();
-			if (deltaName.equals(OperationalAttributes.ENABLE_NAME) || Enum.valueOf(AdConstants.UAC.class, deltaName) != null) {
+			//if (deltaName.equals(OperationalAttributes.ENABLE_NAME) || Enum.valueOf(AdConstants.UAC.class, deltaName) != null) {
+			if (deltaName.equals(OperationalAttributes.ENABLE_NAME) || AdConstants.UAC.forName(deltaName) != null) {
 				//OperationalAttributes.ENABLE_NAME is replaced by dConstants.UAC.ADS_UF_ACCOUNTDISABLE.name()
 				AdConstants.UAC uacVal = Enum.valueOf(AdConstants.UAC.class, deltaName.equals(OperationalAttributes.ENABLE_NAME)? AdConstants.UAC.ADS_UF_ACCOUNTDISABLE.name() : deltaName);
 				List<Object> valuesToReplace = delta.getValuesToReplace();

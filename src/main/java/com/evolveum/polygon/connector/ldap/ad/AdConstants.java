@@ -55,8 +55,6 @@ public class AdConstants {
 	public static final String ATTRIBUTE_AUXILIARY_CLASS_NAME = "auxiliaryClass";
 	public static final String ATTRIBUTE_DEFAULT_OBJECT_CATEGORY_NAME = "defaultObjectCategory";
 	
-	public static final int USER_ACCOUNT_CONTROL_NORMAL = 0x0200;
-	public static final int USER_ACCOUNT_CONTROL_DISABLED = 0x0002;
 	
 	public static final String OBJECT_CLASS_CLASS_SCHEMA = "classSchema";
 	public static final String OBJECT_CLASS_ATTRIBUTE_SCHEMA = "attributeSchema";
@@ -123,6 +121,17 @@ public class AdConstants {
         public boolean isReadOnly()
         {
             return readOnly;
+        }
+        
+        private static final UAC[] copyOfValues = values();
+
+        public static UAC forName(String name) {
+            for (UAC value : copyOfValues) {
+                if (value.name().equals(name)) {
+                    return value;
+                }
+            }
+            return null;
         }
     }
 
