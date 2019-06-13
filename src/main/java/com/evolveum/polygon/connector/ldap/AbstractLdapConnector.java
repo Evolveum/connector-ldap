@@ -820,7 +820,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 	}
 
 	@Override
-	public Uid create(ObjectClass icfObjectClass, Set<Attribute> createAttributes, OperationOptions options) {
+	public Uid create(ObjectClass connIdObjectClass, Set<Attribute> createAttributes, OperationOptions options) {
 		
 		String dnStringFromName = null;
 		for (Attribute icfAttr: createAttributes) {
@@ -833,7 +833,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		}
 		
 		AbstractSchemaTranslator<C> shcemaTranslator = getSchemaTranslator();
-		org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass = shcemaTranslator.toLdapObjectClass(icfObjectClass);
+		org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass = shcemaTranslator.toLdapObjectClass(connIdObjectClass);
 		
 		List<org.apache.directory.api.ldap.model.schema.ObjectClass> ldapAuxiliaryObjectClasses = new ArrayList<>();
 		for (Attribute icfAttr: createAttributes) {
@@ -843,6 +843,8 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 				}
 			}
 		}
+		
+		createAttributes = prepareCreateConnIdAttributes(connIdObjectClass, ldapStructuralObjectClass, createAttributes);
 		
 		String[] ldapObjectClassNames = new String[ldapAuxiliaryObjectClasses.size() + 1];
 		ldapObjectClassNames[0] = ldapStructuralObjectClass.getName();
@@ -882,6 +884,8 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 				// hope that it worked well. It should - unless there is a connector bug.
 			}
 		}
+		
+		prepareCreateLdapAttributes(ldapStructuralObjectClass, entry);
 
 		if (LOG.isOk()) {
 			LOG.ok("Adding entry: {0}", entry);
@@ -952,6 +956,17 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 		uid = new Uid(getSchemaTranslator().toConnIdIdentifierValue(uidLdapAttributeValue, uidAttributeName, uidLdapAttributeType));
 		
 		return uid;
+	}
+	
+	protected Set<Attribute> prepareCreateConnIdAttributes(ObjectClass connIdObjectClass,
+			org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass,
+			Set<Attribute> createAttributes) {
+		// Nothing to do here. For use in subclasses.
+		return createAttributes;
+	}
+
+	protected void prepareCreateLdapAttributes(org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass, Entry entry) {
+		// Nothing to do here. Hooks for subclasses.
 	}
 	
 	protected RuntimeException processCreateResult(String dn, AddResponse addResponse) {

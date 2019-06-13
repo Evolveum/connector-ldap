@@ -217,40 +217,12 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 	}
 	
 	@Override
-	protected void preCreate(org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass, Entry entry) {
-		super.preCreate(ldapStructuralObjectClass, entry);
-		
-		// objectCategory
-		if (getConfiguration().isAddDefaultObjectCategory()) {
-			if (ldapStructuralObjectClass instanceof AdObjectClass) {
-				String existingObjectCategory = LdapUtil.getStringAttribute(entry, AdConstants.ATTRIBUTE_OBJECT_CATEGORY_NAME);
-				if (existingObjectCategory == null) {
-					String defaultObjectCategory = ((AdObjectClass)ldapStructuralObjectClass).getDefaultObjectCategory();
-					if (defaultObjectCategory == null) {
-						LOG.warn("Requested to add default object class, but there is no default object category definition in object class {0}", ldapStructuralObjectClass.getName());
-					} else {
-						try {
-							entry.add(AdConstants.ATTRIBUTE_OBJECT_CATEGORY_NAME, defaultObjectCategory);
-						} catch (LdapException e) {
-							throw new IllegalStateException("Error adding attribute "+AdConstants.ATTRIBUTE_OBJECT_CATEGORY_NAME+" to entry: "+e.getMessage(), e);
-						}
-					}
-				}
-			} else {
-				LOG.warn("Requested to add default object class, but native AD schema is not available for object class {0}", ldapStructuralObjectClass.getName());
-			}
+	protected Set<Attribute> prepareCreateConnIdAttributes(org.identityconnectors.framework.common.objects.ObjectClass connIdObjectClass,
+			org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass,
+			Set<Attribute> createAttributes) {
+		if (getConfiguration().isRawUserAccountControlAttribute() || !getSchemaTranslator().isUserObjectClass(ldapStructuralObjectClass.getName())) {
+			return super.prepareCreateConnIdAttributes(connIdObjectClass, ldapStructuralObjectClass, createAttributes);
 		}
-	}
-	
-	public Uid create(org.identityconnectors.framework.common.objects.ObjectClass icfObjectClass, Set<Attribute> createAttributes, OperationOptions options) {
-		if (getConfiguration().isRawUserAccountControlAttribute()) {
-			return super.create(icfObjectClass, createAttributes, options);
-		}
-		
-		return super.create(icfObjectClass, prepareCreateAttributes(createAttributes), options);
-	}
-	
-	private Set<Attribute> prepareCreateAttributes(Set<Attribute> createAttributes)  {
 		
 		Set<AdConstants.UAC> uacAddSet = new HashSet<AdConstants.UAC>();
 		Set<AdConstants.UAC> uacDelSet = new HashSet<AdConstants.UAC>();
@@ -310,6 +282,32 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 		newCreateAttributes.add(uacAttr);
 		
 		return newCreateAttributes;
+	}
+	
+	@Override
+	protected void prepareCreateLdapAttributes(org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass, Entry entry) {
+		super.prepareCreateLdapAttributes(ldapStructuralObjectClass, entry);
+		
+		// objectCategory
+		if (getConfiguration().isAddDefaultObjectCategory()) {
+			if (ldapStructuralObjectClass instanceof AdObjectClass) {
+				String existingObjectCategory = LdapUtil.getStringAttribute(entry, AdConstants.ATTRIBUTE_OBJECT_CATEGORY_NAME);
+				if (existingObjectCategory == null) {
+					String defaultObjectCategory = ((AdObjectClass)ldapStructuralObjectClass).getDefaultObjectCategory();
+					if (defaultObjectCategory == null) {
+						LOG.warn("Requested to add default object class, but there is no default object category definition in object class {0}", ldapStructuralObjectClass.getName());
+					} else {
+						try {
+							entry.add(AdConstants.ATTRIBUTE_OBJECT_CATEGORY_NAME, defaultObjectCategory);
+						} catch (LdapException e) {
+							throw new IllegalStateException("Error adding attribute "+AdConstants.ATTRIBUTE_OBJECT_CATEGORY_NAME+" to entry: "+e.getMessage(), e);
+						}
+					}
+				}
+			} else {
+				LOG.warn("Requested to add default object class, but native AD schema is not available for object class {0}", ldapStructuralObjectClass.getName());
+			}
+		}
 	}
 	
 	@Override
