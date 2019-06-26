@@ -732,7 +732,14 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 
 	private SearchScope getScope(OperationOptions options) {
 		if (options == null || options.getScope() == null) {
-			return SearchScope.SUBTREE;
+			switch (configuration.getDefaultSearchScope()) {
+				case AbstractLdapConfiguration.SEARCH_SCOPE_SUB:
+					return SearchScope.SUBTREE;
+				case AbstractLdapConfiguration.SEARCH_SCOPE_ONE:
+					return SearchScope.ONELEVEL;
+				default:
+						throw new ConfigurationException("Unknown defaultSearchScope="+configuration.getDefaultSearchScope());
+			}
 		}
 		return SearchScope.getSearchScope( SearchScope.getSearchScope( options.getScope() ) );
 	}

@@ -380,6 +380,16 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
     // TODO: failover, accountSynchronizationFilter
     // MAYBE TODO: respectResourcePasswordPolicyChangeAfterReset? filterWithOrInsteadOfAnd? 
     //			   removeLogEntryObjectClassFromFilter? synchronizePasswords? passwordAttributeToSynchronize?
+    
+    /**
+     * Default search scope used for ordinary searches.
+     * Possible values: "sub", "one"
+     * Default value: sub
+     */
+    private String defaultSearchScope = SEARCH_SCOPE_SUB;
+    
+    public static final String SEARCH_SCOPE_SUB = "sub";
+    public static final String SEARCH_SCOPE_ONE = "one";
 
 	@ConfigurationProperty(required = true, order = 1)
     public String getHost() {
@@ -758,8 +768,17 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 	public void setAdditionalSearchFilter(String additionalSearchFilter) {
 		this.additionalSearchFilter = additionalSearchFilter;
 	}
-
+	
 	@ConfigurationProperty(order = 43)
+	public String getDefaultSearchScope() {
+		return defaultSearchScope;
+	}
+
+	public void setDefaultSearchScope(String searchScope) {
+		this.defaultSearchScope = searchScope;
+	}
+
+	@ConfigurationProperty(order = 44)
 	public boolean isAllowUntrustedSsl() {
 		return allowUntrustedSsl;
 	}
