@@ -24,33 +24,33 @@ import java.util.List;
  */
 public class LdapObjectClasses {
 
-	org.apache.directory.api.ldap.model.schema.ObjectClass ldapLowestStructuralObjectClass;
-	List<org.apache.directory.api.ldap.model.schema.ObjectClass> ldapStructuralObjectClasses = new ArrayList<>();
-	List<org.apache.directory.api.ldap.model.schema.ObjectClass> ldapAuxiliaryObjectClasses = new ArrayList<>();
+    org.apache.directory.api.ldap.model.schema.ObjectClass ldapLowestStructuralObjectClass;
+    List<org.apache.directory.api.ldap.model.schema.ObjectClass> ldapStructuralObjectClasses = new ArrayList<>();
+    List<org.apache.directory.api.ldap.model.schema.ObjectClass> ldapAuxiliaryObjectClasses = new ArrayList<>();
 
-	public org.apache.directory.api.ldap.model.schema.ObjectClass getLdapLowestStructuralObjectClass() {
-		return ldapLowestStructuralObjectClass;
-	}
+    public org.apache.directory.api.ldap.model.schema.ObjectClass getLdapLowestStructuralObjectClass() {
+        return ldapLowestStructuralObjectClass;
+    }
 
-	public void setLdapLowestStructuralObjectClass(
-			org.apache.directory.api.ldap.model.schema.ObjectClass ldapLowestStructuralObjectClass) {
-		this.ldapLowestStructuralObjectClass = ldapLowestStructuralObjectClass;
-	}
+    public void setLdapLowestStructuralObjectClass(
+            org.apache.directory.api.ldap.model.schema.ObjectClass ldapLowestStructuralObjectClass) {
+        this.ldapLowestStructuralObjectClass = ldapLowestStructuralObjectClass;
+    }
 
-	public List<org.apache.directory.api.ldap.model.schema.ObjectClass> getLdapStructuralObjectClasses() {
-		return ldapStructuralObjectClasses;
-	}
+    public List<org.apache.directory.api.ldap.model.schema.ObjectClass> getLdapStructuralObjectClasses() {
+        return ldapStructuralObjectClasses;
+    }
 
-	public List<org.apache.directory.api.ldap.model.schema.ObjectClass> getLdapAuxiliaryObjectClasses() {
-		return ldapAuxiliaryObjectClasses;
-	}
+    public List<org.apache.directory.api.ldap.model.schema.ObjectClass> getLdapAuxiliaryObjectClasses() {
+        return ldapAuxiliaryObjectClasses;
+    }
 
-	@Override
-	public String toString() {
-		return "LdapObjectClasses(ldapLowestStructuralObjectClass=" + ldapLowestStructuralObjectClass
-				+ ", ldapStructuralObjectClasses=" + ldapStructuralObjectClasses
-				+ ", ldapAuxiliaryObjectClasses=" + ldapAuxiliaryObjectClasses + ")";
-	}
-	
-	
+    @Override
+    public String toString() {
+        return "LdapObjectClasses(ldapLowestStructuralObjectClass=" + ldapLowestStructuralObjectClass
+                + ", ldapStructuralObjectClasses=" + ldapStructuralObjectClasses
+                + ", ldapAuxiliaryObjectClasses=" + ldapAuxiliaryObjectClasses + ")";
+    }
+
+
 }

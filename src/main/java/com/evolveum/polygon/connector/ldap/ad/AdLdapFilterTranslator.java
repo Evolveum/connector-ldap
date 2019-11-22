@@ -30,31 +30,31 @@ import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
  *
  */
 public class AdLdapFilterTranslator extends LdapFilterTranslator<AdLdapConfiguration> {
-	
-	private static final Log LOG = Log.getLog(AdLdapFilterTranslator.class);
 
-	public AdLdapFilterTranslator(AbstractSchemaTranslator<AdLdapConfiguration> schemaTranslator, ObjectClass ldapObjectClass) {
-		super(schemaTranslator, ldapObjectClass);
-	}
-	
-	@Override
-	protected ExprNode createObjectClassFilter(org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
-		if ((ldapObjectClass instanceof AdObjectClass)) {
-			if (getConfiguration().isIncludeObjectCategoryFilter()) {
-				String defaultObjectCategory = ((AdObjectClass)ldapObjectClass).getDefaultObjectCategory();
-				if (defaultObjectCategory == null) {
-					LOG.warn("Requested search by object category, but object class {0} does not have default object category defined in the schema.", ldapObjectClass.getName());
-					return super.createObjectClassFilter(ldapObjectClass);
-				}
-				return LdapUtil.filterAnd(
-						super.createObjectClassFilter(ldapObjectClass),
-						new EqualityNode<>(AdConstants.ATTRIBUTE_OBJECT_CATEGORY_NAME, defaultObjectCategory));
-			} else {
-				return super.createObjectClassFilter(ldapObjectClass);
-			}
-		} else {
-			return super.createObjectClassFilter(ldapObjectClass);
-		}
-	}
-	
+    private static final Log LOG = Log.getLog(AdLdapFilterTranslator.class);
+
+    public AdLdapFilterTranslator(AbstractSchemaTranslator<AdLdapConfiguration> schemaTranslator, ObjectClass ldapObjectClass) {
+        super(schemaTranslator, ldapObjectClass);
+    }
+
+    @Override
+    protected ExprNode createObjectClassFilter(org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
+        if ((ldapObjectClass instanceof AdObjectClass)) {
+            if (getConfiguration().isIncludeObjectCategoryFilter()) {
+                String defaultObjectCategory = ((AdObjectClass)ldapObjectClass).getDefaultObjectCategory();
+                if (defaultObjectCategory == null) {
+                    LOG.warn("Requested search by object category, but object class {0} does not have default object category defined in the schema.", ldapObjectClass.getName());
+                    return super.createObjectClassFilter(ldapObjectClass);
+                }
+                return LdapUtil.filterAnd(
+                        super.createObjectClassFilter(ldapObjectClass),
+                        new EqualityNode<>(AdConstants.ATTRIBUTE_OBJECT_CATEGORY_NAME, defaultObjectCategory));
+            } else {
+                return super.createObjectClassFilter(ldapObjectClass);
+            }
+        } else {
+            return super.createObjectClassFilter(ldapObjectClass);
+        }
+    }
+
 }

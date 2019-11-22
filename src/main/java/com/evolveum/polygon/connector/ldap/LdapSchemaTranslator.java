@@ -49,216 +49,216 @@ import com.evolveum.polygon.connector.ldap.schema.AttributeHandler;
  *
  */
 public class LdapSchemaTranslator extends AbstractSchemaTranslator<LdapConfiguration> {
-	
-	// TODO: move to polygon
-	public static final String POLYSTRING_SUBTYPE = "http://midpoint.evolveum.com/xml/ns/public/connector/icf-1/subtypes#PolyString";
-	public static final String POLYSTRING_ORIG_KEY = "";
-		
-	private static final Log LOG = Log.getLog(LdapSchemaTranslator.class);
-	
-	private String[] computedOperationalAttributes = null;
-	
-	public LdapSchemaTranslator(SchemaManager schemaManager, LdapConfiguration configuration) {
-		super(schemaManager, configuration);
-	}
 
-	@Override
-	protected void extendObjectClassDefinition(ObjectClassInfoBuilder ocib,
-			org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
-		super.extendObjectClassDefinition(ocib, ldapObjectClass);
-		
-		if (!LdapConfiguration.LOCKOUT_STRATEGY_NONE.equals(getConfiguration().getLockoutStrategy())) {
-			AttributeInfoBuilder lockoutAb = new AttributeInfoBuilder(OperationalAttributes.LOCK_OUT_NAME);
-			lockoutAb.setType(boolean.class);
-//			lockoutAb.setReturnedByDefault(false);
-			ocib.addAttributeInfo(lockoutAb.build());
-		}
-	}
-	
-	@Override
-	public String[] getOperationalAttributes() {
-		if (computedOperationalAttributes == null) {
-			if (LdapConfiguration.LOCKOUT_STRATEGY_OPENLDAP.equals(getConfiguration().getLockoutStrategy())) {
-				String[] schemaOperationalAttributes = super.getOperationalAttributes();
-				computedOperationalAttributes = new String[schemaOperationalAttributes.length + 1];
-				computedOperationalAttributes = Arrays.copyOf(schemaOperationalAttributes, schemaOperationalAttributes.length + 1);
-				computedOperationalAttributes[schemaOperationalAttributes.length] = SchemaConstants.PWD_ACCOUNT_LOCKED_TIME_AT;
-			} else {
-				computedOperationalAttributes = super.getOperationalAttributes();
-			}
-		}
-		return computedOperationalAttributes;
-	}
-	
-	@Override
-	public Class<?> toConnIdType(LdapSyntax syntax, String connIdAttributeName) {
-		if (supportsLanguageTag(connIdAttributeName)) {
-			return Map.class;
-		} else {
-			return super.toConnIdType(syntax, connIdAttributeName);
-		}
-	}
+    // TODO: move to polygon
+    public static final String POLYSTRING_SUBTYPE = "http://midpoint.evolveum.com/xml/ns/public/connector/icf-1/subtypes#PolyString";
+    public static final String POLYSTRING_ORIG_KEY = "";
 
-	@Override
-	public String toConnIdSubtype(Class<?> connIdType, AttributeType ldapAttribute, String connIdAttributeName) {
-		if (supportsLanguageTag(connIdAttributeName)) {
-			return POLYSTRING_SUBTYPE;
-		} else {
-			return super.toConnIdSubtype(connIdType, ldapAttribute, connIdAttributeName);
-		}
-	}
+    private static final Log LOG = Log.getLog(LdapSchemaTranslator.class);
 
-	private boolean supportsLanguageTag(String connIdAttributeName) {
-		if (getConfiguration().getLanguageTagAttributes() == null) {
-			return false;
-		}
-		for (String languageTagAttribute : getConfiguration().getLanguageTagAttributes()) {
-			if (connIdAttributeName.equals(languageTagAttribute)) {
-				return true;
-			}
-		}
-		return false; 
-	}
-	
-	@Override
-	public boolean isPolyAttribute(AttributeType ldapAttributeType, List<Object> values) {
-		if (values == null) {
-			return false;
-		}
-		if (values.size() != 1) {
-			return false;
-		}
-		Object value = values.get(0);
-		return value instanceof Map;
-	}
-	
-	@Override
-	public boolean isPolyAttribute(AttributeInfo connIdAttributeInfo) {
-		return Map.class.isAssignableFrom(connIdAttributeInfo.getType());
-	}
-	
-	@Override
-	public Map<String, List<Value>> toLdapPolyValues(AttributeType ldapAttributeType, List<Object> connIdValues) {
-		Map<String, List<Value>> ldapValueMap = new HashMap<>();
-		if (connIdValues.size() > 1) {
-			throw new InvalidAttributeValueException("Only single-valued poly attributes are supported (attribute '"+ldapAttributeType.getName()+"')");
-		}
-		Object connId = connIdValues.get(0);
-		if (!(connId instanceof Map)) {
-			throw new InvalidAttributeValueException("Only map-valued poly attributes are supported (attribute '"+ldapAttributeType.getName()+"'), got "+connId.getClass()+" instead");
-		}
-		Map<String,String> connIdValueMap = (Map<String,String>)connId;
-		// TODO: check if this is really polystring
-		for (Map.Entry<String, String> connIdValueMapEntry : connIdValueMap.entrySet()) {
-			String attrName;
-			if (connIdValueMapEntry.getKey().equals(POLYSTRING_ORIG_KEY)) {
-				attrName = ldapAttributeType.getName();
-			} else {
-				attrName = ldapAttributeType.getName() + ";lang-" + connIdValueMapEntry.getKey();
-			}
-			List<Value> ldapValues = toLdapValues(ldapAttributeType, Collections.singletonList(connIdValueMapEntry.getValue()));
-			ldapValueMap.put(attrName, ldapValues);
-		}
-		return ldapValueMap;
-	}
-	
-	@Override
-	public AttributeType toLdapAttribute(org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
-			String icfAttributeName) {
-		
-		if (OperationalAttributes.LOCK_OUT_NAME.equals(icfAttributeName)) {
-			if (getConfiguration().getLockoutStrategy() == null || LdapConfiguration.LOCKOUT_STRATEGY_NONE.equals(getConfiguration().getLockoutStrategy())) {
-				return null;
-			} else if (LdapConfiguration.LOCKOUT_STRATEGY_OPENLDAP.equals(getConfiguration().getLockoutStrategy())) {
-				return super.toLdapAttribute(ldapObjectClass, SchemaConstants.PWD_ACCOUNT_LOCKED_TIME_AT); 
-			} else {
-				throw new IllegalStateException("Unknown lockout strategy "+ getConfiguration().getLockoutStrategy());
-			}
-		}
-		
-		return super.toLdapAttribute(ldapObjectClass, icfAttributeName);
-	}
-	
-	@Override
-	protected Attribute toConnIdAttributePoly(String connIdAttributeName, String ldapAttributeNameFromSchema, AttributeType ldapAttributeType,
-			List<org.apache.directory.api.ldap.model.entry.Attribute> ldapAttributes,
-			LdapNetworkConnection connection, Entry entry, AttributeHandler attributeHandler) {
-		
-		AttributeBuilder ab = new AttributeBuilder();
-		ab.setName(connIdAttributeName);
-		
-		Map<String,Object> connIdValueMap = new HashMap<>();
-		for (org.apache.directory.api.ldap.model.entry.Attribute ldapAttribute : ldapAttributes) {
-			
-			String connIdMapKey = determinePolyKey(ldapAttribute);
-			if (connIdMapKey == null) {
-				continue;
-			}
-			
-			if (attributeHandler != null) {
-				attributeHandler.handle(connection, entry, ldapAttribute, ab);
-			}
-			
-			if (ldapAttribute.size() == 0) {
-				LOG.ok("Empty attribute {0} on {1}", ldapAttribute.getUpId(), entry.getDn());
-				continue;
-			}
-			
-			if (ldapAttribute.size() > 1) {
-				if (!getConfiguration().isTolerateMultivalueReduction()) {
-					throw new InvalidAttributeValueException("Multi-valued multi-attributes are not supported, attribute "+ldapAttribute.getUpId()+ " on "+entry.getDn());
-				} else {
-					LOG.warn("Reducing multiple values of attribute {0} on {1} to a single value", ldapAttribute.getUpId(), entry.getDn());
-					ab.setAttributeValueCompleteness(AttributeValueCompleteness.INCOMPLETE);
-				}
-			}
-			
-			Value ldapValue = ldapAttribute.get();
+    private String[] computedOperationalAttributes = null;
 
-			Object connIdValue = toConnIdValue(connIdAttributeName, ldapValue, ldapAttributeNameFromSchema, ldapAttributeType);
-			if (connIdValue != null) {
-				connIdValueMap.put(connIdMapKey, connIdValue);
-			}
-		}
-		
-		ab.addValue(connIdValueMap);
-		
-		try {
-			return ab.build();
-		} catch (IllegalArgumentException e) {
-			throw new IllegalArgumentException(e.getMessage() + ", attribute "+connIdAttributeName+" (ldap: "+ldapAttributeNameFromSchema+")", e);
-		}
-	}
-	
-	@Override
-	public String determinePolyKey(org.apache.directory.api.ldap.model.entry.Attribute ldapAttribute) {
-		String option = getLdapAttributeOption(ldapAttribute);
-		if (option != null && !option.startsWith("lang-")) {
-			LOG.ok("Unknown option {0} on attribute {1}", option, ldapAttribute.getUpId());
-			return null;
-		}
-		
-		if (option == null) {
-			return POLYSTRING_ORIG_KEY;
-		} else {
-			return option.substring("lang-".length());
-		}
-	}
+    public LdapSchemaTranslator(SchemaManager schemaManager, LdapConfiguration configuration) {
+        super(schemaManager, configuration);
+    }
 
-	@Override
-	protected void extendConnectorObject(ConnectorObjectBuilder cob, Entry entry, String objectClassName) {
-		super.extendConnectorObject(cob, entry, objectClassName);
-		
-		if (LdapConfiguration.LOCKOUT_STRATEGY_OPENLDAP.equals(getConfiguration().getLockoutStrategy())) {
-			Long pwdAccountLockedTime = LdapUtil.getTimestampAttribute(entry, SchemaConstants.PWD_ACCOUNT_LOCKED_TIME_AT);
-			if (pwdAccountLockedTime != null) {
-				// WARNING: this is not exact. The lock might have already expired. But we do not have
-				// any good way to check that without access to cn=config
-				cob.addAttribute(OperationalAttributes.LOCK_OUT_NAME, Boolean.TRUE);
-			} else {
-				cob.addAttribute(OperationalAttributes.LOCK_OUT_NAME, Boolean.FALSE);
-			}
-		}
-	}
+    @Override
+    protected void extendObjectClassDefinition(ObjectClassInfoBuilder ocib,
+            org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
+        super.extendObjectClassDefinition(ocib, ldapObjectClass);
+
+        if (!LdapConfiguration.LOCKOUT_STRATEGY_NONE.equals(getConfiguration().getLockoutStrategy())) {
+            AttributeInfoBuilder lockoutAb = new AttributeInfoBuilder(OperationalAttributes.LOCK_OUT_NAME);
+            lockoutAb.setType(boolean.class);
+//            lockoutAb.setReturnedByDefault(false);
+            ocib.addAttributeInfo(lockoutAb.build());
+        }
+    }
+
+    @Override
+    public String[] getOperationalAttributes() {
+        if (computedOperationalAttributes == null) {
+            if (LdapConfiguration.LOCKOUT_STRATEGY_OPENLDAP.equals(getConfiguration().getLockoutStrategy())) {
+                String[] schemaOperationalAttributes = super.getOperationalAttributes();
+                computedOperationalAttributes = new String[schemaOperationalAttributes.length + 1];
+                computedOperationalAttributes = Arrays.copyOf(schemaOperationalAttributes, schemaOperationalAttributes.length + 1);
+                computedOperationalAttributes[schemaOperationalAttributes.length] = SchemaConstants.PWD_ACCOUNT_LOCKED_TIME_AT;
+            } else {
+                computedOperationalAttributes = super.getOperationalAttributes();
+            }
+        }
+        return computedOperationalAttributes;
+    }
+
+    @Override
+    public Class<?> toConnIdType(LdapSyntax syntax, String connIdAttributeName) {
+        if (supportsLanguageTag(connIdAttributeName)) {
+            return Map.class;
+        } else {
+            return super.toConnIdType(syntax, connIdAttributeName);
+        }
+    }
+
+    @Override
+    public String toConnIdSubtype(Class<?> connIdType, AttributeType ldapAttribute, String connIdAttributeName) {
+        if (supportsLanguageTag(connIdAttributeName)) {
+            return POLYSTRING_SUBTYPE;
+        } else {
+            return super.toConnIdSubtype(connIdType, ldapAttribute, connIdAttributeName);
+        }
+    }
+
+    private boolean supportsLanguageTag(String connIdAttributeName) {
+        if (getConfiguration().getLanguageTagAttributes() == null) {
+            return false;
+        }
+        for (String languageTagAttribute : getConfiguration().getLanguageTagAttributes()) {
+            if (connIdAttributeName.equals(languageTagAttribute)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Override
+    public boolean isPolyAttribute(AttributeType ldapAttributeType, List<Object> values) {
+        if (values == null) {
+            return false;
+        }
+        if (values.size() != 1) {
+            return false;
+        }
+        Object value = values.get(0);
+        return value instanceof Map;
+    }
+
+    @Override
+    public boolean isPolyAttribute(AttributeInfo connIdAttributeInfo) {
+        return Map.class.isAssignableFrom(connIdAttributeInfo.getType());
+    }
+
+    @Override
+    public Map<String, List<Value>> toLdapPolyValues(AttributeType ldapAttributeType, List<Object> connIdValues) {
+        Map<String, List<Value>> ldapValueMap = new HashMap<>();
+        if (connIdValues.size() > 1) {
+            throw new InvalidAttributeValueException("Only single-valued poly attributes are supported (attribute '"+ldapAttributeType.getName()+"')");
+        }
+        Object connId = connIdValues.get(0);
+        if (!(connId instanceof Map)) {
+            throw new InvalidAttributeValueException("Only map-valued poly attributes are supported (attribute '"+ldapAttributeType.getName()+"'), got "+connId.getClass()+" instead");
+        }
+        Map<String,String> connIdValueMap = (Map<String,String>)connId;
+        // TODO: check if this is really polystring
+        for (Map.Entry<String, String> connIdValueMapEntry : connIdValueMap.entrySet()) {
+            String attrName;
+            if (connIdValueMapEntry.getKey().equals(POLYSTRING_ORIG_KEY)) {
+                attrName = ldapAttributeType.getName();
+            } else {
+                attrName = ldapAttributeType.getName() + ";lang-" + connIdValueMapEntry.getKey();
+            }
+            List<Value> ldapValues = toLdapValues(ldapAttributeType, Collections.singletonList(connIdValueMapEntry.getValue()));
+            ldapValueMap.put(attrName, ldapValues);
+        }
+        return ldapValueMap;
+    }
+
+    @Override
+    public AttributeType toLdapAttribute(org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
+            String icfAttributeName) {
+
+        if (OperationalAttributes.LOCK_OUT_NAME.equals(icfAttributeName)) {
+            if (getConfiguration().getLockoutStrategy() == null || LdapConfiguration.LOCKOUT_STRATEGY_NONE.equals(getConfiguration().getLockoutStrategy())) {
+                return null;
+            } else if (LdapConfiguration.LOCKOUT_STRATEGY_OPENLDAP.equals(getConfiguration().getLockoutStrategy())) {
+                return super.toLdapAttribute(ldapObjectClass, SchemaConstants.PWD_ACCOUNT_LOCKED_TIME_AT);
+            } else {
+                throw new IllegalStateException("Unknown lockout strategy "+ getConfiguration().getLockoutStrategy());
+            }
+        }
+
+        return super.toLdapAttribute(ldapObjectClass, icfAttributeName);
+    }
+
+    @Override
+    protected Attribute toConnIdAttributePoly(String connIdAttributeName, String ldapAttributeNameFromSchema, AttributeType ldapAttributeType,
+            List<org.apache.directory.api.ldap.model.entry.Attribute> ldapAttributes,
+            LdapNetworkConnection connection, Entry entry, AttributeHandler attributeHandler) {
+
+        AttributeBuilder ab = new AttributeBuilder();
+        ab.setName(connIdAttributeName);
+
+        Map<String,Object> connIdValueMap = new HashMap<>();
+        for (org.apache.directory.api.ldap.model.entry.Attribute ldapAttribute : ldapAttributes) {
+
+            String connIdMapKey = determinePolyKey(ldapAttribute);
+            if (connIdMapKey == null) {
+                continue;
+            }
+
+            if (attributeHandler != null) {
+                attributeHandler.handle(connection, entry, ldapAttribute, ab);
+            }
+
+            if (ldapAttribute.size() == 0) {
+                LOG.ok("Empty attribute {0} on {1}", ldapAttribute.getUpId(), entry.getDn());
+                continue;
+            }
+
+            if (ldapAttribute.size() > 1) {
+                if (!getConfiguration().isTolerateMultivalueReduction()) {
+                    throw new InvalidAttributeValueException("Multi-valued multi-attributes are not supported, attribute "+ldapAttribute.getUpId()+ " on "+entry.getDn());
+                } else {
+                    LOG.warn("Reducing multiple values of attribute {0} on {1} to a single value", ldapAttribute.getUpId(), entry.getDn());
+                    ab.setAttributeValueCompleteness(AttributeValueCompleteness.INCOMPLETE);
+                }
+            }
+
+            Value ldapValue = ldapAttribute.get();
+
+            Object connIdValue = toConnIdValue(connIdAttributeName, ldapValue, ldapAttributeNameFromSchema, ldapAttributeType);
+            if (connIdValue != null) {
+                connIdValueMap.put(connIdMapKey, connIdValue);
+            }
+        }
+
+        ab.addValue(connIdValueMap);
+
+        try {
+            return ab.build();
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException(e.getMessage() + ", attribute "+connIdAttributeName+" (ldap: "+ldapAttributeNameFromSchema+")", e);
+        }
+    }
+
+    @Override
+    public String determinePolyKey(org.apache.directory.api.ldap.model.entry.Attribute ldapAttribute) {
+        String option = getLdapAttributeOption(ldapAttribute);
+        if (option != null && !option.startsWith("lang-")) {
+            LOG.ok("Unknown option {0} on attribute {1}", option, ldapAttribute.getUpId());
+            return null;
+        }
+
+        if (option == null) {
+            return POLYSTRING_ORIG_KEY;
+        } else {
+            return option.substring("lang-".length());
+        }
+    }
+
+    @Override
+    protected void extendConnectorObject(ConnectorObjectBuilder cob, Entry entry, String objectClassName) {
+        super.extendConnectorObject(cob, entry, objectClassName);
+
+        if (LdapConfiguration.LOCKOUT_STRATEGY_OPENLDAP.equals(getConfiguration().getLockoutStrategy())) {
+            Long pwdAccountLockedTime = LdapUtil.getTimestampAttribute(entry, SchemaConstants.PWD_ACCOUNT_LOCKED_TIME_AT);
+            if (pwdAccountLockedTime != null) {
+                // WARNING: this is not exact. The lock might have already expired. But we do not have
+                // any good way to check that without access to cn=config
+                cob.addAttribute(OperationalAttributes.LOCK_OUT_NAME, Boolean.TRUE);
+            } else {
+                cob.addAttribute(OperationalAttributes.LOCK_OUT_NAME, Boolean.FALSE);
+            }
+        }
+    }
 
 }

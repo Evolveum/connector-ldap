@@ -22,20 +22,20 @@ import org.apache.directory.api.ldap.model.schema.ObjectClass;
  *
  */
 public class AdObjectClass extends ObjectClass {
-	private static final long serialVersionUID = 1L;
-	
-	private String defaultObjectCategory;
+    private static final long serialVersionUID = 1L;
 
-	public AdObjectClass(String oid) {
-		super(oid);
-	}
+    private String defaultObjectCategory;
 
-	public String getDefaultObjectCategory() {
-		return defaultObjectCategory;
-	}
+    public AdObjectClass(String oid) {
+        super(oid);
+    }
 
-	public void setDefaultObjectCategory(String defaultObjectCategory) {
-		this.defaultObjectCategory = defaultObjectCategory;
-	}
-	
+    public String getDefaultObjectCategory() {
+        return defaultObjectCategory;
+    }
+
+    public void setDefaultObjectCategory(String defaultObjectCategory) {
+        this.defaultObjectCategory = defaultObjectCategory;
+    }
+
 }

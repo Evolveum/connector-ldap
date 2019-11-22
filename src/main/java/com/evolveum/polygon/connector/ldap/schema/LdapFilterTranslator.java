@@ -40,65 +40,65 @@ import java.util.List;
  */
 public class LdapFilterTranslator<C extends AbstractLdapConfiguration> {
 
-	private AbstractSchemaTranslator<C> schemaTranslator;
-	private ObjectClass ldapObjectClass;
-	
-	public LdapFilterTranslator(AbstractSchemaTranslator<C> schemaTranslator, ObjectClass ldapObjectClass) {
-		super();
-		this.schemaTranslator = schemaTranslator;
-		this.ldapObjectClass = ldapObjectClass;
-	}
+    private AbstractSchemaTranslator<C> schemaTranslator;
+    private ObjectClass ldapObjectClass;
 
-	protected C getConfiguration() {
-		return schemaTranslator.getConfiguration();
-	}
-	
-	/**
-	 * Translate filter, also add AND statement for objectClass.
-	 */
-	public ScopedFilter translate(Filter connIdFilter, ObjectClass ldapObjectClass) {
-		ScopedFilter plainScopedFilter = translate(connIdFilter);
-		if (plainScopedFilter != null) {
-			if (getConfiguration().isIncludeObjectClassFilter()) {
-				ExprNode filterWithObjectClass = LdapUtil.filterAnd(
-						createObjectClassFilter(ldapObjectClass),
-						plainScopedFilter.getFilter());
-				return applyAdditionalFilter(new ScopedFilter(filterWithObjectClass, plainScopedFilter.getBaseDn()));
-			} else {
-				return applyAdditionalFilter(plainScopedFilter);
-			}
-		} else {
-			return applyAdditionalFilter(new ScopedFilter(createObjectClassFilter(ldapObjectClass)));
-		}
-	}
-	
-	protected ScopedFilter applyAdditionalFilter(ScopedFilter scopedFilter) {
-		if (getConfiguration().getAdditionalSearchFilter() == null) {
-			return scopedFilter;
-		} else {
-			ExprNode filterNode = LdapUtil.filterAnd(
-					scopedFilter.getFilter(),
-					LdapUtil.parseSearchFilter(getConfiguration().getAdditionalSearchFilter()));
-			return new ScopedFilter(filterNode, scopedFilter.getBaseDn());
-		}
-	}
+    public LdapFilterTranslator(AbstractSchemaTranslator<C> schemaTranslator, ObjectClass ldapObjectClass) {
+        super();
+        this.schemaTranslator = schemaTranslator;
+        this.ldapObjectClass = ldapObjectClass;
+    }
 
-	protected ExprNode createObjectClassFilter(org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
-		return LdapUtil.createObjectClassFilter(ldapObjectClass);
-	}
-	
-	public ScopedFilter translate(AndFilter connIdFilter) {
+    protected C getConfiguration() {
+        return schemaTranslator.getConfiguration();
+    }
+
+    /**
+     * Translate filter, also add AND statement for objectClass.
+     */
+    public ScopedFilter translate(Filter connIdFilter, ObjectClass ldapObjectClass) {
+        ScopedFilter plainScopedFilter = translate(connIdFilter);
+        if (plainScopedFilter != null) {
+            if (getConfiguration().isIncludeObjectClassFilter()) {
+                ExprNode filterWithObjectClass = LdapUtil.filterAnd(
+                        createObjectClassFilter(ldapObjectClass),
+                        plainScopedFilter.getFilter());
+                return applyAdditionalFilter(new ScopedFilter(filterWithObjectClass, plainScopedFilter.getBaseDn()));
+            } else {
+                return applyAdditionalFilter(plainScopedFilter);
+            }
+        } else {
+            return applyAdditionalFilter(new ScopedFilter(createObjectClassFilter(ldapObjectClass)));
+        }
+    }
+
+    protected ScopedFilter applyAdditionalFilter(ScopedFilter scopedFilter) {
+        if (getConfiguration().getAdditionalSearchFilter() == null) {
+            return scopedFilter;
+        } else {
+            ExprNode filterNode = LdapUtil.filterAnd(
+                    scopedFilter.getFilter(),
+                    LdapUtil.parseSearchFilter(getConfiguration().getAdditionalSearchFilter()));
+            return new ScopedFilter(filterNode, scopedFilter.getBaseDn());
+        }
+    }
+
+    protected ExprNode createObjectClassFilter(org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
+        return LdapUtil.createObjectClassFilter(ldapObjectClass);
+    }
+
+    public ScopedFilter translate(AndFilter connIdFilter) {
         if (connIdFilter == null) {
             return null;
         }
-        
+
         Collection<Filter> connIdSubfilters = connIdFilter.getFilters();
         List<ExprNode> subNodes = new ArrayList<ExprNode>(connIdSubfilters.size());
         Dn baseDn = null;
-        
+
         for (Filter icfSubFilter: connIdSubfilters) {
             ScopedFilter subNode = translate(icfSubFilter);
-            
+
             if (subNode.getBaseDn() != null) {
                 if ((baseDn != null) && !baseDn.equals(subNode.getBaseDn())) {
                     throw new InvalidAttributeValueException("Two search clauses for DN in one search filter");
@@ -106,34 +106,34 @@ public class LdapFilterTranslator<C extends AbstractLdapConfiguration> {
                     baseDn = subNode.getBaseDn();
                 }
             }
-            
+
             if (subNode.getFilter() != null) {
                 subNodes.add(subNode.getFilter());
             }
         }
-        
+
         return new ScopedFilter(new AndNode(subNodes), baseDn);
-	}
+    }
 
 
     public ScopedFilter translate(OrFilter connIdFilter) {
         if (connIdFilter == null) {
             return null;
         }
-        
+
         Collection<Filter> connIdSubfilters = connIdFilter.getFilters();
         List<ExprNode> subNodes = new ArrayList<ExprNode>(connIdSubfilters.size());
-        
+
         for (Filter connIdSubFilter: connIdSubfilters) {
             ScopedFilter subNode = translate(connIdSubFilter);
-            
+
             if (subNode.getBaseDn() != null) {
                 throw new InvalidAttributeValueException("Filter for __NAME__ cannot be used in OR clauses");
             }
-            
+
             subNodes.add(subNode.getFilter());
         }
-        
+
         return new ScopedFilter(new OrNode(subNodes));
     }
 
@@ -142,14 +142,14 @@ public class LdapFilterTranslator<C extends AbstractLdapConfiguration> {
         if (connIdFilter == null) {
             return null;
         }
-        
+
         Filter connIdSubfilter = connIdFilter.getFilter();
         ScopedFilter subNode = translate(connIdSubfilter);
-        
+
         if (subNode.getBaseDn() != null) {
             throw new InvalidAttributeValueException("Filter for __NAME__ cannot be used in NOT clauses");
         }
-        
+
         return new ScopedFilter(new NotNode(subNode.getFilter()));
     }
 
@@ -158,34 +158,34 @@ public class LdapFilterTranslator<C extends AbstractLdapConfiguration> {
         if (connIdFilter == null) {
             return null;
         }
-        
+
         Attribute connIdAttribute = connIdFilter.getAttribute();
         String connIdAttributeName = connIdAttribute.getName();
         List<Object> connIdAttributeValue = connIdAttribute.getValue();
-        
+
         if (Name.NAME.equals(connIdAttributeName)) {
             Dn dn = schemaTranslator.toDn(connIdAttribute);
             return new ScopedFilter(dn);
         }
-        
+
         AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, connIdAttributeName);
         List<Value> ldapValues = schemaTranslator.toLdapValues(ldapAttributeType, connIdAttributeValue);
-        
+
         if (ldapValues == null || ldapValues.isEmpty()) {
             throw new IllegalArgumentException("Does it make sense to have empty ContainsAllValuesFilter?");
         }
-        
+
         if (ldapValues.size() == 1) {
             // Essentialy same as EqualsFilter, so let's optimize this
             return new ScopedFilter(new EqualityNode<Object>(ldapAttributeType, ldapValues.get(0)));
         }
-        
+
         List<ExprNode> subNodes = new ArrayList<>(ldapValues.size());
-        
+
         for (Value ldapValue: ldapValues) {
             subNodes.add(new EqualityNode<>(ldapAttributeType, ldapValue));
         }
-        
+
         return new ScopedFilter(new AndNode(subNodes));
     }
 
@@ -241,17 +241,17 @@ public class LdapFilterTranslator<C extends AbstractLdapConfiguration> {
         if (connIdFilter == null) {
             return null;
         }
-        
+
         Attribute connIdAttribute = connIdFilter.getAttribute();
         String connIdAttributeName = connIdAttribute.getName();
-        
+
         if (Name.NAME.equals(connIdAttributeName)) {
             throw new IllegalArgumentException("Cannot use wildcard filter on DN (__NAME__)");
         }
-        
+
         AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, connIdAttributeName);
         String pattern = SchemaUtil.getSingleStringNonBlankValue(connIdAttribute);
-        
+
         return new ScopedFilter(new SubstringNode(ldapAttributeType, pattern, null));
     }
 
@@ -260,26 +260,26 @@ public class LdapFilterTranslator<C extends AbstractLdapConfiguration> {
         if (icfFilter == null) {
             return null;
         }
-        
+
         Attribute icfAttribute = icfFilter.getAttribute();
         String icfAttributeName = icfAttribute.getName();
         List<Object> icfAttributeValue = icfAttribute.getValue();
-        
+
         if (Name.NAME.equals(icfAttributeName)) {
             throw new IllegalArgumentException("Cannot query LDAP objects by DN in a complex filter (__NAME__)");
         }
-        
+
         AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, icfAttributeName);
         Value ldapValue = schemaTranslator.toLdapValue(ldapAttributeType, icfAttributeValue);
         GreaterEqNode<Object> greaterEqNode;
-		try {
-			greaterEqNode = new GreaterEqNode<Object>(ldapAttributeType, ldapValue);
-		} catch (LdapSchemaException e) {
-			throw new IllegalArgumentException("Invalid value in filter for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
-					+"; attributeType="+ldapAttributeType, e);
-		}
+        try {
+            greaterEqNode = new GreaterEqNode<Object>(ldapAttributeType, ldapValue);
+        } catch (LdapSchemaException e) {
+            throw new IllegalArgumentException("Invalid value in filter for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
+                    +"; attributeType="+ldapAttributeType, e);
+        }
         EqualityNode<Object> equalityNode = new EqualityNode<Object>(ldapAttributeType, ldapValue);
-        
+
         return new ScopedFilter(new AndNode(greaterEqNode,new NotNode(equalityNode)));
     }
 
@@ -288,25 +288,25 @@ public class LdapFilterTranslator<C extends AbstractLdapConfiguration> {
         if (icfFilter == null) {
             return null;
         }
-        
+
         Attribute icfAttribute = icfFilter.getAttribute();
         String icfAttributeName = icfAttribute.getName();
         List<Object> icfAttributeValue = icfAttribute.getValue();
-        
+
         if (Name.NAME.equals(icfAttributeName)) {
             throw new IllegalArgumentException("Cannot query LDAP objects by DN in a complex filter (__NAME__)");
         }
-        
+
         AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, icfAttributeName);
         Value ldapValue = schemaTranslator.toLdapValue(ldapAttributeType, icfAttributeValue);
-        
+
         try {
-			return new ScopedFilter(new GreaterEqNode<Object>(ldapAttributeType, ldapValue));
-		} catch (LdapSchemaException e) {
-			throw new IllegalArgumentException("Invalid value in filter for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
-					+"; attributeType="+ldapAttributeType, e);
-		}
-        
+            return new ScopedFilter(new GreaterEqNode<Object>(ldapAttributeType, ldapValue));
+        } catch (LdapSchemaException e) {
+            throw new IllegalArgumentException("Invalid value in filter for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
+                    +"; attributeType="+ldapAttributeType, e);
+        }
+
     }
 
 
@@ -314,26 +314,26 @@ public class LdapFilterTranslator<C extends AbstractLdapConfiguration> {
         if (icfFilter == null) {
             return null;
         }
-        
+
         Attribute icfAttribute = icfFilter.getAttribute();
         String icfAttributeName = icfAttribute.getName();
         List<Object> icfAttributeValue = icfAttribute.getValue();
-        
+
         if (Name.NAME.equals(icfAttributeName)) {
             throw new IllegalArgumentException("Cannot query LDAP objects by DN in a complex filter (__NAME__)");
         }
-        
+
         AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, icfAttributeName);
         Value ldapValue = schemaTranslator.toLdapValue(ldapAttributeType, icfAttributeValue);
         LessEqNode<Object> lessEqNode;
-		try {
-			lessEqNode = new LessEqNode<Object>(ldapAttributeType, ldapValue);
-		} catch (LdapSchemaException e) {
-			throw new IllegalArgumentException("Invalid value in filter for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
-					+"; attributeType="+ldapAttributeType, e);
-		}
+        try {
+            lessEqNode = new LessEqNode<Object>(ldapAttributeType, ldapValue);
+        } catch (LdapSchemaException e) {
+            throw new IllegalArgumentException("Invalid value in filter for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
+                    +"; attributeType="+ldapAttributeType, e);
+        }
         EqualityNode<Object> equalityNode = new EqualityNode<Object>(ldapAttributeType, ldapValue);
-        
+
         return new ScopedFilter(new AndNode(lessEqNode,new NotNode(equalityNode)));
     }
 
@@ -342,46 +342,46 @@ public class LdapFilterTranslator<C extends AbstractLdapConfiguration> {
         if (icfFilter == null) {
             return null;
         }
-        
+
         Attribute icfAttribute = icfFilter.getAttribute();
         String icfAttributeName = icfAttribute.getName();
         List<Object> icfAttributeValue = icfAttribute.getValue();
-        
+
         if (Name.NAME.equals(icfAttributeName)) {
             throw new IllegalArgumentException("Cannot query LDAP objects by DN in a complex filter (__NAME__)");
         }
-        
+
         AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, icfAttributeName);
         Value ldapValue = schemaTranslator.toLdapValue(ldapAttributeType, icfAttributeValue);
-        
+
         try {
-			return new ScopedFilter(new LessEqNode<Object>(ldapAttributeType, ldapValue));
-		} catch (LdapSchemaException e) {
-			throw new IllegalArgumentException("Invalid value in filter for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
-					+"; attributeType="+ldapAttributeType, e);
-		}
-        
+            return new ScopedFilter(new LessEqNode<Object>(ldapAttributeType, ldapValue));
+        } catch (LdapSchemaException e) {
+            throw new IllegalArgumentException("Invalid value in filter for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
+                    +"; attributeType="+ldapAttributeType, e);
+        }
+
     }
 
-    
-	public ScopedFilter translate(Filter connIdFilter) {
-		if (connIdFilter == null) {
-			return null;
-		}
-		
-		// Long and hairy if else if ... but the set of filters is quite stable,
-		// it is unlikely that they will appear every day. Therefore we do not need
-		// any OO magic here. And this is still quite readable.
-		
-		if (connIdFilter instanceof AndFilter) {
-			return translate((AndFilter)connIdFilter);
-		} else if (connIdFilter instanceof OrFilter) {
+
+    public ScopedFilter translate(Filter connIdFilter) {
+        if (connIdFilter == null) {
+            return null;
+        }
+
+        // Long and hairy if else if ... but the set of filters is quite stable,
+        // it is unlikely that they will appear every day. Therefore we do not need
+        // any OO magic here. And this is still quite readable.
+
+        if (connIdFilter instanceof AndFilter) {
+            return translate((AndFilter)connIdFilter);
+        } else if (connIdFilter instanceof OrFilter) {
             return translate((OrFilter)connIdFilter);
-		} else if (connIdFilter instanceof NotFilter) {
+        } else if (connIdFilter instanceof NotFilter) {
             return translate((NotFilter)connIdFilter);
-		} else if (connIdFilter instanceof EqualsFilter) {
-			return translateEqualsFilter((EqualsFilter)connIdFilter);
-		} else if (connIdFilter instanceof ContainsAllValuesFilter) {
+        } else if (connIdFilter instanceof EqualsFilter) {
+            return translateEqualsFilter((EqualsFilter)connIdFilter);
+        } else if (connIdFilter instanceof ContainsAllValuesFilter) {
             return translate((ContainsAllValuesFilter)connIdFilter);
         } else if (connIdFilter instanceof ContainsFilter) {
             return translate((ContainsFilter) connIdFilter);
@@ -395,35 +395,35 @@ public class LdapFilterTranslator<C extends AbstractLdapConfiguration> {
             return translate((GreaterThanOrEqualFilter) connIdFilter);
         } else if (connIdFilter instanceof LessThanFilter) {
             return translate((LessThanFilter)connIdFilter);
-		} else if (connIdFilter instanceof LessThanOrEqualFilter) {
+        } else if (connIdFilter instanceof LessThanOrEqualFilter) {
             return translate((LessThanOrEqualFilter)connIdFilter);
-		} else if (connIdFilter instanceof ExternallyChainedFilter) {
-			return translate(((ExternallyChainedFilter)connIdFilter).getFilter());
-			
-		} else {
-			throw new IllegalArgumentException("Unknown filter "+connIdFilter.getClass());
-		}
-	}
+        } else if (connIdFilter instanceof ExternallyChainedFilter) {
+            return translate(((ExternallyChainedFilter)connIdFilter).getFilter());
 
-	protected ScopedFilter translateEqualsFilter(EqualsFilter connIdFilter) {
-		Attribute connIdAttribute = connIdFilter.getAttribute();
-		String connIdAttributeName = connIdAttribute.getName();
-		List<Object> connIdAttributeValue = connIdAttribute.getValue();
-		if (Name.NAME.equals(connIdAttributeName)) {
-			Dn dn = schemaTranslator.toDn(connIdAttribute);
-			return new ScopedFilter(null, dn);
-		}
-		AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, connIdAttributeName);
-		Value ldapValue;
-		if (Uid.NAME.equals(connIdAttributeName)) {
-			if (connIdAttributeValue.size() != 1) {
-				throw new InvalidAttributeValueException("Expected single value for UID, but got " + connIdAttributeValue);
-			}
-			ldapValue = schemaTranslator.toLdapIdentifierValue(ldapAttributeType, (String)connIdAttributeValue.get(0));
-		} else {
-			ldapValue = schemaTranslator.toLdapValue(ldapAttributeType, connIdAttributeValue);
-		}
-		return new ScopedFilter(new EqualityNode<Object>(ldapAttributeType, ldapValue));
-	}
+        } else {
+            throw new IllegalArgumentException("Unknown filter "+connIdFilter.getClass());
+        }
+    }
+
+    protected ScopedFilter translateEqualsFilter(EqualsFilter connIdFilter) {
+        Attribute connIdAttribute = connIdFilter.getAttribute();
+        String connIdAttributeName = connIdAttribute.getName();
+        List<Object> connIdAttributeValue = connIdAttribute.getValue();
+        if (Name.NAME.equals(connIdAttributeName)) {
+            Dn dn = schemaTranslator.toDn(connIdAttribute);
+            return new ScopedFilter(null, dn);
+        }
+        AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, connIdAttributeName);
+        Value ldapValue;
+        if (Uid.NAME.equals(connIdAttributeName)) {
+            if (connIdAttributeValue.size() != 1) {
+                throw new InvalidAttributeValueException("Expected single value for UID, but got " + connIdAttributeValue);
+            }
+            ldapValue = schemaTranslator.toLdapIdentifierValue(ldapAttributeType, (String)connIdAttributeValue.get(0));
+        } else {
+            ldapValue = schemaTranslator.toLdapValue(ldapAttributeType, connIdAttributeValue);
+        }
+        return new ScopedFilter(new EqualityNode<Object>(ldapAttributeType, ldapValue));
+    }
 
 }

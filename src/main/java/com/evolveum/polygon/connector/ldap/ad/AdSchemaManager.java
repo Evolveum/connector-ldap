@@ -29,15 +29,15 @@ import org.apache.directory.api.ldap.schema.manager.impl.DefaultSchemaManager;
  */
 public class AdSchemaManager extends DefaultSchemaManager {
 
-	public AdSchemaManager(AdSchemaLoader schemaLoader) {
-		super(schemaLoader);
-	}
+    public AdSchemaManager(AdSchemaLoader schemaLoader) {
+        super(schemaLoader);
+    }
 
-	@Override
-	protected void addSchemaObjects( Schema schema, Registries registries ) throws LdapException {
-		for (SchemaObjectWrapper objectWrapper : schema.getContent()) {
-			addSchemaObject(registries, objectWrapper.get(), schema);
-		}
-	}
-	
+    @Override
+    protected void addSchemaObjects( Schema schema, Registries registries ) throws LdapException {
+        for (SchemaObjectWrapper objectWrapper : schema.getContent()) {
+            addSchemaObject(registries, objectWrapper.get(), schema);
+        }
+    }
+
 }

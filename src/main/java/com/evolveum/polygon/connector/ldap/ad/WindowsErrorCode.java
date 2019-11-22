@@ -19,60 +19,60 @@ import org.identityconnectors.framework.common.exceptions.UnknownUidException;
 
 /**
  * Based on https://msdn.microsoft.com/en-us/library/windows/desktop/ms681390(v=vs.85).aspx
- * 
+ *
  * @author semancik
  */
 public enum WindowsErrorCode {
-	
-	ERROR_DS_NO_PARENT_OBJECT(0x2089, "The operation could not be performed because the object's parent is either uninstantiated or deleted.", UnknownUidException.class),
-	ERROR_DS_OBJ_NOT_FOUND(0x208D, "Directory object not found.", UnknownUidException.class);
-	
-	private int code;
-	private String message;
-	private Class<? extends RuntimeException> exceptionClass;
-	
-	private WindowsErrorCode(int code, String message, Class<? extends RuntimeException> exceptionClass) {
-		this.code = code;
-		this.message = message;
-		this.exceptionClass = exceptionClass;
-	}
-	
-	public int getCode() {
-		return code;
-	}
 
-	public String getMessage() {
-		return message;
-	}
+    ERROR_DS_NO_PARENT_OBJECT(0x2089, "The operation could not be performed because the object's parent is either uninstantiated or deleted.", UnknownUidException.class),
+    ERROR_DS_OBJ_NOT_FOUND(0x208D, "Directory object not found.", UnknownUidException.class);
 
-	public Class<? extends RuntimeException> getExceptionClass() {
-		return exceptionClass;
-	}
+    private int code;
+    private String message;
+    private Class<? extends RuntimeException> exceptionClass;
 
-	public static WindowsErrorCode parseDiagnosticMessage(String diagnosticMessage) {
-		if (diagnosticMessage == null) {
-			return null;
-		}
-		int indexColon = diagnosticMessage.indexOf(':');
-		if (indexColon < 1) {
-			return null;
-		}
-		String codeString = diagnosticMessage.substring(0,  indexColon);
-		int code;
-		try {
-			code = Integer.parseInt(codeString, 16);
-		} catch (NumberFormatException e) {
-			return null;
-		}
-		return getByCode(code);
-	}
+    private WindowsErrorCode(int code, String message, Class<? extends RuntimeException> exceptionClass) {
+        this.code = code;
+        this.message = message;
+        this.exceptionClass = exceptionClass;
+    }
 
-	private static WindowsErrorCode getByCode(int code) {
-		for (WindowsErrorCode val: values()) {
-			if (code == val.code) {
-				return val;
-			}
-		}
-		return null;
-	}
+    public int getCode() {
+        return code;
+    }
+
+    public String getMessage() {
+        return message;
+    }
+
+    public Class<? extends RuntimeException> getExceptionClass() {
+        return exceptionClass;
+    }
+
+    public static WindowsErrorCode parseDiagnosticMessage(String diagnosticMessage) {
+        if (diagnosticMessage == null) {
+            return null;
+        }
+        int indexColon = diagnosticMessage.indexOf(':');
+        if (indexColon < 1) {
+            return null;
+        }
+        String codeString = diagnosticMessage.substring(0,  indexColon);
+        int code;
+        try {
+            code = Integer.parseInt(codeString, 16);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+        return getByCode(code);
+    }
+
+    private static WindowsErrorCode getByCode(int code) {
+        for (WindowsErrorCode val: values()) {
+            if (code == val.code) {
+                return val;
+            }
+        }
+        return null;
+    }
 }

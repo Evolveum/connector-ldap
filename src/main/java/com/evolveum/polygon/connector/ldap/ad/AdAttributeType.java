@@ -22,10 +22,10 @@ import org.apache.directory.api.ldap.model.schema.AttributeType;
  *
  */
 public class AdAttributeType extends AttributeType {
-	private static final long serialVersionUID = 1L;
+    private static final long serialVersionUID = 1L;
 
-	public AdAttributeType(String oid) {
-		super(oid);
-	}
+    public AdAttributeType(String oid) {
+        super(oid);
+    }
 
 }

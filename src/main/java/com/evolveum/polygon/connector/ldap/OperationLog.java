@@ -23,37 +23,37 @@ import org.identityconnectors.common.logging.Log;
  *
  */
 public class OperationLog {
-	
-	static final Log LOG = Log.getLog(OperationLog.class);
 
-	public static void logOperationReq(LdapNetworkConnection connection, String format, Object... params) {
-		if (LOG.isInfo()) {
-			LOG.info(LdapUtil.formatConnectionInfo(connection) + format, params);
-		}
-	}
+    static final Log LOG = Log.getLog(OperationLog.class);
 
-	public static void logOperationRes(LdapNetworkConnection connection, String format, Object... params) {
-		if (LOG.isInfo()) {
-			LOG.info(LdapUtil.formatConnectionInfo(connection) + format, params);
-		}
-	}
+    public static void logOperationReq(LdapNetworkConnection connection, String format, Object... params) {
+        if (LOG.isInfo()) {
+            LOG.info(LdapUtil.formatConnectionInfo(connection) + format, params);
+        }
+    }
 
-	public static void logOperationErr(LdapNetworkConnection connection, String format, Object... params) {
-		if (LOG.isError()) {
-			LOG.error(LdapUtil.formatConnectionInfo(connection) + format, params);
-		}
-	}
-	
-	public static void log(String format, Object... params) {
-		LOG.info(format, params);
-	}
-	
-	public static void error(String format, Object... params) {
-		LOG.error(format, params);
-	}
+    public static void logOperationRes(LdapNetworkConnection connection, String format, Object... params) {
+        if (LOG.isInfo()) {
+            LOG.info(LdapUtil.formatConnectionInfo(connection) + format, params);
+        }
+    }
 
-	public static boolean isLogOperations() {
-		return LOG.isInfo();
-	}
+    public static void logOperationErr(LdapNetworkConnection connection, String format, Object... params) {
+        if (LOG.isError()) {
+            LOG.error(LdapUtil.formatConnectionInfo(connection) + format, params);
+        }
+    }
+
+    public static void log(String format, Object... params) {
+        LOG.info(format, params);
+    }
+
+    public static void error(String format, Object... params) {
+        LOG.error(format, params);
+    }
+
+    public static boolean isLogOperations() {
+        return LOG.isInfo();
+    }
 
 }

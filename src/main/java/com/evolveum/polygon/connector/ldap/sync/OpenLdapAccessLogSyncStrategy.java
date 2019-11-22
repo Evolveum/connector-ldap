@@ -58,205 +58,205 @@ import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
  */
 public class OpenLdapAccessLogSyncStrategy<C extends AbstractLdapConfiguration> extends ModifyTimestampSyncStrategy<C> {
 
-	private static final Log LOG = Log.getLog(OpenLdapAccessLogSyncStrategy.class);
+    private static final Log LOG = Log.getLog(OpenLdapAccessLogSyncStrategy.class);
 
-	private final static String ACCESS_LOG_DELETE_OBJECT_CLASS = "auditDelete";
-	private final static String ACCESS_LOG_OLD_ATTRIBUTE_NAME = "reqOld";
-	private final static String ACCESS_LOG_REQ_START_ATTRIBUTE_NAME = "reqStart";
-	private final static String ACCESS_LOG_TARGET_DN_ATTRIBUTE_NAME = "reqDN";
-	private final static String ACCESS_LOG_ENTRY_UUID_ATTRIBUTE_NAME = "reqEntryUUID";
-	private final static String ACCESS_LOG_REQ_RESULT_ATTRIBUTE_NAME = "reqResult"; 
+    private final static String ACCESS_LOG_DELETE_OBJECT_CLASS = "auditDelete";
+    private final static String ACCESS_LOG_OLD_ATTRIBUTE_NAME = "reqOld";
+    private final static String ACCESS_LOG_REQ_START_ATTRIBUTE_NAME = "reqStart";
+    private final static String ACCESS_LOG_TARGET_DN_ATTRIBUTE_NAME = "reqDN";
+    private final static String ACCESS_LOG_ENTRY_UUID_ATTRIBUTE_NAME = "reqEntryUUID";
+    private final static String ACCESS_LOG_REQ_RESULT_ATTRIBUTE_NAME = "reqResult";
 
-	public OpenLdapAccessLogSyncStrategy(AbstractLdapConfiguration configuration,
-			ConnectionManager<C> connectionManager, SchemaManager schemaManager,
-			AbstractSchemaTranslator<C> schemaTranslator) {
-		super(configuration, connectionManager, schemaManager, schemaTranslator);
-	}
+    public OpenLdapAccessLogSyncStrategy(AbstractLdapConfiguration configuration,
+            ConnectionManager<C> connectionManager, SchemaManager schemaManager,
+            AbstractSchemaTranslator<C> schemaTranslator) {
+        super(configuration, connectionManager, schemaManager, schemaTranslator);
+    }
 
-	@Override
-	public void sync(ObjectClass icfObjectClass, SyncToken fromToken, SyncResultsHandler handler,
-			OperationOptions options) {
-		LOG.ok("Starting OpenLDAP access log synchronisation...");
-		org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass = getLdapObjectClass(icfObjectClass);
-		
-		//create search filter
-		String searchFilter;
-		if (fromToken == null) {
-			fromToken = getLatestSyncToken(icfObjectClass);
-		}
-		Object fromTokenValue = fromToken.getValue();
-		if (fromTokenValue instanceof String) {
-			searchFilter = createAccessLogFilter((String) fromTokenValue, ldapObjectClass);
-		} else {
-			throw new IllegalArgumentException("Synchronization token is not string, it is " + fromToken.getClass());
-		}
-		// perform deletes
-		performDeletes(icfObjectClass, handler, options, searchFilter);
-		// perform add & modifies
-		super.sync(icfObjectClass, fromToken, handler, options);
-	}
+    @Override
+    public void sync(ObjectClass icfObjectClass, SyncToken fromToken, SyncResultsHandler handler,
+            OperationOptions options) {
+        LOG.ok("Starting OpenLDAP access log synchronisation...");
+        org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass = getLdapObjectClass(icfObjectClass);
 
-	/**
-	 * builds the deleteDeltas for all found entries with the incoming
-	 * LDAPsearchfilter and sends them to the incoming handler. Depending on the
-	 * configured uid attribute, this method must find the attribute in the reqOld
-	 * attributes. If the uid attribute is not dn or entryUuid an reqOld attribute
-	 * with the value <uidAttr>:... is searched.
-	 * 
-	 * @param icfObjectClass
-	 * @param handler        SyncResultHandler that performs the deletes (and other
-	 *                       sync operations) in midpoint
-	 * @param options
-	 * @param searchFilter   The LDAP-searchfilter that finds all entries that were
-	 *                       successfully deleted since the last sync
-	 */
-	private void performDeletes(ObjectClass icfObjectClass, SyncResultsHandler handler, OperationOptions options,
-			String searchFilter) {
-		String[] attributesToGet = new String[] { ACCESS_LOG_DELETE_OBJECT_CLASS, ACCESS_LOG_REQ_START_ATTRIBUTE_NAME,
-				ACCESS_LOG_OLD_ATTRIBUTE_NAME, ACCESS_LOG_TARGET_DN_ATTRIBUTE_NAME,
-				ACCESS_LOG_ENTRY_UUID_ATTRIBUTE_NAME };
-		AbstractLdapConfiguration config = getConfiguration();
-		if(!(config instanceof LdapConfiguration)) {
-			throw new ConfigurationException("The used configuration class is not of type LdapConfiguration");
-		}
-	
-		String baseContext = ((LdapConfiguration)getConfiguration()).getOpenLdapAccessLogDn();
+        //create search filter
+        String searchFilter;
+        if (fromToken == null) {
+            fromToken = getLatestSyncToken(icfObjectClass);
+        }
+        Object fromTokenValue = fromToken.getValue();
+        if (fromTokenValue instanceof String) {
+            searchFilter = createAccessLogFilter((String) fromTokenValue, ldapObjectClass);
+        } else {
+            throw new IllegalArgumentException("Synchronization token is not string, it is " + fromToken.getClass());
+        }
+        // perform deletes
+        performDeletes(icfObjectClass, handler, options, searchFilter);
+        // perform add & modifies
+        super.sync(icfObjectClass, fromToken, handler, options);
+    }
 
-		if (LOG.isOk()) {
-			LOG.ok("Searching DN {0} with {1}, attrs: {2}", baseContext, searchFilter,
-					Arrays.toString(attributesToGet));
-		}
+    /**
+     * builds the deleteDeltas for all found entries with the incoming
+     * LDAPsearchfilter and sends them to the incoming handler. Depending on the
+     * configured uid attribute, this method must find the attribute in the reqOld
+     * attributes. If the uid attribute is not dn or entryUuid an reqOld attribute
+     * with the value <uidAttr>:... is searched.
+     *
+     * @param icfObjectClass
+     * @param handler        SyncResultHandler that performs the deletes (and other
+     *                       sync operations) in midpoint
+     * @param options
+     * @param searchFilter   The LDAP-searchfilter that finds all entries that were
+     *                       successfully deleted since the last sync
+     */
+    private void performDeletes(ObjectClass icfObjectClass, SyncResultsHandler handler, OperationOptions options,
+            String searchFilter) {
+        String[] attributesToGet = new String[] { ACCESS_LOG_DELETE_OBJECT_CLASS, ACCESS_LOG_REQ_START_ATTRIBUTE_NAME,
+                ACCESS_LOG_OLD_ATTRIBUTE_NAME, ACCESS_LOG_TARGET_DN_ATTRIBUTE_NAME,
+                ACCESS_LOG_ENTRY_UUID_ATTRIBUTE_NAME };
+        AbstractLdapConfiguration config = getConfiguration();
+        if(!(config instanceof LdapConfiguration)) {
+            throw new ConfigurationException("The used configuration class is not of type LdapConfiguration");
+        }
 
-		// Remember final token before we start searching. This will avoid missing
-		// the changes that come when the search is already running and do not make
-		// it into the search.
-		SyncToken finalToken = getLatestSyncToken(icfObjectClass);
+        String baseContext = ((LdapConfiguration)getConfiguration()).getOpenLdapAccessLogDn();
 
-		int numProcessedEntries = 0;
-		int numAccessLogEntries = 0;
+        if (LOG.isOk()) {
+            LOG.ok("Searching DN {0} with {1}, attrs: {2}", baseContext, searchFilter,
+                    Arrays.toString(attributesToGet));
+        }
 
-		LdapNetworkConnection connection = getConnectionManager().getConnection(getSchemaTranslator().toDn(baseContext),
-				options);
-		try {
-			EntryCursor searchCursor = connection.search(baseContext, searchFilter, SearchScope.SUBTREE,
-					attributesToGet);
-			while (searchCursor.next()) {
-				Entry entry = searchCursor.get();
-				LOG.ok("Got changelog entry: {0}", entry);
-				numAccessLogEntries++;
+        // Remember final token before we start searching. This will avoid missing
+        // the changes that come when the search is already running and do not make
+        // it into the search.
+        SyncToken finalToken = getLatestSyncToken(icfObjectClass);
 
-				SyncDeltaBuilder deltaBuilder = new SyncDeltaBuilder();
-				deltaBuilder.setToken(finalToken);
-				SyncDeltaType deltaType = SyncDeltaType.DELETE;
+        int numProcessedEntries = 0;
+        int numAccessLogEntries = 0;
 
-				String targetDn = LdapUtil.getStringAttribute(entry, ACCESS_LOG_TARGET_DN_ATTRIBUTE_NAME);
-				String targetEntryUuid = LdapUtil.getStringAttribute(entry, ACCESS_LOG_ENTRY_UUID_ATTRIBUTE_NAME);
+        LdapNetworkConnection connection = getConnectionManager().getConnection(getSchemaTranslator().toDn(baseContext),
+                options);
+        try {
+            EntryCursor searchCursor = connection.search(baseContext, searchFilter, SearchScope.SUBTREE,
+                    attributesToGet);
+            while (searchCursor.next()) {
+                Entry entry = searchCursor.get();
+                LOG.ok("Got changelog entry: {0}", entry);
+                numAccessLogEntries++;
 
-				String oldUid = null;
-				String uidAttributeName = this.getConfiguration().getUidAttribute();
-				if (LdapUtil.isDnAttribute(uidAttributeName)) {
-					oldUid = targetDn;
-				} else if (LdapUtil.isEntryUuidAttribute(uidAttributeName)) {
-					oldUid = targetEntryUuid;
-				} else {
-					boolean foundUidAttr = false;
-					LOG.ok("Starting to find uidAttribute {0} in reqOld attributes of accesslog", uidAttributeName);
-					org.apache.directory.api.ldap.model.entry.Attribute uidAttribute = entry
-							.get(ACCESS_LOG_OLD_ATTRIBUTE_NAME);
-					Iterator<Value> atrValIterator = uidAttribute.iterator();
-					while (atrValIterator.hasNext()) {
-						Value next = atrValIterator.next();
-						if (next.getString().contains(uidAttributeName + ":")) {
-							LOG.ok("Found uid attribute");
-							foundUidAttr = true;
-							// spliting at first ':'. Everything after that is the uid attribute
-							// this is pretty safe because it's not possible to but ':' in an attribute
-							// deffinition
-							try {
-								String[] splitArr = next.getString().split(":");
-								oldUid = String.join("", Arrays.copyOfRange(splitArr, 1, splitArr.length)).trim();
-							} catch (Exception e) {
-								LOG.info(
-										"There was a problem while generating uid Attribute value from reqOld attribute",
-										e);
-							}
-							break;
-						}
-					}
-					if (!foundUidAttr) {
-						LOG.info("There was no {0} in reqOld Attributes of entry {1}", uidAttribute, targetDn);
-					}
-				}
-				if (oldUid == null) {
-					LOG.info("Ignoring DELETE delta because we are not able to determine UID");
-					continue;
-				}
-				LOG.ok("Setting oldUid of entry {0} to {1}", targetDn, oldUid);
-				numProcessedEntries++;
-				deltaBuilder.setDeltaType(deltaType);
-				deltaBuilder.setUid(new Uid(oldUid));
-				handler.handle(deltaBuilder.build());
-			}
-			LdapUtil.closeCursor(searchCursor);
-			LOG.ok("Search accesslog {0} with {1}: {2} entries, {3} processed", baseContext, searchFilter,
-					numAccessLogEntries, numProcessedEntries);
+                SyncDeltaBuilder deltaBuilder = new SyncDeltaBuilder();
+                deltaBuilder.setToken(finalToken);
+                SyncDeltaType deltaType = SyncDeltaType.DELETE;
 
-		} catch (LdapException | CursorException e) {
-			returnConnection(connection);
-			throw new ConnectorIOException("Error searching for deletes (" + searchFilter + "): " + e.getMessage(), e);
-		}
-	}
+                String targetDn = LdapUtil.getStringAttribute(entry, ACCESS_LOG_TARGET_DN_ATTRIBUTE_NAME);
+                String targetEntryUuid = LdapUtil.getStringAttribute(entry, ACCESS_LOG_ENTRY_UUID_ATTRIBUTE_NAME);
 
-	private org.apache.directory.api.ldap.model.schema.ObjectClass getLdapObjectClass(ObjectClass icfObjectClass) {
-		if (StringUtils.isBlank(((LdapConfiguration)getConfiguration()).getOpenLdapAccessLogDn())) {
-			throw new InvalidAttributeValueException("The accesslog DN must not be empty!");
-		}
+                String oldUid = null;
+                String uidAttributeName = this.getConfiguration().getUidAttribute();
+                if (LdapUtil.isDnAttribute(uidAttributeName)) {
+                    oldUid = targetDn;
+                } else if (LdapUtil.isEntryUuidAttribute(uidAttributeName)) {
+                    oldUid = targetEntryUuid;
+                } else {
+                    boolean foundUidAttr = false;
+                    LOG.ok("Starting to find uidAttribute {0} in reqOld attributes of accesslog", uidAttributeName);
+                    org.apache.directory.api.ldap.model.entry.Attribute uidAttribute = entry
+                            .get(ACCESS_LOG_OLD_ATTRIBUTE_NAME);
+                    Iterator<Value> atrValIterator = uidAttribute.iterator();
+                    while (atrValIterator.hasNext()) {
+                        Value next = atrValIterator.next();
+                        if (next.getString().contains(uidAttributeName + ":")) {
+                            LOG.ok("Found uid attribute");
+                            foundUidAttr = true;
+                            // spliting at first ':'. Everything after that is the uid attribute
+                            // this is pretty safe because it's not possible to but ':' in an attribute
+                            // deffinition
+                            try {
+                                String[] splitArr = next.getString().split(":");
+                                oldUid = String.join("", Arrays.copyOfRange(splitArr, 1, splitArr.length)).trim();
+                            } catch (Exception e) {
+                                LOG.info(
+                                        "There was a problem while generating uid Attribute value from reqOld attribute",
+                                        e);
+                            }
+                            break;
+                        }
+                    }
+                    if (!foundUidAttr) {
+                        LOG.info("There was no {0} in reqOld Attributes of entry {1}", uidAttribute, targetDn);
+                    }
+                }
+                if (oldUid == null) {
+                    LOG.info("Ignoring DELETE delta because we are not able to determine UID");
+                    continue;
+                }
+                LOG.ok("Setting oldUid of entry {0} to {1}", targetDn, oldUid);
+                numProcessedEntries++;
+                deltaBuilder.setDeltaType(deltaType);
+                deltaBuilder.setUid(new Uid(oldUid));
+                handler.handle(deltaBuilder.build());
+            }
+            LdapUtil.closeCursor(searchCursor);
+            LOG.ok("Search accesslog {0} with {1}: {2} entries, {3} processed", baseContext, searchFilter,
+                    numAccessLogEntries, numProcessedEntries);
 
-		// copied from super class
-		ObjectClassInfo icfObjectClassInfo = null;
-		org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass = null;
-		if (icfObjectClass.is(ObjectClass.ALL_NAME)) {
-			// It is OK to leave the icfObjectClassInfo and ldapObjectClass as null. These
-			// need to be determined
-			// for every changelog entry anyway
-		} else {
-			icfObjectClassInfo = getSchemaTranslator().findObjectClassInfo(icfObjectClass);
-			if (icfObjectClassInfo == null) {
-				throw new InvalidAttributeValueException("No definition for object class " + icfObjectClass);
-			}
-			ldapObjectClass = getSchemaTranslator().toLdapObjectClass(icfObjectClass);
-		}
-		return ldapObjectClass;
-	}
+        } catch (LdapException | CursorException e) {
+            returnConnection(connection);
+            throw new ConnectorIOException("Error searching for deletes (" + searchFilter + "): " + e.getMessage(), e);
+        }
+    }
 
-	/**
-	 * creates the filter for the OpenLDAP access log search. Default filter:
-	 * (&(objectClass=auditDelete)(reqResult=0)(reqStart>=<timestamp>))
-	 *
-	 * If there is an additional OpenLDAP access log filter configured it is
-	 * appended to the default filter
-	 * 
-	 * @param fromTokenValue
-	 * @param ldapObjectClass
-	 * @return
-	 */
-	private String createAccessLogFilter(String fromTokenValue,
-			org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
-		ExprNode filterNode;
-		try {
-			filterNode = new GreaterEqNode<>(ACCESS_LOG_REQ_START_ATTRIBUTE_NAME, fromTokenValue);
-		} catch (LdapSchemaException e) {
-			throw new IllegalArgumentException("Invalid token value " + fromTokenValue, e);
-		}
-		filterNode = new AndNode(
-				new EqualityNode<String>(SchemaConstants.OBJECT_CLASS_AT, ACCESS_LOG_DELETE_OBJECT_CLASS),
-				new EqualityNode<String>(ACCESS_LOG_REQ_RESULT_ATTRIBUTE_NAME, "0"), filterNode);
-		String additionalFilter = ((LdapConfiguration)getConfiguration()).getOpenLdapAccessLogAdditionalFilter();
-		if (additionalFilter != null) {
-			filterNode = LdapUtil.filterAnd(filterNode, LdapUtil.parseSearchFilter(additionalFilter));
-		}
+    private org.apache.directory.api.ldap.model.schema.ObjectClass getLdapObjectClass(ObjectClass icfObjectClass) {
+        if (StringUtils.isBlank(((LdapConfiguration)getConfiguration()).getOpenLdapAccessLogDn())) {
+            throw new InvalidAttributeValueException("The accesslog DN must not be empty!");
+        }
 
-		LOG.ok("Created filter: {0}", filterNode.toString());
-		return filterNode.toString();
-	}
+        // copied from super class
+        ObjectClassInfo icfObjectClassInfo = null;
+        org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass = null;
+        if (icfObjectClass.is(ObjectClass.ALL_NAME)) {
+            // It is OK to leave the icfObjectClassInfo and ldapObjectClass as null. These
+            // need to be determined
+            // for every changelog entry anyway
+        } else {
+            icfObjectClassInfo = getSchemaTranslator().findObjectClassInfo(icfObjectClass);
+            if (icfObjectClassInfo == null) {
+                throw new InvalidAttributeValueException("No definition for object class " + icfObjectClass);
+            }
+            ldapObjectClass = getSchemaTranslator().toLdapObjectClass(icfObjectClass);
+        }
+        return ldapObjectClass;
+    }
+
+    /**
+     * creates the filter for the OpenLDAP access log search. Default filter:
+     * (&(objectClass=auditDelete)(reqResult=0)(reqStart>=<timestamp>))
+     *
+     * If there is an additional OpenLDAP access log filter configured it is
+     * appended to the default filter
+     *
+     * @param fromTokenValue
+     * @param ldapObjectClass
+     * @return
+     */
+    private String createAccessLogFilter(String fromTokenValue,
+            org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
+        ExprNode filterNode;
+        try {
+            filterNode = new GreaterEqNode<>(ACCESS_LOG_REQ_START_ATTRIBUTE_NAME, fromTokenValue);
+        } catch (LdapSchemaException e) {
+            throw new IllegalArgumentException("Invalid token value " + fromTokenValue, e);
+        }
+        filterNode = new AndNode(
+                new EqualityNode<String>(SchemaConstants.OBJECT_CLASS_AT, ACCESS_LOG_DELETE_OBJECT_CLASS),
+                new EqualityNode<String>(ACCESS_LOG_REQ_RESULT_ATTRIBUTE_NAME, "0"), filterNode);
+        String additionalFilter = ((LdapConfiguration)getConfiguration()).getOpenLdapAccessLogAdditionalFilter();
+        if (additionalFilter != null) {
+            filterNode = LdapUtil.filterAnd(filterNode, LdapUtil.parseSearchFilter(additionalFilter));
+        }
+
+        LOG.ok("Created filter: {0}", filterNode.toString());
+        return filterNode.toString();
+    }
 }

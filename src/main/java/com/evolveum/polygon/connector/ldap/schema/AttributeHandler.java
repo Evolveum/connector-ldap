@@ -25,6 +25,6 @@ import org.identityconnectors.framework.common.objects.AttributeBuilder;
  */
 public interface AttributeHandler {
 
-	void handle(LdapNetworkConnection connection, Entry entry, org.apache.directory.api.ldap.model.entry.Attribute ldapAttribute, AttributeBuilder ab);
+    void handle(LdapNetworkConnection connection, Entry entry, org.apache.directory.api.ldap.model.entry.Attribute ldapAttribute, AttributeBuilder ab);
 
 }

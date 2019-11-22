@@ -26,9 +26,9 @@ import org.slf4j.Logger;
  */
 public class MutedLoggingSchemaErrorHandler extends LoggingSchemaErrorHandler {
 
-	@Override
-	protected void log( Logger log, String message ) {
-		// Push logging messages down to trace level. There are too many schema errors in AD.
+    @Override
+    protected void log( Logger log, String message ) {
+        // Push logging messages down to trace level. There are too many schema errors in AD.
         log.trace( message );
     }
 

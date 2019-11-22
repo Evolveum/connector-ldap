@@ -34,63 +34,63 @@ import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
  *
  */
 public abstract class SyncStrategy<C extends AbstractLdapConfiguration> {
-	
-	private static final Log LOG = Log.getLog(SyncStrategy.class);
-	
-	private AbstractLdapConfiguration configuration;
+
+    private static final Log LOG = Log.getLog(SyncStrategy.class);
+
+    private AbstractLdapConfiguration configuration;
     private ConnectionManager<C> connectionManager;
     private SchemaManager schemaManager;
     private AbstractSchemaTranslator<C> schemaTranslator;
-    
-	public SyncStrategy(AbstractLdapConfiguration configuration, ConnectionManager<C> connectionManager, 
-			SchemaManager schemaManager, AbstractSchemaTranslator<C> schemaTranslator) {
-		super();
-		this.configuration = configuration;
-		this.connectionManager = connectionManager;
-		this.schemaManager = schemaManager;
-		this.schemaTranslator = schemaTranslator;
-	}
 
-	public AbstractLdapConfiguration getConfiguration() {
-		return configuration;
-	}
+    public SyncStrategy(AbstractLdapConfiguration configuration, ConnectionManager<C> connectionManager,
+            SchemaManager schemaManager, AbstractSchemaTranslator<C> schemaTranslator) {
+        super();
+        this.configuration = configuration;
+        this.connectionManager = connectionManager;
+        this.schemaManager = schemaManager;
+        this.schemaTranslator = schemaTranslator;
+    }
 
-	public ConnectionManager<C> getConnectionManager() {
-		return connectionManager;
-	}
-	
-	public SchemaManager getSchemaManager() {
-		return schemaManager;
-	}
+    public AbstractLdapConfiguration getConfiguration() {
+        return configuration;
+    }
 
-	public AbstractSchemaTranslator getSchemaTranslator() {
-		return schemaTranslator;
-	}
+    public ConnectionManager<C> getConnectionManager() {
+        return connectionManager;
+    }
 
-	public abstract void sync(ObjectClass objectClass, SyncToken token, SyncResultsHandler handler, OperationOptions options);
+    public SchemaManager getSchemaManager() {
+        return schemaManager;
+    }
 
-	public abstract SyncToken getLatestSyncToken(ObjectClass objectClass);
-	
-	protected boolean isAcceptableForSynchronization(Entry entry, 
-			org.apache.directory.api.ldap.model.schema.ObjectClass requiredldapObjectClass,
-			String[] modifiersNamesToFilterOut) {
-		if (requiredldapObjectClass != null) {
-			if (!LdapUtil.isObjectClass(entry, requiredldapObjectClass)) {
-				LOG.ok("Skipping synchronization of entry {0} because object class does not match", entry.getDn());
-				return false;
-			}
-		}
-		if (modifiersNamesToFilterOut != null && modifiersNamesToFilterOut.length > 0) {
-			if (LdapUtil.hasModifierName(entry, modifiersNamesToFilterOut)) {
-				LOG.ok("Skipping synchronization of entry {0} because modifiers name is filtered out", entry.getDn());
-				return false;
-			}
-		}
-		return true;
-	}
-	
-	protected void returnConnection(LdapNetworkConnection connection) {
-		connectionManager.returnConnection(connection);
-	}
-	
+    public AbstractSchemaTranslator getSchemaTranslator() {
+        return schemaTranslator;
+    }
+
+    public abstract void sync(ObjectClass objectClass, SyncToken token, SyncResultsHandler handler, OperationOptions options);
+
+    public abstract SyncToken getLatestSyncToken(ObjectClass objectClass);
+
+    protected boolean isAcceptableForSynchronization(Entry entry,
+            org.apache.directory.api.ldap.model.schema.ObjectClass requiredldapObjectClass,
+            String[] modifiersNamesToFilterOut) {
+        if (requiredldapObjectClass != null) {
+            if (!LdapUtil.isObjectClass(entry, requiredldapObjectClass)) {
+                LOG.ok("Skipping synchronization of entry {0} because object class does not match", entry.getDn());
+                return false;
+            }
+        }
+        if (modifiersNamesToFilterOut != null && modifiersNamesToFilterOut.length > 0) {
+            if (LdapUtil.hasModifierName(entry, modifiersNamesToFilterOut)) {
+                LOG.ok("Skipping synchronization of entry {0} because modifiers name is filtered out", entry.getDn());
+                return false;
+            }
+        }
+        return true;
+    }
+
+    protected void returnConnection(LdapNetworkConnection connection) {
+        connectionManager.returnConnection(connection);
+    }
+
 }

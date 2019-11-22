@@ -54,240 +54,240 @@ import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
  *
  */
 public class SimplePagedResultsSearchStrategy<C extends AbstractLdapConfiguration> extends SearchStrategy<C> {
-	
-	private static final Log LOG = Log.getLog(SimplePagedResultsSearchStrategy.class);
-	
-	private int lastListSize = -1;
-	private byte[] cookie = null;
 
-	public SimplePagedResultsSearchStrategy(ConnectionManager<C> connectionManager,
-			AbstractLdapConfiguration configuration, AbstractSchemaTranslator<C> schemaTranslator, ObjectClass objectClass,
-			org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
-			ResultsHandler handler, OperationOptions options) {
-		super(connectionManager, configuration, schemaTranslator, objectClass, ldapObjectClass, handler, options);
-		if (options != null && options.getPagedResultsCookie() != null) {
-        	cookie = Base64.getDecoder().decode(options.getPagedResultsCookie());
-        }
-	}
+    private static final Log LOG = Log.getLog(SimplePagedResultsSearchStrategy.class);
 
-	/* (non-Javadoc)
-	 * @see com.evolveum.polygon.connector.ldap.search.SearchStrategy#search(java.lang.String, org.apache.directory.api.ldap.model.filter.ExprNode, org.apache.directory.api.ldap.model.message.SearchScope, java.lang.String[])
-	 */
-	@Override
-	public void search(Dn baseDn, ExprNode filterNode, SearchScope scope, String[] attributes)
-			throws LdapException {
-		
-		SortRequest sortReqControl = createSortControl(null, null);
-		
-		int pageSize = getDefaultPageSize();
-		int offset = 0;
-		if (getOptions() != null && getOptions().getPagedResultsOffset() != null) {
-        	offset = getOptions().getPagedResultsOffset() - 1;
-        	if (offset != 0) {
-        		LOG.info("Inefficient search using SimplePaged control and offset {0}",offset);
-        	}
+    private int lastListSize = -1;
+    private byte[] cookie = null;
+
+    public SimplePagedResultsSearchStrategy(ConnectionManager<C> connectionManager,
+            AbstractLdapConfiguration configuration, AbstractSchemaTranslator<C> schemaTranslator, ObjectClass objectClass,
+            org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
+            ResultsHandler handler, OperationOptions options) {
+        super(connectionManager, configuration, schemaTranslator, objectClass, ldapObjectClass, handler, options);
+        if (options != null && options.getPagedResultsCookie() != null) {
+            cookie = Base64.getDecoder().decode(options.getPagedResultsCookie());
         }
-		
-		
-		boolean proceed = true;
-		int numberOfResutlsHandled = 0;
+    }
+
+    /* (non-Javadoc)
+     * @see com.evolveum.polygon.connector.ldap.search.SearchStrategy#search(java.lang.String, org.apache.directory.api.ldap.model.filter.ExprNode, org.apache.directory.api.ldap.model.message.SearchScope, java.lang.String[])
+     */
+    @Override
+    public void search(Dn baseDn, ExprNode filterNode, SearchScope scope, String[] attributes)
+            throws LdapException {
+
+        SortRequest sortReqControl = createSortControl(null, null);
+
+        int pageSize = getDefaultPageSize();
+        int offset = 0;
+        if (getOptions() != null && getOptions().getPagedResultsOffset() != null) {
+            offset = getOptions().getPagedResultsOffset() - 1;
+            if (offset != 0) {
+                LOG.info("Inefficient search using SimplePaged control and offset {0}",offset);
+            }
+        }
+
+
+        boolean proceed = true;
+        int numberOfResutlsHandled = 0;
         int numberOfResultsSkipped = 0;
         int retryAttempts = 0;
-        
+
         LdapNetworkConnection connection = getConnection(baseDn);
         Referral referral = null; // remember this in case we need a reconnect
-        
+
         OUTER: do {
-        	SearchRequest req = new SearchRequestImpl();
-    		req.setBase(baseDn);
-    		req.setFilter(preProcessSearchFilter(filterNode));
-    		req.setScope(scope);
-    		applyCommonConfiguration(req);
-    		if (attributes != null) {
-    			req.addAttributes(attributes);
-    		}
-    		
-    		if (sortReqControl != null) {
-    			req.addControl(sortReqControl);
-    		}
-        	
-    		// Simple Paged Results control
-        	if (getOptions() != null && getOptions().getPageSize() != null && 
-        			((numberOfResutlsHandled + numberOfResultsSkipped + pageSize) > offset + getOptions().getPageSize())) {
-        		pageSize = offset + getOptions().getPageSize() - (numberOfResutlsHandled + numberOfResultsSkipped);
+            SearchRequest req = new SearchRequestImpl();
+            req.setBase(baseDn);
+            req.setFilter(preProcessSearchFilter(filterNode));
+            req.setScope(scope);
+            applyCommonConfiguration(req);
+            if (attributes != null) {
+                req.addAttributes(attributes);
             }
-        	PagedResults pagedResultsControl = new PagedResultsImpl();
-        	pagedResultsControl.setCookie(cookie);
-        	pagedResultsControl.setCritical(true);
-        	pagedResultsControl.setSize(pageSize);
-        	if (LOG.isOk()) {
-            	LOG.ok("LDAP search request: PagedResults( pageSize = {0}, cookie = {1} )", 
-            			pageSize, cookie==null?null:Base64.getEncoder().encodeToString(cookie));
+
+            if (sortReqControl != null) {
+                req.addControl(sortReqControl);
             }
-        	req.addControl(pagedResultsControl);
-        	
-        	int responseResultCount = 0;
-        	SearchCursor searchCursor = executeSearch(connection, req);
-    		try {
-    			while (proceed) {
-    				try {
-						boolean hasNext = searchCursor.next();
-						if (!hasNext) {
-							break;
-						}
-					} catch (LdapConnectionTimeOutException | InvalidConnectionException e) {
-						logSearchError(connection, e);
-						// Server disconnected. And by some miracle this was not caught by
-						// checkAlive or connection manager.
-						retryAttempts++;
-		    			if (retryAttempts > getConfiguration().getMaximumNumberOfAttempts()) {
-		    				returnConnection(connection);
-		    				// TODO: better exception. Maybe re-throw exception from the last error?
-		    				throw new ConnectorIOException("Maximum number of reconnect attemps exceeded");
-		    			}
-						LOG.ok("Connection error ({0}), reconnecting", e.getMessage(), e);
-						LdapUtil.closeCursor(searchCursor);
-						connection = getConnectionReconnect(baseDn, referral, connection);
-						continue OUTER;
-					}
-    				Response response = searchCursor.get();
-    				if (response instanceof SearchResultEntry) {
-    					responseResultCount++;
-    					if (offset > numberOfResultsSkipped) {
-                    		numberOfResultsSkipped++;
-                    		// skip processing
-                    	} else {
-                        	numberOfResutlsHandled++;
-        			        Entry entry = ((SearchResultEntry)response).getEntry();
-        			        logSearchResult(connection, entry);
-        			        proceed = handleResult(connection, entry);
-        			        if (!proceed) {
-                            	LOG.ok("Ending search because handler returned false");
+
+            // Simple Paged Results control
+            if (getOptions() != null && getOptions().getPageSize() != null &&
+                    ((numberOfResutlsHandled + numberOfResultsSkipped + pageSize) > offset + getOptions().getPageSize())) {
+                pageSize = offset + getOptions().getPageSize() - (numberOfResutlsHandled + numberOfResultsSkipped);
+            }
+            PagedResults pagedResultsControl = new PagedResultsImpl();
+            pagedResultsControl.setCookie(cookie);
+            pagedResultsControl.setCritical(true);
+            pagedResultsControl.setSize(pageSize);
+            if (LOG.isOk()) {
+                LOG.ok("LDAP search request: PagedResults( pageSize = {0}, cookie = {1} )",
+                        pageSize, cookie==null?null:Base64.getEncoder().encodeToString(cookie));
+            }
+            req.addControl(pagedResultsControl);
+
+            int responseResultCount = 0;
+            SearchCursor searchCursor = executeSearch(connection, req);
+            try {
+                while (proceed) {
+                    try {
+                        boolean hasNext = searchCursor.next();
+                        if (!hasNext) {
+                            break;
+                        }
+                    } catch (LdapConnectionTimeOutException | InvalidConnectionException e) {
+                        logSearchError(connection, e);
+                        // Server disconnected. And by some miracle this was not caught by
+                        // checkAlive or connection manager.
+                        retryAttempts++;
+                        if (retryAttempts > getConfiguration().getMaximumNumberOfAttempts()) {
+                            returnConnection(connection);
+                            // TODO: better exception. Maybe re-throw exception from the last error?
+                            throw new ConnectorIOException("Maximum number of reconnect attemps exceeded");
+                        }
+                        LOG.ok("Connection error ({0}), reconnecting", e.getMessage(), e);
+                        LdapUtil.closeCursor(searchCursor);
+                        connection = getConnectionReconnect(baseDn, referral, connection);
+                        continue OUTER;
+                    }
+                    Response response = searchCursor.get();
+                    if (response instanceof SearchResultEntry) {
+                        responseResultCount++;
+                        if (offset > numberOfResultsSkipped) {
+                            numberOfResultsSkipped++;
+                            // skip processing
+                        } else {
+                            numberOfResutlsHandled++;
+                            Entry entry = ((SearchResultEntry)response).getEntry();
+                            logSearchResult(connection, entry);
+                            proceed = handleResult(connection, entry);
+                            if (!proceed) {
+                                LOG.ok("Ending search because handler returned false");
                             }
-                    	}
-    			        
-    			    } else {
-    			    	LOG.warn("Got unexpected response: {0}", response);
-    			    }
-    			}
-    			
-    			SearchResultDone searchResultDone = searchCursor.getSearchResultDone();
-    			LdapUtil.closeCursor(searchCursor);
-    			
-				if (searchResultDone != null) {
-    				LdapResult ldapResult = searchResultDone.getLdapResult();
-			    	PagedResults pagedResultsResponseControl = (PagedResults)searchResultDone.getControl(PagedResults.OID);
-			    	String extra = "no paged response control";
-			    	if (pagedResultsResponseControl != null) {
-			    		StringBuilder sb = new StringBuilder();
-			    		sb.append("paged control size=");
-			    		sb.append(pagedResultsResponseControl.getSize());
-			    		if (pagedResultsResponseControl.getCookie() != null) {
-			    			sb.append(" cookie=");
-			    			byte[] cookie = pagedResultsResponseControl.getCookie();
-			    			if (cookie == null) {
-			    				sb.append("null");
-			    			} else {
-			    				sb.append(Base64.getEncoder().encodeToString(cookie));
-			    			}
-			    		}
-			    		extra = sb.toString();
-			    		cookie = pagedResultsResponseControl.getCookie();
-			    		if (cookie.length == 0) {
-			    			cookie = null;
-			    		}
-			    		lastListSize = pagedResultsResponseControl.getSize();
-			    		if (lastListSize == 0) {
-			    			// RFC2696 specifies zero as "I do not know". We use -1 for that.
-			    			lastListSize = -1;
-			    		}
-			    	} else {
-			    		LOG.ok("no paged result control in the response");
-			    		cookie = null;
-			    		lastListSize = -1;
-			    	}
-			    	logSearchResult(connection, "Done", ldapResult, extra);
-			    	
-			    	if (ldapResult.getResultCode() == ResultCodeEnum.REFERRAL && !getConfiguration().isReferralStrategyThrow()) {
-			    		referral = ldapResult.getReferral();
-			    		if (getConfiguration().isReferralStrategyIgnore()) {
-			    			LOG.ok("Ignoring referral {0}", referral);
-			    		} else {
-			    			LOG.ok("Following referral {0}", referral);
-			    			retryAttempts++;
-			    			if (retryAttempts > getConfiguration().getMaximumNumberOfAttempts()) {
-			    				returnConnection(connection);
-			    				// TODO: better exception. Maybe re-throw exception from the last error?
-			    				throw new ConnectorIOException("Maximum number of attemps exceeded");
-			    			}
-			    			connection = getConnection(baseDn, referral);
-			    			if (connection == null) {
-			    				throw new ConnectorIOException("Cannot get connection based on referral "+referral);
-			    			}
-			    			lastListSize = -1;
-			    	        cookie = null;
-			    			continue;
-			    		}
-			    		
-			    	} else if (ldapResult.getResultCode() == ResultCodeEnum.SUCCESS) {
-			    		// continue the loop
-			    		
-			    	} else {
-    					String msg = "LDAP error during search: "+LdapUtil.formatLdapMessage(ldapResult);
-    					if (ldapResult.getResultCode() == ResultCodeEnum.SIZE_LIMIT_EXCEEDED && getOptions() != null && getOptions().getAllowPartialResults() != null && getOptions().getAllowPartialResults()) {
-    						LOG.ok("{0} (allowed error)", msg);
-    						setCompleteResultSet(false);
-    					} else {
-    						LOG.error("{0}", msg);
-    						throw LdapUtil.processLdapResult("LDAP error during search", ldapResult);
-    					}
-    					break;
-    				}
-    			}
-    			
-    		} catch (CursorException e) {
-    			returnConnection(connection);
-    			// TODO: better error handling
-    			LOG.error("Error:", e);
-    			throw new ConnectorIOException(e.getMessage(), e);
-    		}
-    		
-    		if (responseResultCount == 0) {
-            	// Zero results returned. This is either a hidden error or end of search.
-            	LOG.warn("Zero results returned from paged search");
-            	break;
+                        }
+
+                    } else {
+                        LOG.warn("Got unexpected response: {0}", response);
+                    }
+                }
+
+                SearchResultDone searchResultDone = searchCursor.getSearchResultDone();
+                LdapUtil.closeCursor(searchCursor);
+
+                if (searchResultDone != null) {
+                    LdapResult ldapResult = searchResultDone.getLdapResult();
+                    PagedResults pagedResultsResponseControl = (PagedResults)searchResultDone.getControl(PagedResults.OID);
+                    String extra = "no paged response control";
+                    if (pagedResultsResponseControl != null) {
+                        StringBuilder sb = new StringBuilder();
+                        sb.append("paged control size=");
+                        sb.append(pagedResultsResponseControl.getSize());
+                        if (pagedResultsResponseControl.getCookie() != null) {
+                            sb.append(" cookie=");
+                            byte[] cookie = pagedResultsResponseControl.getCookie();
+                            if (cookie == null) {
+                                sb.append("null");
+                            } else {
+                                sb.append(Base64.getEncoder().encodeToString(cookie));
+                            }
+                        }
+                        extra = sb.toString();
+                        cookie = pagedResultsResponseControl.getCookie();
+                        if (cookie.length == 0) {
+                            cookie = null;
+                        }
+                        lastListSize = pagedResultsResponseControl.getSize();
+                        if (lastListSize == 0) {
+                            // RFC2696 specifies zero as "I do not know". We use -1 for that.
+                            lastListSize = -1;
+                        }
+                    } else {
+                        LOG.ok("no paged result control in the response");
+                        cookie = null;
+                        lastListSize = -1;
+                    }
+                    logSearchResult(connection, "Done", ldapResult, extra);
+
+                    if (ldapResult.getResultCode() == ResultCodeEnum.REFERRAL && !getConfiguration().isReferralStrategyThrow()) {
+                        referral = ldapResult.getReferral();
+                        if (getConfiguration().isReferralStrategyIgnore()) {
+                            LOG.ok("Ignoring referral {0}", referral);
+                        } else {
+                            LOG.ok("Following referral {0}", referral);
+                            retryAttempts++;
+                            if (retryAttempts > getConfiguration().getMaximumNumberOfAttempts()) {
+                                returnConnection(connection);
+                                // TODO: better exception. Maybe re-throw exception from the last error?
+                                throw new ConnectorIOException("Maximum number of attemps exceeded");
+                            }
+                            connection = getConnection(baseDn, referral);
+                            if (connection == null) {
+                                throw new ConnectorIOException("Cannot get connection based on referral "+referral);
+                            }
+                            lastListSize = -1;
+                            cookie = null;
+                            continue;
+                        }
+
+                    } else if (ldapResult.getResultCode() == ResultCodeEnum.SUCCESS) {
+                        // continue the loop
+
+                    } else {
+                        String msg = "LDAP error during search: "+LdapUtil.formatLdapMessage(ldapResult);
+                        if (ldapResult.getResultCode() == ResultCodeEnum.SIZE_LIMIT_EXCEEDED && getOptions() != null && getOptions().getAllowPartialResults() != null && getOptions().getAllowPartialResults()) {
+                            LOG.ok("{0} (allowed error)", msg);
+                            setCompleteResultSet(false);
+                        } else {
+                            LOG.error("{0}", msg);
+                            throw LdapUtil.processLdapResult("LDAP error during search", ldapResult);
+                        }
+                        break;
+                    }
+                }
+
+            } catch (CursorException e) {
+                returnConnection(connection);
+                // TODO: better error handling
+                LOG.error("Error:", e);
+                throw new ConnectorIOException(e.getMessage(), e);
             }
-    		if (!proceed) {
-            	break;
+
+            if (responseResultCount == 0) {
+                // Zero results returned. This is either a hidden error or end of search.
+                LOG.warn("Zero results returned from paged search");
+                break;
             }
-    		if (getOptions() != null && getOptions().getPageSize() != null && 
-        			((numberOfResutlsHandled + numberOfResultsSkipped) >= offset + getOptions().getPageSize())) {
-            	break;
+            if (!proceed) {
+                break;
+            }
+            if (getOptions() != null && getOptions().getPageSize() != null &&
+                    ((numberOfResutlsHandled + numberOfResultsSkipped) >= offset + getOptions().getPageSize())) {
+                break;
             }
         } while (cookie != null);
-        
-        // TODO: properly abandon the paged search by sending request with size=0 and cookie=lastCookie
-        
-        returnConnection(connection);
-	}
 
-	@Override
-	public int getRemainingPagedResults() {
-		if (lastListSize < 0) {
-			return lastListSize;
-		} else {
-			return lastListSize - getNumberOfEntriesFound();
-		}
-	}
-        
+        // TODO: properly abandon the paged search by sending request with size=0 and cookie=lastCookie
+
+        returnConnection(connection);
+    }
+
     @Override
-	public String getPagedResultsCookie() {
-		if (cookie == null) {
-			return null;
-		}
-		return Base64.getEncoder().encodeToString(cookie);
-	}
-    
-    
+    public int getRemainingPagedResults() {
+        if (lastListSize < 0) {
+            return lastListSize;
+        } else {
+            return lastListSize - getNumberOfEntriesFound();
+        }
+    }
+
+    @Override
+    public String getPagedResultsCookie() {
+        if (cookie == null) {
+            return null;
+        }
+        return Base64.getEncoder().encodeToString(cookie);
+    }
+
+
 
 }

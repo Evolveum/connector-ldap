@@ -51,280 +51,280 @@ import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
  *
  */
 public abstract class SearchStrategy<C extends AbstractLdapConfiguration> {
-	
-	private static final Log LOG = Log.getLog(SearchStrategy.class);
-	
-	private ConnectionManager<C> connectionManager;
-	private AbstractLdapConfiguration configuration;
-	private AbstractSchemaTranslator<C> schemaTranslator;
-	private ObjectClass objectClass;
-	private org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass;
-	private ResultsHandler handler;
-	private OperationOptions options;
-	private boolean isCompleteResultSet = true;
-	private AttributeHandler attributeHandler;
-	private LdapNetworkConnection explicitConnection = null;
-	private int numberOfEntriesFound = 0;
-	
-	protected SearchStrategy(ConnectionManager<C> connectionManager, AbstractLdapConfiguration configuration,
-			AbstractSchemaTranslator<C> schemaTranslator, ObjectClass objectClass,
-			org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
-			ResultsHandler handler, OperationOptions options) {
-		super();
-		this.connectionManager = connectionManager;
-		this.configuration = configuration;
-		this.schemaTranslator = schemaTranslator;
-		this.objectClass = objectClass;
-		this.ldapObjectClass = ldapObjectClass;
-		this.handler = handler;
-		this.options = options;
-	}
 
-	public ConnectionManager<C> getConnectionManager() {
-		return connectionManager;
-	}
+    private static final Log LOG = Log.getLog(SearchStrategy.class);
 
-	public AbstractLdapConfiguration getConfiguration() {
-		return configuration;
-	}
-	
-	public OperationOptions getOptions() {
-		return options;
-	}
+    private ConnectionManager<C> connectionManager;
+    private AbstractLdapConfiguration configuration;
+    private AbstractSchemaTranslator<C> schemaTranslator;
+    private ObjectClass objectClass;
+    private org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass;
+    private ResultsHandler handler;
+    private OperationOptions options;
+    private boolean isCompleteResultSet = true;
+    private AttributeHandler attributeHandler;
+    private LdapNetworkConnection explicitConnection = null;
+    private int numberOfEntriesFound = 0;
 
-	public AbstractSchemaTranslator getSchemaTranslator() {
-		return schemaTranslator;
-	}
-	
-	public ObjectClass getObjectClass() {
-		return objectClass;
-	}
+    protected SearchStrategy(ConnectionManager<C> connectionManager, AbstractLdapConfiguration configuration,
+            AbstractSchemaTranslator<C> schemaTranslator, ObjectClass objectClass,
+            org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
+            ResultsHandler handler, OperationOptions options) {
+        super();
+        this.connectionManager = connectionManager;
+        this.configuration = configuration;
+        this.schemaTranslator = schemaTranslator;
+        this.objectClass = objectClass;
+        this.ldapObjectClass = ldapObjectClass;
+        this.handler = handler;
+        this.options = options;
+    }
 
-	public org.apache.directory.api.ldap.model.schema.ObjectClass getLdapObjectClass() {
-		return ldapObjectClass;
-	}
+    public ConnectionManager<C> getConnectionManager() {
+        return connectionManager;
+    }
 
-	public abstract void search(Dn baseDn, ExprNode filterNode, SearchScope scope, String[] attributes) throws LdapException;
-	
-	public int getRemainingPagedResults() {
-		return -1;
-	}
-        
-	public String getPagedResultsCookie() {
-		return null;
-	}
-	
-	public boolean isCompleteResultSet() {
-		return isCompleteResultSet;
-	}
-	
-	public void setCompleteResultSet(boolean isCompleteResultSet) {
-		this.isCompleteResultSet = isCompleteResultSet;
-	}
+    public AbstractLdapConfiguration getConfiguration() {
+        return configuration;
+    }
 
-	public AttributeHandler getAttributeHandler() {
-		return attributeHandler;
-	}
+    public OperationOptions getOptions() {
+        return options;
+    }
 
-	public void setAttributeHandler(AttributeHandler attributeHandler) {
-		this.attributeHandler = attributeHandler;
-	}
+    public AbstractSchemaTranslator getSchemaTranslator() {
+        return schemaTranslator;
+    }
 
-	public boolean allowPartialResults() {
-		if (options == null) {
-			return false;
-		}
-		return options.getAllowPartialResults() == Boolean.TRUE;
-	}
-	
-	public boolean allowPartialAttributeValues() {
-		if (options == null) {
-			return false;
-		}
-		return options.getAllowPartialAttributeValues() == Boolean.TRUE;
-	}
-	
-	protected int getDefaultPageSize() {
-		return configuration.getPagingBlockSize();
-	}
-	
-	public LdapNetworkConnection getExplicitConnection() {
-		return explicitConnection;
-	}
+    public ObjectClass getObjectClass() {
+        return objectClass;
+    }
 
-	public void setExplicitConnection(LdapNetworkConnection explicitConnection) {
-		this.explicitConnection = explicitConnection;
-	}
+    public org.apache.directory.api.ldap.model.schema.ObjectClass getLdapObjectClass() {
+        return ldapObjectClass;
+    }
 
-	public int getNumberOfEntriesFound() {
-		return numberOfEntriesFound;
-	}
+    public abstract void search(Dn baseDn, ExprNode filterNode, SearchScope scope, String[] attributes) throws LdapException;
 
-	protected void applyCommonConfiguration(SearchRequest req) {
-		if (configuration.isReferralStrategyFollow()) {
-			req.followReferrals();
-		} else if (configuration.isReferralStrategyIgnore()) {
-			req.ignoreReferrals();
-		} else if (configuration.isReferralStrategyThrow()) {
-			// nothing to do
-		}
-		req.setDerefAliases(AliasDerefMode.NEVER_DEREF_ALIASES);
-	}
-	
-	protected SearchCursor executeSearch(LdapNetworkConnection connection, SearchRequest req) throws LdapException {
-		if (req.getFilter() == null) {
-			req.setFilter(LdapConfiguration.SEARCH_FILTER_ALL);
-		}
-		logSearchRequest(connection, req);
-		SearchCursor searchCursor;
-		try {
-			searchCursor = connection.search(req);
-		} catch (LdapReferralException e) {
-			logSearchError(connection, e);
-			returnConnection(connection);
-			String referralStrategy = configuration.getReferralStrategy();
-			if (configuration.isReferralStrategyFollow()) {
-				// This should not happen!
-				throw new IllegalStateException("Got referral "+e.getReferralInfo()+" while not expecting it: "+e.getMessage(),e);
-			} else if (configuration.isReferralStrategyIgnore()) {
-				LOG.ok("Ignoring referral {0}", e.getReferralInfo());
-				return null;
-			} else if (configuration.isReferralStrategyThrow()) {
-				throw e;
-			} else {
-				throw new ConfigurationException("Unknown value of referralStrategy configuration property: "+referralStrategy);
-			}
-		} catch (LdapException e) {
-			logSearchError(connection, e);
-			returnConnection(connection);
-			throw e;
-		}
-		return searchCursor;
-	}
-	
-	protected void logSearchRequest(LdapNetworkConnection connection, SearchRequest req) {
-		if (LOG.isOk()) {
-			OperationLog.logOperationReq(connection, "Search REQ base={0}, filter={1}, scope={2}, attributes={3}, controls={4}",
-					req.getBase(), req.getFilter(), req.getScope(), req.getAttributes(), LdapUtil.toShortString(req.getControls()));
-		}
-	}
+    public int getRemainingPagedResults() {
+        return -1;
+    }
 
-	protected void logSearchResult(LdapNetworkConnection connection, Entry entry) {
-		if (LOG.isOk()) {
-			OperationLog.logOperationRes(connection, "Search RES {0}", entry);
-		}
-	}
-	
-	protected void logSearchResult(LdapNetworkConnection connection, String type, LdapResult ldapResult) {
-		if (LOG.isOk()) {
-			OperationLog.logOperationRes(connection, "Search RES {0}:\n{1}", type, ldapResult);
-		}
-	}
+    public String getPagedResultsCookie() {
+        return null;
+    }
 
-	protected void logSearchResult(LdapNetworkConnection connection, String type, LdapResult ldapResult, String extra) {
-		if (LOG.isOk()) {
-			OperationLog.logOperationRes(connection, "Search RES {0}: {1}\n{2}", type, extra, ldapResult);
-		}
-	}
+    public boolean isCompleteResultSet() {
+        return isCompleteResultSet;
+    }
 
-	protected void logSearchError(LdapNetworkConnection connection, LdapException e) {
-		OperationLog.logOperationErr(connection, "Search ERR {0}: {1}", e.getClass().getName(), e.getMessage(), e);
-	}
-	
-	protected boolean handleResult(LdapNetworkConnection connection, Entry entry) {
-		numberOfEntriesFound++;
-		return handler.handle(schemaTranslator.toConnIdObject(connection, objectClass, entry, attributeHandler));
-	}
+    public void setCompleteResultSet(boolean isCompleteResultSet) {
+        this.isCompleteResultSet = isCompleteResultSet;
+    }
 
-	protected boolean hasSortOption() {
-		return getOptions() != null && getOptions().getSortKeys() != null && getOptions().getSortKeys().length > 0;
-	}
-	
-	protected SortRequest createSortControl(String defaultSortLdapAttribute, String defaultSortOrderingRule) {
-		SortRequest sortReqControl = null;
-		if (hasSortOption()) {
-			sortReqControl = new SortRequestImpl();
-			sortReqControl.setCritical(true);
-			for (SortKey icfSortKey: getOptions().getSortKeys()) {
-				AttributeType attributeType = getSchemaTranslator().toLdapAttribute(getLdapObjectClass(), icfSortKey.getField());
-				String attributeTypeDesc = attributeType.getName();
-				String matchingRuleId = attributeType.getOrderingOid();
-				if (matchingRuleId == null) {
-					matchingRuleId = defaultSortOrderingRule;
-				}
-				boolean reverseOrder = !icfSortKey.isAscendingOrder();
-				org.apache.directory.api.ldap.model.message.controls.SortKey ldapSortKey = 
-						new org.apache.directory.api.ldap.model.message.controls.SortKey(attributeTypeDesc, matchingRuleId, reverseOrder);
-				sortReqControl.addSortKey(ldapSortKey);
-			}
-		} else if (defaultSortLdapAttribute != null) {
-			sortReqControl = new SortRequestImpl();
-			AttributeType attributeType = getSchemaTranslator().toLdapAttribute(getLdapObjectClass(), defaultSortLdapAttribute);
-			String matchingRuleId = attributeType.getOrderingOid();
-			if (matchingRuleId == null) {
-				matchingRuleId = defaultSortOrderingRule;
-			}
-			org.apache.directory.api.ldap.model.message.controls.SortKey ldapSortKey = 
-					new org.apache.directory.api.ldap.model.message.controls.SortKey(defaultSortLdapAttribute, matchingRuleId, false); 
-			sortReqControl.addSortKey(ldapSortKey);
-		}
-		return sortReqControl;
-	}
-	
-	protected LdapNetworkConnection getConnection(Dn base) {
-		if (explicitConnection != null) {
-			return explicitConnection;
-		}
-		return connectionManager.getConnection(getEffectiveBase(base), options);
-	}
+    public AttributeHandler getAttributeHandler() {
+        return attributeHandler;
+    }
 
-	protected LdapNetworkConnection getConnection(Dn base, Referral referral) {
-		if (explicitConnection != null) {
-			return explicitConnection;
-		}
-		return connectionManager.getConnection(getEffectiveBase(base), referral, options);
-	}
-	
-	protected LdapNetworkConnection getConnectionReconnect(Dn base, LdapNetworkConnection oldConnection) {
-		return getConnectionReconnect(base, null, oldConnection);
-	}
-	
-	protected LdapNetworkConnection getConnectionReconnect(Dn base, Referral referral, LdapNetworkConnection oldConnection) {
-		if (explicitConnection != null) {
-			return explicitConnection;
-		}
-		connectionManager.returnConnection(oldConnection);
-		return connectionManager.getConnectionReconnect(getEffectiveBase(base), referral, options);
-	}
-	
-	private Dn getEffectiveBase(Dn origBase) {
-		if (origBase.isSchemaAware()) {
-			return origBase;
-		} else {
-			// Insanity such as <GUID=....>. No good using that to select
-			// the connection. Try to use the container from options instead.
-			if (options != null && options.getContainer() != null) {
-				QualifiedUid containerQUid = options.getContainer();
-				// HACK WARNING: this is a hack to overcome bad framework design.
-				// Even though this has to be Uid, we interpret it as a DN.
-				// The framework uses UID to identify everything. This is naive.
-				// Strictly following the framework contract would mean to always
-				// do two LDAP searches instead of one in this case.
-				// So we deviate from the contract here. It is naughty, but it
-				// is efficient.
-				return schemaTranslator.toDn(containerQUid.getUid());
-			} else {
-				return origBase;
-			}
-		}
-	}
-	
-	protected void returnConnection(LdapNetworkConnection connection) {
-		connectionManager.returnConnection(connection);
-	}
-	
-	protected ExprNode preProcessSearchFilter(ExprNode filterNode) {
-		return filterNode;
-	}
+    public void setAttributeHandler(AttributeHandler attributeHandler) {
+        this.attributeHandler = attributeHandler;
+    }
+
+    public boolean allowPartialResults() {
+        if (options == null) {
+            return false;
+        }
+        return options.getAllowPartialResults() == Boolean.TRUE;
+    }
+
+    public boolean allowPartialAttributeValues() {
+        if (options == null) {
+            return false;
+        }
+        return options.getAllowPartialAttributeValues() == Boolean.TRUE;
+    }
+
+    protected int getDefaultPageSize() {
+        return configuration.getPagingBlockSize();
+    }
+
+    public LdapNetworkConnection getExplicitConnection() {
+        return explicitConnection;
+    }
+
+    public void setExplicitConnection(LdapNetworkConnection explicitConnection) {
+        this.explicitConnection = explicitConnection;
+    }
+
+    public int getNumberOfEntriesFound() {
+        return numberOfEntriesFound;
+    }
+
+    protected void applyCommonConfiguration(SearchRequest req) {
+        if (configuration.isReferralStrategyFollow()) {
+            req.followReferrals();
+        } else if (configuration.isReferralStrategyIgnore()) {
+            req.ignoreReferrals();
+        } else if (configuration.isReferralStrategyThrow()) {
+            // nothing to do
+        }
+        req.setDerefAliases(AliasDerefMode.NEVER_DEREF_ALIASES);
+    }
+
+    protected SearchCursor executeSearch(LdapNetworkConnection connection, SearchRequest req) throws LdapException {
+        if (req.getFilter() == null) {
+            req.setFilter(LdapConfiguration.SEARCH_FILTER_ALL);
+        }
+        logSearchRequest(connection, req);
+        SearchCursor searchCursor;
+        try {
+            searchCursor = connection.search(req);
+        } catch (LdapReferralException e) {
+            logSearchError(connection, e);
+            returnConnection(connection);
+            String referralStrategy = configuration.getReferralStrategy();
+            if (configuration.isReferralStrategyFollow()) {
+                // This should not happen!
+                throw new IllegalStateException("Got referral "+e.getReferralInfo()+" while not expecting it: "+e.getMessage(),e);
+            } else if (configuration.isReferralStrategyIgnore()) {
+                LOG.ok("Ignoring referral {0}", e.getReferralInfo());
+                return null;
+            } else if (configuration.isReferralStrategyThrow()) {
+                throw e;
+            } else {
+                throw new ConfigurationException("Unknown value of referralStrategy configuration property: "+referralStrategy);
+            }
+        } catch (LdapException e) {
+            logSearchError(connection, e);
+            returnConnection(connection);
+            throw e;
+        }
+        return searchCursor;
+    }
+
+    protected void logSearchRequest(LdapNetworkConnection connection, SearchRequest req) {
+        if (LOG.isOk()) {
+            OperationLog.logOperationReq(connection, "Search REQ base={0}, filter={1}, scope={2}, attributes={3}, controls={4}",
+                    req.getBase(), req.getFilter(), req.getScope(), req.getAttributes(), LdapUtil.toShortString(req.getControls()));
+        }
+    }
+
+    protected void logSearchResult(LdapNetworkConnection connection, Entry entry) {
+        if (LOG.isOk()) {
+            OperationLog.logOperationRes(connection, "Search RES {0}", entry);
+        }
+    }
+
+    protected void logSearchResult(LdapNetworkConnection connection, String type, LdapResult ldapResult) {
+        if (LOG.isOk()) {
+            OperationLog.logOperationRes(connection, "Search RES {0}:\n{1}", type, ldapResult);
+        }
+    }
+
+    protected void logSearchResult(LdapNetworkConnection connection, String type, LdapResult ldapResult, String extra) {
+        if (LOG.isOk()) {
+            OperationLog.logOperationRes(connection, "Search RES {0}: {1}\n{2}", type, extra, ldapResult);
+        }
+    }
+
+    protected void logSearchError(LdapNetworkConnection connection, LdapException e) {
+        OperationLog.logOperationErr(connection, "Search ERR {0}: {1}", e.getClass().getName(), e.getMessage(), e);
+    }
+
+    protected boolean handleResult(LdapNetworkConnection connection, Entry entry) {
+        numberOfEntriesFound++;
+        return handler.handle(schemaTranslator.toConnIdObject(connection, objectClass, entry, attributeHandler));
+    }
+
+    protected boolean hasSortOption() {
+        return getOptions() != null && getOptions().getSortKeys() != null && getOptions().getSortKeys().length > 0;
+    }
+
+    protected SortRequest createSortControl(String defaultSortLdapAttribute, String defaultSortOrderingRule) {
+        SortRequest sortReqControl = null;
+        if (hasSortOption()) {
+            sortReqControl = new SortRequestImpl();
+            sortReqControl.setCritical(true);
+            for (SortKey icfSortKey: getOptions().getSortKeys()) {
+                AttributeType attributeType = getSchemaTranslator().toLdapAttribute(getLdapObjectClass(), icfSortKey.getField());
+                String attributeTypeDesc = attributeType.getName();
+                String matchingRuleId = attributeType.getOrderingOid();
+                if (matchingRuleId == null) {
+                    matchingRuleId = defaultSortOrderingRule;
+                }
+                boolean reverseOrder = !icfSortKey.isAscendingOrder();
+                org.apache.directory.api.ldap.model.message.controls.SortKey ldapSortKey =
+                        new org.apache.directory.api.ldap.model.message.controls.SortKey(attributeTypeDesc, matchingRuleId, reverseOrder);
+                sortReqControl.addSortKey(ldapSortKey);
+            }
+        } else if (defaultSortLdapAttribute != null) {
+            sortReqControl = new SortRequestImpl();
+            AttributeType attributeType = getSchemaTranslator().toLdapAttribute(getLdapObjectClass(), defaultSortLdapAttribute);
+            String matchingRuleId = attributeType.getOrderingOid();
+            if (matchingRuleId == null) {
+                matchingRuleId = defaultSortOrderingRule;
+            }
+            org.apache.directory.api.ldap.model.message.controls.SortKey ldapSortKey =
+                    new org.apache.directory.api.ldap.model.message.controls.SortKey(defaultSortLdapAttribute, matchingRuleId, false);
+            sortReqControl.addSortKey(ldapSortKey);
+        }
+        return sortReqControl;
+    }
+
+    protected LdapNetworkConnection getConnection(Dn base) {
+        if (explicitConnection != null) {
+            return explicitConnection;
+        }
+        return connectionManager.getConnection(getEffectiveBase(base), options);
+    }
+
+    protected LdapNetworkConnection getConnection(Dn base, Referral referral) {
+        if (explicitConnection != null) {
+            return explicitConnection;
+        }
+        return connectionManager.getConnection(getEffectiveBase(base), referral, options);
+    }
+
+    protected LdapNetworkConnection getConnectionReconnect(Dn base, LdapNetworkConnection oldConnection) {
+        return getConnectionReconnect(base, null, oldConnection);
+    }
+
+    protected LdapNetworkConnection getConnectionReconnect(Dn base, Referral referral, LdapNetworkConnection oldConnection) {
+        if (explicitConnection != null) {
+            return explicitConnection;
+        }
+        connectionManager.returnConnection(oldConnection);
+        return connectionManager.getConnectionReconnect(getEffectiveBase(base), referral, options);
+    }
+
+    private Dn getEffectiveBase(Dn origBase) {
+        if (origBase.isSchemaAware()) {
+            return origBase;
+        } else {
+            // Insanity such as <GUID=....>. No good using that to select
+            // the connection. Try to use the container from options instead.
+            if (options != null && options.getContainer() != null) {
+                QualifiedUid containerQUid = options.getContainer();
+                // HACK WARNING: this is a hack to overcome bad framework design.
+                // Even though this has to be Uid, we interpret it as a DN.
+                // The framework uses UID to identify everything. This is naive.
+                // Strictly following the framework contract would mean to always
+                // do two LDAP searches instead of one in this case.
+                // So we deviate from the contract here. It is naughty, but it
+                // is efficient.
+                return schemaTranslator.toDn(containerQUid.getUid());
+            } else {
+                return origBase;
+            }
+        }
+    }
+
+    protected void returnConnection(LdapNetworkConnection connection) {
+        connectionManager.returnConnection(connection);
+    }
+
+    protected ExprNode preProcessSearchFilter(ExprNode filterNode) {
+        return filterNode;
+    }
 
 }

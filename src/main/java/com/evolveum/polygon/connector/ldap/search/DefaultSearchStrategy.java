@@ -46,122 +46,122 @@ import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
 
 /**
  * Very simple search without any controls (paging). The most efficient thing to do.
- * 
+ *
  * @author Radovan Semancik
  */
 public class DefaultSearchStrategy<C extends AbstractLdapConfiguration> extends SearchStrategy<C> {
-	
-	private static final Log LOG = Log.getLog(DefaultSearchStrategy.class);
 
-	public DefaultSearchStrategy(ConnectionManager<C> connectionManager, AbstractLdapConfiguration configuration,
-			AbstractSchemaTranslator<C> schemaTranslator, ObjectClass objectClass,
-			org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass, ResultsHandler handler,
-			OperationOptions options) {
-		super(connectionManager, configuration, schemaTranslator, objectClass, ldapObjectClass, handler, options);
-	}
+    private static final Log LOG = Log.getLog(DefaultSearchStrategy.class);
 
-	/* (non-Javadoc)
-	 * @see com.evolveum.polygon.connector.ldap.search.SearchStrategy#search(java.lang.String, org.apache.directory.api.ldap.model.filter.ExprNode, org.identityconnectors.framework.common.objects.ResultsHandler)
-	 */
-	@Override
-	public void search(Dn baseDn, ExprNode filterNode, SearchScope scope, String[] attributes) throws LdapException {
-		SearchRequest req = new SearchRequestImpl();
-		req.setBase(baseDn);
-		req.setFilter(preProcessSearchFilter(filterNode));
-		req.setScope(scope);
-		applyCommonConfiguration(req);
-		if (attributes != null) {
-			req.addAttributes(attributes);
-		}
-		
-		LdapNetworkConnection connection = getConnection(baseDn);
-		Referral referral = null; // remember this in case we need a reconnect
-		
-		int numAttempts = 0;
-		OUTER: while (true) {
-			numAttempts++;
-			if (numAttempts > getConfiguration().getMaximumNumberOfAttempts()) {
-				returnConnection(connection);
-				// TODO: better exception. Maybe re-throw exception from the last error?
-				throw new ConnectorIOException("Maximum number of attemps exceeded");
-			}
-		
-			SearchCursor searchCursor = executeSearch(connection, req);
-			boolean proceed = true;
-			try {
-				while (proceed) {
-					try {
-						boolean hasNext = searchCursor.next();
-						if (!hasNext) {
-							break;
-						}
-					} catch (LdapConnectionTimeOutException | InvalidConnectionException e) {
-						logSearchError(connection, e);
-						// Server disconnected. And by some miracle this was not caught by
-						// checkAlive or connection manager.
-						LOG.ok("Connection error ({0}), reconnecting", e.getMessage(), e);
-						LdapUtil.closeCursor(searchCursor);
-						connection = getConnectionReconnect(baseDn, referral, connection);
-						continue OUTER;
-					}
-					Response response = searchCursor.get();
-					if (response instanceof SearchResultEntry) {
-				        Entry entry = ((SearchResultEntry)response).getEntry();
-				        logSearchResult(connection, entry);
-				        proceed = handleResult(connection, entry);
-				        
-					} else {
-				    	LOG.warn("Got unexpected response: {0}", response);
-				    }
-				}
-				
-				SearchResultDone searchResultDone = searchCursor.getSearchResultDone();
-				LdapUtil.closeCursor(searchCursor);
-				
-				if (searchResultDone == null) {
-					break;
-				} else {
-					LdapResult ldapResult = searchResultDone.getLdapResult();
-			    	logSearchResult(connection, "Done", ldapResult);
-			    	
-			    	if (ldapResult.getResultCode() == ResultCodeEnum.REFERRAL && !getConfiguration().isReferralStrategyThrow()) {
-			    		referral = ldapResult.getReferral();
-			    		if (getConfiguration().isReferralStrategyIgnore()) {
-			    			LOG.ok("Ignoring referral {0}", referral);
-			    		} else {
-			    			LOG.ok("Following referral {0}", referral);
-			    			connection = getConnection(baseDn, referral);
-			    			if (connection == null) {
-			    				throw new ConnectorIOException("Cannot get connection based on referral "+referral);
-			    			}
-			    		}
-			    		
-			    	} else if (ldapResult.getResultCode() == ResultCodeEnum.SUCCESS) {
-			    		break;
-			    		
-			    	} else {
-						String msg = "LDAP error during search: "+LdapUtil.formatLdapMessage(ldapResult);
-						if (ldapResult.getResultCode() == ResultCodeEnum.SIZE_LIMIT_EXCEEDED && getOptions() != null && getOptions().getAllowPartialResults() != null && getOptions().getAllowPartialResults()) {
-							LOG.ok("{0} (allowed error)", msg);
-							setCompleteResultSet(false);
-							break;
-						} else {
-							LOG.error("{0}", msg);
-							returnConnection(connection);
-							throw LdapUtil.processLdapResult("LDAP error during search in "+baseDn, ldapResult);
-						}
-					}
-			    	
-				}
-				
-			} catch (CursorException e) {
-				returnConnection(connection);
-				// TODO: better error handling
-				throw new ConnectorIOException(e.getMessage(), e);
-			}
-		}
-		
-		returnConnection(connection);
-	}
+    public DefaultSearchStrategy(ConnectionManager<C> connectionManager, AbstractLdapConfiguration configuration,
+            AbstractSchemaTranslator<C> schemaTranslator, ObjectClass objectClass,
+            org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass, ResultsHandler handler,
+            OperationOptions options) {
+        super(connectionManager, configuration, schemaTranslator, objectClass, ldapObjectClass, handler, options);
+    }
+
+    /* (non-Javadoc)
+     * @see com.evolveum.polygon.connector.ldap.search.SearchStrategy#search(java.lang.String, org.apache.directory.api.ldap.model.filter.ExprNode, org.identityconnectors.framework.common.objects.ResultsHandler)
+     */
+    @Override
+    public void search(Dn baseDn, ExprNode filterNode, SearchScope scope, String[] attributes) throws LdapException {
+        SearchRequest req = new SearchRequestImpl();
+        req.setBase(baseDn);
+        req.setFilter(preProcessSearchFilter(filterNode));
+        req.setScope(scope);
+        applyCommonConfiguration(req);
+        if (attributes != null) {
+            req.addAttributes(attributes);
+        }
+
+        LdapNetworkConnection connection = getConnection(baseDn);
+        Referral referral = null; // remember this in case we need a reconnect
+
+        int numAttempts = 0;
+        OUTER: while (true) {
+            numAttempts++;
+            if (numAttempts > getConfiguration().getMaximumNumberOfAttempts()) {
+                returnConnection(connection);
+                // TODO: better exception. Maybe re-throw exception from the last error?
+                throw new ConnectorIOException("Maximum number of attemps exceeded");
+            }
+
+            SearchCursor searchCursor = executeSearch(connection, req);
+            boolean proceed = true;
+            try {
+                while (proceed) {
+                    try {
+                        boolean hasNext = searchCursor.next();
+                        if (!hasNext) {
+                            break;
+                        }
+                    } catch (LdapConnectionTimeOutException | InvalidConnectionException e) {
+                        logSearchError(connection, e);
+                        // Server disconnected. And by some miracle this was not caught by
+                        // checkAlive or connection manager.
+                        LOG.ok("Connection error ({0}), reconnecting", e.getMessage(), e);
+                        LdapUtil.closeCursor(searchCursor);
+                        connection = getConnectionReconnect(baseDn, referral, connection);
+                        continue OUTER;
+                    }
+                    Response response = searchCursor.get();
+                    if (response instanceof SearchResultEntry) {
+                        Entry entry = ((SearchResultEntry)response).getEntry();
+                        logSearchResult(connection, entry);
+                        proceed = handleResult(connection, entry);
+
+                    } else {
+                        LOG.warn("Got unexpected response: {0}", response);
+                    }
+                }
+
+                SearchResultDone searchResultDone = searchCursor.getSearchResultDone();
+                LdapUtil.closeCursor(searchCursor);
+
+                if (searchResultDone == null) {
+                    break;
+                } else {
+                    LdapResult ldapResult = searchResultDone.getLdapResult();
+                    logSearchResult(connection, "Done", ldapResult);
+
+                    if (ldapResult.getResultCode() == ResultCodeEnum.REFERRAL && !getConfiguration().isReferralStrategyThrow()) {
+                        referral = ldapResult.getReferral();
+                        if (getConfiguration().isReferralStrategyIgnore()) {
+                            LOG.ok("Ignoring referral {0}", referral);
+                        } else {
+                            LOG.ok("Following referral {0}", referral);
+                            connection = getConnection(baseDn, referral);
+                            if (connection == null) {
+                                throw new ConnectorIOException("Cannot get connection based on referral "+referral);
+                            }
+                        }
+
+                    } else if (ldapResult.getResultCode() == ResultCodeEnum.SUCCESS) {
+                        break;
+
+                    } else {
+                        String msg = "LDAP error during search: "+LdapUtil.formatLdapMessage(ldapResult);
+                        if (ldapResult.getResultCode() == ResultCodeEnum.SIZE_LIMIT_EXCEEDED && getOptions() != null && getOptions().getAllowPartialResults() != null && getOptions().getAllowPartialResults()) {
+                            LOG.ok("{0} (allowed error)", msg);
+                            setCompleteResultSet(false);
+                            break;
+                        } else {
+                            LOG.error("{0}", msg);
+                            returnConnection(connection);
+                            throw LdapUtil.processLdapResult("LDAP error during search in "+baseDn, ldapResult);
+                        }
+                    }
+
+                }
+
+            } catch (CursorException e) {
+                returnConnection(connection);
+                // TODO: better error handling
+                throw new ConnectorIOException(e.getMessage(), e);
+            }
+        }
+
+        returnConnection(connection);
+    }
 
 }

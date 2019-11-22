@@ -22,109 +22,109 @@ import org.identityconnectors.framework.spi.ConfigurationProperty;
 
 /**
  * LDAP Connector configuration.
- * 
+ *
  * @author Radovan Semancik
  *
  */
 public class LdapConfiguration extends AbstractLdapConfiguration {
 
-	private static final Log LOG = Log.getLog(LdapConfiguration.class);
-	
-	/**
+    private static final Log LOG = Log.getLog(LdapConfiguration.class);
+
+    /**
      * Specifies strategy of handling account lockouts.
      * Please note that the "openldap" lockout strategy is EXPERIMENTAL.
      * Possible values: "none", "openldap"
      * Default value: "none"
      */
     private String lockoutStrategy = LOCKOUT_STRATEGY_NONE;
-    
+
     public static final String LOCKOUT_STRATEGY_NONE = "none";
     public static final String LOCKOUT_STRATEGY_OPENLDAP = "openldap";
-	
+
     /**
-	 * DN of the OpenLDAP access log 
-	 */
-	private String openLdapAccessLogDn;
+     * DN of the OpenLDAP access log
+     */
+    private String openLdapAccessLogDn;
 
-	/**
-	 * optional additional search filter in the OpenLDAP access log
-	 */
-	private String openLdapAccessLogAdditionalFilter;
-	
-	/**
-	 * Attribute that supports language tag (RFC 3866).
-	 * Those attributes will be presented as Map in the schema. They are designed to match
-	 * midPoint PolyString, especially its "lang" part. 
-	 * EXPERIMENTAL. Not officially supported. Use at your own risk only.
-	 */
-	private String[] languageTagAttributes;
-	
-	/**
-	 * Normally, when multivalue attribute is used as single-valued attribute then an error is thrown.
-	 * This is the default behavior, as it is much better at detecting errors in the data. However, it
-	 * may be a problem, because throwing hard error may prohibit further attempts to correct the value.
-	 * 
-	 * This configuration property changes that behavior. If tolerateMultivalueReduction is set to true,
-	 * then the connector will discard all the extra values. Just one of the values will be kept.
-	 * Connector will try to use the first value. But as LDAP does not guarantee value ordering,
-	 * that value may be quite arbitrary.
-	 * 
-	 * EXPERIMENTAL. Not officially supported. Use at your own risk only.
-	 */
-	private boolean tolerateMultivalueReduction;
-    
+    /**
+     * optional additional search filter in the OpenLDAP access log
+     */
+    private String openLdapAccessLogAdditionalFilter;
+
+    /**
+     * Attribute that supports language tag (RFC 3866).
+     * Those attributes will be presented as Map in the schema. They are designed to match
+     * midPoint PolyString, especially its "lang" part.
+     * EXPERIMENTAL. Not officially supported. Use at your own risk only.
+     */
+    private String[] languageTagAttributes;
+
+    /**
+     * Normally, when multivalue attribute is used as single-valued attribute then an error is thrown.
+     * This is the default behavior, as it is much better at detecting errors in the data. However, it
+     * may be a problem, because throwing hard error may prohibit further attempts to correct the value.
+     *
+     * This configuration property changes that behavior. If tolerateMultivalueReduction is set to true,
+     * then the connector will discard all the extra values. Just one of the values will be kept.
+     * Connector will try to use the first value. But as LDAP does not guarantee value ordering,
+     * that value may be quite arbitrary.
+     *
+     * EXPERIMENTAL. Not officially supported. Use at your own risk only.
+     */
+    private boolean tolerateMultivalueReduction;
+
     @ConfigurationProperty(order = 100)
-	public String getLockoutStrategy() {
-		return lockoutStrategy;
-	}
+    public String getLockoutStrategy() {
+        return lockoutStrategy;
+    }
 
-	public void setLockoutStrategy(String lockoutStrategy) {
-		this.lockoutStrategy = lockoutStrategy;
-	}
+    public void setLockoutStrategy(String lockoutStrategy) {
+        this.lockoutStrategy = lockoutStrategy;
+    }
 
-	@Override
-	public void recompute() {
-		if (getUidAttribute() == null) {
-			setUidAttribute(SchemaConstants.ENTRY_UUID_AT);
-		}
-		super.recompute();
-	}
-	
-	@ConfigurationProperty(order = 101)
-	public String getOpenLdapAccessLogDn() {
-		return this.openLdapAccessLogDn;
-	}
+    @Override
+    public void recompute() {
+        if (getUidAttribute() == null) {
+            setUidAttribute(SchemaConstants.ENTRY_UUID_AT);
+        }
+        super.recompute();
+    }
 
-	public void setOpenLdapAccessLogDn(String accessLogDn) {
-		this.openLdapAccessLogDn = accessLogDn;
-	}
+    @ConfigurationProperty(order = 101)
+    public String getOpenLdapAccessLogDn() {
+        return this.openLdapAccessLogDn;
+    }
 
-	@ConfigurationProperty(order = 102)
-	public String getOpenLdapAccessLogAdditionalFilter() {
-		return this.openLdapAccessLogAdditionalFilter;
-	}
+    public void setOpenLdapAccessLogDn(String accessLogDn) {
+        this.openLdapAccessLogDn = accessLogDn;
+    }
 
-	public void setOpenLdapAccessLogAdditionalFilter(String accessLogAditionalFilter) {
-		this.openLdapAccessLogAdditionalFilter = accessLogAditionalFilter;
-	}
+    @ConfigurationProperty(order = 102)
+    public String getOpenLdapAccessLogAdditionalFilter() {
+        return this.openLdapAccessLogAdditionalFilter;
+    }
 
-	@ConfigurationProperty(order = 103)
-	public String[] getLanguageTagAttributes() {
-		return languageTagAttributes;
-	}
+    public void setOpenLdapAccessLogAdditionalFilter(String accessLogAditionalFilter) {
+        this.openLdapAccessLogAdditionalFilter = accessLogAditionalFilter;
+    }
 
-	public void setLanguageTagAttributes(String[] languageTagAttribute) {
-		this.languageTagAttributes = languageTagAttribute;
-	}
+    @ConfigurationProperty(order = 103)
+    public String[] getLanguageTagAttributes() {
+        return languageTagAttributes;
+    }
 
-	@ConfigurationProperty(order = 104)
-	public boolean isTolerateMultivalueReduction() {
-		return tolerateMultivalueReduction;
-	}
+    public void setLanguageTagAttributes(String[] languageTagAttribute) {
+        this.languageTagAttributes = languageTagAttribute;
+    }
 
-	public void setTolerateMultivalueReduction(boolean tolerateMultivalueReduction) {
-		this.tolerateMultivalueReduction = tolerateMultivalueReduction;
-	}
-	
+    @ConfigurationProperty(order = 104)
+    public boolean isTolerateMultivalueReduction() {
+        return tolerateMultivalueReduction;
+    }
+
+    public void setTolerateMultivalueReduction(boolean tolerateMultivalueReduction) {
+        this.tolerateMultivalueReduction = tolerateMultivalueReduction;
+    }
+
 
 }

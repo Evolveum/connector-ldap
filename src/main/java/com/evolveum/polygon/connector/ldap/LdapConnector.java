@@ -38,32 +38,32 @@ import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
 public class LdapConnector extends AbstractLdapConnector<LdapConfiguration> {
 
     private static final Log LOG = Log.getLog(LdapConnector.class);
-    
-	@Override
-	protected AbstractSchemaTranslator<LdapConfiguration> createSchemaTranslator() {
-		return new LdapSchemaTranslator(getSchemaManager(), getConfiguration());
-	}
 
-	@Override
-	protected void addAttributeModification(Dn dn, List<Modification> modifications,
-			org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass,
-			ObjectClass icfObjectClass, AttributeDelta delta) {
-		
-		if (delta.is(OperationalAttributes.LOCK_OUT_NAME) 
-				&& LdapConfiguration.LOCKOUT_STRATEGY_OPENLDAP.equals(getConfiguration().getLockoutStrategy())) {
-			Boolean value = SchemaUtil.getSingleReplaceValue(delta, Boolean.class);
-			// null value is OK, no valued means default which is "unlocked"
-			if (value != null && value) {
-				throw new UnsupportedOperationException("Locking object is not supported (only unlocking is)");
-			}
-			modifications.add(
-					new DefaultModification(ModificationOperation.REPLACE_ATTRIBUTE, SchemaConstants.PWD_ACCOUNT_LOCKED_TIME_AT)); // no value
-			
-		} else {
-			super.addAttributeModification(dn, modifications, ldapStructuralObjectClass, icfObjectClass, delta);
-		}
-	}
-    
-    
+    @Override
+    protected AbstractSchemaTranslator<LdapConfiguration> createSchemaTranslator() {
+        return new LdapSchemaTranslator(getSchemaManager(), getConfiguration());
+    }
+
+    @Override
+    protected void addAttributeModification(Dn dn, List<Modification> modifications,
+            org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass,
+            ObjectClass icfObjectClass, AttributeDelta delta) {
+
+        if (delta.is(OperationalAttributes.LOCK_OUT_NAME)
+                && LdapConfiguration.LOCKOUT_STRATEGY_OPENLDAP.equals(getConfiguration().getLockoutStrategy())) {
+            Boolean value = SchemaUtil.getSingleReplaceValue(delta, Boolean.class);
+            // null value is OK, no valued means default which is "unlocked"
+            if (value != null && value) {
+                throw new UnsupportedOperationException("Locking object is not supported (only unlocking is)");
+            }
+            modifications.add(
+                    new DefaultModification(ModificationOperation.REPLACE_ATTRIBUTE, SchemaConstants.PWD_ACCOUNT_LOCKED_TIME_AT)); // no value
+
+        } else {
+            super.addAttributeModification(dn, modifications, ldapStructuralObjectClass, icfObjectClass, delta);
+        }
+    }
+
+
 
 }

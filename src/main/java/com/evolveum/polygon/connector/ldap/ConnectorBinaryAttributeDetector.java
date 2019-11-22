@@ -25,19 +25,19 @@ import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
  */
 public class ConnectorBinaryAttributeDetector<C extends AbstractLdapConfiguration> implements BinaryAttributeDetector {
 
-	private AbstractSchemaTranslator<C> schemaTranslator;
-	
-	public void setSchemaTranslator(AbstractSchemaTranslator<C> schemaTranslator) {
-		this.schemaTranslator = schemaTranslator;
-	}
+    private AbstractSchemaTranslator<C> schemaTranslator;
 
-	@Override
-	public boolean isBinary(String attributeId) {
-		if (schemaTranslator == null) {
-			// This is needed to fetch the schema
-			return false;
-		}
-		return schemaTranslator.isBinaryAttribute(attributeId);
-	}
+    public void setSchemaTranslator(AbstractSchemaTranslator<C> schemaTranslator) {
+        this.schemaTranslator = schemaTranslator;
+    }
+
+    @Override
+    public boolean isBinary(String attributeId) {
+        if (schemaTranslator == null) {
+            // This is needed to fetch the schema
+            return false;
+        }
+        return schemaTranslator.isBinaryAttribute(attributeId);
+    }
 
 }

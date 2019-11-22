@@ -23,68 +23,68 @@ import org.apache.directory.api.ldap.model.name.Dn;
  *
  */
 public class ScopedFilter {
-	
-	private ExprNode filter = null;
-	private Dn baseDn = null;
-	
-	public ScopedFilter(ExprNode filter, Dn baseDn) {
-		super();
-		this.filter = filter;
-		this.baseDn = baseDn;
-	}
 
-	public ScopedFilter(ExprNode filter) {
-		super();
-		this.filter = filter;
-	}
+    private ExprNode filter = null;
+    private Dn baseDn = null;
 
-	public ScopedFilter(Dn baseDn) {
-		super();
-		this.baseDn = baseDn;
-	}
+    public ScopedFilter(ExprNode filter, Dn baseDn) {
+        super();
+        this.filter = filter;
+        this.baseDn = baseDn;
+    }
 
-	public ExprNode getFilter() {
-		return filter;
-	}
+    public ScopedFilter(ExprNode filter) {
+        super();
+        this.filter = filter;
+    }
 
-	public Dn getBaseDn() {
-		return baseDn;
-	}
+    public ScopedFilter(Dn baseDn) {
+        super();
+        this.baseDn = baseDn;
+    }
 
-	@Override
-	public int hashCode() {
-		final int prime = 31;
-		int result = 1;
-		result = prime * result + ((baseDn == null) ? 0 : baseDn.hashCode());
-		result = prime * result + ((filter == null) ? 0 : filter.hashCode());
-		return result;
-	}
+    public ExprNode getFilter() {
+        return filter;
+    }
 
-	@Override
-	public boolean equals(Object obj) {
-		if (this == obj)
-			return true;
-		if (obj == null)
-			return false;
-		if (getClass() != obj.getClass())
-			return false;
-		ScopedFilter other = (ScopedFilter) obj;
-		if (baseDn == null) {
-			if (other.baseDn != null)
-				return false;
-		} else if (!baseDn.equals(other.baseDn))
-			return false;
-		if (filter == null) {
-			if (other.filter != null)
-				return false;
-		} else if (!filter.equals(other.filter))
-			return false;
-		return true;
-	}
+    public Dn getBaseDn() {
+        return baseDn;
+    }
 
-	@Override
-	public String toString() {
-		return "ScopedFilter(filter=" + filter + ", baseDn=" + baseDn + ")";
-	}
+    @Override
+    public int hashCode() {
+        final int prime = 31;
+        int result = 1;
+        result = prime * result + ((baseDn == null) ? 0 : baseDn.hashCode());
+        result = prime * result + ((filter == null) ? 0 : filter.hashCode());
+        return result;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj)
+            return true;
+        if (obj == null)
+            return false;
+        if (getClass() != obj.getClass())
+            return false;
+        ScopedFilter other = (ScopedFilter) obj;
+        if (baseDn == null) {
+            if (other.baseDn != null)
+                return false;
+        } else if (!baseDn.equals(other.baseDn))
+            return false;
+        if (filter == null) {
+            if (other.filter != null)
+                return false;
+        } else if (!filter.equals(other.filter))
+            return false;
+        return true;
+    }
+
+    @Override
+    public String toString() {
+        return "ScopedFilter(filter=" + filter + ", baseDn=" + baseDn + ")";
+    }
 
 }

@@ -24,22 +24,22 @@ import org.identityconnectors.common.security.GuardedString;
  * Fake LDAP value that stores string as GuardedString.
  * We want to decrypt GuardedString at the very last moment to avoid
  * recording the value in logs.
- * 
+ *
  * @author semancik
  *
  */
 public class GuardedStringValue extends Value {
 
-	GuardedString guardedStringValue;
-	
-	public GuardedStringValue(AttributeType attributeType, GuardedString val) throws LdapInvalidAttributeValueException {
-		super(attributeType, val.toString());
-		this.guardedStringValue = val;
-	}
+    GuardedString guardedStringValue;
 
-	public GuardedString getGuardedStringValue() {
-		return guardedStringValue;
-	}
-	
+    public GuardedStringValue(AttributeType attributeType, GuardedString val) throws LdapInvalidAttributeValueException {
+        super(attributeType, val.toString());
+        this.guardedStringValue = val;
+    }
+
+    public GuardedString getGuardedStringValue() {
+        return guardedStringValue;
+    }
+
 
 }

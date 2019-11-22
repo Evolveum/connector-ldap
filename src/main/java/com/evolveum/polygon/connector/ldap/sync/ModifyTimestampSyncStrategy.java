@@ -56,129 +56,129 @@ import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
  *
  */
 public class ModifyTimestampSyncStrategy<C extends AbstractLdapConfiguration> extends SyncStrategy<C> {
-	
-	private static final Log LOG = Log.getLog(ModifyTimestampSyncStrategy.class);
+
+    private static final Log LOG = Log.getLog(ModifyTimestampSyncStrategy.class);
 
 
-	public ModifyTimestampSyncStrategy(AbstractLdapConfiguration configuration, ConnectionManager<C> connectionManager, 
-			SchemaManager schemaManager, AbstractSchemaTranslator<C> schemaTranslator) {
-		super(configuration, connectionManager, schemaManager, schemaTranslator);
-	}
+    public ModifyTimestampSyncStrategy(AbstractLdapConfiguration configuration, ConnectionManager<C> connectionManager,
+            SchemaManager schemaManager, AbstractSchemaTranslator<C> schemaTranslator) {
+        super(configuration, connectionManager, schemaManager, schemaTranslator);
+    }
 
-	@Override
-	public void sync(ObjectClass icfObjectClass, SyncToken fromToken, SyncResultsHandler handler,
-			OperationOptions options) {
-		
-		ObjectClassInfo icfObjectClassInfo = null;
-		org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass = null;
-		if (icfObjectClass.is(ObjectClass.ALL_NAME)) {
-			// It is OK to leave the icfObjectClassInfo and ldapObjectClass as null. These need to be determined
-			// for every changelog entry anyway
-		} else {
-			icfObjectClassInfo = getSchemaTranslator().findObjectClassInfo(icfObjectClass);
-			if (icfObjectClassInfo == null) {
-				throw new InvalidAttributeValueException("No definition for object class "+icfObjectClass);
-			}
-			ldapObjectClass = getSchemaTranslator().toLdapObjectClass(icfObjectClass);
-		}
-		
-		String searchFilter;
-		if (fromToken == null) {
-			fromToken = getLatestSyncToken(icfObjectClass);
-		}
-		Object fromTokenValue = fromToken.getValue();
-		if (fromTokenValue instanceof String) {
-			searchFilter = createSeachFilter((String)fromTokenValue, ldapObjectClass);
-		} else {
-			throw new IllegalArgumentException("Synchronization token is not string, it is "+fromToken.getClass());
-		}
-		
-		String[] attributesToGet = LdapUtil.getAttributesToGet(ldapObjectClass, options, 
-				getSchemaTranslator(), SchemaConstants.MODIFY_TIMESTAMP_AT, 
-				SchemaConstants.CREATE_TIMESTAMP_AT, SchemaConstants.MODIFIERS_NAME_AT, 
-				SchemaConstants.CREATORS_NAME_AT);
-		
-		String baseContext = getConfiguration().getBaseContext();
-		if (LOG.isOk()) {
-			LOG.ok("Searching DN {0} with {1}, attrs: {2}", baseContext, searchFilter, Arrays.toString(attributesToGet));
-		}
-		
-		// Remember final token before we start searching. This will avoid missing
-		// the changes that come when the search is already running and do not make
-		// it into the search.
-		SyncToken finalToken = getLatestSyncToken(icfObjectClass);
-		
-		int numFoundEntries = 0;
-		int numProcessedEntries = 0;
-		
-		LdapNetworkConnection connection = getConnectionManager().getConnection(getSchemaTranslator().toDn(baseContext), options);
-		try {
-			EntryCursor searchCursor = connection.search(baseContext, searchFilter, SearchScope.SUBTREE, attributesToGet);
-			while (searchCursor.next()) {
-				Entry entry = searchCursor.get();
-				LOG.ok("Found entry: {0}", entry);
-				numFoundEntries++;
-				
-				if (!isAcceptableForSynchronization(entry, ldapObjectClass, 
-						getConfiguration().getModifiersNamesToFilterOut())) {
-					continue;
-				}
-								
-				SyncDeltaBuilder deltaBuilder = new SyncDeltaBuilder();
-				SyncDeltaType deltaType = SyncDeltaType.CREATE_OR_UPDATE;
-				
-				// Send "final" token for all entries (which means do NOT sent
-				// modify/create timestamp of an entry). This is a lazy method
-				// so we do not need to sort the changes.
-				deltaBuilder.setToken(finalToken);
-				
-				deltaBuilder.setDeltaType(deltaType);
-				ConnectorObject targetObject = getSchemaTranslator().toConnIdObject(connection, icfObjectClassInfo, entry);
-				deltaBuilder.setObject(targetObject);
-				
-				handler.handle(deltaBuilder.build());
-				numProcessedEntries++;
-			}
-			LdapUtil.closeCursor(searchCursor);
-			LOG.ok("Search DN {0} with {1}: {2} entries, {3} processed", baseContext, searchFilter, numFoundEntries, numProcessedEntries);
-		} catch (LdapException | CursorException e) {
-			returnConnection(connection);
-			throw new ConnectorIOException("Error searching for changes ("+searchFilter+"): "+e.getMessage(), e);
-		}
-		
-		// Send a final token with the time that the scan started. This will stop repeating the
-		// last change over and over again.
-		// NOTE: this assumes that the clock of client and server are synchronized
-		if (handler instanceof SyncTokenResultsHandler) {
-			((SyncTokenResultsHandler)handler).handleResult(finalToken);
-		}
-		
-		returnConnection(connection);
-	}
+    @Override
+    public void sync(ObjectClass icfObjectClass, SyncToken fromToken, SyncResultsHandler handler,
+            OperationOptions options) {
 
-	private String createSeachFilter(String fromTokenValue, org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
-		ExprNode filterNode;
-		try {
-			filterNode = new OrNode(
-					new GreaterEqNode<String>(SchemaConstants.MODIFY_TIMESTAMP_AT, fromTokenValue),
-					new GreaterEqNode<String>(SchemaConstants.CREATE_TIMESTAMP_AT, fromTokenValue)
-			);
-		} catch (LdapSchemaException e) {
-			throw new IllegalArgumentException("Invalid token value "+fromTokenValue, e);
-		}
-		if (ldapObjectClass != null) {
-			filterNode = new AndNode(new EqualityNode<String>(SchemaConstants.OBJECT_CLASS_AT, 
-					ldapObjectClass.getName()), filterNode);
-		}
-		return filterNode.toString();
-	}
+        ObjectClassInfo icfObjectClassInfo = null;
+        org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass = null;
+        if (icfObjectClass.is(ObjectClass.ALL_NAME)) {
+            // It is OK to leave the icfObjectClassInfo and ldapObjectClass as null. These need to be determined
+            // for every changelog entry anyway
+        } else {
+            icfObjectClassInfo = getSchemaTranslator().findObjectClassInfo(icfObjectClass);
+            if (icfObjectClassInfo == null) {
+                throw new InvalidAttributeValueException("No definition for object class "+icfObjectClass);
+            }
+            ldapObjectClass = getSchemaTranslator().toLdapObjectClass(icfObjectClass);
+        }
 
-	@Override
-	public SyncToken getLatestSyncToken(ObjectClass objectClass) {
-		Calendar calNow = Calendar.getInstance();
-		calNow.setTimeInMillis(System.currentTimeMillis());
-		GeneralizedTime gtNow = new GeneralizedTime(calNow);
-		return new SyncToken(gtNow.toGeneralizedTimeWithoutFraction());
-	}
+        String searchFilter;
+        if (fromToken == null) {
+            fromToken = getLatestSyncToken(icfObjectClass);
+        }
+        Object fromTokenValue = fromToken.getValue();
+        if (fromTokenValue instanceof String) {
+            searchFilter = createSeachFilter((String)fromTokenValue, ldapObjectClass);
+        } else {
+            throw new IllegalArgumentException("Synchronization token is not string, it is "+fromToken.getClass());
+        }
+
+        String[] attributesToGet = LdapUtil.getAttributesToGet(ldapObjectClass, options,
+                getSchemaTranslator(), SchemaConstants.MODIFY_TIMESTAMP_AT,
+                SchemaConstants.CREATE_TIMESTAMP_AT, SchemaConstants.MODIFIERS_NAME_AT,
+                SchemaConstants.CREATORS_NAME_AT);
+
+        String baseContext = getConfiguration().getBaseContext();
+        if (LOG.isOk()) {
+            LOG.ok("Searching DN {0} with {1}, attrs: {2}", baseContext, searchFilter, Arrays.toString(attributesToGet));
+        }
+
+        // Remember final token before we start searching. This will avoid missing
+        // the changes that come when the search is already running and do not make
+        // it into the search.
+        SyncToken finalToken = getLatestSyncToken(icfObjectClass);
+
+        int numFoundEntries = 0;
+        int numProcessedEntries = 0;
+
+        LdapNetworkConnection connection = getConnectionManager().getConnection(getSchemaTranslator().toDn(baseContext), options);
+        try {
+            EntryCursor searchCursor = connection.search(baseContext, searchFilter, SearchScope.SUBTREE, attributesToGet);
+            while (searchCursor.next()) {
+                Entry entry = searchCursor.get();
+                LOG.ok("Found entry: {0}", entry);
+                numFoundEntries++;
+
+                if (!isAcceptableForSynchronization(entry, ldapObjectClass,
+                        getConfiguration().getModifiersNamesToFilterOut())) {
+                    continue;
+                }
+
+                SyncDeltaBuilder deltaBuilder = new SyncDeltaBuilder();
+                SyncDeltaType deltaType = SyncDeltaType.CREATE_OR_UPDATE;
+
+                // Send "final" token for all entries (which means do NOT sent
+                // modify/create timestamp of an entry). This is a lazy method
+                // so we do not need to sort the changes.
+                deltaBuilder.setToken(finalToken);
+
+                deltaBuilder.setDeltaType(deltaType);
+                ConnectorObject targetObject = getSchemaTranslator().toConnIdObject(connection, icfObjectClassInfo, entry);
+                deltaBuilder.setObject(targetObject);
+
+                handler.handle(deltaBuilder.build());
+                numProcessedEntries++;
+            }
+            LdapUtil.closeCursor(searchCursor);
+            LOG.ok("Search DN {0} with {1}: {2} entries, {3} processed", baseContext, searchFilter, numFoundEntries, numProcessedEntries);
+        } catch (LdapException | CursorException e) {
+            returnConnection(connection);
+            throw new ConnectorIOException("Error searching for changes ("+searchFilter+"): "+e.getMessage(), e);
+        }
+
+        // Send a final token with the time that the scan started. This will stop repeating the
+        // last change over and over again.
+        // NOTE: this assumes that the clock of client and server are synchronized
+        if (handler instanceof SyncTokenResultsHandler) {
+            ((SyncTokenResultsHandler)handler).handleResult(finalToken);
+        }
+
+        returnConnection(connection);
+    }
+
+    private String createSeachFilter(String fromTokenValue, org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
+        ExprNode filterNode;
+        try {
+            filterNode = new OrNode(
+                    new GreaterEqNode<String>(SchemaConstants.MODIFY_TIMESTAMP_AT, fromTokenValue),
+                    new GreaterEqNode<String>(SchemaConstants.CREATE_TIMESTAMP_AT, fromTokenValue)
+            );
+        } catch (LdapSchemaException e) {
+            throw new IllegalArgumentException("Invalid token value "+fromTokenValue, e);
+        }
+        if (ldapObjectClass != null) {
+            filterNode = new AndNode(new EqualityNode<String>(SchemaConstants.OBJECT_CLASS_AT,
+                    ldapObjectClass.getName()), filterNode);
+        }
+        return filterNode.toString();
+    }
+
+    @Override
+    public SyncToken getLatestSyncToken(ObjectClass objectClass) {
+        Calendar calNow = Calendar.getInstance();
+        calNow.setTimeInMillis(System.currentTimeMillis());
+        GeneralizedTime gtNow = new GeneralizedTime(calNow);
+        return new SyncToken(gtNow.toGeneralizedTimeWithoutFraction());
+    }
 
 }

@@ -76,89 +76,89 @@
         </plugins>
     </build>
 
-	<dependencies>
+    <dependencies>
 
-		<dependency>
-			<groupId>org.apache.directory.api</groupId>
-			<artifactId>api-all</artifactId>
-			<version>2.0.0</version>
-			<exclusions>
-				<!-- Exclude SLF4J API from the lib to avoid bundling it with the
-				     connector. The SLF4J is already part of midPoint.
-				     If it would be also bundled with the connector then we will
-				     have the same classes/interfaces loaded by two classloaders
-				     and that will cause problems. -->
-				<exclusion> 
-					<groupId>org.slf4j</groupId>
-					<artifactId>slf4j-api</artifactId>
-				</exclusion>
-				<exclusion> 
-					<groupId>xml-apis</groupId>
-					<artifactId>xml-apis</artifactId>
-				</exclusion>
-			</exclusions>
-		</dependency>
+        <dependency>
+            <groupId>org.apache.directory.api</groupId>
+            <artifactId>api-all</artifactId>
+            <version>2.0.0</version>
+            <exclusions>
+                <!-- Exclude SLF4J API from the lib to avoid bundling it with the
+                     connector. The SLF4J is already part of midPoint.
+                     If it would be also bundled with the connector then we will
+                     have the same classes/interfaces loaded by two classloaders
+                     and that will cause problems. -->
+                <exclusion>
+                    <groupId>org.slf4j</groupId>
+                    <artifactId>slf4j-api</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>xml-apis</groupId>
+                    <artifactId>xml-apis</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
 
-		<!-- Avoid dependency on slf4j-jdk14 SLF4J bridge.
-		     In midPoint the JUL is bridged back to SLF4J.
-		     Even though the connector should use JUL,
-		     bridge over a bridge is not a good idea. It causes
-		     problems. Therefore we rather be non-compliant
-		     than non-working. -->		
-		
-		<dependency>
-		  <groupId>com.evolveum.powerhell</groupId>
-		  <artifactId>powerhell</artifactId>
-		  <version>1.1</version>
-		  <exclusions>
-				<!-- Exclude SLF4J API from the lib to avoid bundling it with the
-				     connector. The SLF4J is already part of midPoint.
-				     If it would be also bundled with the connector then we will
-				     have the same classes/interfaces loaded by two classloaders
-				     and that will cause problems.
-				     The SLF4J API is a dependency of winrm4j -->
-				<exclusion>
-					<groupId>org.slf4j</groupId>
-					<artifactId>slf4j-api</artifactId>
-				</exclusion>
-			</exclusions>
-	  	</dependency>
-		
-		<dependency>
-		    <groupId>org.apache.commons</groupId>
-		    <artifactId>commons-lang3</artifactId>
-		    <version>3.9</version>
-		</dependency>
-		
-		<dependency>
-		  <groupId>org.apache.httpcomponents</groupId>
-		  <artifactId>httpclient</artifactId>
-		  <version>4.5.3.e3</version>
-		</dependency>
+        <!-- Avoid dependency on slf4j-jdk14 SLF4J bridge.
+             In midPoint the JUL is bridged back to SLF4J.
+             Even though the connector should use JUL,
+             bridge over a bridge is not a good idea. It causes
+             problems. Therefore we rather be non-compliant
+             than non-working. -->
 
-		<dependency>
-		  <groupId>org.apache.cxf</groupId>
-		  <artifactId>cxf-core</artifactId>
-		  <version>3.1.12.e1</version>
-		  <exclusions>
-				<!-- Exclude SLF4J API from the lib to avoid bundling it with the
-				     connector. The SLF4J is already part of midPoint.
-				     If it would be also bundled with the connector then we will
-				     have the same classes/interfaces loaded by two classloaders
-				     and that will cause problems. -->
-				<exclusion> 
-					<groupId>org.slf4j</groupId>
-					<artifactId>slf4j-api</artifactId>
-				</exclusion>
-			</exclusions>
-		</dependency>
+        <dependency>
+          <groupId>com.evolveum.powerhell</groupId>
+          <artifactId>powerhell</artifactId>
+          <version>1.1</version>
+          <exclusions>
+                <!-- Exclude SLF4J API from the lib to avoid bundling it with the
+                     connector. The SLF4J is already part of midPoint.
+                     If it would be also bundled with the connector then we will
+                     have the same classes/interfaces loaded by two classloaders
+                     and that will cause problems.
+                     The SLF4J API is a dependency of winrm4j -->
+                <exclusion>
+                    <groupId>org.slf4j</groupId>
+                    <artifactId>slf4j-api</artifactId>
+                </exclusion>
+            </exclusions>
+          </dependency>
 
-		<dependency>
-		  <groupId>org.slf4j</groupId>
-		  <artifactId>slf4j-api</artifactId>
-		  <version>1.7.25</version>
-		  <scope>provided</scope>
-		</dependency>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-lang3</artifactId>
+            <version>3.9</version>
+        </dependency>
+
+        <dependency>
+          <groupId>org.apache.httpcomponents</groupId>
+          <artifactId>httpclient</artifactId>
+          <version>4.5.3.e3</version>
+        </dependency>
+
+        <dependency>
+          <groupId>org.apache.cxf</groupId>
+          <artifactId>cxf-core</artifactId>
+          <version>3.1.12.e1</version>
+          <exclusions>
+                <!-- Exclude SLF4J API from the lib to avoid bundling it with the
+                     connector. The SLF4J is already part of midPoint.
+                     If it would be also bundled with the connector then we will
+                     have the same classes/interfaces loaded by two classloaders
+                     and that will cause problems. -->
+                <exclusion>
+                    <groupId>org.slf4j</groupId>
+                    <artifactId>slf4j-api</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
+        <dependency>
+          <groupId>org.slf4j</groupId>
+          <artifactId>slf4j-api</artifactId>
+          <version>1.7.25</version>
+          <scope>provided</scope>
+        </dependency>
 
     </dependencies>
 </project>

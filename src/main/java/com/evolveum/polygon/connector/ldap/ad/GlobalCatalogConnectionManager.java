@@ -27,18 +27,18 @@ import com.evolveum.polygon.connector.ldap.ConnectionManager;
  */
 public class GlobalCatalogConnectionManager extends ConnectionManager<AdLdapConfiguration> {
 
-	public GlobalCatalogConnectionManager(AdLdapConfiguration configuration) {
-		super(configuration, configuration.getGlobalCatalogServers(), false);
-	}
+    public GlobalCatalogConnectionManager(AdLdapConfiguration configuration) {
+        super(configuration, configuration.getGlobalCatalogServers(), false);
+    }
 
-	@Override
-	public LdapNetworkConnection getDefaultConnection() {
-		return super.getRandomConnection();
-	}
+    @Override
+    public LdapNetworkConnection getDefaultConnection() {
+        return super.getRandomConnection();
+    }
 
-	@Override
-	public LdapNetworkConnection getConnection(Dn base, OperationOptions options) {
-		return super.getRandomConnection();
-	}
-	
+    @Override
+    public LdapNetworkConnection getConnection(Dn base, OperationOptions options) {
+        return super.getRandomConnection();
+    }
+
 }
