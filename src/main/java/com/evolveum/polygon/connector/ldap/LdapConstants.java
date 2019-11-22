@@ -79,4 +79,5 @@ public class LdapConstants {
     public static final String SYNTAX_AD_LARGE_INTEGER = "2.5.5.16";
     public static final String SYNTAX_AD_STRING_SID = "2.5.5.17";
 
+    public static final String CONTROL_TREE_DELETE_OID = "1.2.840.113556.1.4.805";
 }

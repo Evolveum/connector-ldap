@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.Set;
 
 import org.apache.commons.lang3.ArrayUtils;
+import org.apache.directory.api.ldap.extras.controls.ad.TreeDeleteImpl;
 import org.apache.directory.api.ldap.extras.controls.permissiveModify.PermissiveModify;
 import org.apache.directory.api.ldap.extras.controls.permissiveModify.PermissiveModifyImpl;
 import org.apache.directory.api.ldap.extras.controls.vlv.VirtualListViewRequest;
@@ -47,20 +48,8 @@ import org.apache.directory.api.ldap.model.exception.LdapInvalidDnException;
 import org.apache.directory.api.ldap.model.exception.LdapURLEncodingException;
 import org.apache.directory.api.ldap.model.filter.EqualityNode;
 import org.apache.directory.api.ldap.model.filter.ExprNode;
-import org.apache.directory.api.ldap.model.message.AddRequest;
-import org.apache.directory.api.ldap.model.message.AddRequestImpl;
-import org.apache.directory.api.ldap.model.message.AddResponse;
-import org.apache.directory.api.ldap.model.message.AliasDerefMode;
-import org.apache.directory.api.ldap.model.message.LdapResult;
-import org.apache.directory.api.ldap.model.message.ModifyRequest;
-import org.apache.directory.api.ldap.model.message.ModifyRequestImpl;
-import org.apache.directory.api.ldap.model.message.ModifyResponse;
-import org.apache.directory.api.ldap.model.message.Response;
-import org.apache.directory.api.ldap.model.message.ResultCodeEnum;
-import org.apache.directory.api.ldap.model.message.SearchRequest;
-import org.apache.directory.api.ldap.model.message.SearchRequestImpl;
-import org.apache.directory.api.ldap.model.message.SearchResultEntry;
-import org.apache.directory.api.ldap.model.message.SearchScope;
+import org.apache.directory.api.ldap.model.message.*;
+import org.apache.directory.api.ldap.model.message.controls.OpaqueControl;
 import org.apache.directory.api.ldap.model.message.controls.PagedResults;
 import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.ldap.model.name.Rdn;
@@ -139,6 +128,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
     private AbstractSchemaTranslator<C> schemaTranslator = null;
     private SyncStrategy<C> syncStrategy = null;
     private Boolean usePermissiveModify = null;
+    private Boolean useTreeDelete = null;
 
     public AbstractLdapConnector() {
         super();
@@ -465,6 +455,25 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
             }
         }
         return usePermissiveModify;
+    }
+
+    protected boolean isUseTreeDelete() throws LdapException {
+        if (useTreeDelete == null) {
+            switch (configuration.getUseTreeDelete()) {
+                case AbstractLdapConfiguration.USE_TREE_DELETE_ALWAYS:
+                    useTreeDelete = true;
+                    break;
+                case AbstractLdapConfiguration.USE_TREE_DELETE_NEVER:
+                    useTreeDelete = false;
+                    break;
+                case AbstractLdapConfiguration.USE_TREE_DELETE_AUTO:
+                    useTreeDelete = connectionManager.getDefaultConnection().isControlSupported(LdapConstants.CONTROL_TREE_DELETE_OID);
+                    break;
+                default:
+                    throw new ConfigurationException("Unknown useTreeDelete value "+configuration.getUseTreeDelete());
+            }
+        }
+        return useTreeDelete;
     }
 
     @Override
@@ -1451,15 +1460,60 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
         deleteAttempt(dn, uid, options);
     }
 
-    private void deleteAttempt(Dn dn, Uid uid, OperationOptions options) {
+    private void deleteAttemptX(Dn dn, Uid uid, OperationOptions options) {
+
         LdapNetworkConnection connection = connectionManager.getConnection(dn, options);
 
         try {
-            OperationLog.logOperationReq(connection, "Delete REQ {0}", dn);
 
-            connection.delete(dn);
+            if (LOG.isOk()) {
+                OperationLog.logOperationReq(connection, "Delete REQ {0}, control=TREE", dn);
+            }
 
-            OperationLog.logOperationRes(connection, "Delete RES {0}", dn);
+            connection.deleteTree(dn);
+
+            if (LOG.isOk()) {
+                OperationLog.logOperationRes(connection, "Delete RES {0}", dn);
+            }
+
+        } catch (LdapException e) {
+            OperationLog.logOperationErr(connection, "Delete ERROR {0}: {1}", dn, e.getMessage(), e);
+            throw processLdapException("Failed to delete entry with DN "+dn+" (UID="+uid+")", e);
+        } finally {
+            connectionManager.returnConnection(connection);
+        }
+    }
+
+    private void deleteAttempt(Dn dn, Uid uid, OperationOptions options) {
+
+        LdapNetworkConnection connection = connectionManager.getConnection(dn, options);
+
+        try {
+            Control treeDeleteControl = null;
+            if (isUseTreeDelete()) {
+                treeDeleteControl = new TreeDeleteImpl( );
+            }
+
+            if (LOG.isOk()) {
+                OperationLog.logOperationReq(connection, "Delete REQ {0}, control={1}", dn,
+                        treeDeleteControl==null?null:"treeDelete");
+            }
+            DeleteRequest deleteRequest = new DeleteRequestImpl();
+            deleteRequest.setName(dn);
+            if (treeDeleteControl != null) {
+                deleteRequest.addControl(treeDeleteControl);
+            }
+
+            DeleteResponse deleteResponse = connection.delete(deleteRequest);
+
+            if (LOG.isOk()) {
+                OperationLog.logOperationRes(connection, "Delete RES {0}: {1}", dn, deleteResponse.getLdapResult());
+            }
+
+            if (deleteResponse.getLdapResult().getResultCode() != ResultCodeEnum.SUCCESS) {
+                throw processLdapResult("Error deleting LDAP entry "+dn, deleteResponse.getLdapResult());
+            }
+
         } catch (LdapException e) {
             OperationLog.logOperationErr(connection, "Delete ERROR {0}: {1}", dn, e.getMessage(), e);
             throw processLdapException("Failed to delete entry with DN "+dn+" (UID="+uid+")", e);

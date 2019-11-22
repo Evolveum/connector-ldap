@@ -259,6 +259,18 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
     public static final String USE_PERMISSIVE_MODIFY_ALWAYS = "always";
 
     /**
+     * Use tree delete LDAP control for delete operations. This control allows to delete non-leaf entries.
+     * As this control may be dangerous the default value is "never".
+     * Possible values: "never", "auto", "always"
+     * Default value: never
+     */
+    private String useTreeDelete = USE_TREE_DELETE_NEVER;
+
+    public static final String USE_TREE_DELETE_NEVER = "never";
+    public static final String USE_TREE_DELETE_AUTO = "auto";
+    public static final String USE_TREE_DELETE_ALWAYS = "always";
+
+    /**
      * Synchronization strategy to detect changes in real time.
      * Possible values: "none", "auto", ... TODO
      * Default value: auto
@@ -396,6 +408,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         return host;
     }
 
+    @SuppressWarnings("unused")
     public void setHost(String host) {
         this.host = host;
     }
@@ -405,6 +418,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         return port;
     }
 
+    @SuppressWarnings("unused")
     public void setPort(int port) {
         this.port = port;
     }
@@ -414,6 +428,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         return connectionSecurity;
     }
 
+    @SuppressWarnings("unused")
     public void setConnectionSecurity(String connectionSecurity) {
         this.connectionSecurity = connectionSecurity;
     }
@@ -423,6 +438,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         return sslProtocol;
     }
 
+    @SuppressWarnings("unused")
     public void setSslProtocol(String sslProtocol) {
         this.sslProtocol = sslProtocol;
     }
@@ -432,6 +448,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         return enabledSecurityProtocols;
     }
 
+    @SuppressWarnings("unused")
     public void setEnabledSecurityProtocols(String[] enabledSecurityProtocols) {
         this.enabledSecurityProtocols = enabledSecurityProtocols;
     }
@@ -441,6 +458,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         return enabledCipherSuites;
     }
 
+    @SuppressWarnings("unused")
     public void setEnabledCipherSuites(String[] enabledCipherSuites) {
         this.enabledCipherSuites = enabledCipherSuites;
     }
@@ -450,6 +468,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         return authenticationType;
     }
 
+    @SuppressWarnings("unused")
     public void setAuthenticationType(String authenticationType) {
         this.authenticationType = authenticationType;
     }
@@ -459,6 +478,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         return bindDn;
     }
 
+    @SuppressWarnings("unused")
     public void setBindDn(String bindDn) {
         this.bindDn = bindDn;
     }
@@ -468,6 +488,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         return bindPassword;
     }
 
+    @SuppressWarnings("unused")
     public void setBindPassword(GuardedString bindPassword) {
         this.bindPassword = bindPassword;
     }
@@ -477,6 +498,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         return connectTimeout;
     }
 
+    @SuppressWarnings("unused")
     public void setConnectTimeout(long connectTimeout) {
         this.connectTimeout = connectTimeout;
     }
@@ -486,6 +508,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         return maximumNumberOfAttempts;
     }
 
+    @SuppressWarnings("unused")
     public void setMaximumNumberOfAttempts(int maximumNumberOfAttempts) {
         this.maximumNumberOfAttempts = maximumNumberOfAttempts;
     }
@@ -495,6 +518,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         return baseContext;
     }
 
+    @SuppressWarnings("unused")
     public void setBaseContext(String baseContext) {
         this.baseContext = baseContext;
     }
@@ -504,6 +528,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         return servers;
     }
 
+    @SuppressWarnings("unused")
     public void setServers(String[] servers) {
         this.servers = servers;
     }
@@ -513,6 +538,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         return referralStrategy;
     }
 
+    @SuppressWarnings("unused")
     public void setReferralStrategy(String referralStrategy) {
         this.referralStrategy = referralStrategy;
     }
@@ -531,6 +557,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         return passwordHashAlgorithm;
     }
 
+    @SuppressWarnings("unused")
     public void setPasswordHashAlgorithm(String passwordHashAlgorithm) {
         this.passwordHashAlgorithm = passwordHashAlgorithm;
     }
@@ -540,6 +567,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         return passwordReadStrategy;
     }
 
+    @SuppressWarnings("unused")
     public void setPasswordReadStrategy(String passwordReadStrategy) {
         this.passwordReadStrategy = passwordReadStrategy;
     }
@@ -549,6 +577,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         return pagingStrategy;
     }
 
+    @SuppressWarnings("unused")
     public void setPagingStrategy(String pagingStrategy) {
         this.pagingStrategy = pagingStrategy;
     }
@@ -558,6 +587,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         return pagingBlockSize;
     }
 
+    @SuppressWarnings("unused")
     public void setPagingBlockSize(int pagingBlockSize) {
         this.pagingBlockSize = pagingBlockSize;
     }
@@ -576,6 +606,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         return vlvSortOrderingRule;
     }
 
+    @SuppressWarnings("unused")
     public void setVlvSortOrderingRule(String vlvSortOrderingRule) {
         this.vlvSortOrderingRule = vlvSortOrderingRule;
     }
@@ -594,6 +625,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         return operationalAttributes;
     }
 
+    @SuppressWarnings("unused")
     public void setOperationalAttributes(String[] operationalAttributes) {
         this.operationalAttributes = operationalAttributes;
     }
@@ -603,6 +635,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         return readSchema;
     }
 
+    @SuppressWarnings("unused")
     public void setReadSchema(boolean readSchema) {
         this.readSchema = readSchema;
     }
@@ -612,6 +645,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         return schemaQuirksMode;
     }
 
+    @SuppressWarnings("unused")
     public void setSchemaQuirksMode(boolean schemaQuirksMode) {
         this.schemaQuirksMode = schemaQuirksMode;
     }
@@ -621,6 +655,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         return allowUnknownAttributes;
     }
 
+    @SuppressWarnings("unused")
     public void setAllowUnknownAttributes(boolean allowUnknownAttributes) {
         this.allowUnknownAttributes = allowUnknownAttributes;
     }
@@ -630,8 +665,19 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         return usePermissiveModify;
     }
 
+    @SuppressWarnings("unused")
     public void setUsePermissiveModify(String usePermissiveModify) {
         this.usePermissiveModify = usePermissiveModify;
+    }
+
+    @ConfigurationProperty(order = 28)
+    public String getUseTreeDelete() {
+        return useTreeDelete;
+    }
+
+    @SuppressWarnings("unused")
+    public void setUseTreeDelete(String useTreeDelete) {
+        this.useTreeDelete = useTreeDelete;
     }
 
     @ConfigurationProperty(order = 28)
@@ -643,146 +689,162 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.synchronizationStrategy = synchronizationStrategy;
     }
 
-    @ConfigurationProperty(order = 29)
+    @ConfigurationProperty(order = 30)
     public String[] getBaseContextsToSynchronize() {
         return baseContextsToSynchronize;
     }
 
+    @SuppressWarnings("unused")
     public void setBaseContextsToSynchronize(String[] baseContextsToSynchronize) {
         this.baseContextsToSynchronize = baseContextsToSynchronize;
     }
 
-    @ConfigurationProperty(order = 30)
+    @ConfigurationProperty(order = 31)
     public String[] getObjectClassesToSynchronize() {
         return objectClassesToSynchronize;
     }
 
+    @SuppressWarnings("unused")
     public void setObjectClassesToSynchronize(String[] objectClassesToSynchronize) {
         this.objectClassesToSynchronize = objectClassesToSynchronize;
     }
 
-    @ConfigurationProperty(order = 31)
+    @ConfigurationProperty(order = 32)
     public String[] getAttributesToSynchronize() {
         return attributesToSynchronize;
     }
 
+    @SuppressWarnings("unused")
     public void setAttributesToSynchronize(String[] attributesToSynchronize) {
         this.attributesToSynchronize = attributesToSynchronize;
     }
 
-    @ConfigurationProperty(order = 32)
+    @ConfigurationProperty(order = 33)
     public String[] getModifiersNamesToFilterOut() {
         return modifiersNamesToFilterOut;
     }
 
+    @SuppressWarnings("unused")
     public void setModifiersNamesToFilterOut(String[] modifiersNamesToFilterOut) {
         this.modifiersNamesToFilterOut = modifiersNamesToFilterOut;
     }
 
-    @ConfigurationProperty(order = 33)
+    @ConfigurationProperty(order = 34)
     public int getChangeLogBlockSize() {
         return changeLogBlockSize;
     }
 
+    @SuppressWarnings("unused")
     public void setChangeLogBlockSize(int changeLogBlockSize) {
         this.changeLogBlockSize = changeLogBlockSize;
     }
 
-    @ConfigurationProperty(order = 34)
+    @ConfigurationProperty(order = 35)
     public String getChangeNumberAttribute() {
         return changeNumberAttribute;
     }
 
+    @SuppressWarnings("unused")
     public void setChangeNumberAttribute(String changeNumberAttribute) {
         this.changeNumberAttribute = changeNumberAttribute;
     }
 
-    @ConfigurationProperty(order = 35)
+    @ConfigurationProperty(order = 36)
     public boolean isUseUnsafeNameHint() {
         return useUnsafeNameHint;
     }
 
+    @SuppressWarnings("unused")
     public void setUseUnsafeNameHint(boolean useUnsafeNameHint) {
         this.useUnsafeNameHint = useUnsafeNameHint;
     }
 
-    @ConfigurationProperty(order = 36)
+    @ConfigurationProperty(order = 37)
     public boolean isEnableExtraTests() {
         return enableExtraTests;
     }
 
+    @SuppressWarnings("unused")
     public void setEnableExtraTests(boolean enableExtraTests) {
         this.enableExtraTests = enableExtraTests;
     }
 
-    @ConfigurationProperty(order = 37)
+    @ConfigurationProperty(order = 38)
     public String getTimestampPresentation() {
         return timestampPresentation;
     }
 
+    @SuppressWarnings("unused")
     public void setTimestampPresentation(String timestampPresentation) {
         this.timestampPresentation = timestampPresentation;
     }
 
-    @ConfigurationProperty(order = 38)
+    @ConfigurationProperty(order = 39)
     public boolean isIncludeObjectClassFilter() {
         return includeObjectClassFilter;
     }
 
+    @SuppressWarnings("unused")
     public void setIncludeObjectClassFilter(boolean includeObjectClassFilter) {
         this.includeObjectClassFilter = includeObjectClassFilter;
     }
 
-    @ConfigurationProperty(order = 39)
+    @ConfigurationProperty(order = 40)
     public boolean isAlternativeObjectClassDetection() {
         return alternativeObjectClassDetection;
     }
 
+    @SuppressWarnings("unused")
     public void setAlternativeObjectClassDetection(boolean alternativeObjectClassDetection) {
         this.alternativeObjectClassDetection = alternativeObjectClassDetection;
     }
 
-    @ConfigurationProperty(order = 40)
+    @ConfigurationProperty(order = 41)
     public boolean isStructuralObjectClassesToAuxiliary() {
         return structuralObjectClassesToAuxiliary;
     }
 
+    @SuppressWarnings("unused")
     public void setStructuralObjectClassesToAuxiliary(boolean structuralObjectClassesToAuxiliary) {
         this.structuralObjectClassesToAuxiliary = structuralObjectClassesToAuxiliary;
     }
 
-    @ConfigurationProperty(order = 41)
+    @ConfigurationProperty(order = 42)
     public String getRunAsStrategy() {
         return runAsStrategy;
     }
 
+    @SuppressWarnings("unused")
     public void setRunAsStrategy(String runAsStrategy) {
         this.runAsStrategy = runAsStrategy;
     }
 
-    @ConfigurationProperty(order = 42)
+    @ConfigurationProperty(order = 43)
     public String getAdditionalSearchFilter() {
         return additionalSearchFilter;
     }
 
+    @SuppressWarnings("unused")
     public void setAdditionalSearchFilter(String additionalSearchFilter) {
         this.additionalSearchFilter = additionalSearchFilter;
     }
 
-    @ConfigurationProperty(order = 43)
+    @ConfigurationProperty(order = 44)
     public String getDefaultSearchScope() {
         return defaultSearchScope;
     }
 
+    @SuppressWarnings("unused")
     public void setDefaultSearchScope(String searchScope) {
         this.defaultSearchScope = searchScope;
     }
 
-    @ConfigurationProperty(order = 44)
+    @ConfigurationProperty(order = 45)
     public boolean isAllowUntrustedSsl() {
         return allowUntrustedSsl;
     }
 
+    @SuppressWarnings("unused")
     public void setAllowUntrustedSsl(boolean allowUntrustedSsl) {
         this.allowUntrustedSsl = allowUntrustedSsl;
     }
