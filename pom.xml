@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  ~ Copyright (c) 2015-2019 Evolveum
+  ~ Copyright (c) 2015-2020 Evolveum
   ~
   ~ Licensed under the Apache License, Version 2.0 (the "License");
   ~ you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@
     </parent>
 
     <artifactId>connector-ldap</artifactId>
-    <version>2.5-SNAPSHOT</version>
+    <version>3.0-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>LDAP Connector</name>
@@ -107,50 +107,9 @@
              than non-working. -->
 
         <dependency>
-          <groupId>com.evolveum.powerhell</groupId>
-          <artifactId>powerhell</artifactId>
-          <version>1.1</version>
-          <exclusions>
-                <!-- Exclude SLF4J API from the lib to avoid bundling it with the
-                     connector. The SLF4J is already part of midPoint.
-                     If it would be also bundled with the connector then we will
-                     have the same classes/interfaces loaded by two classloaders
-                     and that will cause problems.
-                     The SLF4J API is a dependency of winrm4j -->
-                <exclusion>
-                    <groupId>org.slf4j</groupId>
-                    <artifactId>slf4j-api</artifactId>
-                </exclusion>
-            </exclusions>
-          </dependency>
-
-        <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-lang3</artifactId>
             <version>3.9</version>
-        </dependency>
-
-        <dependency>
-          <groupId>org.apache.httpcomponents</groupId>
-          <artifactId>httpclient</artifactId>
-          <version>4.5.3.e3</version>
-        </dependency>
-
-        <dependency>
-          <groupId>org.apache.cxf</groupId>
-          <artifactId>cxf-core</artifactId>
-          <version>3.1.12.e1</version>
-          <exclusions>
-                <!-- Exclude SLF4J API from the lib to avoid bundling it with the
-                     connector. The SLF4J is already part of midPoint.
-                     If it would be also bundled with the connector then we will
-                     have the same classes/interfaces loaded by two classloaders
-                     and that will cause problems. -->
-                <exclusion>
-                    <groupId>org.slf4j</groupId>
-                    <artifactId>slf4j-api</artifactId>
-                </exclusion>
-            </exclusions>
         </dependency>
 
         <dependency>

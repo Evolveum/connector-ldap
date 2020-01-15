@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2019 Evolveum
+ * Copyright (c) 2015-2020 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -64,7 +64,6 @@ import org.apache.directory.api.ldap.model.schema.syntaxCheckers.OctetStringSynt
 import org.apache.directory.api.ldap.schema.manager.impl.DefaultSchemaManager;
 import org.apache.directory.ldap.client.api.DefaultSchemaLoader;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
-import org.apache.http.client.config.AuthSchemes;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.common.exceptions.ConfigurationException;
@@ -97,44 +96,13 @@ import com.evolveum.polygon.connector.ldap.schema.LdapFilterTranslator;
 import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
 import com.evolveum.polygon.connector.ldap.search.DefaultSearchStrategy;
 import com.evolveum.polygon.connector.ldap.search.SearchStrategy;
-import com.evolveum.powerhell.AbstractPowerHellImpl;
-import com.evolveum.powerhell.AbstractPowerHellWinRmImpl;
-import com.evolveum.powerhell.ArgumentStyle;
-import com.evolveum.powerhell.PowerHell;
-import com.evolveum.powerhell.PowerHellCommunicationException;
-import com.evolveum.powerhell.PowerHellException;
-import com.evolveum.powerhell.PowerHellExecutionException;
-import com.evolveum.powerhell.PowerHellLocalExecImpl;
-import com.evolveum.powerhell.PowerHellLocalExecPowerShellImpl;
-import com.evolveum.powerhell.PowerHellSecurityException;
-import com.evolveum.powerhell.PowerHellWinRmExecImpl;
-import com.evolveum.powerhell.PowerHellWinRmExecPowerShellImpl;
-import com.evolveum.powerhell.PowerHellWinRmLoopImpl;
-
-import org.apache.cxf.Bus;
-import org.apache.cxf.BusFactory;
-import org.apache.cxf.transport.https.httpclient.DefaultHostnameVerifier;
 
 @ConnectorClass(displayNameKey = "connector.ldap.ad.display", configurationClass = AdLdapConfiguration.class)
-public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> implements ScriptOnResourceOp {
+public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> {
 
     private static final Log LOG = Log.getLog(AdLdapConnector.class);
 
-    private static final String PING_COMMAND = "hostname.exe";
-    private static final String EXCHANGE_INIT_SCRIPT = "Add-PSSnapin *Exchange*";
-
     private GlobalCatalogConnectionManager globalCatalogConnectionManager;
-
-    // SCRIPTING
-    private String winRmUsername;
-    private String winRmHost;
-    private HostnameVerifier hostnameVerifier;
-    private Map<String,PowerHell> powerHellMap = new HashMap<>(); // key: scripting language
-
-    private boolean busInitialized = false;
-    private boolean isWinRmInitialized;
-
-    private static int busUsageCount = 0;
 
     @Override
     public void init(Configuration configuration) {
@@ -145,20 +113,8 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
     @Override
     public void dispose() {
         super.dispose();
-        disposeScripting();
     }
 
-    @Override
-    protected void cleanupBeforeTest() {
-        cleanupScriptingBeforeTest();
-    }
-
-    @Override
-    protected void additionalConnectionTests() {
-        if (isScriptingExplicitlyConfigured()) {
-            pingScripting();
-        }
-    }
 
     @Override
     protected void extraTests() {
@@ -867,328 +823,6 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
             // fallback
             return null;
         }
-    }
-
-    // SCRIPTING
-    // All of this will eventually go to a separate connector
-
-    @Override
-    public Object runScriptOnResource(ScriptContext scriptCtx, OperationOptions options) {
-        String scriptLanguage = scriptCtx.getScriptLanguage();
-        PowerHell powerHell = getPowerHell(scriptLanguage);
-
-        String command = scriptCtx.getScriptText();
-        OperationLog.log("{0} Script REQ {1}: {2}", winRmHost, scriptLanguage, command);
-        LOG.ok("Executing {0} script on {0} as {1} using {2}: {3}", scriptLanguage, winRmHost, winRmUsername, powerHell.getImplementationName(), command);
-
-        String output;
-        try {
-
-            output = powerHell.runCommand(command, scriptCtx.getScriptArguments());
-
-        } catch (PowerHellException e) {
-            OperationLog.error("{0} Script ERR {1}", winRmHost, e.getMessage());
-            throw new ConnectorException("Script execution failed: "+e.getMessage(), e);
-        }
-
-        OperationLog.log("{0} Script RES {1}", winRmHost, (output==null||output.isEmpty())?"no output":("output "+output.length()+" chars"));
-        LOG.ok("Script returned output\n{0}", output);
-
-        return output;
-    }
-
-    private PowerHell getPowerHell(String scriptLanguage) {
-        if (scriptLanguage == null) {
-            throw new IllegalArgumentException("Script language not specified");
-        }
-        PowerHell powerHell = powerHellMap.get(scriptLanguage);
-        if (powerHell == null) {
-            powerHell = createPowerHell(scriptLanguage);
-            try {
-                powerHell.connect();
-            } catch (PowerHellExecutionException e) {
-                throw new ConnectorException("Cannot connect PowerHell "+powerHell.getImplementationName()+": "+e.getMessage(), e);
-            } catch (PowerHellSecurityException e) {
-                throw new ConnectorSecurityException("Cannot connect PowerHell "+powerHell.getImplementationName()+": "+e.getMessage(), e);
-            } catch (PowerHellCommunicationException e) {
-                throw new ConnectorIOException("Cannot connect PowerHell "+powerHell.getImplementationName()+": "+e.getMessage(), e);
-            }
-            powerHellMap.put(scriptLanguage, powerHell);
-        }
-        return powerHell;
-    }
-
-    private PowerHell createPowerHell(String scriptLanguage) {
-        if (!isWinRmInitialized) {
-            initWinRm();
-        }
-        PowerHell powerHell;
-        switch (scriptLanguage) {
-            case AdLdapConfiguration.SCRIPT_LANGUAGE_CMD:
-                powerHell = createCmdPowerHell();
-                break;
-            case AdLdapConfiguration.SCRIPT_LANGUAGE_POWERSHELL:
-                powerHell = createPowershellPowerHell();
-                break;
-            case AdLdapConfiguration.SCRIPT_LANGUAGE_EXCHANGE:
-                powerHell = createLoopPowerHell(EXCHANGE_INIT_SCRIPT);
-                break;
-            case AdLdapConfiguration.SCRIPT_LANGUAGE_POWERHELL:
-                powerHell = createLoopPowerHell(null);
-                break;
-            default:
-                throw new IllegalArgumentException("Unknown script language "+scriptLanguage);
-        }
-        LOG.ok("Initialized PowerHell {0} ({1}) for language {2}", powerHell.getImplementationName(), powerHell.getClass().getSimpleName(), scriptLanguage);
-        return powerHell;
-    }
-
-    private PowerHell createCmdPowerHell() {
-        if (isScriptingWinRm()) {
-            PowerHellWinRmExecImpl powerHell = new PowerHellWinRmExecImpl();
-            setWinRmParameters(powerHell);
-            return powerHell;
-        } else if (isScriptingLocal()) {
-            PowerHellLocalExecImpl powerHell = new PowerHellLocalExecImpl();
-            setLocalParameters(powerHell);
-            return powerHell;
-        } else {
-            throw new IllegalArgumentException("Unknown scripting execution mechanism "+getConfiguration().getScriptExecutionMechanism());
-        }
-    }
-
-    private PowerHell createPowershellPowerHell() {
-        if (isScriptingWinRm()) {
-            PowerHellWinRmExecPowerShellImpl powerHell = new PowerHellWinRmExecPowerShellImpl();
-            setWinRmParameters(powerHell);
-            return powerHell;
-        } else if (isScriptingLocal()) {
-            PowerHellLocalExecPowerShellImpl powerHell = new PowerHellLocalExecPowerShellImpl();
-            setLocalParameters(powerHell);
-            return powerHell;
-        } else {
-            throw new IllegalArgumentException("Unknown scripting execution mechanism "+getConfiguration().getScriptExecutionMechanism());
-        }
-    }
-
-    private PowerHell createLoopPowerHell(String initSctip) {
-        if (isScriptingWinRm()) {
-            PowerHellWinRmLoopImpl powerHell = new PowerHellWinRmLoopImpl();
-            setWinRmParameters(powerHell);
-            powerHell.setInitScriptlet(initSctip);
-            return powerHell;
-        } else if (isScriptingLocal()) {
-            throw new UnsupportedOperationException("PowerHell loop is not supported for local script execution mechanism");
-        } else {
-            throw new IllegalArgumentException("Unknown scripting execution mechanism "+getConfiguration().getScriptExecutionMechanism());
-        }
-    }
-
-    private boolean isScriptingWinRm() {
-        return getConfiguration().getScriptExecutionMechanism() == null || AdLdapConfiguration.SCRIPT_EXECUTION_MECHANISM_WINRM.equals(getConfiguration().getScriptExecutionMechanism());
-    }
-
-    private boolean isScriptingLocal() {
-        return AdLdapConfiguration.SCRIPT_EXECUTION_MECHANISM_LOCAL.equals(getConfiguration().getScriptExecutionMechanism());
-    }
-
-    private void setWinRmParameters(AbstractPowerHellWinRmImpl powerHell) {
-        setCommonParameters(powerHell);
-        String winRmDomain = getConfiguration().getWinRmDomain();
-        powerHell.setDomainName(winRmDomain);
-        powerHell.setEndpointUrl(getWinRmEndpointUrl());
-        powerHell.setUserName(winRmUsername);
-        powerHell.setPassword(getWinRmPassword());
-        powerHell.setAuthenticationScheme(getAuthenticationScheme());
-        powerHell.setHostnameVerifier(hostnameVerifier);
-    }
-
-    private void setLocalParameters(PowerHellLocalExecImpl powerHell) {
-        setCommonParameters(powerHell);
-    }
-
-    private void setCommonParameters(AbstractPowerHellImpl powerHell) {
-        powerHell.setArgumentStyle(getArgumentStyle());
-    }
-
-    private ArgumentStyle getArgumentStyle() {
-        if (getConfiguration().getPowershellArgumentStyle() == null) {
-            return ArgumentStyle.PARAMETERS_DASH;
-        }
-        switch (getConfiguration().getPowershellArgumentStyle()) {
-            case AdLdapConfiguration.ARGUMENT_STYLE_DASHED:
-                return ArgumentStyle.PARAMETERS_DASH;
-            case AdLdapConfiguration.ARGUMENT_STYLE_SLASHED:
-                return ArgumentStyle.PARAMETERS_SLASH;
-            case AdLdapConfiguration.ARGUMENT_STYLE_VARIABLES:
-                return ArgumentStyle.VARIABLES;
-            default:
-                throw new IllegalArgumentException("Unknown argument style "+getConfiguration().getPowershellArgumentStyle());
-        }
-    }
-
-    private String getAuthenticationScheme() {
-        if (getConfiguration().getWinRmAuthenticationScheme() == null) {
-            return AuthSchemes.NTLM;
-        }
-        if (AdLdapConfiguration.WINDOWS_AUTHENTICATION_SCHEME_BASIC.equals(getConfiguration().getWinRmAuthenticationScheme())) {
-            return AuthSchemes.BASIC;
-        }
-        if (AdLdapConfiguration.WINDOWS_AUTHENTICATION_SCHEME_NTLM.equals(getConfiguration().getWinRmAuthenticationScheme())) {
-            return AuthSchemes.NTLM;
-        }
-        if (AdLdapConfiguration.WINDOWS_AUTHENTICATION_SCHEME_CREDSSP.equals(getConfiguration().getWinRmAuthenticationScheme())) {
-            return AuthSchemes.CREDSSP;
-        }
-        throw new ConfigurationException("Unknown authentication scheme: "+getConfiguration().getWinRmAuthenticationScheme());
-    }
-
-    private void initWinRm() {
-        if (!busInitialized) {
-            initBus();
-            busInitialized = true;
-        }
-        winRmUsername = getWinRmUsername();
-        winRmHost = getWinRmHost();
-        hostnameVerifier = new DefaultHostnameVerifier(null);
-        isWinRmInitialized = true;
-    }
-
-
-    private boolean isScriptingExplicitlyConfigured() {
-        if (getConfiguration().getScriptExecutionMechanism() != null) {
-            return true;
-        }
-        if (getConfiguration().getWinRmUsername() != null) {
-            return true;
-        }
-        if (getConfiguration().getWinRmPassword() != null) {
-            return true;
-        }
-        if (getConfiguration().getWinRmDomain() != null) {
-            return true;
-        }
-        if (getConfiguration().getWinRmAuthenticationScheme() != null) {
-            return true;
-        }
-        return false;
-    }
-
-
-
-    private void pingScripting() {
-        String command = PING_COMMAND;
-        PowerHell powerHell = getPowerHell(AdLdapConfiguration.SCRIPT_LANGUAGE_CMD);
-
-        OperationLog.log("{0} Script REQ ping cmd: {1}", winRmHost, command);
-        LOG.ok("Executing ping cmd script on {0} as {1}: {2}", winRmHost, winRmUsername, command);
-
-        try {
-
-            String output = powerHell.runCommand(PING_COMMAND, null);
-
-            OperationLog.log("{0} Script RES ping: {1}", winRmHost, output);
-
-        } catch (PowerHellExecutionException e) {
-            OperationLog.error("{0} Script ERR ping status={1}: {2}", winRmHost, e.getExitCode(), e.getMessage());
-            LOG.error("Script ping error, exit status = {0}\nOUT:\n{1}\nERR:\n{2}", e.getExitCode(), e.getStdout(), e.getStderr());
-            throw new ConnectorException("Ping script execution failed (status code "+e.getExitCode()+"): "+e.getMessage(), e);
-        } catch (PowerHellSecurityException | PowerHellCommunicationException e) {
-            OperationLog.error("{0} Script ERR ping: {2}", winRmHost, e.getMessage());
-            throw new ConnectorException("Ping script execution failed: "+e.getMessage(), e);
-        }
-    }
-
-    private void cleanupScriptingBeforeTest() {
-        for (Map.Entry<String,PowerHell> entry: powerHellMap.entrySet()) {
-            entry.getValue().disconnect();
-        }
-        powerHellMap.clear();
-        winRmUsername = null;
-        winRmHost = null;
-        hostnameVerifier = null;
-        isWinRmInitialized = false;
-    }
-
-
-    private void disposeScripting() {
-        for (Map.Entry<String,PowerHell> entry: powerHellMap.entrySet()) {
-            entry.getValue().disconnect();
-        }
-        if (busInitialized) {
-            disposeBus();
-            busInitialized = false;
-        }
-    }
-
-    /*
-     * Init and dispose methods for the CXF bus. These are based on static usage
-     * counter and static default bus. Which means that the bus will be reused by
-     * all the connector instances (even those that have different configuration).
-     * But as  WinRmTool tool creates new WinRmClient for each invocation which
-     * in turn creates a new CXF service then this approach should be safe.
-     * This is the best that we can do as ConnId does not provide any
-     * connector context that we could use to store per-resource bus instance.
-     */
-    private static synchronized void initBus() {
-        busUsageCount++;
-        LOG.ok("bus init (usage count = {0})", busUsageCount);
-        // make sure that the bus is created here while we are synchronized
-        BusFactory.getDefaultBus(true);
-    }
-
-    private static synchronized void disposeBus() {
-        busUsageCount--;
-        LOG.ok("bus dispose (usage count = {0})", busUsageCount);
-        if (busUsageCount == 0) {
-            Bus bus = BusFactory.getDefaultBus(false);
-            if (bus != null) {
-                LOG.ok("Shutting down WinRm CXF bus {0}", bus);
-                bus.shutdown(true);
-                LOG.ok("Bus shut down");
-            }
-        }
-    }
-
-    private String getWinRmHost() {
-        if (getConfiguration().getWinRmHost() != null) {
-            return getConfiguration().getWinRmHost();
-        }
-        return getConfiguration().getHost();
-    }
-
-    private String getWinRmUsername() {
-        if (getConfiguration().getWinRmUsername() != null) {
-            return getConfiguration().getWinRmUsername();
-        }
-        return getConfiguration().getBindDn();
-    }
-
-    private String getWinRmPassword() {
-        GuardedString winRmPassword = getConfiguration().getWinRmPassword();
-        if (winRmPassword == null) {
-            winRmPassword = getConfiguration().getBindPassword();
-        }
-        if (winRmPassword == null) {
-            return null;
-        }
-        GuardedStringAccessor accessor = new GuardedStringAccessor();
-        winRmPassword.access(accessor);
-        return new String(accessor.getClearChars());
-    }
-
-
-
-    private String getWinRmEndpointUrl() {
-        StringBuilder sb = new StringBuilder();
-        if (getConfiguration().isWinRmUseHttps()) {
-            sb.append("https://");
-        } else {
-            sb.append("http://");
-        }
-        sb.append(winRmHost).append(":").append(getConfiguration().getWinRmPort());
-        sb.append("/wsman");
-        return sb.toString();
     }
 
 }
