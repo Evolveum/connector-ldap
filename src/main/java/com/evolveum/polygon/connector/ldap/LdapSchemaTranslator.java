@@ -18,7 +18,6 @@ package com.evolveum.polygon.connector.ldap;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -40,7 +39,6 @@ import org.identityconnectors.framework.common.objects.ConnectorObjectBuilder;
 import org.identityconnectors.framework.common.objects.ObjectClassInfoBuilder;
 import org.identityconnectors.framework.common.objects.OperationalAttributes;
 
-import com.evolveum.polygon.connector.ldap.LdapUtil;
 import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
 import com.evolveum.polygon.connector.ldap.schema.AttributeHandler;
 
@@ -121,15 +119,18 @@ public class LdapSchemaTranslator extends AbstractSchemaTranslator<LdapConfigura
     }
 
     @Override
-    public boolean isPolyAttribute(AttributeType ldapAttributeType, List<Object> values) {
+    public boolean isPolyAttribute(AttributeType ldapAttributeType, String connIdAttributeName, List<Object> values) {
         if (values == null) {
             return false;
-        }
-        if (values.size() != 1) {
+        } else if (values.isEmpty()) {
+            // We have nothing else to base our decision on.
+            return supportsLanguageTag(connIdAttributeName);
+        } else if (values.size() > 1) {
             return false;
+        } else {
+            Object value = values.get(0);
+            return value instanceof Map;
         }
-        Object value = values.get(0);
-        return value instanceof Map;
     }
 
     @Override
@@ -142,24 +143,31 @@ public class LdapSchemaTranslator extends AbstractSchemaTranslator<LdapConfigura
         Map<String, List<Value>> ldapValueMap = new HashMap<>();
         if (connIdValues.size() > 1) {
             throw new InvalidAttributeValueException("Only single-valued poly attributes are supported (attribute '"+ldapAttributeType.getName()+"')");
-        }
-        Object connId = connIdValues.get(0);
-        if (!(connId instanceof Map)) {
-            throw new InvalidAttributeValueException("Only map-valued poly attributes are supported (attribute '"+ldapAttributeType.getName()+"'), got "+connId.getClass()+" instead");
-        }
-        Map<String,String> connIdValueMap = (Map<String,String>)connId;
-        // TODO: check if this is really polystring
-        for (Map.Entry<String, String> connIdValueMapEntry : connIdValueMap.entrySet()) {
-            String attrName;
-            if (connIdValueMapEntry.getKey().equals(POLYSTRING_ORIG_KEY)) {
-                attrName = ldapAttributeType.getName();
-            } else {
-                attrName = ldapAttributeType.getName() + ";lang-" + connIdValueMapEntry.getKey();
+        } else if (connIdValues.isEmpty()) {
+            return ldapValueMap;
+        } else {
+            Object connId = connIdValues.get(0);
+            if (!(connId instanceof Map)) {
+                throw new InvalidAttributeValueException(
+                        "Only map-valued poly attributes are supported (attribute '" + ldapAttributeType.getName() + "'), got "
+                                + connId.getClass() + " instead");
             }
-            List<Value> ldapValues = toLdapValues(ldapAttributeType, Collections.singletonList(connIdValueMapEntry.getValue()));
-            ldapValueMap.put(attrName, ldapValues);
+            //noinspection unchecked
+            Map<String, String> connIdValueMap = (Map<String, String>) connId;
+            // TODO: check if this is really polystring
+            for (Map.Entry<String, String> connIdValueMapEntry : connIdValueMap.entrySet()) {
+                String attrName;
+                if (connIdValueMapEntry.getKey().equals(POLYSTRING_ORIG_KEY)) {
+                    attrName = ldapAttributeType.getName();
+                } else {
+                    attrName = ldapAttributeType.getName() + ";lang-" + connIdValueMapEntry.getKey();
+                }
+                List<Value> ldapValues = toLdapValues(ldapAttributeType,
+                        Collections.singletonList(connIdValueMapEntry.getValue()));
+                ldapValueMap.put(attrName, ldapValues);
+            }
+            return ldapValueMap;
         }
-        return ldapValueMap;
     }
 
     @Override

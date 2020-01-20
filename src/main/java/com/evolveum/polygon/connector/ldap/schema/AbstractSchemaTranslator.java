@@ -535,7 +535,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
         return false;
     }
 
-    public boolean isPolyAttribute(AttributeType ldapAttributeType, List<Object> connIdValues) {
+    public boolean isPolyAttribute(AttributeType ldapAttributeType, String connIdAttributeName, List<Object> connIdValues) {
         return false;
     }
 
