@@ -848,8 +848,8 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
             throw new InvalidAttributeValueException("Missing NAME attribute");
         }
 
-        AbstractSchemaTranslator<C> shcemaTranslator = getSchemaTranslator();
-        org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass = shcemaTranslator.toLdapObjectClass(connIdObjectClass);
+        AbstractSchemaTranslator<C> schemaTranslator = getSchemaTranslator();
+        org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass = schemaTranslator.toLdapObjectClass(connIdObjectClass);
 
         List<org.apache.directory.api.ldap.model.schema.ObjectClass> ldapAuxiliaryObjectClasses = new ArrayList<>();
         for (Attribute icfAttr: createAttributes) {
@@ -882,18 +882,18 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
             if (connIdAttr.is(PredefinedAttributes.AUXILIARY_OBJECT_CLASS_NAME)) {
                 continue;
             }
-            AttributeType ldapAttributeType = shcemaTranslator.toLdapAttribute(ldapStructuralObjectClass, connIdAttr.getName());
+            AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapStructuralObjectClass, connIdAttr.getName());
             List<Object> connIdAttrValues = connIdAttr.getValue();
 
-            if (schemaTranslator.isPolyAttribute(ldapAttributeType, connIdAttrValues)) {
-                Map<String,List<Value>> valueMap = schemaTranslator.toLdapPolyValues(ldapAttributeType, connIdAttrValues);
+            if (this.schemaTranslator.isPolyAttribute(ldapAttributeType, connIdAttr.getName(), connIdAttrValues)) {
+                Map<String,List<Value>> valueMap = this.schemaTranslator.toLdapPolyValues(ldapAttributeType, connIdAttrValues);
                 for (Map.Entry<String, List<Value>> valueMapEntry : valueMap.entrySet()) {
                     LOG.ok("Adding poly attribute {0}: {1}", valueMapEntry.getKey(), valueMapEntry.getValue());
                     // Do NOT set attributeType here. The attributeType may not match the type of the value.
                     entry.put(valueMapEntry.getKey(), valueMapEntry.getValue().toArray(new Value[valueMapEntry.getValue().size()]));
                 }
             } else {
-                List<Value> ldapValues = shcemaTranslator.toLdapValues(ldapAttributeType, connIdAttrValues);
+                List<Value> ldapValues = schemaTranslator.toLdapValues(ldapAttributeType, connIdAttrValues);
                 // Do NOT set attributeType here. The attributeType may not match the type of the value.
                 entry.put(ldapAttributeType.getName(), ldapValues.toArray(new Value[ldapValues.size()]));
                 // no simple way how to check if he attribute was added. It may end up with ERR_04451. So let's just
@@ -1017,7 +1017,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
                     return ldapUpdateAttempt(connIdObjectClass, uid, dn, deltas, options, ldapStructuralObjectClass);
 
                 } catch (Throwable e) {
-                    LOG.warn("Attempt to delete object with DN failed (DN taked from the name hint). The operation will continue with next attempt. Error: {0}",
+                    LOG.warn("Attempt to delete object with DN failed (DN taken from the name hint). The operation will continue with next attempt. Error: {0}",
                             e.getMessage(), e);
                 }
             }
@@ -1188,14 +1188,15 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
             org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass,
             ObjectClass connIdObjectClass, AttributeDelta delta) {
         AbstractSchemaTranslator<C> schemaTranslator = getSchemaTranslator();
-        AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapStructuralObjectClass, delta.getName());
+        String connIdAttributeName = delta.getName();
+        AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapStructuralObjectClass, connIdAttributeName);
         if (ldapAttributeType == null && !configuration.isAllowUnknownAttributes()
-                && !ArrayUtils.contains(configuration.getOperationalAttributes(), delta.getName())) {
-            throw new InvalidAttributeValueException("Unknown attribute "+delta.getName()+" in object class "+connIdObjectClass);
+                && !ArrayUtils.contains(configuration.getOperationalAttributes(), connIdAttributeName)) {
+            throw new InvalidAttributeValueException("Unknown attribute "+ connIdAttributeName +" in object class "+connIdObjectClass);
         }
-        addLdapModification(dn, modifications, ModificationOperation.REPLACE_ATTRIBUTE, ldapAttributeType, delta.getValuesToReplace());
-        addLdapModification(dn, modifications, ModificationOperation.ADD_ATTRIBUTE, ldapAttributeType, delta.getValuesToAdd());
-        addLdapModification(dn, modifications, ModificationOperation.REMOVE_ATTRIBUTE, ldapAttributeType, delta.getValuesToRemove());
+        addLdapModification(dn, modifications, ModificationOperation.REPLACE_ATTRIBUTE, ldapAttributeType, connIdAttributeName, delta.getValuesToReplace());
+        addLdapModification(dn, modifications, ModificationOperation.ADD_ATTRIBUTE, ldapAttributeType, connIdAttributeName, delta.getValuesToAdd());
+        addLdapModification(dn, modifications, ModificationOperation.REMOVE_ATTRIBUTE, ldapAttributeType, connIdAttributeName, delta.getValuesToRemove());
     }
 
     private void addLdapModificationString(List<Modification> ldapModifications,
@@ -1214,12 +1215,12 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
     }
 
     private void addLdapModification(Dn dn, List<Modification> ldapModifications,
-            ModificationOperation modOp, AttributeType ldapAttributeType, List<Object> connIdValues) {
+            ModificationOperation modOp, AttributeType ldapAttributeType, String connIdAttributeName, List<Object> connIdValues) {
         if (connIdValues == null) {
             return;
         }
 
-        if (schemaTranslator.isPolyAttribute(ldapAttributeType, connIdValues)) {
+        if (schemaTranslator.isPolyAttribute(ldapAttributeType, connIdAttributeName, connIdValues)) {
             addLdapModificationPoly(dn, ldapModifications, modOp, ldapAttributeType, connIdValues);
         } else {
             addLdapModificationSimple(dn, ldapModifications, modOp, ldapAttributeType, connIdValues);
