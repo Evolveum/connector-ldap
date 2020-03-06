@@ -18,6 +18,7 @@ package com.evolveum.polygon.connector.ldap.sync;
 import java.util.Arrays;
 import java.util.Base64;
 
+import com.evolveum.polygon.connector.ldap.*;
 import org.apache.directory.api.ldap.extras.controls.ad.AdDirSyncRequestImpl;
 import org.apache.directory.api.ldap.extras.controls.ad.AdDirSyncResponse;
 import org.apache.directory.api.ldap.extras.controls.ad.AdShowDeleted;
@@ -27,12 +28,7 @@ import org.apache.directory.api.ldap.model.cursor.CursorException;
 import org.apache.directory.api.ldap.model.cursor.SearchCursor;
 import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.exception.LdapException;
-import org.apache.directory.api.ldap.model.message.Response;
-import org.apache.directory.api.ldap.model.message.SearchRequest;
-import org.apache.directory.api.ldap.model.message.SearchRequestImpl;
-import org.apache.directory.api.ldap.model.message.SearchResultDone;
-import org.apache.directory.api.ldap.model.message.SearchResultEntry;
-import org.apache.directory.api.ldap.model.message.SearchScope;
+import org.apache.directory.api.ldap.model.message.*;
 import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.ldap.model.schema.SchemaManager;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
@@ -50,10 +46,6 @@ import org.identityconnectors.framework.common.objects.SyncToken;
 import org.identityconnectors.framework.common.objects.Uid;
 import org.identityconnectors.framework.spi.SyncTokenResultsHandler;
 
-import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
-import com.evolveum.polygon.connector.ldap.ConnectionManager;
-import com.evolveum.polygon.connector.ldap.LdapConfiguration;
-import com.evolveum.polygon.connector.ldap.LdapUtil;
 import com.evolveum.polygon.connector.ldap.ad.AdConstants;
 import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
 
@@ -98,13 +90,20 @@ public class AdDirSyncStrategy<C extends AbstractLdapConfiguration> extends Sync
         byte[] lastEntryCookie = null;
 
         LdapNetworkConnection connection = getConnectionManager().getConnection(req.getBase(), options);
+        if (LOG.isOk()) {
+            OperationLog.logOperationReq(connection, "Search(DirSync) REQ base={0}, filter={1}, scope={2}, attributes={3}, controls={4}",
+                    req.getBase(), req.getFilter(), req.getScope(), req.getAttributes(), LdapUtil.toShortString(req.getControls()));
+        }
+
         try {
             SearchCursor searchCursor = connection.search(req);
             while (searchCursor.next()) {
                 Response response = searchCursor.get();
                 if (response instanceof SearchResultEntry) {
                     Entry dirSyncEntry = ((SearchResultEntry)response).getEntry();
-                    LOG.ok("Found DirSync entry: {0}", dirSyncEntry);
+                    if (LOG.isOk()) {
+                        OperationLog.logOperationRes(connection, "Search(DirSync) RES {0}", dirSyncEntry);
+                    }
                     numFoundEntries++;
 
                     byte[] entryCookie = null;
@@ -161,20 +160,31 @@ public class AdDirSyncStrategy<C extends AbstractLdapConfiguration> extends Sync
 
             SearchResultDone searchResultDone = searchCursor.getSearchResultDone();
             if (searchResultDone != null) {
-                AdDirSyncResponse dirSyncRespControl = (AdDirSyncResponse) searchResultDone.getControl(AdDirSyncResponse.OID);
-                if (dirSyncRespControl == null) {
-                    LOG.warn("No DirSync response control in search done response");
-                } else {
-                    lastEntryCookie = dirSyncRespControl.getCookie();
-                    if (lastEntryCookie == null) {
-                        LOG.warn("No entry cookie in DirSync response in search done response");
+                if (LOG.isOk()) {
+                    OperationLog.logOperationRes(connection, "Search(DirSync) RES Done:\n{0}", searchResultDone);
+                }
+                LdapResult ldapResult = searchResultDone.getLdapResult();
+                if (ldapResult.getResultCode() == ResultCodeEnum.SUCCESS) {
+                    AdDirSyncResponse dirSyncRespControl = (AdDirSyncResponse) searchResultDone.getControl(AdDirSyncResponse.OID);
+                    if (dirSyncRespControl == null) {
+                        LOG.warn("No DirSync response control in search done response (sync)");
+                    } else {
+                        lastEntryCookie = dirSyncRespControl.getCookie();
+                        if (lastEntryCookie == null) {
+                            LOG.warn("No entry cookie in DirSync response in search done response");
+                        }
                     }
+                } else {
+                    LOG.error("LDAP error during DirSync search: {0}", LdapUtil.formatLdapMessage(ldapResult));
+                    returnConnection(connection);
+                    throw LdapUtil.processLdapResult("LDAP error during DirSync search", ldapResult);
                 }
             }
 
             LdapUtil.closeCursor(searchCursor);
-            LOG.ok("Search DN {0} with {1}: {2} entries, {3} processed", req.getBase(), req.getFilter(), numFoundEntries, numProcessedEntries);
+            LOG.ok("Search(DirSync) DN {0} with {1}: {2} entries, {3} processed", req.getBase(), req.getFilter(), numFoundEntries, numProcessedEntries);
         } catch (LdapException | CursorException e) {
+            OperationLog.logOperationErr(connection, "Search ERR {0}: {1}", e.getClass().getName(), e.getMessage(), e);
             returnConnection(connection);
             throw new ConnectorIOException("Error searching for changes ("+req.getFilter()+"): "+e.getMessage(), e);
         }
@@ -195,26 +205,42 @@ public class AdDirSyncStrategy<C extends AbstractLdapConfiguration> extends Sync
         byte[] cookie = null;
         SearchRequest req = createSearchRequest("(cn=__entry_like_this_is_unlikely_to_exist__)", null);
         LdapNetworkConnection connection = getConnectionManager().getConnection(req.getBase(), null);
+        if (LOG.isOk()) {
+            OperationLog.logOperationReq(connection, "Search(DirSync) REQ base={0}, filter={1}, scope={2}, attributes={3}, controls={4}",
+                    req.getBase(), req.getFilter(), req.getScope(), req.getAttributes(), LdapUtil.toShortString(req.getControls()));
+        }
         try {
             SearchCursor searchCursor = connection.search(req);
             while (searchCursor.next()) {
                 Response response = searchCursor.get();
                 if (response instanceof SearchResultEntry) {
                     Entry entry = ((SearchResultEntry)response).getEntry();
-                    LOG.ok("Found unexpected entry: {0}", entry);
+                    if (LOG.isOk()) {
+                        OperationLog.logOperationRes(connection, "Search(DirSync) RES {0}", entry);
+                    }
                 }
             }
 
             SearchResultDone searchResultDone = searchCursor.getSearchResultDone();
+            if (LOG.isOk()) {
+                OperationLog.logOperationRes(connection, "Search(DirSync) RES Done:\n{0}", searchResultDone);
+            }
             if (searchResultDone != null) {
-                AdDirSyncResponse dirSyncRespControl = (AdDirSyncResponse) searchResultDone.getControl(AdDirSyncResponse.OID);
-                if (dirSyncRespControl == null) {
-                    LOG.warn("No DirSync response control in search done response");
-                } else {
-                    cookie = dirSyncRespControl.getCookie();
-                    if (cookie == null) {
-                        LOG.warn("No entry cookie in DirSync response in search done response");
+                LdapResult ldapResult = searchResultDone.getLdapResult();
+                if (ldapResult.getResultCode() == ResultCodeEnum.SUCCESS) {
+                    AdDirSyncResponse dirSyncRespControl = (AdDirSyncResponse) searchResultDone.getControl(AdDirSyncResponse.OID);
+                    if (dirSyncRespControl == null) {
+                        LOG.warn("No DirSync response control in search done response (getLatestSyncToken)");
+                    } else {
+                        cookie = dirSyncRespControl.getCookie();
+                        if (cookie == null) {
+                            LOG.warn("No entry cookie in DirSync response in search done response");
+                        }
                     }
+                } else {
+                    LOG.error("LDAP error during DirSync search: {0}", LdapUtil.formatLdapMessage(ldapResult));
+                    returnConnection(connection);
+                    throw LdapUtil.processLdapResult("LDAP error during DirSync search", ldapResult);
                 }
             }
             LdapUtil.closeCursor(searchCursor);
