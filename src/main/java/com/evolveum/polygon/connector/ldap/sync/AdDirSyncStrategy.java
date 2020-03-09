@@ -282,8 +282,11 @@ public class AdDirSyncStrategy<C extends AbstractLdapConfiguration> extends Sync
             dirSyncReqControl.setCookie(cookie);
         }
 
-
         String baseContext = getConfiguration().getBaseContext();
+
+        if (getConfiguration().getBaseContextToSynchronize() != null ) {
+            baseContext = getConfiguration().getBaseContextToSynchronize();
+        }
 
         // Always leave attribute list to default.
         // AD does not seem to understand expression such as "* objectGUID" in DirSync

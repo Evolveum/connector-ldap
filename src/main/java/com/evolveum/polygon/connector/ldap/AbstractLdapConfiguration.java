@@ -285,10 +285,10 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
     public static final String SYNCHRONIZATION_STRATEGY_AD_DIR_SYNC = "adDirSync";
 
     /**
-     * List of base contexts DNs that will be accepted during synchronization.
+     * Base context DN that will be accepted during synchronization.
      * If set to empty then all DNs will be accepted.
      */
-    private String[] baseContextsToSynchronize = { };
+    private String baseContextToSynchronize = null;
 
     /**
      * List of object classes that will be accepted during synchronization.
@@ -690,13 +690,13 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
     }
 
     @ConfigurationProperty(order = 30)
-    public String[] getBaseContextsToSynchronize() {
-        return baseContextsToSynchronize;
+    public String getBaseContextToSynchronize() {
+        return baseContextToSynchronize;
     }
 
     @SuppressWarnings("unused")
-    public void setBaseContextsToSynchronize(String[] baseContextsToSynchronize) {
-        this.baseContextsToSynchronize = baseContextsToSynchronize;
+    public void setBaseContextToSynchronize(String baseContextToSynchronize) {
+        this.baseContextToSynchronize = baseContextToSynchronize;
     }
 
     @ConfigurationProperty(order = 31)
