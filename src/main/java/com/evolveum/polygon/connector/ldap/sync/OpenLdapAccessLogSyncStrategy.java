@@ -70,7 +70,7 @@ public class OpenLdapAccessLogSyncStrategy<C extends AbstractLdapConfiguration> 
     public OpenLdapAccessLogSyncStrategy(AbstractLdapConfiguration configuration,
             ConnectionManager<C> connectionManager, SchemaManager schemaManager,
             AbstractSchemaTranslator<C> schemaTranslator) {
-        super(configuration, connectionManager, schemaManager, schemaTranslator);
+        super(configuration, connectionManager, schemaManager, schemaTranslator, false);
     }
 
     @Override

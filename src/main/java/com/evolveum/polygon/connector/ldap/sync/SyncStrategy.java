@@ -93,4 +93,12 @@ public abstract class SyncStrategy<C extends AbstractLdapConfiguration> {
         connectionManager.returnConnection(connection);
     }
 
+    protected String determineSyncBaseContext() {
+        if (getConfiguration().getBaseContextToSynchronize() != null ) {
+            return getConfiguration().getBaseContextToSynchronize();
+        } else {
+            return getConfiguration().getBaseContext();
+        }
+    }
+
 }

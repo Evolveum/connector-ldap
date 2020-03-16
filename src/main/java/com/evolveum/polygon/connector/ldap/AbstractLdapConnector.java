@@ -1406,7 +1406,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
                     syncStrategy = new SunChangelogSyncStrategy<>(configuration, connectionManager, getSchemaManager(), getSchemaTranslator());
                     break;
                 case LdapConfiguration.SYNCHRONIZATION_STRATEGY_MODIFY_TIMESTAMP:
-                    syncStrategy = new ModifyTimestampSyncStrategy<>(configuration, connectionManager, getSchemaManager(), getSchemaTranslator());
+                    syncStrategy = createModifyTimestampSyncStrategy();
                     break;
                 case LdapConfiguration.SYNCHRONIZATION_STRATEGY_OPEN_LDAP_ACCESSLOG:
                     syncStrategy = new OpenLdapAccessLogSyncStrategy<>(configuration, connectionManager, getSchemaManager(), getSchemaTranslator());
@@ -1424,15 +1424,19 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
         return syncStrategy;
     }
 
+    protected ModifyTimestampSyncStrategy<C> createModifyTimestampSyncStrategy() {
+        return new ModifyTimestampSyncStrategy<>(configuration, connectionManager, getSchemaManager(), getSchemaTranslator(), false);
+    }
+
     private SyncStrategy<C> chooseSyncStrategyAuto() {
         Entry rootDse = LdapUtil.getRootDse(connectionManager, SunChangelogSyncStrategy.ROOT_DSE_ATTRIBUTE_CHANGELOG_NAME);
         org.apache.directory.api.ldap.model.entry.Attribute changelogAttribute = rootDse.get(SunChangelogSyncStrategy.ROOT_DSE_ATTRIBUTE_CHANGELOG_NAME);
         if (changelogAttribute != null) {
-            LOG.ok("Choosing Sun ChangeLog sync stategy (found {0} attribute in root DSE)", SunChangelogSyncStrategy.ROOT_DSE_ATTRIBUTE_CHANGELOG_NAME);
+            LOG.ok("Choosing Sun ChangeLog sync strategy (found {0} attribute in root DSE)", SunChangelogSyncStrategy.ROOT_DSE_ATTRIBUTE_CHANGELOG_NAME);
             return new SunChangelogSyncStrategy<>(configuration, connectionManager, getSchemaManager(), getSchemaTranslator());
         }
-        LOG.ok("Choosing modifyTimestamp sync stategy (fallback)");
-        return new ModifyTimestampSyncStrategy<>(configuration, connectionManager, getSchemaManager(), getSchemaTranslator());
+        LOG.ok("Choosing modifyTimestamp sync strategy (fallback)");
+        return createModifyTimestampSyncStrategy();
     }
 
     @Override

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015-2018 Evolveum
+ * Copyright (c) 2015-2020 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,8 +18,10 @@ package com.evolveum.polygon.connector.ldap.sync;
 import java.util.Arrays;
 import java.util.Calendar;
 
+import com.evolveum.polygon.connector.ldap.OperationLog;
 import org.apache.directory.api.ldap.model.constants.SchemaConstants;
 import org.apache.directory.api.ldap.model.cursor.CursorException;
+import org.apache.directory.api.ldap.model.cursor.CursorLdapReferralException;
 import org.apache.directory.api.ldap.model.cursor.EntryCursor;
 import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.exception.LdapException;
@@ -59,10 +61,12 @@ public class ModifyTimestampSyncStrategy<C extends AbstractLdapConfiguration> ex
 
     private static final Log LOG = Log.getLog(ModifyTimestampSyncStrategy.class);
 
+    boolean useTimestampFraction = false;
 
     public ModifyTimestampSyncStrategy(AbstractLdapConfiguration configuration, ConnectionManager<C> connectionManager,
-            SchemaManager schemaManager, AbstractSchemaTranslator<C> schemaTranslator) {
+            SchemaManager schemaManager, AbstractSchemaTranslator<C> schemaTranslator, boolean useTimestampFraction) {
         super(configuration, connectionManager, schemaManager, schemaTranslator);
+        this.useTimestampFraction = useTimestampFraction;
     }
 
     @Override
@@ -98,7 +102,7 @@ public class ModifyTimestampSyncStrategy<C extends AbstractLdapConfiguration> ex
                 SchemaConstants.CREATE_TIMESTAMP_AT, SchemaConstants.MODIFIERS_NAME_AT,
                 SchemaConstants.CREATORS_NAME_AT);
 
-        String baseContext = getConfiguration().getBaseContext();
+        String baseContext = determineSyncBaseContext();
         if (LOG.isOk()) {
             LOG.ok("Searching DN {0} with {1}, attrs: {2}", baseContext, searchFilter, Arrays.toString(attributesToGet));
         }
@@ -112,15 +116,20 @@ public class ModifyTimestampSyncStrategy<C extends AbstractLdapConfiguration> ex
         int numProcessedEntries = 0;
 
         LdapNetworkConnection connection = getConnectionManager().getConnection(getSchemaTranslator().toDn(baseContext), options);
+        if (LOG.isOk()) {
+            OperationLog.logOperationReq(connection, "Search(sync) REQ base={0}, filter={1}, scope={2}, attributes={3}, controls={4}",
+                    baseContext, searchFilter, SearchScope.SUBTREE, attributesToGet, null);
+        }
         try {
             EntryCursor searchCursor = connection.search(baseContext, searchFilter, SearchScope.SUBTREE, attributesToGet);
             while (searchCursor.next()) {
                 Entry entry = searchCursor.get();
-                LOG.ok("Found entry: {0}", entry);
+                if (LOG.isOk()) {
+                    OperationLog.logOperationRes(connection, "Search(sync) RES {0}", entry);
+                }
                 numFoundEntries++;
 
-                if (!isAcceptableForSynchronization(entry, ldapObjectClass,
-                        getConfiguration().getModifiersNamesToFilterOut())) {
+                if (!isAcceptableForSynchronization(entry, ldapObjectClass, getConfiguration().getModifiersNamesToFilterOut())) {
                     continue;
                 }
 
@@ -141,7 +150,13 @@ public class ModifyTimestampSyncStrategy<C extends AbstractLdapConfiguration> ex
             }
             LdapUtil.closeCursor(searchCursor);
             LOG.ok("Search DN {0} with {1}: {2} entries, {3} processed", baseContext, searchFilter, numFoundEntries, numProcessedEntries);
+        } catch (CursorLdapReferralException e) {
+            LOG.error("Received unexpected referral during timestamp-based synchronization: {0}", e.getReferralInfo());
+            OperationLog.logOperationErr(connection, "Search ERR {0}: {1} REFERAL: {2}", e.getClass().getName(), e.getMessage(), e.getReferralInfo(), e);
+            returnConnection(connection);
+            throw new ConnectorIOException("Error searching for changes ("+searchFilter+"): "+e.getMessage(), e);
         } catch (LdapException | CursorException e) {
+            OperationLog.logOperationErr(connection, "Search ERR {0}: {1}", e.getClass().getName(), e.getMessage(), e);
             returnConnection(connection);
             throw new ConnectorIOException("Error searching for changes ("+searchFilter+"): "+e.getMessage(), e);
         }
@@ -175,10 +190,17 @@ public class ModifyTimestampSyncStrategy<C extends AbstractLdapConfiguration> ex
 
     @Override
     public SyncToken getLatestSyncToken(ObjectClass objectClass) {
-        Calendar calNow = Calendar.getInstance();
-        calNow.setTimeInMillis(System.currentTimeMillis());
-        GeneralizedTime gtNow = new GeneralizedTime(calNow);
-        return new SyncToken(gtNow.toGeneralizedTimeWithoutFraction());
+        return new SyncToken(toLdapTimestamp(System.currentTimeMillis()));
     }
 
+    protected String toLdapTimestamp(long millis) {
+        Calendar cal = Calendar.getInstance();
+        cal.setTimeInMillis(millis);
+        GeneralizedTime gtNow = new GeneralizedTime(cal);
+        if (useTimestampFraction) {
+            return gtNow.toGeneralizedTime();
+        } else {
+            return gtNow.toGeneralizedTimeWithoutFraction();
+        }
+    }
 }

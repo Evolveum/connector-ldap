@@ -28,6 +28,7 @@ import java.util.Set;
 
 import javax.net.ssl.HostnameVerifier;
 
+import com.evolveum.polygon.connector.ldap.sync.ModifyTimestampSyncStrategy;
 import org.apache.directory.api.ldap.model.constants.SchemaConstants;
 import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.entry.Modification;
@@ -825,4 +826,8 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
         }
     }
 
+    @Override
+    protected ModifyTimestampSyncStrategy<AdLdapConfiguration> createModifyTimestampSyncStrategy() {
+        return new ModifyTimestampSyncStrategy<>(getConfiguration(), getConnectionManager(), getSchemaManager(), getSchemaTranslator(), true);
+    }
 }
