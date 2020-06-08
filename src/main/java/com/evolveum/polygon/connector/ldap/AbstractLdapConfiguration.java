@@ -680,7 +680,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.useTreeDelete = useTreeDelete;
     }
 
-    @ConfigurationProperty(order = 28)
+    @ConfigurationProperty(order = 29)
     public String getSynchronizationStrategy() {
         return synchronizationStrategy;
     }
