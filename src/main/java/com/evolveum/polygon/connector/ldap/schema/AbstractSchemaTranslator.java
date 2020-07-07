@@ -757,7 +757,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
                     default:
                         throw new IllegalArgumentException("Unknown value of timestampPresentation: "+getConfiguration().getTimestampPresentation());
                 }
-            } else if (SchemaConstants.BOOLEAN_SYNTAX.equals(syntaxOid)) {
+            } else if (isBooleanSyntax(syntaxOid)) {
                 return Boolean.parseBoolean(ldapValue.getString());
             } else if (isIntegerSyntax(syntaxOid)) {
                 return Integer.parseInt(ldapValue.getString());
@@ -782,27 +782,27 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
     }
 
     protected boolean isIntegerSyntax(String syntaxOid) {
-        TypeSubType typeSubType = SYNTAX_MAP.get(syntaxOid);
-        if (typeSubType == null) {
-            return false;
-        }
-        return int.class.equals(typeSubType.type);
+        return isSyntaxOfClass(syntaxOid, int.class);
     }
 
     protected boolean isLongSyntax(String syntaxOid) {
-        TypeSubType typeSubType = SYNTAX_MAP.get(syntaxOid);
-        if (typeSubType == null) {
-            return false;
-        }
-        return long.class.equals(typeSubType.type);
+        return isSyntaxOfClass(syntaxOid, long.class);
     }
 
     protected boolean isTimeSyntax(String syntaxOid) {
+        return isSyntaxOfClass(syntaxOid, ZonedDateTime.class);
+    }
+
+    protected boolean isBooleanSyntax(String syntaxOid) {
+        return isSyntaxOfClass(syntaxOid, Boolean.class);
+    }
+
+    private boolean isSyntaxOfClass(String syntaxOid, Class clazz) {
         TypeSubType typeSubType = SYNTAX_MAP.get(syntaxOid);
         if (typeSubType == null) {
             return false;
         }
-        return ZonedDateTime.class.equals(typeSubType.type);
+        return clazz.equals(typeSubType.type);
     }
 
     /**
