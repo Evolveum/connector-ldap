@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015-2017 Evolveum
+ * Copyright (c) 2015-2020 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
  */
 package com.evolveum.polygon.connector.ldap.search;
 
+import com.evolveum.polygon.connector.ldap.ErrorHandler;
 import org.apache.directory.api.ldap.model.cursor.CursorException;
 import org.apache.directory.api.ldap.model.cursor.SearchCursor;
 import org.apache.directory.api.ldap.model.entry.Entry;
@@ -55,9 +56,10 @@ public class DefaultSearchStrategy<C extends AbstractLdapConfiguration> extends 
 
     public DefaultSearchStrategy(ConnectionManager<C> connectionManager, AbstractLdapConfiguration configuration,
             AbstractSchemaTranslator<C> schemaTranslator, ObjectClass objectClass,
-            org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass, ResultsHandler handler,
+            org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
+            ResultsHandler handler, ErrorHandler errorHandler,
             OperationOptions options) {
-        super(connectionManager, configuration, schemaTranslator, objectClass, ldapObjectClass, handler, options);
+        super(connectionManager, configuration, schemaTranslator, objectClass, ldapObjectClass, handler, errorHandler, options);
     }
 
     /* (non-Javadoc)
@@ -148,7 +150,7 @@ public class DefaultSearchStrategy<C extends AbstractLdapConfiguration> extends 
                         } else {
                             LOG.error("{0}", msg);
                             returnConnection(connection);
-                            throw LdapUtil.processLdapResult("LDAP error during search in "+baseDn, ldapResult);
+                            throw processLdapResult("LDAP error during search in "+baseDn, ldapResult);
                         }
                     }
 

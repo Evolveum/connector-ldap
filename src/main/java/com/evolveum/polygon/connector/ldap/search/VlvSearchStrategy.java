@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2014-2018 Evolveum
+ * Copyright (c) 2014-2020 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package com.evolveum.polygon.connector.ldap.search;
 import java.util.Base64;
 import java.util.List;
 
+import com.evolveum.polygon.connector.ldap.ErrorHandler;
 import org.apache.directory.api.ldap.extras.controls.vlv.VirtualListViewRequest;
 import org.apache.directory.api.ldap.extras.controls.vlv.VirtualListViewRequestImpl;
 import org.apache.directory.api.ldap.extras.controls.vlv.VirtualListViewResponse;
@@ -66,9 +67,10 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
 
     public VlvSearchStrategy(ConnectionManager<C> connectionManager, AbstractLdapConfiguration configuration,
             AbstractSchemaTranslator<C> schemaTranslator, ObjectClass objectClass,
-            org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass, ResultsHandler handler,
+            org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
+            ResultsHandler handler, ErrorHandler errorHandler,
             OperationOptions options) {
-        super(connectionManager, configuration, schemaTranslator, objectClass, ldapObjectClass, handler, options);
+        super(connectionManager, configuration, schemaTranslator, objectClass, ldapObjectClass, handler, errorHandler, options);
     }
 
     /* (non-Javadoc)
@@ -302,7 +304,7 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
                         } else {
                             LOG.error("{0}", msg);
                             returnConnection(connection);
-                            throw LdapUtil.processLdapResult("LDAP error during search in "+baseDn, ldapResult);
+                            throw processLdapResult("LDAP error during search in "+baseDn, ldapResult);
                         }
                     }
 

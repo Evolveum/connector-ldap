@@ -1,5 +1,5 @@
-/**
- * Copyright (c) 2015-2019 Evolveum
+/*
+ * Copyright (c) 2015-2020 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@ package com.evolveum.polygon.connector.ldap.sync;
 
 import java.io.IOException;
 
+import com.evolveum.polygon.connector.ldap.*;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.directory.api.ldap.model.cursor.CursorException;
 import org.apache.directory.api.ldap.model.cursor.EntryCursor;
@@ -47,10 +48,6 @@ import org.identityconnectors.framework.common.objects.SyncToken;
 import org.identityconnectors.framework.common.objects.Uid;
 import org.identityconnectors.framework.spi.SyncTokenResultsHandler;
 
-import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
-import com.evolveum.polygon.connector.ldap.ConnectionManager;
-import com.evolveum.polygon.connector.ldap.LdapConfiguration;
-import com.evolveum.polygon.connector.ldap.LdapUtil;
 import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
 
 /**
@@ -85,8 +82,8 @@ public class SunChangelogSyncStrategy<C extends AbstractLdapConfiguration> exten
 
 
     public SunChangelogSyncStrategy(AbstractLdapConfiguration configuration, ConnectionManager<C> connection,
-            SchemaManager schemaManager, AbstractSchemaTranslator<C> schemaTranslator) {
-        super(configuration, connection, schemaManager, schemaTranslator);
+            SchemaManager schemaManager, AbstractSchemaTranslator<C> schemaTranslator, ErrorHandler errorHandler) {
+        super(configuration, connection, schemaManager, schemaTranslator, errorHandler);
     }
 
     @Override
@@ -187,7 +184,7 @@ public class SunChangelogSyncStrategy<C extends AbstractLdapConfiguration> exten
                         //                        String changesString = LdapUtil.getStringAttribute(entry, CHANGELOG_ATTRIBUTE_CHANGES);
 //                        LdifEntry ldifEntry = new LdifEntry(targetDn, changesString);
 //                        List<Modification> modifications = ldifEntry.getModifications();
-                        Entry targetEntry = LdapUtil.fetchEntry(connection, targetDn, ldapObjectClass, options, getSchemaTranslator());
+                        Entry targetEntry = LdapUtil.fetchEntry(connection, targetDn, ldapObjectClass, options, getSchemaTranslator(), getErrorHandler());
                         if (targetEntry == null) {
                             LOG.warn("Changelog entry {0} refers to an entry {1} that no longer exists, ignoring", entry.getDn(), targetDn);
                             continue;
@@ -215,7 +212,7 @@ public class SunChangelogSyncStrategy<C extends AbstractLdapConfiguration> exten
                         }
                         if (!getSchemaTranslator().hasUidAttribute(targetEntry)) {
                             // No UID attribute in the changelog entry. We need to re-read it explicitly.
-                            targetEntry = LdapUtil.fetchEntry(connection, targetDn, ldapObjectClass, options, getSchemaTranslator());
+                            targetEntry = LdapUtil.fetchEntry(connection, targetDn, ldapObjectClass, options, getSchemaTranslator(), getErrorHandler());
                             if (targetEntry == null) {
                                 LOG.warn("Changelog entry {0} refers to an entry {1} that no longer exists, ignoring", entry.getDn(), targetDn);
                                 continue;
@@ -245,7 +242,7 @@ public class SunChangelogSyncStrategy<C extends AbstractLdapConfiguration> exten
                         newRdns[0] = new Rdn(newRdn);
                         Dn newDn = new Dn(newRdns);
                         LOG.ok("ModRdn (RDN: {0}) -> {1}", newRdn, newDn.toString());
-                        Entry targetEntry = LdapUtil.fetchEntry(connection, newDn.toString(), ldapObjectClass, options, getSchemaTranslator());
+                        Entry targetEntry = LdapUtil.fetchEntry(connection, newDn.toString(), ldapObjectClass, options, getSchemaTranslator(), getErrorHandler());
                         if (targetEntry == null) {
                             LOG.warn("Changelog entry {0} refers to an entry {1} that no longer exists, ignoring", entry.getDn(), newDn);
                             continue;

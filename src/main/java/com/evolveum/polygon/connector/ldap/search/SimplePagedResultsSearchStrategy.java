@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2014-2018 Evolveum
+ * Copyright (c) 2014-2020 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@ package com.evolveum.polygon.connector.ldap.search;
 
 import java.util.Base64;
 
+import com.evolveum.polygon.connector.ldap.ErrorHandler;
 import org.apache.directory.api.ldap.model.cursor.CursorException;
 import org.apache.directory.api.ldap.model.cursor.SearchCursor;
 import org.apache.directory.api.ldap.model.entry.Entry;
@@ -61,10 +62,10 @@ public class SimplePagedResultsSearchStrategy<C extends AbstractLdapConfiguratio
     private byte[] cookie = null;
 
     public SimplePagedResultsSearchStrategy(ConnectionManager<C> connectionManager,
-            AbstractLdapConfiguration configuration, AbstractSchemaTranslator<C> schemaTranslator, ObjectClass objectClass,
-            org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
-            ResultsHandler handler, OperationOptions options) {
-        super(connectionManager, configuration, schemaTranslator, objectClass, ldapObjectClass, handler, options);
+                                            AbstractLdapConfiguration configuration, AbstractSchemaTranslator<C> schemaTranslator, ObjectClass objectClass,
+                                            org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
+                                            ResultsHandler handler, ErrorHandler errorHandler, OperationOptions options) {
+        super(connectionManager, configuration, schemaTranslator, objectClass, ldapObjectClass, handler, errorHandler, options);
         if (options != null && options.getPagedResultsCookie() != null) {
             cookie = Base64.getDecoder().decode(options.getPagedResultsCookie());
         }
@@ -239,7 +240,7 @@ public class SimplePagedResultsSearchStrategy<C extends AbstractLdapConfiguratio
                             setCompleteResultSet(false);
                         } else {
                             LOG.error("{0}", msg);
-                            throw LdapUtil.processLdapResult("LDAP error during search", ldapResult);
+                            throw processLdapResult("LDAP error during search", ldapResult);
                         }
                         break;
                     }

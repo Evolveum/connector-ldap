@@ -18,7 +18,7 @@ package com.evolveum.polygon.connector.ldap.sync;
 import java.util.Arrays;
 import java.util.Calendar;
 
-import com.evolveum.polygon.connector.ldap.OperationLog;
+import com.evolveum.polygon.connector.ldap.*;
 import org.apache.directory.api.ldap.model.constants.SchemaConstants;
 import org.apache.directory.api.ldap.model.cursor.CursorException;
 import org.apache.directory.api.ldap.model.cursor.CursorLdapReferralException;
@@ -48,9 +48,6 @@ import org.identityconnectors.framework.common.objects.SyncResultsHandler;
 import org.identityconnectors.framework.common.objects.SyncToken;
 import org.identityconnectors.framework.spi.SyncTokenResultsHandler;
 
-import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
-import com.evolveum.polygon.connector.ldap.ConnectionManager;
-import com.evolveum.polygon.connector.ldap.LdapUtil;
 import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
 
 /**
@@ -64,8 +61,8 @@ public class ModifyTimestampSyncStrategy<C extends AbstractLdapConfiguration> ex
     boolean useTimestampFraction = false;
 
     public ModifyTimestampSyncStrategy(AbstractLdapConfiguration configuration, ConnectionManager<C> connectionManager,
-            SchemaManager schemaManager, AbstractSchemaTranslator<C> schemaTranslator, boolean useTimestampFraction) {
-        super(configuration, connectionManager, schemaManager, schemaTranslator);
+                                       SchemaManager schemaManager, AbstractSchemaTranslator<C> schemaTranslator, ErrorHandler errorHandler, boolean useTimestampFraction) {
+        super(configuration, connectionManager, schemaManager, schemaTranslator, errorHandler);
         this.useTimestampFraction = useTimestampFraction;
     }
 

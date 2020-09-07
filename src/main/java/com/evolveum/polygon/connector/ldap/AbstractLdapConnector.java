@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2018 Evolveum
+ * Copyright (c) 2015-2020 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -49,7 +49,6 @@ import org.apache.directory.api.ldap.model.exception.LdapURLEncodingException;
 import org.apache.directory.api.ldap.model.filter.EqualityNode;
 import org.apache.directory.api.ldap.model.filter.ExprNode;
 import org.apache.directory.api.ldap.model.message.*;
-import org.apache.directory.api.ldap.model.message.controls.OpaqueControl;
 import org.apache.directory.api.ldap.model.message.controls.PagedResults;
 import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.ldap.model.name.Rdn;
@@ -127,6 +126,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
     private SchemaManager schemaManager = null;
     private AbstractSchemaTranslator<C> schemaTranslator = null;
     private SyncStrategy<C> syncStrategy = null;
+    private ErrorHandler errorHandler = null;
     private Boolean usePermissiveModify = null;
     private Boolean useTreeDelete = null;
 
@@ -147,13 +147,22 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
     @Override
     public void init(Configuration configuration) {
         LOG.info("Initializing {0} connector instance {1}", this.getClass().getSimpleName(), this);
+        //noinspection unchecked
         this.configuration = (C)configuration;
         this.configuration.recompute();
+        errorHandler = createErrorHandler();
         connectionManager = new ConnectionManager<>(this.configuration);
+        connectionManager.setErrorHandler(errorHandler);
         connectionManager.connect();
         if (LOG.isOk()) {
             LOG.ok("Servers:\n{0}", connectionManager.dumpServers());
         }
+    }
+
+    protected abstract ErrorHandler createErrorHandler();
+
+    protected ErrorHandler getErrorHandler() {
+        return errorHandler;
     }
 
     @Override
@@ -412,12 +421,12 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
         schemaManager = null;
         schemaTranslator = null;
         try {
-            return getSchemaTranslator().translateSchema(connectionManager);
+            return getSchemaTranslator().translateSchema(connectionManager, errorHandler);
         } catch (InvalidConnectionException e) {
             // The connection might have been disconnected. Try to reconnect.
             connectionManager.connect();
             try {
-                return getSchemaTranslator().translateSchema(connectionManager);
+                return getSchemaTranslator().translateSchema(connectionManager, errorHandler);
             } catch (InvalidConnectionException e1) {
                 throw new ConnectorException("Reconnect error: "+e.getMessage(), e);
             }
@@ -426,12 +435,12 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 
     private void prepareConnIdSchema() {
         try {
-            getSchemaTranslator().prepareConnIdSchema(connectionManager);
+            getSchemaTranslator().prepareConnIdSchema(connectionManager, errorHandler);
         } catch (InvalidConnectionException e) {
             // The connection might have been disconnected. Try to reconnect.
             connectionManager.connect();
             try {
-                getSchemaTranslator().prepareConnIdSchema(connectionManager);
+                getSchemaTranslator().prepareConnIdSchema(connectionManager, errorHandler);
             } catch (InvalidConnectionException e1) {
                 throw new ConnectorException("Reconnect error: "+e.getMessage(), e);
             }
@@ -483,7 +492,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
         return new FilterTranslator<Filter>() {
             @Override
             public List<Filter> translate(Filter filter) {
-                List<Filter> list = new ArrayList<Filter>(1);
+                List<Filter> list = new ArrayList<>(1);
                 list.add(filter);
                 return list;
             }
@@ -781,7 +790,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
         } else if (LdapConfiguration.PAGING_STRATEGY_SPR.equals(pagingStrategy)) {
             if (supportsControl(PagedResults.OID)) {
                 LOG.ok("Selecting SimplePaged search strategy because strategy setting is set to {0}", pagingStrategy);
-                return new SimplePagedResultsSearchStrategy<>(connectionManager, configuration, schemaTranslator, objectClass, ldapObjectClass, handler, options);
+                return new SimplePagedResultsSearchStrategy<>(connectionManager, configuration, schemaTranslator, objectClass, ldapObjectClass, handler, getErrorHandler(), options);
             } else {
                 throw new ConfigurationException("Configured paging strategy "+pagingStrategy+", but the server does not support PagedResultsControl.");
             }
@@ -789,7 +798,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
         } else if (LdapConfiguration.PAGING_STRATEGY_VLV.equals(pagingStrategy)) {
             if (supportsControl(VirtualListViewRequest.OID)) {
                 LOG.ok("Selecting VLV search strategy because strategy setting is set to {0}", pagingStrategy);
-                return new VlvSearchStrategy<>(connectionManager, configuration, getSchemaTranslator(), objectClass, ldapObjectClass, handler, options);
+                return new VlvSearchStrategy<>(connectionManager, configuration, getSchemaTranslator(), objectClass, ldapObjectClass, handler, getErrorHandler(), options);
             } else {
                 throw new ConfigurationException("Configured paging strategy "+pagingStrategy+", but the server does not support VLV.");
             }
@@ -801,7 +810,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
                 // paging mechanisms. Bu we want consisten results. Therefore in this case prefer VLV even if it might be less efficient.
                 if (supportsControl(VirtualListViewRequest.OID)) {
                     LOG.ok("Selecting VLV search strategy because strategy setting is set to {0} and the request specifies an offset", pagingStrategy);
-                    return new VlvSearchStrategy<>(connectionManager, configuration, getSchemaTranslator(), objectClass, ldapObjectClass, handler, options);
+                    return new VlvSearchStrategy<>(connectionManager, configuration, getSchemaTranslator(), objectClass, ldapObjectClass, handler, getErrorHandler(), options);
                 } else {
                     throw new UnsupportedOperationException("Requested search from offset ("+options.getPagedResultsOffset()+"), but the server does not support VLV. Unable to execute the search.");
                 }
@@ -809,9 +818,9 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
                 if (supportsControl(PagedResults.OID)) {
                     // SPR is usually a better choice if no offset is specified. Less overhead on the server.
                     LOG.ok("Selecting SimplePaged search strategy because strategy setting is set to {0} and the request does not specify an offset", pagingStrategy);
-                    return new SimplePagedResultsSearchStrategy<>(connectionManager, configuration, schemaTranslator, objectClass, ldapObjectClass, handler, options);
+                    return new SimplePagedResultsSearchStrategy<>(connectionManager, configuration, schemaTranslator, objectClass, ldapObjectClass, handler, getErrorHandler(), options);
                 } else if (supportsControl(VirtualListViewRequest.OID)) {
-                    return new VlvSearchStrategy<>(connectionManager, configuration, getSchemaTranslator(), objectClass, ldapObjectClass, handler, options);
+                    return new VlvSearchStrategy<>(connectionManager, configuration, getSchemaTranslator(), objectClass, ldapObjectClass, handler, getErrorHandler(), options);
                 } else {
                     throw new UnsupportedOperationException("Requested paged search, but the server does not support VLV or PagedResultsControl. Unable to execute the search.");
                 }
@@ -832,7 +841,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
     protected SearchStrategy<C> getDefaultSearchStrategy(ObjectClass objectClass,
             org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
             ResultsHandler handler, OperationOptions options) {
-        return new DefaultSearchStrategy<>(connectionManager, configuration, getSchemaTranslator(), objectClass, ldapObjectClass, handler, options);
+        return new DefaultSearchStrategy<>(connectionManager, configuration, getSchemaTranslator(), objectClass, ldapObjectClass, handler, getErrorHandler(), options);
     }
 
     @Override
@@ -1403,16 +1412,16 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
                 case LdapConfiguration.SYNCHRONIZATION_STRATEGY_NONE:
                     throw new UnsupportedOperationException("Synchronization disabled (synchronizationStrategy=none)");
                 case LdapConfiguration.SYNCHRONIZATION_STRATEGY_SUN_CHANGE_LOG:
-                    syncStrategy = new SunChangelogSyncStrategy<>(configuration, connectionManager, getSchemaManager(), getSchemaTranslator());
+                    syncStrategy = new SunChangelogSyncStrategy<>(configuration, connectionManager, getSchemaManager(), getSchemaTranslator(), getErrorHandler());
                     break;
                 case LdapConfiguration.SYNCHRONIZATION_STRATEGY_MODIFY_TIMESTAMP:
                     syncStrategy = createModifyTimestampSyncStrategy();
                     break;
                 case LdapConfiguration.SYNCHRONIZATION_STRATEGY_OPEN_LDAP_ACCESSLOG:
-                    syncStrategy = new OpenLdapAccessLogSyncStrategy<>(configuration, connectionManager, getSchemaManager(), getSchemaTranslator());
+                    syncStrategy = new OpenLdapAccessLogSyncStrategy<>(configuration, connectionManager, getSchemaManager(), getSchemaTranslator(), getErrorHandler());
                     break;
                 case LdapConfiguration.SYNCHRONIZATION_STRATEGY_AD_DIR_SYNC:
-                    syncStrategy = new AdDirSyncStrategy<>(configuration, connectionManager, getSchemaManager(), getSchemaTranslator());
+                    syncStrategy = new AdDirSyncStrategy<>(configuration, connectionManager, getSchemaManager(), getSchemaTranslator(), getErrorHandler());
                     break;
                 case LdapConfiguration.SYNCHRONIZATION_STRATEGY_AUTO:
                     syncStrategy = chooseSyncStrategyAuto();
@@ -1425,7 +1434,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
     }
 
     protected ModifyTimestampSyncStrategy<C> createModifyTimestampSyncStrategy() {
-        return new ModifyTimestampSyncStrategy<>(configuration, connectionManager, getSchemaManager(), getSchemaTranslator(), false);
+        return new ModifyTimestampSyncStrategy<>(configuration, connectionManager, getSchemaManager(), getSchemaTranslator(), getErrorHandler(), false);
     }
 
     private SyncStrategy<C> chooseSyncStrategyAuto() {
@@ -1433,7 +1442,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
         org.apache.directory.api.ldap.model.entry.Attribute changelogAttribute = rootDse.get(SunChangelogSyncStrategy.ROOT_DSE_ATTRIBUTE_CHANGELOG_NAME);
         if (changelogAttribute != null) {
             LOG.ok("Choosing Sun ChangeLog sync strategy (found {0} attribute in root DSE)", SunChangelogSyncStrategy.ROOT_DSE_ATTRIBUTE_CHANGELOG_NAME);
-            return new SunChangelogSyncStrategy<>(configuration, connectionManager, getSchemaManager(), getSchemaTranslator());
+            return new SunChangelogSyncStrategy<>(configuration, connectionManager, getSchemaManager(), getSchemaTranslator(), getErrorHandler());
         }
         LOG.ok("Choosing modifyTimestamp sync strategy (fallback)");
         return createModifyTimestampSyncStrategy();
@@ -1697,11 +1706,11 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
     }
 
     protected RuntimeException processLdapException(String connectorMessage, LdapException ldapException) {
-        return LdapUtil.processLdapException(connectorMessage, ldapException);
+        return getErrorHandler().processLdapException(connectorMessage, ldapException);
     }
 
     protected RuntimeException processLdapResult(String connectorMessage, LdapResult ldapResult) {
-        return LdapUtil.processLdapResult(connectorMessage, ldapResult);
+        return getErrorHandler().processLdapResult(connectorMessage, ldapResult);
     }
 
 }

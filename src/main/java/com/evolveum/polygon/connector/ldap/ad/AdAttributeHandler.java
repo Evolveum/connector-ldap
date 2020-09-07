@@ -1,5 +1,5 @@
-/**
- * Copyright (c) 2016-2018 Evolveum
+/*
+ * Copyright (c) 2016-2020 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -110,12 +110,12 @@ public class AdAttributeHandler implements AttributeHandler {
 
             if ( entry==null ) {
                 OperationLog.logOperationErr(connection, "Entry not found for {0}", dn);
-                throw LdapUtil.processLdapException( "Range search for "+dn+" with "+attributesToGet+" failed",
+                throw searchStrategy.getErrorHandler().processLdapException( "Range search for "+dn+" with "+attributesToGet+" failed",
                     new LdapNoSuchObjectException("No entry found for " + dn));
             }
         } catch (LdapException e) {
             OperationLog.logOperationErr(connection, "Search ERR {0}: {1}", e.getClass().getName(), e.getMessage(), e);
-            throw LdapUtil.processLdapException("Range search for "+dn+" with "+attributesToGet+" failed", e);
+            throw searchStrategy.getErrorHandler().processLdapException("Range search for "+dn+" with "+attributesToGet+" failed", e);
         }
 
         OperationLog.logOperationRes(connection, "Search RES {0}", entry);

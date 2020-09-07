@@ -1,5 +1,5 @@
-/**
- * Copyright (c) 2015-2019 Evolveum
+/*
+ * Copyright (c) 2015-2020 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -60,8 +60,8 @@ public class AdDirSyncStrategy<C extends AbstractLdapConfiguration> extends Sync
     private static final Log LOG = Log.getLog(AdDirSyncStrategy.class);
 
     public AdDirSyncStrategy(AbstractLdapConfiguration configuration, ConnectionManager<C> connectionManager,
-            SchemaManager schemaManager, AbstractSchemaTranslator<C> schemaTranslator) {
-        super(configuration, connectionManager, schemaManager, schemaTranslator);
+            SchemaManager schemaManager, AbstractSchemaTranslator<C> schemaTranslator, ErrorHandler errorHandler) {
+        super(configuration, connectionManager, schemaManager, schemaTranslator, errorHandler);
     }
 
     @Override
@@ -70,6 +70,7 @@ public class AdDirSyncStrategy<C extends AbstractLdapConfiguration> extends Sync
 
         ObjectClassInfo icfObjectClassInfo = null;
         org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass = null;
+        //noinspection StatementWithEmptyBody
         if (icfObjectClass.is(ObjectClass.ALL_NAME)) {
             // It is OK to leave the icfObjectClassInfo and ldapObjectClass as null. These need to be determined
             // for every changelog entry anyway
@@ -133,7 +134,7 @@ public class AdDirSyncStrategy<C extends AbstractLdapConfiguration> extends Sync
 
                     } else {
                         deltaBuilder.setDeltaType(SyncDeltaType.CREATE_OR_UPDATE);
-                        Entry targetEntry = LdapUtil.fetchEntryByUid(connection, targetUid, ldapObjectClass, options, getConfiguration(), getSchemaTranslator());
+                        Entry targetEntry = LdapUtil.fetchEntryByUid(connection, targetUid, ldapObjectClass, options, getConfiguration(), getSchemaTranslator(), getErrorHandler());
                         LOG.ok("Got target entry based on dirSync, targetUid={0}:\n{1}", targetUid, targetEntry);
                         if (targetEntry == null) {
                             // The entry may not exist any more. Maybe it was already deleted.
@@ -177,7 +178,7 @@ public class AdDirSyncStrategy<C extends AbstractLdapConfiguration> extends Sync
                 } else {
                     LOG.error("LDAP error during DirSync search: {0}", LdapUtil.formatLdapMessage(ldapResult));
                     returnConnection(connection);
-                    throw LdapUtil.processLdapResult("LDAP error during DirSync search", ldapResult);
+                    throw getErrorHandler().processLdapResult("LDAP error during DirSync search", ldapResult);
                 }
             }
 
@@ -240,14 +241,11 @@ public class AdDirSyncStrategy<C extends AbstractLdapConfiguration> extends Sync
                 } else {
                     LOG.error("LDAP error during DirSync search: {0}", LdapUtil.formatLdapMessage(ldapResult));
                     returnConnection(connection);
-                    throw LdapUtil.processLdapResult("LDAP error during DirSync search", ldapResult);
+                    throw getErrorHandler().processLdapResult("LDAP error during DirSync search", ldapResult);
                 }
             }
             LdapUtil.closeCursor(searchCursor);
-        } catch (LdapException e) {
-            returnConnection(connection);
-            throw new ConnectorIOException("Error searching for changes ("+req.getFilter()+"): "+e.getMessage(), e);
-        } catch (CursorException e) {
+        } catch (LdapException | CursorException e) {
             returnConnection(connection);
             throw new ConnectorIOException("Error searching for changes ("+req.getFilter()+"): "+e.getMessage(), e);
         }

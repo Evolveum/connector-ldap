@@ -1,5 +1,5 @@
-/**
- * Copyright (c) 2016 Evolveum
+/*
+ * Copyright (c) 2016-2020 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -67,12 +67,13 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
     private static final Log LOG = Log.getLog(ConnectionManager.class);
     private static final Random rnd = new Random();
 
-    private C configuration;
-    private String[] serversConfiguration;
+    private final C configuration;
+    private final String[] serversConfiguration;
     private ServerDefinition defaultServerDefinition = null;
     private List<ServerDefinition> servers;
     private AbstractSchemaTranslator<C> schemaTranslator;
-    private ConnectorBinaryAttributeDetector<C> binaryAttributeDetector = new ConnectorBinaryAttributeDetector<C>();
+    private ErrorHandler errorHandler;
+    private final ConnectorBinaryAttributeDetector<C> binaryAttributeDetector = new ConnectorBinaryAttributeDetector<>();
 
     public ConnectionManager(C configuration) {
         this(configuration, configuration.getServers(), true);
@@ -104,6 +105,10 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
     public void setSchemaTranslator(AbstractSchemaTranslator<C> schemaTranslator) {
         this.schemaTranslator = schemaTranslator;
         binaryAttributeDetector.setSchemaTranslator(schemaTranslator);
+    }
+
+    public void setErrorHandler(ErrorHandler errorHandler) {
+        this.errorHandler = errorHandler;
     }
 
     private LdapNetworkConnection getConnection(ServerDefinition server) {
@@ -197,6 +202,7 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 
         final Iterator<ServerDefinition> serversIterator = servers.iterator();
 
+        //noinspection Convert2Lambda
         return new Iterable<LdapNetworkConnection>() {
 
             @Override
@@ -472,7 +478,7 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
             } catch (Exception e1) {
                 LOG.error("Error closing conection (handling error during creation of a new connection): {1}", e.getMessage(), e);
             }
-            RuntimeException processedException = LdapUtil.processLdapException("Unable to connect to LDAP server "+configuration.getHost()+":"+configuration.getPort(), e);
+            RuntimeException processedException = errorHandler.processLdapException("Unable to connect to LDAP server "+configuration.getHost()+":"+configuration.getPort(), e);
             // This is always connection failed, even if other error is indicated.
             // E.g. if this is a wrong password, we do nor really want to indicate wrong password.
             // If we did and if this happen during password change operation, then midPoint code could
@@ -511,13 +517,13 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
         try {
             bindResponse = connection.bind(bindRequest);
         } catch (LdapException e) {
-            throw LdapUtil.processLdapException("Unable to bind to LDAP server "
+            throw errorHandler.processLdapException("Unable to bind to LDAP server "
                     + connection.getConfig().getLdapHost() + ":" + connection.getConfig().getLdapPort()
                     + " as " + bindDn, e);
         }
         LdapResult ldapResult = bindResponse.getLdapResult();
         if (ldapResult.getResultCode() != ResultCodeEnum.SUCCESS) {
-            throw LdapUtil.processLdapResult("Unable to bind to LDAP server "
+            throw errorHandler.processLdapResult("Unable to bind to LDAP server "
                     + connection.getConfig().getLdapHost() + ":" + connection.getConfig().getLdapPort()
                     + " as " + bindDn, ldapResult);
         }

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (c) 2015-2019 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,6 +15,7 @@
  */
 package com.evolveum.polygon.connector.ldap.search;
 
+import com.evolveum.polygon.connector.ldap.*;
 import org.apache.directory.api.ldap.model.cursor.SearchCursor;
 import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.exception.LdapException;
@@ -38,11 +39,6 @@ import org.identityconnectors.framework.common.objects.QualifiedUid;
 import org.identityconnectors.framework.common.objects.ResultsHandler;
 import org.identityconnectors.framework.common.objects.SortKey;
 
-import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
-import com.evolveum.polygon.connector.ldap.ConnectionManager;
-import com.evolveum.polygon.connector.ldap.LdapConfiguration;
-import com.evolveum.polygon.connector.ldap.LdapUtil;
-import com.evolveum.polygon.connector.ldap.OperationLog;
 import com.evolveum.polygon.connector.ldap.schema.AttributeHandler;
 import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
 
@@ -54,13 +50,14 @@ public abstract class SearchStrategy<C extends AbstractLdapConfiguration> {
 
     private static final Log LOG = Log.getLog(SearchStrategy.class);
 
-    private ConnectionManager<C> connectionManager;
-    private AbstractLdapConfiguration configuration;
-    private AbstractSchemaTranslator<C> schemaTranslator;
-    private ObjectClass objectClass;
-    private org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass;
-    private ResultsHandler handler;
-    private OperationOptions options;
+    private final ConnectionManager<C> connectionManager;
+    private final AbstractLdapConfiguration configuration;
+    private final AbstractSchemaTranslator<C> schemaTranslator;
+    private final ObjectClass objectClass;
+    private final org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass;
+    private final ResultsHandler handler;
+    private final ErrorHandler errorHandler;
+    private final OperationOptions options;
     private boolean isCompleteResultSet = true;
     private AttributeHandler attributeHandler;
     private LdapNetworkConnection explicitConnection = null;
@@ -69,7 +66,7 @@ public abstract class SearchStrategy<C extends AbstractLdapConfiguration> {
     protected SearchStrategy(ConnectionManager<C> connectionManager, AbstractLdapConfiguration configuration,
             AbstractSchemaTranslator<C> schemaTranslator, ObjectClass objectClass,
             org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
-            ResultsHandler handler, OperationOptions options) {
+            ResultsHandler handler, ErrorHandler errorHandler, OperationOptions options) {
         super();
         this.connectionManager = connectionManager;
         this.configuration = configuration;
@@ -77,6 +74,7 @@ public abstract class SearchStrategy<C extends AbstractLdapConfiguration> {
         this.objectClass = objectClass;
         this.ldapObjectClass = ldapObjectClass;
         this.handler = handler;
+        this.errorHandler = errorHandler;
         this.options = options;
     }
 
@@ -327,4 +325,15 @@ public abstract class SearchStrategy<C extends AbstractLdapConfiguration> {
         return filterNode;
     }
 
+    public ErrorHandler getErrorHandler() {
+        return errorHandler;
+    }
+
+    protected RuntimeException processLdapException(String connectorMessage, LdapException ldapException) {
+        return getErrorHandler().processLdapException(connectorMessage, ldapException);
+    }
+
+    protected RuntimeException processLdapResult(String connectorMessage, LdapResult ldapResult) {
+        return getErrorHandler().processLdapResult(connectorMessage, ldapResult);
+    }
 }

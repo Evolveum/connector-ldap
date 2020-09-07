@@ -1,5 +1,5 @@
-/**
- * Copyright (c) 2015-2016 Evolveum
+/*
+ * Copyright (c) 2015-2020 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
  */
 package com.evolveum.polygon.connector.ldap.sync;
 
+import com.evolveum.polygon.connector.ldap.ErrorHandler;
 import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.schema.SchemaManager;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
@@ -37,18 +38,20 @@ public abstract class SyncStrategy<C extends AbstractLdapConfiguration> {
 
     private static final Log LOG = Log.getLog(SyncStrategy.class);
 
-    private AbstractLdapConfiguration configuration;
-    private ConnectionManager<C> connectionManager;
-    private SchemaManager schemaManager;
-    private AbstractSchemaTranslator<C> schemaTranslator;
+    private final AbstractLdapConfiguration configuration;
+    private final ConnectionManager<C> connectionManager;
+    private final SchemaManager schemaManager;
+    private final AbstractSchemaTranslator<C> schemaTranslator;
+    private final ErrorHandler errorHandler;
 
     public SyncStrategy(AbstractLdapConfiguration configuration, ConnectionManager<C> connectionManager,
-            SchemaManager schemaManager, AbstractSchemaTranslator<C> schemaTranslator) {
+            SchemaManager schemaManager, AbstractSchemaTranslator<C> schemaTranslator, ErrorHandler errorHandler) {
         super();
         this.configuration = configuration;
         this.connectionManager = connectionManager;
         this.schemaManager = schemaManager;
         this.schemaTranslator = schemaTranslator;
+        this.errorHandler = errorHandler;
     }
 
     public AbstractLdapConfiguration getConfiguration() {
@@ -71,9 +74,13 @@ public abstract class SyncStrategy<C extends AbstractLdapConfiguration> {
 
     public abstract SyncToken getLatestSyncToken(ObjectClass objectClass);
 
+    public ErrorHandler getErrorHandler() {
+        return errorHandler;
+    }
+
     protected boolean isAcceptableForSynchronization(Entry entry,
-            org.apache.directory.api.ldap.model.schema.ObjectClass requiredldapObjectClass,
-            String[] modifiersNamesToFilterOut) {
+                                                     org.apache.directory.api.ldap.model.schema.ObjectClass requiredldapObjectClass,
+                                                     String[] modifiersNamesToFilterOut) {
         if (requiredldapObjectClass != null) {
             if (!LdapUtil.isObjectClass(entry, requiredldapObjectClass)) {
                 LOG.ok("Skipping synchronization of entry {0} because object class does not match", entry.getDn());

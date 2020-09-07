@@ -20,14 +20,11 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
-import javax.net.ssl.HostnameVerifier;
-
+import com.evolveum.polygon.connector.ldap.*;
 import com.evolveum.polygon.connector.ldap.sync.ModifyTimestampSyncStrategy;
 import org.apache.directory.api.ldap.model.constants.SchemaConstants;
 import org.apache.directory.api.ldap.model.entry.Entry;
@@ -63,14 +60,8 @@ import org.apache.directory.api.ldap.model.schema.registries.SchemaObjectRegistr
 import org.apache.directory.api.ldap.model.schema.syntaxCheckers.DirectoryStringSyntaxChecker;
 import org.apache.directory.api.ldap.model.schema.syntaxCheckers.OctetStringSyntaxChecker;
 import org.apache.directory.api.ldap.schema.manager.impl.DefaultSchemaManager;
-import org.apache.directory.ldap.client.api.DefaultSchemaLoader;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
 import org.identityconnectors.common.logging.Log;
-import org.identityconnectors.common.security.GuardedString;
-import org.identityconnectors.framework.common.exceptions.ConfigurationException;
-import org.identityconnectors.framework.common.exceptions.ConnectorException;
-import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
-import org.identityconnectors.framework.common.exceptions.ConnectorSecurityException;
 import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException;
 import org.identityconnectors.framework.common.exceptions.UnknownUidException;
 import org.identityconnectors.framework.common.objects.Attribute;
@@ -81,18 +72,11 @@ import org.identityconnectors.framework.common.objects.OperationOptions;
 import org.identityconnectors.framework.common.objects.OperationalAttributeInfos;
 import org.identityconnectors.framework.common.objects.OperationalAttributes;
 import org.identityconnectors.framework.common.objects.ResultsHandler;
-import org.identityconnectors.framework.common.objects.ScriptContext;
 import org.identityconnectors.framework.common.objects.Uid;
 import org.identityconnectors.framework.spi.Configuration;
 import org.identityconnectors.framework.spi.ConnectorClass;
-import org.identityconnectors.framework.spi.operations.ScriptOnResourceOp;
 
-import com.evolveum.polygon.common.GuardedStringAccessor;
 import com.evolveum.polygon.common.SchemaUtil;
-import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
-import com.evolveum.polygon.connector.ldap.AbstractLdapConnector;
-import com.evolveum.polygon.connector.ldap.LdapUtil;
-import com.evolveum.polygon.connector.ldap.OperationLog;
 import com.evolveum.polygon.connector.ldap.schema.LdapFilterTranslator;
 import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
 import com.evolveum.polygon.connector.ldap.search.DefaultSearchStrategy;
@@ -166,6 +150,10 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
         return new MutedLoggingSchemaErrorHandler();
     }
 
+    @Override
+    protected ErrorHandler createErrorHandler() {
+        return new AdErrorHandler();
+    }
 
     @Override
     protected boolean isLogSchemaErrors() {
@@ -181,10 +169,10 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
             return super.prepareCreateConnIdAttributes(connIdObjectClass, ldapStructuralObjectClass, createAttributes);
         }
 
-        Set<AdConstants.UAC> uacAddSet = new HashSet<AdConstants.UAC>();
-        Set<AdConstants.UAC> uacDelSet = new HashSet<AdConstants.UAC>();
+        Set<AdConstants.UAC> uacAddSet = new HashSet<>();
+        Set<AdConstants.UAC> uacDelSet = new HashSet<>();
 
-        Set<Attribute> newCreateAttributes = new HashSet<Attribute>();
+        Set<Attribute> newCreateAttributes = new HashSet<>();
 
         for (Attribute createAttr : createAttributes) {
             //collect deltas affecting uac. Will be processed below
@@ -200,9 +188,9 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
                         //OperationalAttributes.ENABLE_NAME = true means AdConstants.UAC.ADS_UF_ACCOUNTDISABLE = false
                         if (createAttrName.equals(OperationalAttributes.ENABLE_NAME)) {
                             if ((Boolean)val) {
-                                val = new Boolean(false);
+                                val = Boolean.FALSE;
                             }
-                            else val = new Boolean(true);
+                            else val = Boolean.TRUE;
                         }
 
                         //value was changed to true
@@ -425,7 +413,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
             try {
                 searchStrategy.search(guidDn, null, SearchScope.OBJECT, attributesToGet);
             } catch (LdapException e) {
-                throw LdapUtil.processLdapException("Error searching for DN '"+guidDn+"'", e);
+                throw processLdapException("Error searching for DN '"+guidDn+"'", e);
             }
 
             if (searchStrategy.getNumberOfEntriesFound() > 0) {
@@ -445,7 +433,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
             try {
                 searchStrategy.search(guidDn, LdapUtil.createAllSearchFilter(), SearchScope.OBJECT, attributesToGet);
             } catch (LdapException e) {
-                throw LdapUtil.processLdapException("Error searching for GUID '"+uidValue+"'", e);
+                throw processLdapException("Error searching for GUID '"+uidValue+"'", e);
             }
 
             if (searchStrategy.getNumberOfEntriesFound() > 0) {
@@ -456,13 +444,13 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
             // Make a search directly to the global catalog server. Present that as final result.
             // We know that this can return at most one object. Therefore always use simple search.
             SearchStrategy<AdLdapConfiguration> searchStrategy = new DefaultSearchStrategy<>(globalCatalogConnectionManager,
-                    getConfiguration(), getSchemaTranslator(), objectClass, ldapObjectClass, handler, options);
+                    getConfiguration(), getSchemaTranslator(), objectClass, ldapObjectClass, handler, getErrorHandler(), options);
             String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
             Dn guidDn = getSchemaTranslator().getGuidDn(uidValue);
             try {
                 searchStrategy.search(guidDn, LdapUtil.createAllSearchFilter(), SearchScope.OBJECT, attributesToGet);
             } catch (LdapException e) {
-                throw LdapUtil.processLdapException("Error searching for GUID '"+uidValue+"'", e);
+                throw processLdapException("Error searching for GUID '"+uidValue+"'", e);
             }
 
             if (searchStrategy.getNumberOfEntriesFound() > 0) {
@@ -493,7 +481,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
             try {
                 searchStrategy.search(guidDn, null, SearchScope.OBJECT, attributesToGet);
             } catch (LdapException e) {
-                throw LdapUtil.processLdapException("Error searching for DN '"+guidDn+"'", e);
+                throw processLdapException("Error searching for DN '"+guidDn+"'", e);
             }
 
             if (searchStrategy.getNumberOfEntriesFound() > 0) {
@@ -518,7 +506,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
                 try {
                     searchStrategy.search(guidDn, null, SearchScope.OBJECT, attributesToGet);
                 } catch (LdapException e) {
-                    throw LdapUtil.processLdapException("Error searching for DN '"+guidDn+"'", e);
+                    throw processLdapException("Error searching for DN '"+guidDn+"'", e);
                 }
 
                 if (searchStrategy.getNumberOfEntriesFound() > 0) {
@@ -753,81 +741,9 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
         }
     }
 
-    @Override
-    protected RuntimeException processLdapResult(String connectorMessage, LdapResult ldapResult) {
-        if (ldapResult.getResultCode() == ResultCodeEnum.UNWILLING_TO_PERFORM) {
-            WillNotPerform willNotPerform = WillNotPerform.parseDiagnosticMessage(ldapResult.getDiagnosticMessage());
-            if (willNotPerform != null) {
-                try {
-                    Class<? extends RuntimeException> exceptionClass = willNotPerform.getExceptionClass();
-                    Constructor<? extends RuntimeException> exceptionConstructor;
-                    exceptionConstructor = exceptionClass.getConstructor(String.class);
-                    String exceptionMessage = LdapUtil.sanitizeString(ldapResult.getDiagnosticMessage()) + ": " + willNotPerform.name() + ": " + willNotPerform.getMessage();
-                    RuntimeException exception = exceptionConstructor.newInstance(exceptionMessage);
-                    LdapUtil.logOperationError(connectorMessage, ldapResult, exceptionMessage);
-                    if (exception instanceof InvalidAttributeValueException) {
-                        ((InvalidAttributeValueException)exception).setAffectedAttributeNames(willNotPerform.getAffectedAttributes());
-                    }
-                    throw exception;
-                } catch (NoSuchMethodException | SecurityException | InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
-                    LOG.error("Error during LDAP error handling: {0}: {1}", e.getClass(), e.getMessage(), e);
-                    // fallback
-                    return LdapUtil.processLdapResult(connectorMessage, ldapResult);
-                }
-            }
-
-        }
-        if (ldapResult.getResultCode() == ResultCodeEnum.OTHER) {
-            RuntimeException otherExpression = processOtherError(connectorMessage, ldapResult.getDiagnosticMessage(), ldapResult, null);
-            if (otherExpression != null) {
-                return otherExpression;
-            }
-        }
-        return LdapUtil.processLdapResult(connectorMessage, ldapResult);
-    }
-
-    @Override
-    protected RuntimeException processLdapException(String connectorMessage, LdapException ldapException) {
-        if (ldapException instanceof LdapOtherException) {
-            RuntimeException otherExpression = processOtherError(connectorMessage, ldapException.getMessage(), null, (LdapOtherException) ldapException);
-            if (otherExpression != null) {
-                return otherExpression;
-            }
-        }
-        return super.processLdapException(connectorMessage, ldapException);
-    }
-
-
-    /**
-     * This is category of errors that we do not know anything just a string error message.
-     * And we have to figure out what is going on just from the message.
-     */
-    private RuntimeException processOtherError(String connectorMessage, String diagnosticMessage, LdapResult ldapResult, LdapOperationException ldapException) {
-        WindowsErrorCode errorCode = WindowsErrorCode.parseDiagnosticMessage(diagnosticMessage);
-        if (errorCode == null) {
-            return null;
-        }
-        try {
-            Class<? extends RuntimeException> exceptionClass = errorCode.getExceptionClass();
-            Constructor<? extends RuntimeException> exceptionConstructor;
-            exceptionConstructor = exceptionClass.getConstructor(String.class);
-            String exceptionMessage = LdapUtil.sanitizeString(diagnosticMessage) + ": " + errorCode.name() + ": " + errorCode.getMessage();
-            RuntimeException exception = exceptionConstructor.newInstance(exceptionMessage);
-            if (ldapResult != null) {
-                LdapUtil.logOperationError(connectorMessage, ldapResult, exceptionMessage);
-            } else {
-                LdapUtil.logOperationError(connectorMessage, ldapException, exceptionMessage);
-            }
-            return exception;
-        } catch (NoSuchMethodException | SecurityException | InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
-            LOG.error("Error during LDAP error handling: {0}: {1}", e.getClass(), e.getMessage(), e);
-            // fallback
-            return null;
-        }
-    }
 
     @Override
     protected ModifyTimestampSyncStrategy<AdLdapConfiguration> createModifyTimestampSyncStrategy() {
-        return new ModifyTimestampSyncStrategy<>(getConfiguration(), getConnectionManager(), getSchemaManager(), getSchemaTranslator(), true);
+        return new ModifyTimestampSyncStrategy<>(getConfiguration(), getConnectionManager(), getSchemaManager(), getSchemaTranslator(), getErrorHandler(), true);
     }
 }

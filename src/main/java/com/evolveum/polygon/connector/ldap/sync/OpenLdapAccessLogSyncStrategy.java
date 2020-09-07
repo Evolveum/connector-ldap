@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015-2019 DAASI International and Evolveum
+ * Copyright (c) 2015-2020 DAASI International and Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package com.evolveum.polygon.connector.ldap.sync;
 import java.util.Arrays;
 import java.util.Iterator;
 
+import com.evolveum.polygon.connector.ldap.*;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.directory.api.ldap.model.constants.SchemaConstants;
 import org.apache.directory.api.ldap.model.cursor.CursorException;
@@ -46,10 +47,6 @@ import org.identityconnectors.framework.common.objects.SyncResultsHandler;
 import org.identityconnectors.framework.common.objects.SyncToken;
 import org.identityconnectors.framework.common.objects.Uid;
 
-import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
-import com.evolveum.polygon.connector.ldap.ConnectionManager;
-import com.evolveum.polygon.connector.ldap.LdapConfiguration;
-import com.evolveum.polygon.connector.ldap.LdapUtil;
 import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
 
 /**
@@ -69,8 +66,8 @@ public class OpenLdapAccessLogSyncStrategy<C extends AbstractLdapConfiguration> 
 
     public OpenLdapAccessLogSyncStrategy(AbstractLdapConfiguration configuration,
             ConnectionManager<C> connectionManager, SchemaManager schemaManager,
-            AbstractSchemaTranslator<C> schemaTranslator) {
-        super(configuration, connectionManager, schemaManager, schemaTranslator, false);
+            AbstractSchemaTranslator<C> schemaTranslator, ErrorHandler errorHandler) {
+        super(configuration, connectionManager, schemaManager, schemaTranslator, errorHandler, false);
     }
 
     @Override

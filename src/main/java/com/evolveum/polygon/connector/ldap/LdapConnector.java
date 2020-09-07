@@ -45,6 +45,11 @@ public class LdapConnector extends AbstractLdapConnector<LdapConfiguration> {
     }
 
     @Override
+    protected ErrorHandler createErrorHandler() {
+        return new ErrorHandler();
+    }
+
+    @Override
     protected void addAttributeModification(Dn dn, List<Modification> modifications,
             org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass,
             ObjectClass icfObjectClass, AttributeDelta delta) {

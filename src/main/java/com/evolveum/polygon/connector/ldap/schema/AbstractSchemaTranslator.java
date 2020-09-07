@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
+import com.evolveum.polygon.connector.ldap.*;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.directory.api.ldap.extras.controls.vlv.VirtualListViewRequest;
 import org.apache.directory.api.ldap.model.constants.SchemaConstants;
@@ -75,12 +76,6 @@ import org.identityconnectors.framework.spi.operations.SearchOp;
 import org.identityconnectors.framework.spi.operations.SyncOp;
 
 import com.evolveum.polygon.common.SchemaUtil;
-import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
-import com.evolveum.polygon.connector.ldap.ConnectionManager;
-import com.evolveum.polygon.connector.ldap.LdapConfiguration;
-import com.evolveum.polygon.connector.ldap.LdapConnector;
-import com.evolveum.polygon.connector.ldap.LdapConstants;
-import com.evolveum.polygon.connector.ldap.LdapUtil;
 
 /**
  * @author semancik
@@ -115,7 +110,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
     }
 
     @SuppressWarnings("unchecked")
-    public Schema translateSchema(ConnectionManager<C> connection) throws InvalidConnectionException {
+    public Schema translateSchema(ConnectionManager<C> connection, ErrorHandler errorHandler) throws InvalidConnectionException {
         SchemaBuilder schemaBuilder = new SchemaBuilder(LdapConnector.class);
         LOG.ok("Translating LDAP schema from {0}", schemaManager);
 
@@ -159,7 +154,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
             if (e.getCause() instanceof InvalidConnectionException) {
                 throw (InvalidConnectionException)e.getCause();
             }
-            throw LdapUtil.processLdapException("Error getting supported controls", e);
+            throw errorHandler.processLdapException("Error getting supported controls", e);
         }
         if (supportedControls.contains(PagedResults.OID) || supportedControls.contains(VirtualListViewRequest.OID)) {
             schemaBuilder.defineOperationOption(OperationOptionInfoBuilder.buildPageSize(), SearchOp.class);
@@ -197,9 +192,9 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
     /**
      * Make sure that we have icfSchema
      */
-    public void prepareConnIdSchema(ConnectionManager<C> connectionManager) throws InvalidConnectionException {
+    public void prepareConnIdSchema(ConnectionManager<C> connectionManager, ErrorHandler errorHandler) throws InvalidConnectionException {
         if (connIdSchema == null) {
-            translateSchema(connectionManager);
+            translateSchema(connectionManager, errorHandler);
         }
     }
 
