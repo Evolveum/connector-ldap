@@ -34,18 +34,19 @@ public class AdErrorHandler extends ErrorHandler {
 
     @Override
     public RuntimeException processLdapResult(String connectorMessage, LdapResult ldapResult) {
-        if (ldapResult.getResultCode() == ResultCodeEnum.UNWILLING_TO_PERFORM) {
-            WillNotPerform willNotPerform = WillNotPerform.parseDiagnosticMessage(ldapResult.getDiagnosticMessage());
-            if (willNotPerform != null) {
+        if (ldapResult.getResultCode() == ResultCodeEnum.UNWILLING_TO_PERFORM ||
+                ldapResult.getResultCode() == ResultCodeEnum.OPERATIONS_ERROR) {
+            AdErrorSubcode adErrorSubcode = AdErrorSubcode.parseDiagnosticMessage(ldapResult.getDiagnosticMessage());
+            if (adErrorSubcode != null) {
                 try {
-                    Class<? extends RuntimeException> exceptionClass = willNotPerform.getExceptionClass();
+                    Class<? extends RuntimeException> exceptionClass = adErrorSubcode.getExceptionClass();
                     Constructor<? extends RuntimeException> exceptionConstructor;
                     exceptionConstructor = exceptionClass.getConstructor(String.class);
-                    String exceptionMessage = LdapUtil.sanitizeString(ldapResult.getDiagnosticMessage()) + ": " + willNotPerform.name() + ": " + willNotPerform.getMessage();
+                    String exceptionMessage = LdapUtil.sanitizeString(ldapResult.getDiagnosticMessage()) + ": " + adErrorSubcode.name() + ": " + adErrorSubcode.getMessage();
                     RuntimeException exception = exceptionConstructor.newInstance(exceptionMessage);
                     LdapUtil.logOperationError(connectorMessage, ldapResult, exceptionMessage);
                     if (exception instanceof InvalidAttributeValueException) {
-                        ((InvalidAttributeValueException)exception).setAffectedAttributeNames(willNotPerform.getAffectedAttributes());
+                        ((InvalidAttributeValueException)exception).setAffectedAttributeNames(adErrorSubcode.getAffectedAttributes());
                     }
                     throw exception;
                 } catch (NoSuchMethodException | SecurityException | InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {

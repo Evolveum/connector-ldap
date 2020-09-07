@@ -22,17 +22,21 @@ import org.identityconnectors.framework.common.exceptions.AlreadyExistsException
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
 import org.identityconnectors.framework.common.exceptions.ConnectorSecurityException;
 import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException;
-import org.identityconnectors.framework.common.exceptions.InvalidPasswordException;
 import org.identityconnectors.framework.common.exceptions.PermissionDeniedException;
 import org.identityconnectors.framework.common.exceptions.UnknownUidException;
 import org.identityconnectors.framework.common.objects.OperationalAttributes;
 
 /**
- * Based on http://www.ldapwiki.com/wiki/WILL_NOT_PERFORM
+ * Based on http://www.ldapwiki.com/wiki/WILL_NOT_PERFORM and other data
  *
- * @author semancik
+ * Constants starting with X are not actual codes, just a guess.
+ *
+ * @author Radovan Semancik
  */
-public enum WillNotPerform {
+public enum AdErrorSubcode {
+
+    // See with operationsError(1) LDAP result code, as a result of search operation. MID-6439
+    X_BIND_REQUIRED(0x4dc, "In order to perform this operation a successful bind must be completed on the connection", ConnectorSecurityException.class),
 
     INVALID_PRIMARY_GROUP(0x51c, "This security ID may not be assigned as the primary groupof an object", InvalidAttributeValueException.class),
     NO_IMPERSONATION_TOKEN(0x51d, "An attempt has been made to operate on an impersonation token by a thread that is not currently impersonating a client", ConnectorSecurityException.class),
@@ -74,7 +78,7 @@ public enum WillNotPerform {
     private Class<? extends RuntimeException> exceptionClass;
     private Collection<String> affectedAttributes;
 
-    private WillNotPerform(int code, String message, Class<? extends RuntimeException> exceptionClass, String... affectedAttributes) {
+    private AdErrorSubcode(int code, String message, Class<? extends RuntimeException> exceptionClass, String... affectedAttributes) {
         this.code = code;
         this.message = message;
         this.exceptionClass = exceptionClass;
@@ -99,7 +103,7 @@ public enum WillNotPerform {
         return affectedAttributes;
     }
 
-    public static WillNotPerform parseDiagnosticMessage(String diagnosticMessage) {
+    public static AdErrorSubcode parseDiagnosticMessage(String diagnosticMessage) {
         if (diagnosticMessage == null) {
             return null;
         }
@@ -117,8 +121,8 @@ public enum WillNotPerform {
         return getByCode(code);
     }
 
-    private static WillNotPerform getByCode(int code) {
-        for (WillNotPerform val: values()) {
+    private static AdErrorSubcode getByCode(int code) {
+        for (AdErrorSubcode val: values()) {
             if (code == val.code) {
                 return val;
             }
