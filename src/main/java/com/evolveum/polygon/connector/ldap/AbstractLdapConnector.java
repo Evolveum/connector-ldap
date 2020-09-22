@@ -46,6 +46,7 @@ import org.apache.directory.api.ldap.model.exception.LdapException;
 import org.apache.directory.api.ldap.model.exception.LdapInvalidAttributeValueException;
 import org.apache.directory.api.ldap.model.exception.LdapInvalidDnException;
 import org.apache.directory.api.ldap.model.exception.LdapURLEncodingException;
+import org.apache.directory.api.ldap.model.filter.AndNode;
 import org.apache.directory.api.ldap.model.filter.EqualityNode;
 import org.apache.directory.api.ldap.model.filter.ExprNode;
 import org.apache.directory.api.ldap.model.message.*;
@@ -573,10 +574,16 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
         // This translated to a base search.
         // We know that this can return at most one object. Therefore always use simple search.
         SearchStrategy<C> searchStrategy = getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
+
+        ExprNode filterNode = null;
+        if (getConfiguration().getAdditionalSearchFilter() != null) {
+            filterNode = LdapUtil.parseSearchFilter(getConfiguration().getAdditionalSearchFilter());
+        }
+
         String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
         try {
 
-            searchStrategy.search(dn, null, SearchScope.OBJECT, attributesToGet);
+            searchStrategy.search(dn, filterNode, SearchScope.OBJECT, attributesToGet);
 
         } catch (UnknownUidException e) {
             // This is not really an error. This means that the object does not exist. But in this
@@ -608,8 +615,16 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
             SearchStrategy<C> searchStrategy = getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
             String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
             SearchScope scope = getScope(options);
+
             ExprNode filterNode = LdapUtil.createUidSearchFilter(uidValue, ldapObjectClass, getSchemaTranslator());
+            if (getConfiguration().getAdditionalSearchFilter() != null) {
+                filterNode = new AndNode(
+                        LdapUtil.parseSearchFilter(getConfiguration().getAdditionalSearchFilter()),
+                        filterNode);
+            }
+
             Dn baseDn = getBaseDn(options);
+
             checkBaseDnPresent(baseDn);
             try {
                 searchStrategy.search(baseDn, filterNode, scope, attributesToGet);
