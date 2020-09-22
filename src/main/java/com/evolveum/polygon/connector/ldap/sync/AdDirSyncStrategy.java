@@ -28,6 +28,8 @@ import org.apache.directory.api.ldap.model.cursor.CursorException;
 import org.apache.directory.api.ldap.model.cursor.SearchCursor;
 import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.exception.LdapException;
+import org.apache.directory.api.ldap.model.filter.AndNode;
+import org.apache.directory.api.ldap.model.filter.ExprNode;
 import org.apache.directory.api.ldap.model.message.*;
 import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.ldap.model.schema.SchemaManager;
@@ -82,7 +84,13 @@ public class AdDirSyncStrategy<C extends AbstractLdapConfiguration> extends Sync
             ldapObjectClass = getSchemaTranslator().toLdapObjectClass(icfObjectClass);
         }
 
-        SearchRequest req = createSearchRequest(LdapConfiguration.SEARCH_FILTER_ALL, fromToken);
+        String filter = LdapConfiguration.SEARCH_FILTER_ALL;
+
+        if (getConfiguration().getAdditionalSearchFilter() != null) {
+            filter = getConfiguration().getAdditionalSearchFilter();
+        }
+
+        SearchRequest req = createSearchRequest(filter, fromToken);
         AdShowDeleted showDeletedReqControl = new AdShowDeletedImpl();
         req.addControl(showDeletedReqControl);
 
