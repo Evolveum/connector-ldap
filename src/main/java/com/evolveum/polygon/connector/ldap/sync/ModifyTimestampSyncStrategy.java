@@ -89,7 +89,7 @@ public class ModifyTimestampSyncStrategy<C extends AbstractLdapConfiguration> ex
         }
         Object fromTokenValue = fromToken.getValue();
         if (fromTokenValue instanceof String) {
-            searchFilter = createSeachFilter((String)fromTokenValue, ldapObjectClass);
+            searchFilter = createSearchFilter((String)fromTokenValue, ldapObjectClass);
         } else {
             throw new IllegalArgumentException("Synchronization token is not string, it is "+fromToken.getClass());
         }
@@ -168,7 +168,7 @@ public class ModifyTimestampSyncStrategy<C extends AbstractLdapConfiguration> ex
         returnConnection(connection);
     }
 
-    private String createSeachFilter(String fromTokenValue, org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
+    private String createSearchFilter(String fromTokenValue, org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
         ExprNode filterNode;
         try {
             filterNode = new OrNode(
@@ -182,6 +182,13 @@ public class ModifyTimestampSyncStrategy<C extends AbstractLdapConfiguration> ex
             filterNode = new AndNode(new EqualityNode<String>(SchemaConstants.OBJECT_CLASS_AT,
                     ldapObjectClass.getName()), filterNode);
         }
+
+        if (getConfiguration().getAdditionalSearchFilter() != null) {
+            filterNode = new AndNode(
+                            LdapUtil.parseSearchFilter(getConfiguration().getAdditionalSearchFilter()),
+                            filterNode);
+        }
+
         return filterNode.toString();
     }
 
