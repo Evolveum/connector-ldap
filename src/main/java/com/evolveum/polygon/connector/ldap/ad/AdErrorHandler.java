@@ -52,7 +52,7 @@ public class AdErrorHandler extends ErrorHandler {
                 } catch (NoSuchMethodException | SecurityException | InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
                     LOG.error("Error during LDAP error handling: {0}: {1}", e.getClass(), e.getMessage(), e);
                     // fallback
-                    return processLdapResult(connectorMessage, ldapResult);
+                    return super.processLdapResult(connectorMessage, ldapResult);
                 }
             }
 
@@ -63,7 +63,7 @@ public class AdErrorHandler extends ErrorHandler {
                 return otherExpression;
             }
         }
-        return processLdapResult(connectorMessage, ldapResult);
+        return super.processLdapResult(connectorMessage, ldapResult);
     }
 
     @Override
