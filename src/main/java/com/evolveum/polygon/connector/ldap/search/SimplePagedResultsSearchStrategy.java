@@ -99,33 +99,12 @@ public class SimplePagedResultsSearchStrategy<C extends AbstractLdapConfiguratio
         Referral referral = null; // remember this in case we need a reconnect
 
         OUTER: do {
-            SearchRequest req = new SearchRequestImpl();
-            req.setBase(baseDn);
-            req.setFilter(preProcessSearchFilter(filterNode));
-            req.setScope(scope);
-            applyCommonConfiguration(req);
-            if (attributes != null) {
-                req.addAttributes(attributes);
-            }
-
-            if (sortReqControl != null) {
-                req.addControl(sortReqControl);
-            }
-
-            // Simple Paged Results control
             if (getOptions() != null && getOptions().getPageSize() != null &&
                     ((numberOfResutlsHandled + numberOfResultsSkipped + pageSize) > offset + getOptions().getPageSize())) {
                 pageSize = offset + getOptions().getPageSize() - (numberOfResutlsHandled + numberOfResultsSkipped);
             }
-            PagedResults pagedResultsControl = new PagedResultsImpl();
-            pagedResultsControl.setCookie(cookie);
-            pagedResultsControl.setCritical(true);
-            pagedResultsControl.setSize(pageSize);
-            if (LOG.isOk()) {
-                LOG.ok("LDAP search request: PagedResults( pageSize = {0}, cookie = {1} )",
-                        pageSize, cookie==null?null:Base64.getEncoder().encodeToString(cookie));
-            }
-            req.addControl(pagedResultsControl);
+
+            SearchRequest req = prepareSearchRequest(baseDn, filterNode, scope, attributes, "LDAP search request", sortReqControl, pageSize);
 
             int responseResultCount = 0;
             SearchCursor searchCursor = executeSearch(connection, req);
@@ -178,21 +157,7 @@ public class SimplePagedResultsSearchStrategy<C extends AbstractLdapConfiguratio
                 if (searchResultDone != null) {
                     LdapResult ldapResult = searchResultDone.getLdapResult();
                     PagedResults pagedResultsResponseControl = (PagedResults)searchResultDone.getControl(PagedResults.OID);
-                    String extra = "no paged response control";
                     if (pagedResultsResponseControl != null) {
-                        StringBuilder sb = new StringBuilder();
-                        sb.append("paged control size=");
-                        sb.append(pagedResultsResponseControl.getSize());
-                        if (pagedResultsResponseControl.getCookie() != null) {
-                            sb.append(" cookie=");
-                            byte[] cookie = pagedResultsResponseControl.getCookie();
-                            if (cookie == null) {
-                                sb.append("null");
-                            } else {
-                                sb.append(Base64.getEncoder().encodeToString(cookie));
-                            }
-                        }
-                        extra = sb.toString();
                         cookie = pagedResultsResponseControl.getCookie();
                         if (cookie.length == 0) {
                             cookie = null;
@@ -207,7 +172,7 @@ public class SimplePagedResultsSearchStrategy<C extends AbstractLdapConfiguratio
                         cookie = null;
                         lastListSize = -1;
                     }
-                    logSearchResult(connection, "Done", ldapResult, extra);
+                    logSearchResult(connection, "Done", ldapResult, compileExtraMessage(pagedResultsResponseControl));
 
                     if (ldapResult.getResultCode() == ResultCodeEnum.REFERRAL && !getConfiguration().isReferralStrategyThrow()) {
                         referral = ldapResult.getReferral();
@@ -267,9 +232,96 @@ public class SimplePagedResultsSearchStrategy<C extends AbstractLdapConfiguratio
             }
         } while (cookie != null);
 
-        // TODO: properly abandon the paged search by sending request with size=0 and cookie=lastCookie
+        finishSearch(connection, baseDn, filterNode, scope, attributes, sortReqControl);
 
         returnConnection(connection);
+    }
+
+    private String compileExtraMessage(PagedResults pagedResultsResponseControl) {
+        if (pagedResultsResponseControl == null) {
+            return "no paged response control";
+        }
+        StringBuilder sb = new StringBuilder();
+        sb.append("paged control size=");
+        sb.append(pagedResultsResponseControl.getSize());
+        if (pagedResultsResponseControl.getCookie() != null) {
+            sb.append(" cookie=");
+            byte[] cookie = pagedResultsResponseControl.getCookie();
+            if (cookie == null) {
+                sb.append("null");
+            } else {
+                sb.append(Base64.getEncoder().encodeToString(cookie));
+            }
+        }
+        return sb.toString();
+    }
+
+    private SearchRequest prepareSearchRequest(Dn baseDn, ExprNode filterNode, SearchScope scope, String[] attributes, String messagePrefix, SortRequest sortReqControl, int pageSize) {
+        SearchRequest req = new SearchRequestImpl();
+        req.setBase(baseDn);
+        req.setFilter(preProcessSearchFilter(filterNode));
+        req.setScope(scope);
+        applyCommonConfiguration(req);
+        if (attributes != null) {
+            req.addAttributes(attributes);
+        }
+
+        if (sortReqControl != null) {
+            req.addControl(sortReqControl);
+        }
+
+        // Simple Paged Results control
+
+        PagedResults pagedResultsControl = new PagedResultsImpl();
+        pagedResultsControl.setCookie(cookie);
+        pagedResultsControl.setCritical(true);
+        pagedResultsControl.setSize(pageSize);
+        if (LOG.isOk()) {
+            LOG.ok("{0}: PagedResults( pageSize = {1}, cookie = {2} )", messagePrefix,
+                    pageSize, cookie==null?null:Base64.getEncoder().encodeToString(cookie));
+        }
+        req.addControl(pagedResultsControl);
+
+        return req;
+    }
+
+    /**
+     * Properly finish the paged search by sending request with size=0 and cookie=lastCookie.
+     * Most of the errors in this method are ignored.
+     * Error in ending the search is not critical, search was already done.
+     * However, we still want to see warnings about the problems.
+     */
+    private void finishSearch(LdapNetworkConnection connection, Dn baseDn, ExprNode filterNode, SearchScope scope, String[] attributes, SortRequest sortReqControl) {
+        // Setting pageSize explicitly to zero "abandons" the search request.
+        SearchRequest req = prepareSearchRequest(baseDn, filterNode, scope, attributes, "Finish SPR request", sortReqControl, 0);
+        SearchCursor searchCursor = null;
+        try {
+            searchCursor = executeSearch(connection, req);
+        } catch (LdapException e) {
+            LOG.warn("Error sending request to finish SPR search (ignoring): {0}", e.getMessage(), e);
+            return;
+        }
+        try {
+            while (searchCursor.next()) {
+                Response response = searchCursor.get();
+                LOG.warn("Unexpected finish SPR response (ignoring):\n{0}", response);
+            }
+            SearchResultDone searchResultDone = searchCursor.getSearchResultDone();
+            LdapResult ldapResult = searchResultDone.getLdapResult();
+            PagedResults pagedResultsResponseControl = (PagedResults)searchResultDone.getControl(PagedResults.OID);
+            logSearchResult(connection, "Finish SPR search done", ldapResult, compileExtraMessage(pagedResultsResponseControl));
+            LOG.ok("Finish SPR search response done:\n{0}", searchResultDone);
+            if (ldapResult.getResultCode() != ResultCodeEnum.SUCCESS) {
+                LOG.warn("LDAP error during finishing SPR search (ignoring): {0}", LdapUtil.formatLdapMessage(ldapResult));
+                return;
+            }
+        } catch (CursorException e) {
+            LOG.warn("Error finishing SPR search", e);
+        } catch (LdapException e) {
+            logSearchError(connection, e);
+        } finally {
+            LdapUtil.closeCursor(searchCursor);
+        }
     }
 
     @Override
