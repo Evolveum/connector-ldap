@@ -38,22 +38,14 @@ public class AdErrorHandler extends ErrorHandler {
                 ldapResult.getResultCode() == ResultCodeEnum.OPERATIONS_ERROR) {
             AdErrorSubcode adErrorSubcode = AdErrorSubcode.parseDiagnosticMessage(ldapResult.getDiagnosticMessage());
             if (adErrorSubcode != null) {
-                try {
-                    Class<? extends RuntimeException> exceptionClass = adErrorSubcode.getExceptionClass();
-                    Constructor<? extends RuntimeException> exceptionConstructor;
-                    exceptionConstructor = exceptionClass.getConstructor(String.class);
-                    String exceptionMessage = LdapUtil.sanitizeString(ldapResult.getDiagnosticMessage()) + ": " + adErrorSubcode.name() + ": " + adErrorSubcode.getMessage();
-                    RuntimeException exception = exceptionConstructor.newInstance(exceptionMessage);
-                    LdapUtil.logOperationError(connectorMessage, ldapResult, exceptionMessage);
-                    if (exception instanceof InvalidAttributeValueException) {
-                        ((InvalidAttributeValueException)exception).setAffectedAttributeNames(adErrorSubcode.getAffectedAttributes());
-                    }
-                    throw exception;
-                } catch (NoSuchMethodException | SecurityException | InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
-                    LOG.error("Error during LDAP error handling: {0}: {1}", e.getClass(), e.getMessage(), e);
-                    // fallback
-                    return super.processLdapResult(connectorMessage, ldapResult);
+                Class<? extends RuntimeException> exceptionClass = adErrorSubcode.getExceptionClass();
+                String exceptionMessage = LdapUtil.sanitizeString(ldapResult.getDiagnosticMessage()) + ": " + adErrorSubcode.name() + ": " + adErrorSubcode.getMessage();
+                LdapUtil.logOperationError(connectorMessage, ldapResult, exceptionMessage);
+                RuntimeException exception = instantiateException(exceptionClass, exceptionMessage);
+                if (exception instanceof InvalidAttributeValueException) {
+                    ((InvalidAttributeValueException)exception).setAffectedAttributeNames(adErrorSubcode.getAffectedAttributes());
                 }
+                throw exception;
             }
 
         }
@@ -63,7 +55,22 @@ public class AdErrorHandler extends ErrorHandler {
                 return otherExpression;
             }
         }
+        DsidError dsidError = DsidError.parseDiagnosticMessage(ldapResult.getDiagnosticMessage());
+        if (dsidError != null) {
+            LdapUtil.logOperationError(connectorMessage, ldapResult, dsidError.getMessage());
+            throw instantiateException(dsidError.getExceptionClass(), dsidError.getMessage());
+        }
         return super.processLdapResult(connectorMessage, ldapResult);
+    }
+
+    private RuntimeException instantiateException(Class<? extends RuntimeException> exceptionClass, String exceptionMessage) {
+        try {
+            Constructor<? extends RuntimeException> exceptionConstructor;
+            exceptionConstructor = exceptionClass.getConstructor(String.class);
+            return exceptionConstructor.newInstance(exceptionMessage);
+        } catch (NoSuchMethodException | SecurityException | InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
+            return new RuntimeException("Error instantiating exception " + exceptionClass.getName() + ", original message: " + exceptionMessage, e);
+        }
     }
 
     @Override
