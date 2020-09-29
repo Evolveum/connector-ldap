@@ -166,7 +166,7 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
                         if (retryAttempts > getConfiguration().getMaximumNumberOfAttempts()) {
                             returnConnection(connection);
                             // TODO: better exception. Maybe re-throw exception from the last error?
-                            throw new ConnectorIOException("Maximum reconnect number of attemps exceeded");
+                            throw new ConnectorIOException("Maximum reconnect number of attempts exceeded");
                         }
                         LOG.ok("Connection error ({0}), reconnecting", e.getMessage(), e);
                         LdapUtil.closeCursor(searchCursor);
@@ -206,7 +206,16 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
                 LdapUtil.closeCursor(searchCursor);
 
                 if (searchResultDone == null) {
-                    break;
+                    if (proceed) {
+                        // This should not happen. If the search was terminated by the server, there should be "done" record.
+                        // May this be caused by server closing connection and the Directory API not detecting that?
+                        returnConnection(connection);
+                        LOG.error("Search was not finished properly, {0} entries were received, but the \"done\" response was not received", responseResultCount);
+                        throw new ConnectorIOException("LDAP search was not finished properly, the results may be incomplete.");
+                    } else {
+                        // The search was terminated due to our decision. The "done" record is not expected.
+                        break;
+                    }
                 } else {
                     LdapResult ldapResult = searchResultDone.getLdapResult();
                     // process VLV response
@@ -333,7 +342,7 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
 
         }
 
-        // TODO: close connection to purge the search state
+        // TODO: close connection to purge the search state?
 
         returnConnection(connection);
     }
