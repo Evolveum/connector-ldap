@@ -33,6 +33,8 @@ import org.apache.directory.api.ldap.model.exception.LdapException;
 import org.apache.directory.api.ldap.model.exception.LdapInvalidDnException;
 import org.apache.directory.api.ldap.model.exception.LdapOperationException;
 import org.apache.directory.api.ldap.model.exception.LdapOtherException;
+import org.apache.directory.api.ldap.model.filter.AndNode;
+import org.apache.directory.api.ldap.model.filter.ExprNode;
 import org.apache.directory.api.ldap.model.message.LdapResult;
 import org.apache.directory.api.ldap.model.message.ModifyResponse;
 import org.apache.directory.api.ldap.model.message.ResultCodeEnum;
@@ -411,7 +413,11 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
             Dn guidDn = getSchemaTranslator().getGuidDn(uidValue);
             String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
             try {
-                searchStrategy.search(guidDn, null, SearchScope.OBJECT, attributesToGet);
+                ExprNode filterNode = null;
+                if (getConfiguration().getAdditionalSearchFilter() != null) {
+                    filterNode = LdapUtil.parseSearchFilter(getConfiguration().getAdditionalSearchFilter());
+                }
+                searchStrategy.search(guidDn, filterNode, SearchScope.OBJECT, attributesToGet);
             } catch (LdapException e) {
                 throw processLdapException("Error searching for DN '"+guidDn+"'", e);
             }
@@ -431,7 +437,15 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
             String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
             Dn guidDn = getSchemaTranslator().getGuidDn(uidValue);
             try {
-                searchStrategy.search(guidDn, LdapUtil.createAllSearchFilter(), SearchScope.OBJECT, attributesToGet);
+                ExprNode filterNode;
+                if (getConfiguration().getAdditionalSearchFilter() != null) {
+                    filterNode = new AndNode(
+                            LdapUtil.parseSearchFilter(getConfiguration().getAdditionalSearchFilter()),
+                            LdapUtil.createAllSearchFilter());
+                } else {
+                    filterNode = LdapUtil.parseSearchFilter(getConfiguration().getAdditionalSearchFilter());
+                }
+                searchStrategy.search(guidDn, filterNode, SearchScope.OBJECT, attributesToGet);
             } catch (LdapException e) {
                 throw processLdapException("Error searching for GUID '"+uidValue+"'", e);
             }
@@ -448,7 +462,15 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
             String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
             Dn guidDn = getSchemaTranslator().getGuidDn(uidValue);
             try {
-                searchStrategy.search(guidDn, LdapUtil.createAllSearchFilter(), SearchScope.OBJECT, attributesToGet);
+                ExprNode filterNode;
+                if (getConfiguration().getAdditionalSearchFilter() != null) {
+                    filterNode = new AndNode(
+                            LdapUtil.parseSearchFilter(getConfiguration().getAdditionalSearchFilter()),
+                            LdapUtil.createAllSearchFilter());
+                } else {
+                    filterNode = LdapUtil.parseSearchFilter(getConfiguration().getAdditionalSearchFilter());
+                }
+                searchStrategy.search(guidDn, filterNode, SearchScope.OBJECT, attributesToGet);
             } catch (LdapException e) {
                 throw processLdapException("Error searching for GUID '"+uidValue+"'", e);
             }
@@ -479,7 +501,11 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 
             String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
             try {
-                searchStrategy.search(guidDn, null, SearchScope.OBJECT, attributesToGet);
+                ExprNode filterNode = null;
+                if (getConfiguration().getAdditionalSearchFilter() != null) {
+                    filterNode = LdapUtil.parseSearchFilter(getConfiguration().getAdditionalSearchFilter());
+                }
+                searchStrategy.search(guidDn, filterNode, SearchScope.OBJECT, attributesToGet);
             } catch (LdapException e) {
                 throw processLdapException("Error searching for DN '"+guidDn+"'", e);
             }
@@ -504,7 +530,11 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
                 searchStrategy.setExplicitConnection(connection);
 
                 try {
-                    searchStrategy.search(guidDn, null, SearchScope.OBJECT, attributesToGet);
+                    ExprNode filterNode = null;
+                    if (getConfiguration().getAdditionalSearchFilter() != null) {
+                        filterNode = LdapUtil.parseSearchFilter(getConfiguration().getAdditionalSearchFilter());
+                    }
+                    searchStrategy.search(guidDn, filterNode, SearchScope.OBJECT, attributesToGet);
                 } catch (LdapException e) {
                     throw processLdapException("Error searching for DN '"+guidDn+"'", e);
                 }
