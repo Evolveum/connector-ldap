@@ -575,15 +575,10 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
         // We know that this can return at most one object. Therefore always use simple search.
         SearchStrategy<C> searchStrategy = getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
 
-        ExprNode filterNode = null;
-        if (getConfiguration().getAdditionalSearchFilter() != null) {
-            filterNode = LdapUtil.parseSearchFilter(getConfiguration().getAdditionalSearchFilter());
-        }
-
         String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
         try {
 
-            searchStrategy.search(dn, filterNode, SearchScope.OBJECT, attributesToGet);
+            searchStrategy.search(dn, applyAdditionalSearchFilterNode(null), SearchScope.OBJECT, attributesToGet);
 
         } catch (UnknownUidException e) {
             // This is not really an error. This means that the object does not exist. But in this
@@ -616,12 +611,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
             String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
             SearchScope scope = getScope(options);
 
-            ExprNode filterNode = LdapUtil.createUidSearchFilter(uidValue, ldapObjectClass, getSchemaTranslator());
-            if (getConfiguration().getAdditionalSearchFilter() != null) {
-                filterNode = new AndNode(
-                        LdapUtil.parseSearchFilter(getConfiguration().getAdditionalSearchFilter()),
-                        filterNode);
-            }
+            ExprNode filterNode = applyAdditionalSearchFilterNode(LdapUtil.createUidSearchFilter(uidValue, ldapObjectClass, getSchemaTranslator()));
 
             Dn baseDn = getBaseDn(options);
 
@@ -1726,6 +1716,18 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 
     protected RuntimeException processLdapResult(String connectorMessage, LdapResult ldapResult) {
         return getErrorHandler().processLdapResult(connectorMessage, ldapResult);
+    }
+
+    protected ExprNode applyAdditionalSearchFilterNode(ExprNode originalFilter) {
+        if (getConfiguration().getAdditionalSearchFilter() == null) {
+            return originalFilter;
+        } else if (originalFilter == null) {
+            return LdapUtil.parseSearchFilter(getConfiguration().getAdditionalSearchFilter());
+        } else {
+            return new AndNode(
+                    originalFilter,
+                    LdapUtil.parseSearchFilter(getConfiguration().getAdditionalSearchFilter()));
+        }
     }
 
 }
