@@ -944,14 +944,16 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 
         OperationLog.logOperationRes(connection, "Add RES {0}: {1}", dnStringFromName, addResponse.getLdapResult());
 
-        connectionManager.returnConnection(connection);
+        // Do NOT return the connection here. We want to use the same connection for read-after-create.
 
         if (addResponse.getLdapResult().getResultCode() != ResultCodeEnum.SUCCESS) {
+            connectionManager.returnConnection(connection);
             throw processCreateResult(dnStringFromName, addResponse);
         }
 
         String uidAttributeName = configuration.getUidAttribute();
         if (LdapUtil.isDnAttribute(uidAttributeName)) {
+            connectionManager.returnConnection(connection);
             return new Uid(dnStringFromName);
         }
 
@@ -962,12 +964,14 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
             }
         }
         if (uid != null) {
+            connectionManager.returnConnection(connection);
             return uid;
         }
 
-        // read the entry back and return UID
+        // read the entry back and return UID (a.k.a. read-after-create)
 
-        Entry entryRead = searchSingleEntry(connectionManager, entry.getDn(), LdapUtil.createAllSearchFilter(), SearchScope.OBJECT,
+        // NOTE: searchSingleEntry will return the connection to the connectionManager
+        Entry entryRead = searchSingleEntry(connectionManager, connection, entry.getDn(), LdapUtil.createAllSearchFilter(), SearchScope.OBJECT,
                 new String[]{ uidAttributeName }, "re-reading entry to get UID", options);
         if (entryRead == null) {
             throw new UnknownUidException("Cannot re-reading entry to get UID, entry was not found: "+entry.getDn());
@@ -1588,7 +1592,17 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
      */
     protected Entry searchSingleEntry(ConnectionManager<C> connectionManager, Dn baseDn, ExprNode filterNode,
             SearchScope scope, String[] attributesToGet, String descMessage, OperationOptions options) {
-        return searchSingleEntry(connectionManager, baseDn, filterNode,
+        return searchSingleEntry(connectionManager, null, baseDn, filterNode,
+                scope, attributesToGet, descMessage, baseDn, options);
+    }
+
+    /**
+     * Use provided connection by default.
+     * Used for operations where we do not want to change connection (such as read-after-create).
+     */
+    protected Entry searchSingleEntry(ConnectionManager<C> connectionManager, LdapNetworkConnection givenConnection, Dn baseDn, ExprNode filterNode,
+                                      SearchScope scope, String[] attributesToGet, String descMessage, OperationOptions options) {
+        return searchSingleEntry(connectionManager, givenConnection, baseDn, filterNode,
                 scope, attributesToGet, descMessage, baseDn, options);
     }
 
@@ -1599,10 +1613,15 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
      * primary identifier. But we still want to use the nameHint to select the server. Chances are it is still
      * good for that.
      */
-    protected Entry searchSingleEntry(ConnectionManager<C> connectionManager, Dn baseDn, ExprNode filterNode,
+    protected Entry searchSingleEntry(ConnectionManager<C> connectionManager, LdapNetworkConnection givenConnection, Dn baseDn, ExprNode filterNode,
             SearchScope scope, String[] attributesToGet, String descMessage, Dn dnHint, OperationOptions options) {
 
-        LdapNetworkConnection connection = connectionManager.getConnection(dnHint, options);
+        LdapNetworkConnection connection;
+        if (givenConnection == null) {
+            connection = connectionManager.getConnection(dnHint, options);
+        } else {
+            connection = givenConnection;
+        }
 
         if (filterNode == null) {
             filterNode = LdapUtil.createAllSearchFilter();
@@ -1654,6 +1673,9 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
                     }
                     connectionManager.returnConnection(connection);
                     connection = connectionManager.getConnection(baseDn, referralUrl, options);
+                    if (givenConnection != null && connection != givenConnection) {
+                        LOG.warn("Connection switch due to referral to {0} during a consistency-sensitive operation (such as read-after-write), risk of inconsistent results",e.getReferralInfo());
+                    }
                     if (referralUrl.getDn() != null) {
                         baseDn = referralUrl.getDn();
                     }

@@ -545,7 +545,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
             Dn guidDn = getSchemaTranslator().getGuidDn(guid);
 
             LOG.ok("Resolvig DN by search for {0} (no global catalog)", guidDn);
-            Entry entry = searchSingleEntry(getConnectionManager(), guidDn, LdapUtil.createAllSearchFilter(), SearchScope.OBJECT,
+            Entry entry = searchSingleEntry(getConnectionManager(), null, guidDn, LdapUtil.createAllSearchFilter(), SearchScope.OBJECT,
                     new String[]{AbstractLdapConfiguration.PSEUDO_ATTRIBUTE_DN_NAME}, "LDAP entry for GUID "+guid, dnHint, options);
 
             if (entry != null) {
