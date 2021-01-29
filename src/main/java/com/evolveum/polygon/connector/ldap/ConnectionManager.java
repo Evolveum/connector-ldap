@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2020 Evolveum
+ * Copyright (c) 2016-2021 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -348,11 +348,18 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
     }
 
     private void closeConnection(ServerDefinition serverDef) throws IOException {
-        // Checking for isConnected() is not enough here.
-        // Even if the connection is NOT connected it still
-        // maintains some resources (pipes) and needs to be
-        // explicitly closed from the client side.
         if (serverDef.getConnection() != null) {
+            if (configuration.isUseUnbind() && serverDef.getConnection().isConnected()) {
+                try {
+                    serverDef.getConnection().unBind();
+                } catch (LdapException e) {
+                    LOG.warn("Unbind operation failed on {0} (ignoring): {1}", serverDef, e.getMessage());
+                }
+            }
+            // Checking for isConnected() is not enough here.
+            // Even if the connection is NOT connected it still
+            // maintains some resources (pipes) and needs to be
+            // explicitly closed from the client side.
             LOG.ok("Closing connection {0}", serverDef);
             serverDef.getConnection().close();
             serverDef.setConnection(null);

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2017 Evolveum
+ * Copyright (c) 2015-2021 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -402,6 +402,12 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 
     public static final String SEARCH_SCOPE_SUB = "sub";
     public static final String SEARCH_SCOPE_ONE = "one";
+
+    /**
+     * If set to true, then the connector will explicitly invoke LDAP unbind operation before connection is closed.
+     * Default value: false
+     */
+    private boolean useUnbind = false;
 
     @ConfigurationProperty(required = true, order = 1)
     public String getHost() {
@@ -847,6 +853,16 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
     @SuppressWarnings("unused")
     public void setAllowUntrustedSsl(boolean allowUntrustedSsl) {
         this.allowUntrustedSsl = allowUntrustedSsl;
+    }
+
+    @ConfigurationProperty(order = 46)
+    public boolean isUseUnbind() {
+        return useUnbind;
+    }
+
+    @SuppressWarnings("unused")
+    public void setUseUnbind(boolean useUnbind) {
+        this.useUnbind = useUnbind;
     }
 
     @Override
