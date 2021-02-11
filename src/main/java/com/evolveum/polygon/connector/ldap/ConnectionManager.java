@@ -255,7 +255,7 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
                 break;
             }
             if (LdapUtil.isAncestorOf(serverBaseContext, dn, schemaTranslator)) {
-                if (serverBaseContext == null || serverBaseContext.isDescendantOf(selectedBaseContext)) {
+                if (serverBaseContext.isDescendantOf(selectedBaseContext)) {
                     LOG.ok("SELECT: accepting {0} because {1} is under {2} and it is the best we have", server.getHost(), dn, serverBaseContext);
                     selectedBaseContext = serverBaseContext;
                 } else {
@@ -319,6 +319,7 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
         return selectRandomItem(servers);
     }
 
+    @SuppressWarnings("unused")
     public ConnectorBinaryAttributeDetector<C> getBinaryAttributeDetector() {
         return binaryAttributeDetector;
     }
@@ -349,13 +350,7 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
 
     private void closeConnection(ServerDefinition serverDef) throws IOException {
         if (serverDef.getConnection() != null) {
-            if (configuration.isUseUnbind() && serverDef.getConnection().isConnected()) {
-                try {
-                    serverDef.getConnection().unBind();
-                } catch (LdapException e) {
-                    LOG.warn("Unbind operation failed on {0} (ignoring): {1}", serverDef, e.getMessage());
-                }
-            }
+            unbindIfNeeded(serverDef.getConnection());
             // Checking for isConnected() is not enough here.
             // Even if the connection is NOT connected it still
             // maintains some resources (pipes) and needs to be
@@ -368,6 +363,17 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
         }
     }
 
+    private void unbindIfNeeded(LdapNetworkConnection ldapConnection) throws IOException {
+        if (ldapConnection != null) {
+            if (configuration.isUseUnbind() && ldapConnection.isConnected()) {
+                try {
+                    ldapConnection.unBind();
+                } catch (LdapException e) {
+                    LOG.warn("Unbind operation failed on {0} (ignoring): {1}", serverDef, e.getMessage());
+                }
+            }
+        }
+    }
     public void connect() {
         if (defaultServerDefinition != null) {
             connectServer(defaultServerDefinition);
@@ -381,6 +387,7 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
         connectionConfig.setTimeout(serverDefinition.getConnectTimeout());
 
         String connectionSecurity = serverDefinition.getConnectionSecurity();
+        //noinspection StatementWithEmptyBody
         if (connectionSecurity == null || LdapConfiguration.CONNECTION_SECURITY_NONE.equals(connectionSecurity)) {
             // Nothing to do
         } else if (LdapConfiguration.CONNECTION_SECURITY_SSL.equals(connectionSecurity)) {
@@ -429,7 +436,7 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
             try {
                 connection.close();
             } catch (Exception e1) {
-                LOG.error("Error closing conection (error handling of a bind of a new connection): {1}", e.getMessage(), e);
+                LOG.error("Error closing connection (error handling of a bind of a new connection): {1}", e.getMessage(), e);
             }
             // This is always connection failed, even if other error is indicated.
             // E.g. if this is a wrong password, we do nor really want to indicate wrong password.
@@ -483,7 +490,7 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
             try {
                 connection.close();
             } catch (Exception e1) {
-                LOG.error("Error closing conection (handling error during creation of a new connection): {1}", e.getMessage(), e);
+                LOG.error("Error closing connection (handling error during creation of a new connection): {1}", e.getMessage(), e);
             }
             RuntimeException processedException = errorHandler.processLdapException("Unable to connect to LDAP server "+configuration.getHost()+":"+configuration.getPort(), e);
             // This is always connection failed, even if other error is indicated.
@@ -507,7 +514,7 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
         try {
             bindRequest.setDn(new Dn(createBindSchemaManager(), bindDn));
         } catch (LdapInvalidDnException e) {
-            throw new ConfigurationException("bindDn is not in DN format: "+e.getMessage(), e);
+            throw new ConfigurationException("bindDn is not in DN format (server "+server+"): "+e.getMessage(), e);
         }
 
         if (bindPassword != null) {
@@ -573,6 +580,7 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
     }
 
     private LdapNetworkConnection createSpecialConnection(ServerDefinition server, OperationOptions options) {
+        //noinspection SwitchStatementWithTooFewBranches
         switch (configuration.getRunAsStrategy()) {
             case AbstractLdapConfiguration.RUN_AS_STRATEGY_BIND:
                 return createSpecialConnectionBind(server, options);
@@ -596,7 +604,7 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
             try {
                 connection.close();
             } catch (Exception e1) {
-                LOG.error("Error closing conection (error handling of a bind of a new connection): {1}", e1.getMessage(), e1);
+                LOG.error("Error closing connection (error handling of a bind of a new connection): {1}", e1.getMessage(), e1);
             }
             // This is a special runAs situation. We really want to throw the real error here.
             // If we would throw ConnectionFailedException here, then midPoint would consider that to be a network error.
@@ -644,6 +652,7 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
             // Those are "special" connections that are not default server connections.
             // For example connections that were created for runAs feature.
             try {
+                unbindIfNeeded(connection);
                 connection.close();
             } catch (Exception e) {
                 LOG.error("Error closing special connection: {0}", e.getMessage(), e);
