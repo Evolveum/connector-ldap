@@ -369,7 +369,7 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
                 try {
                     ldapConnection.unBind();
                 } catch (LdapException e) {
-                    LOG.warn("Unbind operation failed on {0} (ignoring): {1}", serverDef, e.getMessage());
+                    LOG.warn("Unbind operation failed on {0} (ignoring): {1}", LdapUtil.formatConnectionInfo(ldapConnection), e.getMessage());
                 }
             }
         }
@@ -660,13 +660,38 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
         }
     }
 
-    private boolean isServerConnection(LdapNetworkConnection connection) {
+    /**
+     * Reconnect the connection.
+     * Existing connection will be torn down (unbound, closed).
+     * Fresh connection to the same server will be established.
+     */
+    public LdapNetworkConnection reconnect(LdapNetworkConnection connection, String reasonMessage) {
+        LOG.warn("Reconnecting connection {0}, reason: {1}", LdapUtil.formatConnectionInfo(connection), reasonMessage);
+        ServerDefinition serverDefinition = findServerDefinition(connection);
+        try {
+            closeConnection(serverDefinition);
+        } catch (IOException e) {
+            LOG.info("Error closing connection {0} while reconnecting: {1}", LdapUtil.formatConnectionInfo(connection), e.getMessage());
+        }
+        connectServer(serverDefinition);
+        return serverDefinition.getConnection();
+    }
+
+
+    private ServerDefinition findServerDefinition(LdapNetworkConnection connection) {
+        if (connection == null) {
+            return null;
+        }
         for (ServerDefinition server : servers) {
             if (server.getConnection() == connection) {
-                return true;
+                return server;
             }
         }
-        return false;
+        return null;
+    }
+
+    private boolean isServerConnection(LdapNetworkConnection connection) {
+        return findServerDefinition(connection) != null;
     }
 
     private <T> T selectRandomItem(Collection<T> collection) {

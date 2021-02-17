@@ -1612,6 +1612,11 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
      * This is needed in case where the nameHing in the __NAME__ may be out of date and we need to search by
      * primary identifier. But we still want to use the nameHint to select the server. Chances are it is still
      * good for that.
+     *
+     * NOTE: this method returns the connection to connection manager, even if it is given connection.
+     * The connection is not supposed to be reused after this operation.
+     * Yes, it would be cleaner to leave the connection "unreturned" and leave the responsibility to return it on the caller.
+     * And maybe one day we will do it. But not this day. As it would complicate error handling, which is quite complex already.
      */
     protected Entry searchSingleEntry(ConnectionManager<C> connectionManager, LdapNetworkConnection givenConnection, Dn baseDn, ExprNode filterNode,
             SearchScope scope, String[] attributesToGet, String descMessage, Dn dnHint, OperationOptions options) {
@@ -1682,6 +1687,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
                     if (LOG.isOk()) {
                         LOG.ok("Following referral to {0} / {1}", LdapUtil.formatConnectionInfo(connection), baseDn);
                     }
+                    // Next iteration of the loop will re-try the operation with the same parameter, but different connection
                 } else if (configuration.isReferralStrategyIgnore()) {
                     // We cannot really "ignore" this referral otherwise we cannot resolve DN
                     throw new ConfigurationException("Got referral to "+e.getReferralInfo()+" while resolving DN. "
@@ -1691,7 +1697,13 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
                     throw new ConnectorIOException("Error reading "+descMessage+": "+e.getMessage(), e);
                 }
             } catch (LdapException e) {
-                throw processLdapException("Error reading "+descMessage, e);
+                RuntimeException connidException = processLdapException("Error reading " + descMessage, e);
+                if (connidException instanceof ReconnectException) {
+                    connection = connectionManager.reconnect(connection, connidException.getMessage());
+                    // Next iteration of the loop will re-try the operation with the same parameter, but different connection
+                } else {
+                    throw connidException;
+                }
             } catch (CursorException e) {
                 throw new ConnectorIOException("Error reading "+descMessage+": "+e.getMessage(), e);
             } finally {
