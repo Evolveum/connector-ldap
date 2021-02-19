@@ -1,5 +1,5 @@
-/**
- * Copyright (c) 2014-2020 Evolveum
+/*
+ * Copyright (c) 2014-2021 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@ package com.evolveum.polygon.connector.ldap.search;
 import java.util.Base64;
 import java.util.List;
 
-import com.evolveum.polygon.connector.ldap.ErrorHandler;
+import com.evolveum.polygon.connector.ldap.*;
 import org.apache.directory.api.ldap.extras.controls.vlv.VirtualListViewRequest;
 import org.apache.directory.api.ldap.extras.controls.vlv.VirtualListViewRequestImpl;
 import org.apache.directory.api.ldap.extras.controls.vlv.VirtualListViewResponse;
@@ -39,7 +39,6 @@ import org.apache.directory.api.ldap.model.message.SearchResultEntry;
 import org.apache.directory.api.ldap.model.message.SearchScope;
 import org.apache.directory.api.ldap.model.message.controls.SortRequest;
 import org.apache.directory.api.ldap.model.name.Dn;
-import org.apache.directory.ldap.client.api.LdapNetworkConnection;
 import org.apache.directory.ldap.client.api.exception.InvalidConnectionException;
 import org.apache.directory.ldap.client.api.exception.LdapConnectionTimeOutException;
 import org.identityconnectors.common.logging.Log;
@@ -49,9 +48,6 @@ import org.identityconnectors.framework.common.objects.ObjectClass;
 import org.identityconnectors.framework.common.objects.OperationOptions;
 import org.identityconnectors.framework.common.objects.ResultsHandler;
 
-import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
-import com.evolveum.polygon.connector.ldap.ConnectionManager;
-import com.evolveum.polygon.connector.ldap.LdapUtil;
 import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
 
 /**
@@ -114,12 +110,11 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
             cookie = Base64.getDecoder().decode(getOptions().getPagedResultsCookie());
         }
 
-        LdapNetworkConnection connection = getConnection(baseDn);
+        connect(baseDn);
         Referral referral = null; // remember this in case we need a reconnect
 
         Dn lastResultDn = null;
         int numberOfResutlsReturned = 0;
-        int retryAttempts = 0;
         OUTER: while (proceed) {
 
             SearchRequest req = new SearchRequestImpl();
@@ -150,7 +145,7 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
             req.addControl(vlvReqControl);
 
             int responseResultCount = 0;
-            SearchCursor searchCursor = executeSearch(connection, req);
+            SearchCursor searchCursor = executeSearch(req);
             try {
                 while (proceed) {
                     try {
@@ -159,25 +154,20 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
                             break;
                         }
                     } catch (LdapConnectionTimeOutException | InvalidConnectionException e) {
-                        logSearchError(connection, e);
+                        logSearchError(e);
                         // Server disconnected. And by some miracle this was not caught by
                         // checkAlive or connection manager.
-                        retryAttempts++;
-                        if (retryAttempts > getConfiguration().getMaximumNumberOfAttempts()) {
-                            returnConnection(connection);
-                            // TODO: better exception. Maybe re-throw exception from the last error?
-                            throw new ConnectorIOException("Maximum reconnect number of attempts exceeded");
-                        }
                         LOG.ok("Connection error ({0}), reconnecting", e.getMessage(), e);
                         LdapUtil.closeCursor(searchCursor);
-                        connection = getConnectionReconnect(baseDn, referral, connection);
+                        connectionReconnect(baseDn, referral);
+                        incrementRetryAttempts();
                         continue OUTER;
                     }
                     Response response = searchCursor.get();
                     if (response instanceof SearchResultEntry) {
                         responseResultCount++;
                         Entry entry = ((SearchResultEntry)response).getEntry();
-                        logSearchResult(connection, entry);
+                        logSearchResult(entry);
                         boolean overlap = false;
                         if (lastResultDn != null) {
                             if (lastResultDn.equals(entry.getDn())) {
@@ -187,7 +177,7 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
                             lastResultDn = null;
                         }
                         if (!overlap) {
-                            proceed = handleResult(connection, entry);
+                            proceed = handleResult(entry);
                             numberOfResutlsReturned++;
                         }
                         index++;
@@ -209,7 +199,7 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
                     if (proceed) {
                         // This should not happen. If the search was terminated by the server, there should be "done" record.
                         // May this be caused by server closing connection and the Directory API not detecting that?
-                        returnConnection(connection);
+                        returnConnection();
                         LOG.error("Search was not finished properly, {0} entries were received, but the \"done\" response was not received", responseResultCount);
                         throw new ConnectorIOException("LDAP search was not finished properly, the results may be incomplete.");
                     } else {
@@ -260,7 +250,7 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
                         cookie = null;
                         lastListSize = -1;
                     }
-                    logSearchResult(connection, "Done", ldapResult, extra);
+                    logSearchResult( "Done", ldapResult, extra);
 
                     if (ldapResult.getResultCode() == ResultCodeEnum.REFERRAL && !getConfiguration().isReferralStrategyThrow()) {
                         referral = ldapResult.getReferral();
@@ -268,13 +258,8 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
                             LOG.ok("Ignoring referral {0}", referral);
                         } else {
                             LOG.ok("Following referral {0}", referral);
-                            retryAttempts++;
-                            if (retryAttempts > getConfiguration().getMaximumNumberOfAttempts()) {
-                                returnConnection(connection);
-                                // TODO: better exception. Maybe re-throw exception from the last error?
-                                throw new ConnectorIOException("Maximum number of attemps exceeded");
-                            }
-                            connection = getConnection(baseDn, referral);
+                            incrementRetryAttempts();
+                            connect(baseDn, referral);
                             if (connection == null) {
                                 throw new ConnectorIOException("Cannot get connection based on referral "+referral);
                             }
@@ -289,14 +274,9 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
                     } else if (ldapResult.getResultCode() == ResultCodeEnum.BUSY) {
                         // OpenLDAP gives this error when the server SSS/VLV resources are depleted. It looks like there is no
                         // better way how to clean that up than to drop connection and reconnect.
-                        retryAttempts++;
-                        if (retryAttempts > getConfiguration().getMaximumNumberOfAttempts()) {
-                            returnConnection(connection);
-                            // TODO: better exception. Maybe re-throw exception from the last error?
-                            throw new ConnectorIOException("Maximum number of attemps exceeded");
-                        }
+                        incrementRetryAttempts();
                         LOG.ok("Got BUSY response after VLV search. reconnecting and retrying");
-                        connection = getConnectionReconnect(baseDn, connection);
+                        connectionReconnect(baseDn);
                         if (connection == null) {
                             throw new ConnectorIOException("Cannot reconnect (baseDn="+baseDn+")");
                         }
@@ -311,9 +291,20 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
                             setCompleteResultSet(false);
                             break;
                         } else {
-                            LOG.error("{0}", msg);
-                            returnConnection(connection);
-                            throw processLdapResult("LDAP error during search in "+baseDn, ldapResult);
+                            RuntimeException connidException = processLdapResult("LDAP error during search in " + baseDn, ldapResult);
+                            if (connidException instanceof ReconnectException) {
+                                reconnectSameServer(connidException.getMessage());
+                                incrementRetryAttempts();
+                                // Next iteration of the loop will re-try the operation with the same parameter, but different connection
+                                // TODO: Handling of cookie and lastListSize is questionable here.
+                                // Will the cookie be useful in a new connection? We have to experiment with this to see.
+                                // However, these errors are rare, and almost impossible to reproduce in controlled environment.
+                                continue;
+                            } else {
+                                LOG.error("{0}", msg);
+                                returnConnection();
+                                throw connidException;
+                            }
                         }
                     }
 
@@ -321,7 +312,7 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
 
 
             } catch (CursorException e) {
-                returnConnection(connection);
+                returnConnection();
                 // TODO: better error handling
                 throw new ConnectorIOException(e.getMessage(), e);
             }
@@ -344,7 +335,7 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
 
         // TODO: close connection to purge the search state?
 
-        returnConnection(connection);
+        returnConnection();
     }
 
     @Override

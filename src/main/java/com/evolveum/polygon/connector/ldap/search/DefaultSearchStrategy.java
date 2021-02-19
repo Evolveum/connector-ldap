@@ -1,5 +1,5 @@
-/**
- * Copyright (c) 2015-2020 Evolveum
+/*
+ * Copyright (c) 2015-2021 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
  */
 package com.evolveum.polygon.connector.ldap.search;
 
-import com.evolveum.polygon.connector.ldap.ErrorHandler;
+import com.evolveum.polygon.connector.ldap.*;
 import org.apache.directory.api.ldap.model.cursor.CursorException;
 import org.apache.directory.api.ldap.model.cursor.SearchCursor;
 import org.apache.directory.api.ldap.model.entry.Entry;
@@ -31,7 +31,6 @@ import org.apache.directory.api.ldap.model.message.SearchResultDone;
 import org.apache.directory.api.ldap.model.message.SearchResultEntry;
 import org.apache.directory.api.ldap.model.message.SearchScope;
 import org.apache.directory.api.ldap.model.name.Dn;
-import org.apache.directory.ldap.client.api.LdapNetworkConnection;
 import org.apache.directory.ldap.client.api.exception.InvalidConnectionException;
 import org.apache.directory.ldap.client.api.exception.LdapConnectionTimeOutException;
 import org.identityconnectors.common.logging.Log;
@@ -40,9 +39,6 @@ import org.identityconnectors.framework.common.objects.ObjectClass;
 import org.identityconnectors.framework.common.objects.OperationOptions;
 import org.identityconnectors.framework.common.objects.ResultsHandler;
 
-import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
-import com.evolveum.polygon.connector.ldap.ConnectionManager;
-import com.evolveum.polygon.connector.ldap.LdapUtil;
 import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
 
 /**
@@ -76,19 +72,13 @@ public class DefaultSearchStrategy<C extends AbstractLdapConfiguration> extends 
             req.addAttributes(attributes);
         }
 
-        LdapNetworkConnection connection = getConnection(baseDn);
+        connect(baseDn);
         Referral referral = null; // remember this in case we need a reconnect
 
-        int numAttempts = 0;
         OUTER: while (true) {
-            numAttempts++;
-            if (numAttempts > getConfiguration().getMaximumNumberOfAttempts()) {
-                returnConnection(connection);
-                // TODO: better exception. Maybe re-throw exception from the last error?
-                throw new ConnectorIOException("Maximum number of attemps exceeded");
-            }
+            incrementRetryAttempts();
 
-            SearchCursor searchCursor = executeSearch(connection, req);
+            SearchCursor searchCursor = executeSearch(req);
             boolean proceed = true;
             try {
                 while (proceed) {
@@ -98,19 +88,19 @@ public class DefaultSearchStrategy<C extends AbstractLdapConfiguration> extends 
                             break;
                         }
                     } catch (LdapConnectionTimeOutException | InvalidConnectionException e) {
-                        logSearchError(connection, e);
+                        logSearchError(e);
                         // Server disconnected. And by some miracle this was not caught by
                         // checkAlive or connection manager.
                         LOG.ok("Connection error ({0}), reconnecting", e.getMessage(), e);
                         LdapUtil.closeCursor(searchCursor);
-                        connection = getConnectionReconnect(baseDn, referral, connection);
+                        connectionReconnect(baseDn, referral);
                         continue OUTER;
                     }
                     Response response = searchCursor.get();
                     if (response instanceof SearchResultEntry) {
                         Entry entry = ((SearchResultEntry)response).getEntry();
-                        logSearchResult(connection, entry);
-                        proceed = handleResult(connection, entry);
+                        logSearchResult(entry);
+                        proceed = handleResult(entry);
 
                     } else {
                         LOG.warn("Got unexpected response: {0}", response);
@@ -124,7 +114,7 @@ public class DefaultSearchStrategy<C extends AbstractLdapConfiguration> extends 
                     break;
                 } else {
                     LdapResult ldapResult = searchResultDone.getLdapResult();
-                    logSearchResult(connection, "Done", ldapResult);
+                    logSearchResult("Done", ldapResult);
 
                     if (ldapResult.getResultCode() == ResultCodeEnum.REFERRAL && !getConfiguration().isReferralStrategyThrow()) {
                         referral = ldapResult.getReferral();
@@ -132,7 +122,7 @@ public class DefaultSearchStrategy<C extends AbstractLdapConfiguration> extends 
                             LOG.ok("Ignoring referral {0}", referral);
                         } else {
                             LOG.ok("Following referral {0}", referral);
-                            connection = getConnection(baseDn, referral);
+                            connect(baseDn, referral);
                             if (connection == null) {
                                 throw new ConnectorIOException("Cannot get connection based on referral "+referral);
                             }
@@ -148,22 +138,29 @@ public class DefaultSearchStrategy<C extends AbstractLdapConfiguration> extends 
                             setCompleteResultSet(false);
                             break;
                         } else {
-                            LOG.error("{0}", msg);
-                            returnConnection(connection);
-                            throw processLdapResult("LDAP error during search in "+baseDn, ldapResult);
+                            RuntimeException connidException = processLdapResult("LDAP error during search in " + baseDn, ldapResult);
+                            if (connidException instanceof ReconnectException) {
+                                reconnectSameServer(connidException.getMessage());
+                                // Next iteration of the loop will re-try the operation with the same parameter, but different connection
+                                continue OUTER;
+                            } else {
+                                LOG.error("{0}", msg);
+                                returnConnection();
+                                throw connidException;
+                            }
                         }
                     }
 
                 }
 
             } catch (CursorException e) {
-                returnConnection(connection);
+                returnConnection();
                 // TODO: better error handling
                 throw new ConnectorIOException(e.getMessage(), e);
             }
         }
 
-        returnConnection(connection);
+        returnConnection();
     }
 
 }

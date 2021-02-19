@@ -1,5 +1,5 @@
-/**
- * Copyright (c) 2014-2020 Evolveum
+/*
+ * Copyright (c) 2014-2021 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@ package com.evolveum.polygon.connector.ldap.search;
 
 import java.util.Base64;
 
-import com.evolveum.polygon.connector.ldap.ErrorHandler;
+import com.evolveum.polygon.connector.ldap.*;
 import org.apache.directory.api.ldap.model.cursor.CursorException;
 import org.apache.directory.api.ldap.model.cursor.SearchCursor;
 import org.apache.directory.api.ldap.model.entry.Entry;
@@ -45,9 +45,6 @@ import org.identityconnectors.framework.common.objects.ObjectClass;
 import org.identityconnectors.framework.common.objects.OperationOptions;
 import org.identityconnectors.framework.common.objects.ResultsHandler;
 
-import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
-import com.evolveum.polygon.connector.ldap.ConnectionManager;
-import com.evolveum.polygon.connector.ldap.LdapUtil;
 import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
 
 /**
@@ -60,6 +57,7 @@ public class SimplePagedResultsSearchStrategy<C extends AbstractLdapConfiguratio
 
     private int lastListSize = -1;
     private byte[] cookie = null;
+    private LdapNetworkConnection connection;
 
     public SimplePagedResultsSearchStrategy(ConnectionManager<C> connectionManager,
                                             AbstractLdapConfiguration configuration, AbstractSchemaTranslator<C> schemaTranslator, ObjectClass objectClass,
@@ -93,9 +91,8 @@ public class SimplePagedResultsSearchStrategy<C extends AbstractLdapConfiguratio
         boolean proceed = true;
         int numberOfResutlsHandled = 0;
         int numberOfResultsSkipped = 0;
-        int retryAttempts = 0;
 
-        LdapNetworkConnection connection = getConnection(baseDn);
+        connect(baseDn);
         Referral referral = null; // remember this in case we need a reconnect
 
         OUTER: do {
@@ -107,7 +104,7 @@ public class SimplePagedResultsSearchStrategy<C extends AbstractLdapConfiguratio
             SearchRequest req = prepareSearchRequest(baseDn, filterNode, scope, attributes, "LDAP search request", sortReqControl, pageSize);
 
             int responseResultCount = 0;
-            SearchCursor searchCursor = executeSearch(connection, req);
+            SearchCursor searchCursor = executeSearch(req);
             try {
                 while (proceed) {
                     try {
@@ -116,18 +113,13 @@ public class SimplePagedResultsSearchStrategy<C extends AbstractLdapConfiguratio
                             break;
                         }
                     } catch (LdapConnectionTimeOutException | InvalidConnectionException e) {
-                        logSearchError(connection, e);
+                        logSearchError(e);
                         // Server disconnected. And by some miracle this was not caught by
                         // checkAlive or connection manager.
-                        retryAttempts++;
-                        if (retryAttempts > getConfiguration().getMaximumNumberOfAttempts()) {
-                            returnConnection(connection);
-                            // TODO: better exception. Maybe re-throw exception from the last error?
-                            throw new ConnectorIOException("Maximum number of reconnect attemps exceeded");
-                        }
                         LOG.ok("Connection error ({0}), reconnecting", e.getMessage(), e);
                         LdapUtil.closeCursor(searchCursor);
-                        connection = getConnectionReconnect(baseDn, referral, connection);
+                        connectionReconnect(baseDn, referral);
+                        incrementRetryAttempts();
                         continue OUTER;
                     }
                     Response response = searchCursor.get();
@@ -139,8 +131,8 @@ public class SimplePagedResultsSearchStrategy<C extends AbstractLdapConfiguratio
                         } else {
                             numberOfResutlsHandled++;
                             Entry entry = ((SearchResultEntry)response).getEntry();
-                            logSearchResult(connection, entry);
-                            proceed = handleResult(connection, entry);
+                            logSearchResult(entry);
+                            proceed = handleResult(entry);
                             if (!proceed) {
                                 LOG.ok("Ending search because handler returned false");
                             }
@@ -172,7 +164,7 @@ public class SimplePagedResultsSearchStrategy<C extends AbstractLdapConfiguratio
                         cookie = null;
                         lastListSize = -1;
                     }
-                    logSearchResult(connection, "Done", ldapResult, compileExtraMessage(pagedResultsResponseControl));
+                    logSearchResult("Done", ldapResult, compileExtraMessage(pagedResultsResponseControl));
 
                     if (ldapResult.getResultCode() == ResultCodeEnum.REFERRAL && !getConfiguration().isReferralStrategyThrow()) {
                         referral = ldapResult.getReferral();
@@ -180,13 +172,8 @@ public class SimplePagedResultsSearchStrategy<C extends AbstractLdapConfiguratio
                             LOG.ok("Ignoring referral {0}", referral);
                         } else {
                             LOG.ok("Following referral {0}", referral);
-                            retryAttempts++;
-                            if (retryAttempts > getConfiguration().getMaximumNumberOfAttempts()) {
-                                returnConnection(connection);
-                                // TODO: better exception. Maybe re-throw exception from the last error?
-                                throw new ConnectorIOException("Maximum number of attemps exceeded");
-                            }
-                            connection = getConnection(baseDn, referral);
+                            incrementRetryAttempts();
+                            connect(baseDn, referral);
                             if (connection == null) {
                                 throw new ConnectorIOException("Cannot get connection based on referral "+referral);
                             }
@@ -204,15 +191,27 @@ public class SimplePagedResultsSearchStrategy<C extends AbstractLdapConfiguratio
                             LOG.ok("{0} (allowed error)", msg);
                             setCompleteResultSet(false);
                         } else {
-                            LOG.error("{0}", msg);
-                            throw processLdapResult("LDAP error during search", ldapResult);
+                            RuntimeException connidException = processLdapResult("LDAP error during search in " + baseDn, ldapResult);
+                            if (connidException instanceof ReconnectException) {
+                                reconnectSameServer(connidException.getMessage());
+                                incrementRetryAttempts();
+                                // Next iteration of the loop will re-try the operation with the same parameter, but different connection
+                                // TODO: Handling of cookie and lastListSize is questionable here.
+                                // Will the cookie be useful in a new connection? We have to experiment with this to see.
+                                // However, these errors are rare, and almost impossible to reproduce in controlled environment.
+                                continue;
+                            } else {
+                                LOG.error("{0}", msg);
+                                returnConnection();
+                                throw connidException;
+                            }
                         }
                         break;
                     }
                 }
 
             } catch (CursorException e) {
-                returnConnection(connection);
+                returnConnection();
                 // TODO: better error handling
                 LOG.error("Error:", e);
                 throw new ConnectorIOException(e.getMessage(), e);
@@ -232,9 +231,9 @@ public class SimplePagedResultsSearchStrategy<C extends AbstractLdapConfiguratio
             }
         } while (cookie != null);
 
-        finishSearch(connection, baseDn, filterNode, scope, attributes, sortReqControl);
+        finishSearch(baseDn, filterNode, scope, attributes, sortReqControl);
 
-        returnConnection(connection);
+        returnConnection();
     }
 
     private String compileExtraMessage(PagedResults pagedResultsResponseControl) {
@@ -291,12 +290,12 @@ public class SimplePagedResultsSearchStrategy<C extends AbstractLdapConfiguratio
      * Error in ending the search is not critical, search was already done.
      * However, we still want to see warnings about the problems.
      */
-    private void finishSearch(LdapNetworkConnection connection, Dn baseDn, ExprNode filterNode, SearchScope scope, String[] attributes, SortRequest sortReqControl) {
+    private void finishSearch(Dn baseDn, ExprNode filterNode, SearchScope scope, String[] attributes, SortRequest sortReqControl) {
         // Setting pageSize explicitly to zero "abandons" the search request.
         SearchRequest req = prepareSearchRequest(baseDn, filterNode, scope, attributes, "Finish SPR request", sortReqControl, 0);
         SearchCursor searchCursor = null;
         try {
-            searchCursor = executeSearch(connection, req);
+            searchCursor = executeSearch(req);
         } catch (LdapException e) {
             LOG.warn("Error sending request to finish SPR search (ignoring): {0}", e.getMessage(), e);
             return;
@@ -309,7 +308,7 @@ public class SimplePagedResultsSearchStrategy<C extends AbstractLdapConfiguratio
             SearchResultDone searchResultDone = searchCursor.getSearchResultDone();
             LdapResult ldapResult = searchResultDone.getLdapResult();
             PagedResults pagedResultsResponseControl = (PagedResults)searchResultDone.getControl(PagedResults.OID);
-            logSearchResult(connection, "Finish SPR search done", ldapResult, compileExtraMessage(pagedResultsResponseControl));
+            logSearchResult("Finish SPR search done", ldapResult, compileExtraMessage(pagedResultsResponseControl));
             LOG.ok("Finish SPR search response done:\n{0}", searchResultDone);
             if (ldapResult.getResultCode() != ResultCodeEnum.SUCCESS) {
                 LOG.warn("LDAP error during finishing SPR search (ignoring): {0}", LdapUtil.formatLdapMessage(ldapResult));
@@ -318,7 +317,7 @@ public class SimplePagedResultsSearchStrategy<C extends AbstractLdapConfiguratio
         } catch (CursorException e) {
             LOG.warn("Error finishing SPR search", e);
         } catch (LdapException e) {
-            logSearchError(connection, e);
+            logSearchError(e);
         } finally {
             LdapUtil.closeCursor(searchCursor);
         }
