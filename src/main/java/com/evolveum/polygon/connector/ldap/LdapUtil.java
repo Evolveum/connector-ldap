@@ -347,6 +347,12 @@ public class LdapUtil {
         } catch (CursorException e) {
             throw new ConnectorIOException("Search for "+filter+" in "+baseDn+" failed: "+e.getMessage(), e);
         }
+        if (entry == null) {
+            // This is a suspicious situation. The caller usually assumes that an entry will be found.
+            // If nothing is found, it may be a permission problem, or something similar, which is usually hard to diagnose.
+            // Let's help the poor engineer by logging the details of the search.
+            LOG.ok("Search for single entry baseDn={0}, scope={1}, filter={2} returned no result", baseDn, scope, filter);
+        }
         return entry;
     }
 
