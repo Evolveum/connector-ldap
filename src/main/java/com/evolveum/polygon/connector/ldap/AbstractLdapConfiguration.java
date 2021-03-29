@@ -357,9 +357,10 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
      * Enables inclusion of explicit object class filter in all searches. Normally the connector would
      * derive search filter only based on the attributes specified in the query. E.g. (&(uid=foo)(cn=bar)).
      * If includeObjectClassFilter is set to true, then also explicit filter for objectclass will be included.
-     * E.g (&(objectClass=inetOrgPerson)(uid=foo)(cn=bar))
+     * E.g (&(objectClass=inetOrgPerson)(uid=foo)(cn=bar)).
+     * Default value: true
      */
-    private boolean includeObjectClassFilter = false;
+    private boolean includeObjectClassFilter = true;
 
     /**
      * Enabled more tolerant algorithm to detect which object class is structural and which is auxiliary.
