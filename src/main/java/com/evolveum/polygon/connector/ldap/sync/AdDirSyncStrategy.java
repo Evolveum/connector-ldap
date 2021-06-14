@@ -28,8 +28,6 @@ import org.apache.directory.api.ldap.model.cursor.CursorException;
 import org.apache.directory.api.ldap.model.cursor.SearchCursor;
 import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.exception.LdapException;
-import org.apache.directory.api.ldap.model.filter.AndNode;
-import org.apache.directory.api.ldap.model.filter.ExprNode;
 import org.apache.directory.api.ldap.model.message.*;
 import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.ldap.model.schema.SchemaManager;
@@ -190,7 +188,7 @@ public class AdDirSyncStrategy<C extends AbstractLdapConfiguration> extends Sync
                 }
             }
 
-            LdapUtil.closeCursor(searchCursor);
+            LdapUtil.closeDoneCursor(searchCursor);
             LOG.ok("Search(DirSync) DN {0} with {1}: {2} entries, {3} processed", req.getBase(), req.getFilter(), numFoundEntries, numProcessedEntries);
         } catch (LdapException | CursorException e) {
             OperationLog.logOperationErr(connection, "Search ERR {0}: {1}", e.getClass().getName(), e.getMessage(), e);
@@ -252,7 +250,7 @@ public class AdDirSyncStrategy<C extends AbstractLdapConfiguration> extends Sync
                     throw getErrorHandler().processLdapResult("LDAP error during DirSync search", ldapResult);
                 }
             }
-            LdapUtil.closeCursor(searchCursor);
+            LdapUtil.closeDoneCursor(searchCursor);
         } catch (LdapException | CursorException e) {
             returnConnection(connection);
             throw new ConnectorIOException("Error searching for changes ("+req.getFilter()+"): "+e.getMessage(), e);

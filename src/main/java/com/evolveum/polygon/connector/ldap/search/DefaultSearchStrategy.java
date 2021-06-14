@@ -79,12 +79,10 @@ public class DefaultSearchStrategy<C extends AbstractLdapConfiguration> extends 
             incrementRetryAttempts();
 
             SearchCursor searchCursor = executeSearch(req);
-            boolean proceed = true;
             try {
-                while (proceed) {
+                while (true) {
                     try {
-                        boolean hasNext = searchCursor.next();
-                        if (!hasNext) {
+                        if (!searchCursor.next()) {
                             break;
                         }
                     } catch (LdapConnectionTimeOutException | InvalidConnectionException e) {
@@ -92,7 +90,7 @@ public class DefaultSearchStrategy<C extends AbstractLdapConfiguration> extends 
                         // Server disconnected. And by some miracle this was not caught by
                         // checkAlive or connection manager.
                         LOG.ok("Connection error ({0}), reconnecting", e.getMessage(), e);
-                        LdapUtil.closeCursor(searchCursor);
+                        LdapUtil.closeDoneCursor(searchCursor);
                         connectionReconnect(baseDn, referral);
                         continue OUTER;
                     }
@@ -100,7 +98,13 @@ public class DefaultSearchStrategy<C extends AbstractLdapConfiguration> extends 
                     if (response instanceof SearchResultEntry) {
                         Entry entry = ((SearchResultEntry)response).getEntry();
                         logSearchResult(entry);
-                        proceed = handleResult(entry);
+                        boolean proceed = handleResult(entry);
+                        if (!proceed) {
+                            LOG.ok("Ending search because handler returned false");
+                            // We really want to abandon the operation here.
+                            LdapUtil.closeAbandonCursor(searchCursor);
+                            break;
+                        }
 
                     } else {
                         LOG.warn("Got unexpected response: {0}", response);
@@ -108,7 +112,14 @@ public class DefaultSearchStrategy<C extends AbstractLdapConfiguration> extends 
                 }
 
                 SearchResultDone searchResultDone = searchCursor.getSearchResultDone();
-                LdapUtil.closeCursor(searchCursor);
+                // We really want to call searchCursor.next() here, even though we do not care about the result.
+                // The implementation of cursor.next() sets the "done" status of the cursor.
+                // If we do not do that, the subsequent close() operation on the cursor will send an
+                // ABANDON command, even though the operation is already finished. (MID-7091)
+                searchCursor.next();
+                // We want to do close with ABANDON here, in case that the operation is not finished.
+                // However, make sure we call searchCursor.next() before closing, we do not want to send abandons when not needed.
+                LdapUtil.closeAbandonCursor(searchCursor);
 
                 if (searchResultDone == null) {
                     break;

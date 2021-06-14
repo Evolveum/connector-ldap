@@ -178,6 +178,12 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
         checkAlive();
         additionalConnectionTests();
         try {
+            // Although we may have fetched the root DSE already
+            // (e.g. during schema processing in connector initialization), we want to do it again.
+            // The errors reported by Apache Directory API may be confusing.
+            // We also want the root DSE fetch operation clearly marked in the log files.
+            // This is explicit connection test, which is not used during normal operation.
+            // Therefore slight inefficiency caused by a second root DSE fetch should not be a problem.
             LOG.ok("Fetching root DSE");
             Entry rootDse = connectionManager.getDefaultConnection().getRootDse();
             LOG.ok("Root DSE: {0}", rootDse);
@@ -1661,6 +1667,20 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
                         if (OperationLog.isLogOperations()) {
                             OperationLog.logOperationRes(connection, "Search RES {0}", entry);
                         }
+                        // WARNING: Do not remove this check.
+                        // We have to invoke cursor.next() when the cursor is done, even though we know that it is done.
+                        // The implementation of cursor.next() sets the "done" status of the cursor.
+                        // If we do not do that, the subsequent close() operation on the cursor will send an
+                        // ABANDON command, even though the operation is already finished.
+                        // MID-7091
+                        if (cursor.next()) {
+                            // This is a "base" search, we know that it cannot (should not?) return more than one entry.
+                            // But LDAP world is strange, let's be extra sure.
+                            Response nextResponse = cursor.get();
+                            LOG.warn("Unexpected search result while searching for single entry. We are going to abandon the operation.");
+                            LdapUtil.closeAbandonCursor(cursor);
+                            // throw new ConnectorException("Unexpected search result: "+nextResponse);
+                        }
                         break;
                     }
                 } else {
@@ -1708,7 +1728,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
                 throw new ConnectorIOException("Error reading "+descMessage+": "+e.getMessage(), e);
             } finally {
                 if (cursor != null) {
-                    LdapUtil.closeCursor(cursor);
+                    LdapUtil.closeDoneCursor(cursor);
                 }
                 connectionManager.returnConnection(connection);
             }
