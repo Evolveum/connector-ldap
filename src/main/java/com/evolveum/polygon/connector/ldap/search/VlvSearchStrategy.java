@@ -157,9 +157,7 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
                         // Server disconnected. And by some miracle this was not caught by
                         // checkAlive or connection manager.
                         LOG.ok("Connection error ({0}), reconnecting", e.getMessage(), e);
-                        // The close() is optional here.
-                        // In fact, error handling inside the cursor.next() should have closed the cursor already.
-                        LdapUtil.closeDoneCursor(searchCursor);
+                        // No need to close the cursor here. It is already closed as part of error handling in next() method.
                         connectionReconnect(baseDn, referral);
                         incrementRetryAttempts();
                         continue OUTER;

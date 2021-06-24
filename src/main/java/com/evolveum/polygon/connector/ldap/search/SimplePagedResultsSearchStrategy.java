@@ -116,7 +116,7 @@ public class SimplePagedResultsSearchStrategy<C extends AbstractLdapConfiguratio
                         // Server disconnected. And by some miracle this was not caught by
                         // checkAlive or connection manager.
                         LOG.ok("Connection error ({0}), reconnecting", e.getMessage(), e);
-                        LdapUtil.closeDoneCursor(searchCursor);
+                        // No need to close the cursor here. It is already closed as part of error handling in next() method.
                         connectionReconnect(baseDn, referral);
                         incrementRetryAttempts();
                         continue OUTER;
