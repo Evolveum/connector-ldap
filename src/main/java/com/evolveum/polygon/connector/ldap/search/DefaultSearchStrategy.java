@@ -91,7 +91,7 @@ public class DefaultSearchStrategy<C extends AbstractLdapConfiguration> extends 
                         // checkAlive or connection manager.
                         LOG.ok("Connection error ({0}), reconnecting", e.getMessage(), e);
                         // No need to close the cursor here. It is already closed as part of error handling in next() method.
-                        connectionReconnect(baseDn, referral);
+                        connectionReconnect(baseDn, referral, e);
                         continue OUTER;
                     }
                     Response response = searchCursor.get();
@@ -151,7 +151,7 @@ public class DefaultSearchStrategy<C extends AbstractLdapConfiguration> extends 
                         } else {
                             RuntimeException connidException = processLdapResult("LDAP error during search in " + baseDn, ldapResult);
                             if (connidException instanceof ReconnectException) {
-                                reconnectSameServer(connidException.getMessage());
+                                reconnectSameServer(connidException);
                                 // Next iteration of the loop will re-try the operation with the same parameter, but different connection
                                 continue OUTER;
                             } else {

@@ -44,6 +44,7 @@ import org.apache.directory.api.ldap.schema.manager.impl.DefaultSchemaManager;
 import org.apache.directory.ldap.client.api.LdapConnectionConfig;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
 import org.apache.directory.ldap.client.api.NoVerificationTrustManager;
+import org.apache.directory.ldap.client.api.exception.LdapConnectionTimeOutException;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.common.exceptions.ConfigurationException;
@@ -62,7 +63,7 @@ import javax.net.ssl.TrustManagerFactory;
  * @author Radovan Semancik
  *
  */
-public class ConnectionManager<C extends AbstractLdapConfiguration> implements Closeable {
+public class ConnectionManager<C extends AbstractLdapConfiguration> {
 
     private static final Log LOG = Log.getLog(ConnectionManager.class);
     private static final Random rnd = new Random();
@@ -125,22 +126,30 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
         return getConnection(defaultServerDefinition);
     }
 
-    public LdapNetworkConnection getConnectionReconnect(Dn base, OperationOptions options) {
-        return getConnectionReconnect(base, null, options);
-    }
-
-    public LdapNetworkConnection getConnectionReconnect(Dn base, Referral referral, OperationOptions options) {
+    public LdapNetworkConnection getConnectionReconnect(Dn base, Referral referral, OperationOptions options, Exception reconnectReason) {
         LdapUrl ldapUrl = getLdapUrl(referral);
         ServerDefinition server = selectServer(base, ldapUrl);
         if (needsSpecialConnection(options)) {
             return createSpecialConnection(server, options);
         }
-        LOG.ok("Reconnecting server {0}", server);
+        if (LOG.isOk()) {
+            if (reconnectReason != null) {
+                LOG.ok("Reconnecting server {0} due to {1}: {2}", server, reconnectReason.getClass().getSimpleName(), reconnectReason.getMessage());
+            }
+            if (referral != null) {
+                LOG.ok("Reconnecting server {0} due to referral {1}: {2}", server, referral);
+            }
+            if (reconnectReason == null && referral == null) {
+                if (referral != null) {
+                    LOG.ok("Reconnecting server {0} due to unknown reason", server);
+                }
+            }
+        }
         if (server.isConnected()) {
             try {
-                closeConnection(server);
+                closeConnection(server, reconnectReason);
             } catch (IOException e) {
-                LOG.error("Error closing conection {0}: {1}", server, e.getMessage(), e);
+                LOG.error("Error closing connection {0}: {1}", server, e.getMessage(), e);
                 // Otherwise ignore the error and reconnect anyway
             }
         }
@@ -331,13 +340,12 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
         return defaultServerDefinition.getConnection() != null && defaultServerDefinition.getConnection().isConnected();
     }
 
-    @Override
-    public void close() throws IOException {
+    public void close(String reason) throws IOException {
         // Make sure that we attempt to close all connection even if there are some exceptions during the close.
         IOException exception = null;
         for (ServerDefinition serverDef: servers) {
             try {
-                closeConnection(serverDef);
+                closeConnection(serverDef, null);
             } catch (IOException e) {
                 LOG.error("Error closing conection {0}: {1}", serverDef, e.getMessage(), e);
                 exception = e;
@@ -348,9 +356,9 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
         }
     }
 
-    private void closeConnection(ServerDefinition serverDef) throws IOException {
+    private void closeConnection(ServerDefinition serverDef, Exception reconnectReason) throws IOException {
         if (serverDef.getConnection() != null) {
-            unbindIfNeeded(serverDef.getConnection());
+            unbindIfNeeded(serverDef.getConnection(), reconnectReason);
             // Checking for isConnected() is not enough here.
             // Even if the connection is NOT connected it still
             // maintains some resources (pipes) and needs to be
@@ -363,17 +371,42 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
         }
     }
 
-    private void unbindIfNeeded(LdapNetworkConnection ldapConnection) throws IOException {
-        if (ldapConnection != null) {
-            if (configuration.isUseUnbind() && ldapConnection.isConnected()) {
-                try {
-                    ldapConnection.unBind();
-                } catch (LdapException e) {
-                    LOG.warn("Unbind operation failed on {0} (ignoring): {1}", LdapUtil.formatConnectionInfo(ldapConnection), e.getMessage());
-                }
+    private void unbindIfNeeded(LdapNetworkConnection ldapConnection, Exception reconnectReason) throws IOException {
+        if (isUnbindNeeded(ldapConnection, reconnectReason)) {
+            try {
+                // This log may be too loud, but needed for diagnostics. At least now.
+                LOG.ok("Unbinding connection {0}", LdapUtil.formatConnectionInfo(ldapConnection));
+                ldapConnection.unBind();
+            } catch (LdapException e) {
+                LOG.warn("Unbind operation failed on {0} (ignoring): {1}", LdapUtil.formatConnectionInfo(ldapConnection), e.getMessage());
             }
         }
     }
+
+    private boolean isUnbindNeeded(LdapNetworkConnection ldapConnection, Exception reconnectReason) {
+        if (ldapConnection == null) {
+            return false;
+        }
+        if (!configuration.isUseUnbind()) {
+            return false;
+        }
+        if (!ldapConnection.isConnected()) {
+            return false;
+        }
+        if (reconnectReason != null && reconnectReason instanceof LdapConnectionTimeOutException) {
+            // Attempt to issue unbind command after a connection/operation timeout.
+            // Attempt to unbind in this situation is formally correct.
+            // The timeout might have occurred due to client (connector) impatience, waiting for LDAP operation to complete.
+            // In such a case the TCP connection may still be active, attempting to close it without unbind may cause server warnings.
+            // However, in this case the server is probably overloaded, or there is some network problem.
+            // Attempt to unbind may take a long time, probably also timing out.
+            // In this case we would rather leave without saying proper goodbye than risking being stuck for seconds or minutes waiting for timeout.
+            LOG.ok("Skipping unbind on connection {0} due to previous timeout ({1})", LdapUtil.formatConnectionInfo(ldapConnection), reconnectReason.getMessage());
+            return false;
+        }
+        return true;
+    }
+
     public void connect() {
         if (defaultServerDefinition != null) {
             connectServer(defaultServerDefinition);
@@ -423,7 +456,7 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
     private void connectServer(ServerDefinition server) {
         if (server.getConnection() != null) {
             try {
-                closeConnection(server);
+                closeConnection(server, new RuntimeException("old connection open while creating new connection"));
             } catch (IOException e) {
                 throw new ConnectorIOException("Error closing connection to "+server+": "+e.getMessage(), e);
             }
@@ -652,7 +685,7 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
             // Those are "special" connections that are not default server connections.
             // For example connections that were created for runAs feature.
             try {
-                unbindIfNeeded(connection);
+                unbindIfNeeded(connection, null);
                 connection.close();
             } catch (Exception e) {
                 LOG.error("Error closing special connection: {0}", e.getMessage(), e);
@@ -665,11 +698,11 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> implements C
      * Existing connection will be torn down (unbound, closed).
      * Fresh connection to the same server will be established.
      */
-    public LdapNetworkConnection reconnect(LdapNetworkConnection connection, String reasonMessage) {
-        LOG.warn("Reconnecting connection {0}, reason: {1}", LdapUtil.formatConnectionInfo(connection), reasonMessage);
+    public LdapNetworkConnection reconnect(LdapNetworkConnection connection, Exception reason) {
+        LOG.warn("Reconnecting connection {0}, reason: {1}", LdapUtil.formatConnectionInfo(connection), reason);
         ServerDefinition serverDefinition = findServerDefinition(connection);
         try {
-            closeConnection(serverDefinition);
+            closeConnection(serverDefinition, reason);
         } catch (IOException e) {
             LOG.info("Error closing connection {0} while reconnecting: {1}", LdapUtil.formatConnectionInfo(connection), e.getMessage());
         }

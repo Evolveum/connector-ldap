@@ -195,7 +195,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
     protected void cleanupBeforeTest() {
         try {
             LOG.ok("Closing connections ... to reopen them again");
-            connectionManager.close();
+            connectionManager.close("connection test");
         } catch (IOException e) {
             throw new ConnectorIOException(e.getMessage(), e);
         }
@@ -1719,7 +1719,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
             } catch (LdapException e) {
                 RuntimeException connidException = processLdapException("Error reading " + descMessage, e);
                 if (connidException instanceof ReconnectException) {
-                    connection = connectionManager.reconnect(connection, connidException.getMessage());
+                    connection = connectionManager.reconnect(connection, connidException);
                     // Next iteration of the loop will re-try the operation with the same parameter, but different connection
                 } else {
                     throw connidException;
@@ -1752,7 +1752,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
         configuration = null;
         if (connectionManager != null) {
             try {
-                connectionManager.close();
+                connectionManager.close("connector dispose");
             } catch (IOException e) {
                 throw new ConnectorIOException(e.getMessage(), e);
             }

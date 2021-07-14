@@ -288,23 +288,23 @@ public abstract class SearchStrategy<C extends AbstractLdapConfiguration> {
         }
     }
 
-    protected void connectionReconnect(Dn base) {
-        connectionReconnect(base, null);
+    protected void connectionReconnect(Dn base, Exception reconnectReason) {
+        connectionReconnect(base, null, reconnectReason);
     }
 
-    protected void connectionReconnect(Dn base, Referral referral) {
+    protected void connectionReconnect(Dn base, Referral referral, Exception reconnectReason) {
         if (explicitConnection != null) {
             return;
         }
         connectionManager.returnConnection(connection);
-        connection = connectionManager.getConnectionReconnect(getEffectiveBase(base), referral, options);
+        connection = connectionManager.getConnectionReconnect(getEffectiveBase(base), referral, options, reconnectReason);
     }
 
     /**
      * Forces reconnect of current connection, reusing the same connection parameters (server, DN, etc.)
      * This method is used if there is a problem with the connection and the operation has to be re-tried on the same server.
      */
-    protected void reconnectSameServer(String reason) {
+    protected void reconnectSameServer(Exception reason) {
         connection = connectionManager.reconnect(connection, reason);
     }
 

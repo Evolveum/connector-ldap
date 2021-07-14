@@ -117,7 +117,7 @@ public class SimplePagedResultsSearchStrategy<C extends AbstractLdapConfiguratio
                         // checkAlive or connection manager.
                         LOG.ok("Connection error ({0}), reconnecting", e.getMessage(), e);
                         // No need to close the cursor here. It is already closed as part of error handling in next() method.
-                        connectionReconnect(baseDn, referral);
+                        connectionReconnect(baseDn, referral, e);
                         incrementRetryAttempts();
                         continue OUTER;
                     }
@@ -202,7 +202,7 @@ public class SimplePagedResultsSearchStrategy<C extends AbstractLdapConfiguratio
                         } else {
                             RuntimeException connidException = processLdapResult("LDAP error during search in " + baseDn, ldapResult);
                             if (connidException instanceof ReconnectException) {
-                                reconnectSameServer(connidException.getMessage());
+                                reconnectSameServer(connidException);
                                 incrementRetryAttempts();
                                 // Next iteration of the loop will re-try the operation with the same parameter, but different connection
                                 // TODO: Handling of cookie and lastListSize is questionable here.
