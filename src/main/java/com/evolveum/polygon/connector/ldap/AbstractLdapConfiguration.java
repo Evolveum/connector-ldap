@@ -117,6 +117,11 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
     private long connectTimeout = 10000;
 
     /**
+     * Enable use of TCP keepalives on LDAP connections.
+     */
+    private boolean tcpKeepAlive = false;
+
+    /**
      * Maximum number of attempts to retrieve the entry or to re-try the operation.
      * This number is applicable in replicated topology when handling connection failures
      * and re-trying on another server, when following referrals and in similar situations.
@@ -508,6 +513,14 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
     @SuppressWarnings("unused")
     public void setConnectTimeout(long connectTimeout) {
         this.connectTimeout = connectTimeout;
+    }
+
+    @ConfigurationProperty(order = 10)
+    public boolean isTcpKeepAlive() { return tcpKeepAlive; }
+
+    @SuppressWarnings("unused")
+    public void setTcpKeepAlive(boolean tcpKeepAlive) {
+        this.tcpKeepAlive = tcpKeepAlive;
     }
 
     @ConfigurationProperty(order = 11)

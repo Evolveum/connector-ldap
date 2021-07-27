@@ -45,6 +45,8 @@ import org.apache.directory.ldap.client.api.LdapConnectionConfig;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
 import org.apache.directory.ldap.client.api.NoVerificationTrustManager;
 import org.apache.directory.ldap.client.api.exception.LdapConnectionTimeOutException;
+import org.apache.mina.transport.socket.DefaultSocketSessionConfig;
+import org.apache.mina.transport.socket.SocketSessionConfig;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.common.exceptions.ConfigurationException;
@@ -501,6 +503,11 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> {
     private LdapNetworkConnection connectConnection(LdapConnectionConfig connectionConfig, String userDn) {
         LOG.ok("Creating connection object");
         LdapNetworkConnection connection = new LdapNetworkConnection(connectionConfig);
+        if (configuration.isTcpKeepAlive()) {
+            SocketSessionConfig socketSessionConfig = new DefaultSocketSessionConfig();
+            socketSessionConfig.setKeepAlive(configuration.isTcpKeepAlive());
+            connection.setSocketSessionConfig(socketSessionConfig);
+        }
         try {
             LOG.info("Connecting to {0}:{1} as {2}", connectionConfig.getLdapHost(), connectionConfig.getLdapPort(), userDn);
             if (LOG.isOk()) {
@@ -513,6 +520,7 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> {
                 LOG.ok("Connection security: {0} (sslProtocol={1}, enabledSecurityProtocols={2}, enabledCipherSuites={3}",
                         connectionSecurity, connectionConfig.getSslProtocol(),
                         connectionConfig.getEnabledProtocols(), connectionConfig.getEnabledCipherSuites());
+                LOG.ok("Connection networking parameters: timeout={0}, keepalive={1}", configuration.getConnectTimeout(), configuration.isTcpKeepAlive());
             }
             boolean connected = connection.connect();
             LOG.ok("Connected ({0})", connected);
