@@ -130,6 +130,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
     private ErrorHandler errorHandler = null;
     private Boolean usePermissiveModify = null;
     private Boolean useTreeDelete = null;
+    private ConnectionLog connectionLog;
 
     public AbstractLdapConnector() {
         super();
@@ -152,8 +153,10 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
         this.configuration = (C)configuration;
         this.configuration.recompute();
         errorHandler = createErrorHandler();
+        this.connectionLog = new ConnectionLog();
         connectionManager = new ConnectionManager<>(this.configuration);
         connectionManager.setErrorHandler(errorHandler);
+        connectionManager.setConnectionLog(connectionLog);
         connectionManager.connect();
         if (LOG.isOk()) {
             LOG.ok("Servers:\n{0}", connectionManager.dumpServers());
@@ -165,6 +168,8 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
     protected ErrorHandler getErrorHandler() {
         return errorHandler;
     }
+
+    public ConnectionLog getConnectionLog() { return connectionLog; }
 
     @Override
     public void test() {
@@ -193,12 +198,8 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
     }
 
     protected void cleanupBeforeTest() {
-        try {
-            LOG.ok("Closing connections ... to reopen them again");
-            connectionManager.close("connection test");
-        } catch (IOException e) {
-            throw new ConnectorIOException(e.getMessage(), e);
-        }
+        LOG.ok("Closing connections ... to reopen them again");
+        connectionManager.close("connection test");
         schemaManager = null;
         schemaTranslator = null;
     }
@@ -801,7 +802,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
         } else if (LdapConfiguration.PAGING_STRATEGY_SPR.equals(pagingStrategy)) {
             if (supportsControl(PagedResults.OID)) {
                 LOG.ok("Selecting SimplePaged search strategy because strategy setting is set to {0}", pagingStrategy);
-                return new SimplePagedResultsSearchStrategy<>(connectionManager, configuration, schemaTranslator, objectClass, ldapObjectClass, handler, getErrorHandler(), options);
+                return new SimplePagedResultsSearchStrategy<>(connectionManager, configuration, schemaTranslator, objectClass, ldapObjectClass, handler, getErrorHandler(), connectionLog, options);
             } else {
                 throw new ConfigurationException("Configured paging strategy "+pagingStrategy+", but the server does not support PagedResultsControl.");
             }
@@ -809,7 +810,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
         } else if (LdapConfiguration.PAGING_STRATEGY_VLV.equals(pagingStrategy)) {
             if (supportsControl(VirtualListViewRequest.OID)) {
                 LOG.ok("Selecting VLV search strategy because strategy setting is set to {0}", pagingStrategy);
-                return new VlvSearchStrategy<>(connectionManager, configuration, getSchemaTranslator(), objectClass, ldapObjectClass, handler, getErrorHandler(), options);
+                return new VlvSearchStrategy<>(connectionManager, configuration, getSchemaTranslator(), objectClass, ldapObjectClass, handler, getErrorHandler(), connectionLog, options);
             } else {
                 throw new ConfigurationException("Configured paging strategy "+pagingStrategy+", but the server does not support VLV.");
             }
@@ -821,7 +822,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
                 // paging mechanisms. Bu we want consisten results. Therefore in this case prefer VLV even if it might be less efficient.
                 if (supportsControl(VirtualListViewRequest.OID)) {
                     LOG.ok("Selecting VLV search strategy because strategy setting is set to {0} and the request specifies an offset", pagingStrategy);
-                    return new VlvSearchStrategy<>(connectionManager, configuration, getSchemaTranslator(), objectClass, ldapObjectClass, handler, getErrorHandler(), options);
+                    return new VlvSearchStrategy<>(connectionManager, configuration, getSchemaTranslator(), objectClass, ldapObjectClass, handler, getErrorHandler(), connectionLog, options);
                 } else {
                     throw new UnsupportedOperationException("Requested search from offset ("+options.getPagedResultsOffset()+"), but the server does not support VLV. Unable to execute the search.");
                 }
@@ -829,9 +830,9 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
                 if (supportsControl(PagedResults.OID)) {
                     // SPR is usually a better choice if no offset is specified. Less overhead on the server.
                     LOG.ok("Selecting SimplePaged search strategy because strategy setting is set to {0} and the request does not specify an offset", pagingStrategy);
-                    return new SimplePagedResultsSearchStrategy<>(connectionManager, configuration, schemaTranslator, objectClass, ldapObjectClass, handler, getErrorHandler(), options);
+                    return new SimplePagedResultsSearchStrategy<>(connectionManager, configuration, schemaTranslator, objectClass, ldapObjectClass, handler, getErrorHandler(), connectionLog, options);
                 } else if (supportsControl(VirtualListViewRequest.OID)) {
-                    return new VlvSearchStrategy<>(connectionManager, configuration, getSchemaTranslator(), objectClass, ldapObjectClass, handler, getErrorHandler(), options);
+                    return new VlvSearchStrategy<>(connectionManager, configuration, getSchemaTranslator(), objectClass, ldapObjectClass, handler, getErrorHandler(), connectionLog, options);
                 } else {
                     throw new UnsupportedOperationException("Requested paged search, but the server does not support VLV or PagedResultsControl. Unable to execute the search.");
                 }
@@ -852,7 +853,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
     protected SearchStrategy<C> getDefaultSearchStrategy(ObjectClass objectClass,
             org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
             ResultsHandler handler, OperationOptions options) {
-        return new DefaultSearchStrategy<>(connectionManager, configuration, getSchemaTranslator(), objectClass, ldapObjectClass, handler, getErrorHandler(), options);
+        return new DefaultSearchStrategy<>(connectionManager, configuration, getSchemaTranslator(), objectClass, ldapObjectClass, handler, getErrorHandler(), connectionLog, options);
     }
 
     @Override
@@ -944,11 +945,13 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 
         } catch (LdapException e) {
             OperationLog.logOperationErr(connection, "Add ERROR {0}: {1}", dnStringFromName, e.getMessage(), e);
+            connectionLog.error(connection, "add", e, dnStringFromName);
             connectionManager.returnConnection(connection);
             throw processLdapException("Error adding LDAP entry "+dnStringFromName, e);
         }
 
         OperationLog.logOperationRes(connection, "Add RES {0}: {1}", dnStringFromName, addResponse.getLdapResult());
+        connectionLog.success(connection, "add", dnStringFromName);
 
         // Do NOT return the connection here. We want to use the same connection for read-after-create.
 
@@ -1091,8 +1094,12 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
                 // that well.
                 connection.moveAndRename(oldDn.getName(), newDn.getName());
                 OperationLog.logOperationRes(connection, "MoveAndRename RES OK {0} -> {1}", oldDn, newDn);
+                if (connectionLog.isSuccess()) {
+                    connectionLog.success(connection, "rename", oldDn + " -> " + newDn);
+                }
             } catch (LdapException e) {
                 OperationLog.logOperationErr(connection, "MoveAndRename ERROR {0} -> {1}: {2}", oldDn, newDn, e.getMessage(), e);
+                connectionLog.error(connection, "rename",  e,oldDn + " -> " + newDn);
                 throw processLdapException("Rename/move of LDAP entry from "+oldDn+" to "+newDn+" failed", e);
             } finally {
                 connectionManager.returnConnection(connection);
@@ -1188,12 +1195,14 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
             if (LOG.isOk()) {
                 OperationLog.logOperationRes(connection, "Modify RES {0}: {1}", dn, modifyResponse.getLdapResult());
             }
+            connectionLog.success(connection, "modify", dn);
 
             if (modifyResponse.getLdapResult().getResultCode() != ResultCodeEnum.SUCCESS) {
                 throw processModifyResult(dn, modifications, modifyResponse);
             }
         } catch (LdapException e) {
             OperationLog.logOperationErr(connection, "Modify ERROR {0}: {1}: {2}", dn, dumpModifications(modifications), e.getMessage(), e);
+            connectionLog.error(connection, "modify", e, dn);
             throw processModifyResult(dn.toString(), modifications, e);
         } finally {
             connectionManager.returnConnection(connection);
@@ -1489,30 +1498,6 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
         deleteAttempt(dn, uid, options);
     }
 
-    private void deleteAttemptX(Dn dn, Uid uid, OperationOptions options) {
-
-        LdapNetworkConnection connection = connectionManager.getConnection(dn, options);
-
-        try {
-
-            if (LOG.isOk()) {
-                OperationLog.logOperationReq(connection, "Delete REQ {0}, control=TREE", dn);
-            }
-
-            connection.deleteTree(dn);
-
-            if (LOG.isOk()) {
-                OperationLog.logOperationRes(connection, "Delete RES {0}", dn);
-            }
-
-        } catch (LdapException e) {
-            OperationLog.logOperationErr(connection, "Delete ERROR {0}: {1}", dn, e.getMessage(), e);
-            throw processLdapException("Failed to delete entry with DN "+dn+" (UID="+uid+")", e);
-        } finally {
-            connectionManager.returnConnection(connection);
-        }
-    }
-
     private void deleteAttempt(Dn dn, Uid uid, OperationOptions options) {
 
         LdapNetworkConnection connection = connectionManager.getConnection(dn, options);
@@ -1540,8 +1525,11 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
             }
 
             if (deleteResponse.getLdapResult().getResultCode() != ResultCodeEnum.SUCCESS) {
+                connectionLog.error(connection, "delete", deleteResponse.getLdapResult(), dn);
                 throw processLdapResult("Error deleting LDAP entry "+dn, deleteResponse.getLdapResult());
             }
+
+            connectionLog.success(connection, "delete", dn);
 
         } catch (LdapException e) {
             OperationLog.logOperationErr(connection, "Delete ERROR {0}: {1}", dn, e.getMessage(), e);
@@ -1666,6 +1654,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
                         entry = ((SearchResultEntry)response).getEntry();
                         if (OperationLog.isLogOperations()) {
                             OperationLog.logOperationRes(connection, "Search RES {0}", entry);
+                            connectionLog.searchSuccess(connection, searchReq, 1, null);
                         }
                         // WARNING: Do not remove this check.
                         // We have to invoke cursor.next() when the cursor is done, even though we know that it is done.
@@ -1688,6 +1677,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
                     return null;
                 }
             } catch (CursorLdapReferralException e) {
+                connectionLog.searchReferral(connection, searchReq, e.getReferralInfo());
                 LOG.ok("Got cursor referral exception while resolving {0}: {1}", descMessage, e.getReferralInfo());
                 if (configuration.isReferralStrategyFollow()) {
                     LdapUrl referralUrl;
@@ -1717,6 +1707,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
                     throw new ConnectorIOException("Error reading "+descMessage+": "+e.getMessage(), e);
                 }
             } catch (LdapException e) {
+                connectionLog.searchError(connection, e, searchReq, null, null);
                 RuntimeException connidException = processLdapException("Error reading " + descMessage, e);
                 if (connidException instanceof ReconnectException) {
                     connection = connectionManager.reconnect(connection, connidException);
@@ -1751,11 +1742,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
         LOG.info("Disposing {0} connector instance {1}", this.getClass().getSimpleName(), this);
         configuration = null;
         if (connectionManager != null) {
-            try {
-                connectionManager.close("connector dispose");
-            } catch (IOException e) {
-                throw new ConnectorIOException(e.getMessage(), e);
-            }
+            connectionManager.close("connector dispose");
             connectionManager = null;
             schemaManager = null;
             schemaTranslator = null;

@@ -554,7 +554,7 @@ public class LdapUtil {
         if (port != null) {
             sb.append(":").append(port);
         }
-        sb.append("/ ");
+        sb.append("/");
         return sb.toString();
     }
 

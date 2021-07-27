@@ -62,8 +62,8 @@ public class SimplePagedResultsSearchStrategy<C extends AbstractLdapConfiguratio
     public SimplePagedResultsSearchStrategy(ConnectionManager<C> connectionManager,
                                             AbstractLdapConfiguration configuration, AbstractSchemaTranslator<C> schemaTranslator, ObjectClass objectClass,
                                             org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
-                                            ResultsHandler handler, ErrorHandler errorHandler, OperationOptions options) {
-        super(connectionManager, configuration, schemaTranslator, objectClass, ldapObjectClass, handler, errorHandler, options);
+                                            ResultsHandler handler, ErrorHandler errorHandler, ConnectionLog connectionLog, OperationOptions options) {
+        super(connectionManager, configuration, schemaTranslator, objectClass, ldapObjectClass, handler, errorHandler, connectionLog, options);
         if (options != null && options.getPagedResultsCookie() != null) {
             cookie = Base64.getDecoder().decode(options.getPagedResultsCookie());
         }
@@ -112,7 +112,7 @@ public class SimplePagedResultsSearchStrategy<C extends AbstractLdapConfiguratio
                             break;
                         }
                     } catch (LdapConnectionTimeOutException | InvalidConnectionException e) {
-                        logSearchError(e);
+                        logSearchError(req, responseResultCount, e);
                         // Server disconnected. And by some miracle this was not caught by
                         // checkAlive or connection manager.
                         LOG.ok("Connection error ({0}), reconnecting", e.getMessage(), e);
@@ -146,6 +146,8 @@ public class SimplePagedResultsSearchStrategy<C extends AbstractLdapConfiguratio
                 }
 
                 SearchResultDone searchResultDone = searchCursor.getSearchResultDone();
+                logSearchOperationDone(req, responseResultCount, searchResultDone);
+
                 // We really want to call searchCursor.next() here, even though we do not care about the result.
                 // The implementation of cursor.next() sets the "done" status of the cursor.
                 // If we do not do that, the subsequent close() operation on the cursor will send an
@@ -319,6 +321,7 @@ public class SimplePagedResultsSearchStrategy<C extends AbstractLdapConfiguratio
             PagedResults pagedResultsResponseControl = (PagedResults)searchResultDone.getControl(PagedResults.OID);
             logSearchResult("Finish SPR search done", ldapResult, compileExtraMessage(pagedResultsResponseControl));
             LOG.ok("Finish SPR search response done:\n{0}", searchResultDone);
+            logSearchOperationDone(req, null, searchResultDone);
             if (ldapResult.getResultCode() != ResultCodeEnum.SUCCESS) {
                 LOG.warn("LDAP error during finishing SPR search (ignoring): {0}", LdapUtil.formatLdapMessage(ldapResult));
                 return;
@@ -326,7 +329,7 @@ public class SimplePagedResultsSearchStrategy<C extends AbstractLdapConfiguratio
         } catch (CursorException e) {
             LOG.warn("Error finishing SPR search", e);
         } catch (LdapException e) {
-            logSearchError(e);
+            logSearchError(req, null, e);
         } finally {
             LdapUtil.closeDoneCursor(searchCursor);
         }
@@ -349,6 +352,10 @@ public class SimplePagedResultsSearchStrategy<C extends AbstractLdapConfiguratio
         return Base64.getEncoder().encodeToString(cookie);
     }
 
+    @Override
+    protected String getStrategyTag() {
+        return "spr";
+    }
 
 
 }

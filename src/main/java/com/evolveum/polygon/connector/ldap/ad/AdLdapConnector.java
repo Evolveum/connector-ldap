@@ -446,7 +446,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
             // Make a search directly to the global catalog server. Present that as final result.
             // We know that this can return at most one object. Therefore always use simple search.
             SearchStrategy<AdLdapConfiguration> searchStrategy = new DefaultSearchStrategy<>(globalCatalogConnectionManager,
-                    getConfiguration(), getSchemaTranslator(), objectClass, ldapObjectClass, handler, getErrorHandler(), options);
+                    getConfiguration(), getSchemaTranslator(), objectClass, ldapObjectClass, handler, getErrorHandler(), getConnectionLog(), options);
             String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
             Dn guidDn = getSchemaTranslator().getGuidDn(uidValue);
             try {

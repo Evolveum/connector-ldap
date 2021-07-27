@@ -28,19 +28,19 @@ public class OperationLog {
 
     public static void logOperationReq(LdapNetworkConnection connection, String format, Object... params) {
         if (LOG.isInfo()) {
-            LOG.info(LdapUtil.formatConnectionInfo(connection) + format, params);
+            LOG.info(LdapUtil.formatConnectionInfo(connection) + " " + format, params);
         }
     }
 
     public static void logOperationRes(LdapNetworkConnection connection, String format, Object... params) {
         if (LOG.isInfo()) {
-            LOG.info(LdapUtil.formatConnectionInfo(connection) + format, params);
+            LOG.info(LdapUtil.formatConnectionInfo(connection) + " " + format, params);
         }
     }
 
     public static void logOperationErr(LdapNetworkConnection connection, String format, Object... params) {
         if (LOG.isError()) {
-            LOG.error(LdapUtil.formatConnectionInfo(connection) + format, params);
+            LOG.error(LdapUtil.formatConnectionInfo(connection) + " " + format, params);
         }
     }
 

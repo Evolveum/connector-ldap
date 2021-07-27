@@ -64,9 +64,9 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
     public VlvSearchStrategy(ConnectionManager<C> connectionManager, AbstractLdapConfiguration configuration,
             AbstractSchemaTranslator<C> schemaTranslator, ObjectClass objectClass,
             org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
-            ResultsHandler handler, ErrorHandler errorHandler,
+            ResultsHandler handler, ErrorHandler errorHandler, ConnectionLog connectionLog,
             OperationOptions options) {
-        super(connectionManager, configuration, schemaTranslator, objectClass, ldapObjectClass, handler, errorHandler, options);
+        super(connectionManager, configuration, schemaTranslator, objectClass, ldapObjectClass, handler, errorHandler, connectionLog, options);
     }
 
     /* (non-Javadoc)
@@ -153,7 +153,7 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
                             break;
                         }
                     } catch (LdapConnectionTimeOutException | InvalidConnectionException e) {
-                        logSearchError(e);
+                        logSearchError(req, responseResultCount, e);
                         // Server disconnected. And by some miracle this was not caught by
                         // checkAlive or connection manager.
                         LOG.ok("Connection error ({0}), reconnecting", e.getMessage(), e);
@@ -194,6 +194,8 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
                 }
 
                 SearchResultDone searchResultDone = searchCursor.getSearchResultDone();
+                logSearchOperationDone(req, responseResultCount, searchResultDone);
+
                 // We really want to call searchCursor.next() here, even though we do not care about the result.
                 // The implementation of cursor.next() sets the "done" status of the cursor.
                 // If we do not do that, the subsequent close() operation on the cursor will send an
@@ -320,6 +322,7 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
 
 
             } catch (CursorException e) {
+                LOG.error("Mysterions CursorException in VLV search: {0}", e.getMessage(), e);
                 returnConnection();
                 // TODO: better error handling
                 throw new ConnectorIOException(e.getMessage(), e);
@@ -367,5 +370,10 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
             return null;
         }
         return Base64.getEncoder().encodeToString(cookie);
+    }
+
+    @Override
+    protected String getStrategyTag() {
+        return "vlv";
     }
 }

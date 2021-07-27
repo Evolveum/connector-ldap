@@ -53,9 +53,9 @@ public class DefaultSearchStrategy<C extends AbstractLdapConfiguration> extends 
     public DefaultSearchStrategy(ConnectionManager<C> connectionManager, AbstractLdapConfiguration configuration,
             AbstractSchemaTranslator<C> schemaTranslator, ObjectClass objectClass,
             org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
-            ResultsHandler handler, ErrorHandler errorHandler,
+            ResultsHandler handler, ErrorHandler errorHandler, ConnectionLog connectionLog,
             OperationOptions options) {
-        super(connectionManager, configuration, schemaTranslator, objectClass, ldapObjectClass, handler, errorHandler, options);
+        super(connectionManager, configuration, schemaTranslator, objectClass, ldapObjectClass, handler, errorHandler, connectionLog, options);
     }
 
     /* (non-Javadoc)
@@ -78,6 +78,7 @@ public class DefaultSearchStrategy<C extends AbstractLdapConfiguration> extends 
         OUTER: while (true) {
             incrementRetryAttempts();
 
+            int responseResultCount = 0;
             SearchCursor searchCursor = executeSearch(req);
             try {
                 while (true) {
@@ -86,7 +87,7 @@ public class DefaultSearchStrategy<C extends AbstractLdapConfiguration> extends 
                             break;
                         }
                     } catch (LdapConnectionTimeOutException | InvalidConnectionException e) {
-                        logSearchError(e);
+                        logSearchError(req, responseResultCount, e);
                         // Server disconnected. And by some miracle this was not caught by
                         // checkAlive or connection manager.
                         LOG.ok("Connection error ({0}), reconnecting", e.getMessage(), e);
@@ -96,6 +97,7 @@ public class DefaultSearchStrategy<C extends AbstractLdapConfiguration> extends 
                     }
                     Response response = searchCursor.get();
                     if (response instanceof SearchResultEntry) {
+                        responseResultCount++;
                         Entry entry = ((SearchResultEntry)response).getEntry();
                         logSearchResult(entry);
                         boolean proceed = handleResult(entry);
@@ -121,11 +123,12 @@ public class DefaultSearchStrategy<C extends AbstractLdapConfiguration> extends 
                 // However, make sure we call searchCursor.next() before closing, we do not want to send abandons when not needed.
                 LdapUtil.closeAbandonCursor(searchCursor);
 
+                logSearchOperationDone(req, responseResultCount, searchResultDone);
                 if (searchResultDone == null) {
                     break;
                 } else {
                     LdapResult ldapResult = searchResultDone.getLdapResult();
-                    logSearchResult("Done", ldapResult);
+                    logSearchResult("Done", searchResultDone.getLdapResult());
 
                     if (ldapResult.getResultCode() == ResultCodeEnum.REFERRAL && !getConfiguration().isReferralStrategyThrow()) {
                         referral = ldapResult.getReferral();
@@ -166,12 +169,18 @@ public class DefaultSearchStrategy<C extends AbstractLdapConfiguration> extends 
 
             } catch (CursorException e) {
                 returnConnection();
-                // TODO: better error handling
+                // TODO: better error handling ?
                 throw new ConnectorIOException(e.getMessage(), e);
             }
         }
 
         returnConnection();
+    }
+
+    @Override
+    protected String getStrategyTag() {
+        // null means default, absolutely normal LDAP search
+        return null;
     }
 
 }

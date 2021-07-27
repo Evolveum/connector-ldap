@@ -77,6 +77,7 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> {
     private AbstractSchemaTranslator<C> schemaTranslator;
     private ErrorHandler errorHandler;
     private final ConnectorBinaryAttributeDetector<C> binaryAttributeDetector = new ConnectorBinaryAttributeDetector<>();
+    private ConnectionLog connectionLog;
 
     public ConnectionManager(C configuration) {
         this(configuration, configuration.getServers(), true);
@@ -114,6 +115,14 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> {
         this.errorHandler = errorHandler;
     }
 
+    public ConnectionLog getConnectionLog() {
+        return connectionLog;
+    }
+
+    public void setConnectionLog(ConnectionLog connectionLog) {
+        this.connectionLog = connectionLog;
+    }
+
     private LdapNetworkConnection getConnection(ServerDefinition server) {
         if (!server.isConnected()) {
             connectServer(server);
@@ -128,39 +137,36 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> {
         return getConnection(defaultServerDefinition);
     }
 
-    public LdapNetworkConnection getConnectionReconnect(Dn base, Referral referral, OperationOptions options, Exception reconnectReason) {
+    public LdapNetworkConnection getConnectionReconnect(Dn base, Referral referral, OperationOptions options, Exception reconnectException) {
         LdapUrl ldapUrl = getLdapUrl(referral);
         ServerDefinition server = selectServer(base, ldapUrl);
         if (needsSpecialConnection(options)) {
             return createSpecialConnection(server, options);
         }
-        if (LOG.isOk()) {
-            if (reconnectReason != null) {
-                LOG.ok("Reconnecting server {0} due to {1}: {2}", server, reconnectReason.getClass().getSimpleName(), reconnectReason.getMessage());
-            }
+        String closeReason = "unknown reason";
+        if (reconnectException != null) {
+            closeReason = "reconnect due to " + reconnectException.getClass().getSimpleName();
+            LOG.ok("Reconnecting server {0} due to {1}: {2}", server, closeReason, reconnectException.getMessage());
+        }
+        if (referral != null) {
+            closeReason = "referral";
+            LOG.ok("Reconnecting server {0} due to referral {1}: {2}", server, referral);
+        }
+        if (reconnectException == null && referral == null) {
             if (referral != null) {
-                LOG.ok("Reconnecting server {0} due to referral {1}: {2}", server, referral);
-            }
-            if (reconnectReason == null && referral == null) {
-                if (referral != null) {
-                    LOG.ok("Reconnecting server {0} due to unknown reason", server);
-                }
+                LOG.ok("Reconnecting server {0} due to unknown reason", server);
             }
         }
         if (server.isConnected()) {
-            try {
-                closeConnection(server, reconnectReason);
-            } catch (IOException e) {
-                LOG.error("Error closing connection {0}: {1}", server, e.getMessage(), e);
-                // Otherwise ignore the error and reconnect anyway
-            }
+            closeConnection(server, closeReason, reconnectException);
         }
         connectServer(server);
         return server.getConnection();
     }
 
     public LdapNetworkConnection getConnection(Dn base, OperationOptions options) {
-        LOG.ok("Selecting server for {0} from servers:\n{1}", base, dumpServers());
+        // Too loud for normal operation, but may be useful for debugging
+//        LOG.ok("Selecting server for {0} from servers:\n{1}", base, dumpServers());
         ServerDefinition server = selectServer(base);
         if (needsSpecialConnection(options)) {
             return createSpecialConnection(server, options);
@@ -255,31 +261,37 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> {
         Dn selectedBaseContext = null;
         for (ServerDefinition server: servers) {
             Dn serverBaseContext = server.getBaseContext();
-            LOG.ok("SELECT: considering {0} ({1}) for {2}", server.getHost(), serverBaseContext, dn);
+            // Too loud for normal operation, but may be useful for debugging
+//            LOG.ok("SELECT: considering {0} ({1}) for {2}", server.getHost(), serverBaseContext, dn);
             if (serverBaseContext == null) {
                 continue;
             }
             if (serverBaseContext.equals(dn)) {
                 // we cannot get tighter match than this
                 selectedBaseContext = dn;
-                LOG.ok("SELECT: accepting {0} because {1} is an exact match", server.getHost(), serverBaseContext);
+                // Too loud for normal operation, but may be useful for debugging
+//                LOG.ok("SELECT: accepting {0} because {1} is an exact match", server.getHost(), serverBaseContext);
                 break;
             }
             if (LdapUtil.isAncestorOf(serverBaseContext, dn, schemaTranslator)) {
                 if (serverBaseContext.isDescendantOf(selectedBaseContext)) {
-                    LOG.ok("SELECT: accepting {0} because {1} is under {2} and it is the best we have", server.getHost(), dn, serverBaseContext);
+                    // Too loud for normal operation, but may be useful for debugging
+//                    LOG.ok("SELECT: accepting {0} because {1} is under {2} and it is the best we have", server.getHost(), dn, serverBaseContext);
                     selectedBaseContext = serverBaseContext;
                 } else {
-                    LOG.ok("SELECT: accepting {0} because {1} is under {2} but it is NOT the best we have, {3} is better",
-                            server.getHost(), dn, serverBaseContext, selectedBaseContext);
+                    // Too loud for normal operation, but may be useful for debugging
+//                    LOG.ok("SELECT: accepting {0} because {1} is under {2} but it is NOT the best we have, {3} is better",
+//                            server.getHost(), dn, serverBaseContext, selectedBaseContext);
                 }
             } else {
-                LOG.ok("SELECT: refusing {0} because {1} ({2}) is not under {3} ({4})", server.getHost(),
-                        dn, dn.isSchemaAware(),
-                        serverBaseContext, serverBaseContext.isSchemaAware());
+                // Too loud for normal operation, but may be useful for debugging
+//                LOG.ok("SELECT: refusing {0} because {1} ({2}) is not under {3} ({4})", server.getHost(),
+//                        dn, dn.isSchemaAware(),
+//                        serverBaseContext, serverBaseContext.isSchemaAware());
             }
         }
-        LOG.ok("SELECT: selected base context: {0}", selectedBaseContext);
+        // Too loud for normal operation, but may be useful for debugging
+//        LOG.ok("SELECT: selected base context: {0}", selectedBaseContext);
         List<ServerDefinition> selectedServers = new ArrayList<>();
         for (ServerDefinition server: servers) {
             if (selectedBaseContext == null && server.getBaseContext() == null) {
@@ -298,16 +310,19 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> {
                 selectedServers.add(server);
             }
         }
-        LOG.ok("SELECT: selected server list: {0}", selectedServers);
+        // Too loud for normal operation, but may be useful for debugging
+//        LOG.ok("SELECT: selected server list: {0}", selectedServers);
         ServerDefinition selectedServer = selectRandomItem(selectedServers);
         if (selectedServer == null) {
-            LOG.ok("SELECT: selected default for {0}", dn);
+            // Too loud for normal operation, but may be useful for debugging
+//            LOG.ok("SELECT: selected default for {0}", dn);
             if (defaultServerDefinition == null) {
                 throw new IllegalStateException("No default connection in this connection manager");
             }
             return defaultServerDefinition;
         } else {
-            LOG.ok("SELECT: selected {0} for {1}", selectedServer.getHost(), dn);
+            // Too loud for normal operation, but may be useful for debugging
+//            LOG.ok("SELECT: selected {0} for {1}", selectedServer.getHost(), dn);
             return selectedServer;
         }
     }
@@ -342,50 +357,55 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> {
         return defaultServerDefinition.getConnection() != null && defaultServerDefinition.getConnection().isConnected();
     }
 
-    public void close(String reason) throws IOException {
+    public void close(String reason) {
         // Make sure that we attempt to close all connection even if there are some exceptions during the close.
-        IOException exception = null;
         for (ServerDefinition serverDef: servers) {
-            try {
-                closeConnection(serverDef, null);
-            } catch (IOException e) {
-                LOG.error("Error closing conection {0}: {1}", serverDef, e.getMessage(), e);
-                exception = e;
-            }
-        }
-        if (exception != null) {
-            throw exception;
+            closeConnection(serverDef, reason,null);
         }
     }
 
-    private void closeConnection(ServerDefinition serverDef, Exception reconnectReason) throws IOException {
+    private void closeConnection(ServerDefinition serverDef, String closeReason, Exception reconnectReasonException) {
         if (serverDef.getConnection() != null) {
-            unbindIfNeeded(serverDef.getConnection(), reconnectReason);
-            // Checking for isConnected() is not enough here.
-            // Even if the connection is NOT connected it still
-            // maintains some resources (pipes) and needs to be
-            // explicitly closed from the client side.
-            LOG.ok("Closing connection {0}", serverDef);
-            serverDef.getConnection().close();
+            try {
+                unbindIfNeeded(serverDef, serverDef.getConnection(), reconnectReasonException);
+                // Checking for isConnected() is not enough here.
+                // Even if the connection is NOT connected it still
+                // maintains some resources (pipes) and needs to be
+                // explicitly closed from the client side.
+                LOG.ok("Closing connection {0}", serverDef);
+                serverDef.getConnection().close();
+                connectionLog.success(serverDef, "close", closeReason);
+            } catch (IOException e) {
+                if (reconnectReasonException == null) {
+                    LOG.error("Error closing connection {0}: {1}", serverDef, e.getMessage(), e);
+                    connectionLog.errorTagged(serverDef, "close", e, "ignored", closeReason);
+                } else {
+                    LOG.info("Error closing connection {0} while reconnecting: {1}", serverDef, e.getMessage());
+                    connectionLog.errorTagged(serverDef, "close", e, "reconnect,ignored", closeReason);
+                }
+                // Otherwise ignore the error and reconnect anyway
+            }
             serverDef.setConnection(null);
         } else {
             LOG.ok("Not closing connection {0} because there is no connection", serverDef);
         }
     }
 
-    private void unbindIfNeeded(LdapNetworkConnection ldapConnection, Exception reconnectReason) throws IOException {
-        if (isUnbindNeeded(ldapConnection, reconnectReason)) {
+    private void unbindIfNeeded(ServerDefinition serverDef, LdapNetworkConnection ldapConnection, Exception reconnectReasonException) throws IOException {
+        if (isUnbindNeeded(ldapConnection, reconnectReasonException)) {
             try {
                 // This log may be too loud, but needed for diagnostics. At least now.
                 LOG.ok("Unbinding connection {0}", LdapUtil.formatConnectionInfo(ldapConnection));
                 ldapConnection.unBind();
+                connectionLog.success(serverDef, "unbind");
             } catch (LdapException e) {
+                connectionLog.errorTagged(serverDef, "unbind", e,"ignored");
                 LOG.warn("Unbind operation failed on {0} (ignoring): {1}", LdapUtil.formatConnectionInfo(ldapConnection), e.getMessage());
             }
         }
     }
 
-    private boolean isUnbindNeeded(LdapNetworkConnection ldapConnection, Exception reconnectReason) {
+    private boolean isUnbindNeeded(LdapNetworkConnection ldapConnection, Exception reconnectReasonException) {
         if (ldapConnection == null) {
             return false;
         }
@@ -395,7 +415,7 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> {
         if (!ldapConnection.isConnected()) {
             return false;
         }
-        if (reconnectReason != null && reconnectReason instanceof LdapConnectionTimeOutException) {
+        if (reconnectReasonException != null && reconnectReasonException instanceof LdapConnectionTimeOutException) {
             // Attempt to issue unbind command after a connection/operation timeout.
             // Attempt to unbind in this situation is formally correct.
             // The timeout might have occurred due to client (connector) impatience, waiting for LDAP operation to complete.
@@ -403,7 +423,7 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> {
             // However, in this case the server is probably overloaded, or there is some network problem.
             // Attempt to unbind may take a long time, probably also timing out.
             // In this case we would rather leave without saying proper goodbye than risking being stuck for seconds or minutes waiting for timeout.
-            LOG.ok("Skipping unbind on connection {0} due to previous timeout ({1})", LdapUtil.formatConnectionInfo(ldapConnection), reconnectReason.getMessage());
+            LOG.ok("Skipping unbind on connection {0} due to previous timeout ({1})", LdapUtil.formatConnectionInfo(ldapConnection), reconnectReasonException.getMessage());
             return false;
         }
         return true;
@@ -455,24 +475,16 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> {
         return connectionConfig;
     }
 
-    private void connectServer(ServerDefinition server) {
-        if (server.getConnection() != null) {
-            try {
-                closeConnection(server, new RuntimeException("old connection open while creating new connection"));
-            } catch (IOException e) {
-                throw new ConnectorIOException("Error closing connection to "+server+": "+e.getMessage(), e);
-            }
+    private void connectServer(ServerDefinition serverDef) {
+        if (serverDef.getConnection() != null) {
+            closeConnection(serverDef, "strange close/open", new RuntimeException("old connection open while creating new connection"));
         }
-        final LdapConnectionConfig connectionConfig = createLdapConnectionConfig(server);
-        LdapNetworkConnection connection = connectConnection(connectionConfig, configuration.getBindDn());
+        final LdapConnectionConfig connectionConfig = createLdapConnectionConfig(serverDef);
+        LdapNetworkConnection connection = connectConnection(serverDef, connectionConfig, configuration.getBindDn());
         try {
-            bind(connection, server);
+            bind(connection, serverDef);
         } catch (RuntimeException e) {
-            try {
-                connection.close();
-            } catch (Exception e1) {
-                LOG.error("Error closing connection (error handling of a bind of a new connection): {1}", e.getMessage(), e);
-            }
+            closeConnection(serverDef, "failed bind", e);
             // This is always connection failed, even if other error is indicated.
             // E.g. if this is a wrong password, we do nor really want to indicate wrong password.
             // If we did and if this happen during password change operation, then midPoint code could
@@ -481,7 +493,7 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> {
             // that this is a connection problem.
             throw new ConnectionFailedException(e.getMessage(), e);
         }
-        server.setConnection(connection);
+        serverDef.setConnection(connection);
     }
 
     private TrustManager[] createTrustManager() {
@@ -500,8 +512,7 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> {
         throw new ConnectionFailedException("Unable to create trust manager.");
     }
 
-    private LdapNetworkConnection connectConnection(LdapConnectionConfig connectionConfig, String userDn) {
-        LOG.ok("Creating connection object");
+    private LdapNetworkConnection connectConnection(ServerDefinition serverDef, LdapConnectionConfig connectionConfig, String userDn) {
         LdapNetworkConnection connection = new LdapNetworkConnection(connectionConfig);
         if (configuration.isTcpKeepAlive()) {
             SocketSessionConfig socketSessionConfig = new DefaultSocketSessionConfig();
@@ -524,14 +535,20 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> {
             }
             boolean connected = connection.connect();
             LOG.ok("Connected ({0})", connected);
+            if (connectionLog.isSuccess()) {
+                connectionLog.success(connection, "connect", connectionConfig.getLdapHost() + ":" + connectionConfig.getLdapPort());
+            }
             if (!connected) {
+                connectionLog.error(connection, "connect", "Not connected after connect", connectionConfig.getLdapHost() + ":" + connectionConfig.getLdapPort());
                 throw new ConnectionFailedException("Unable to connect to LDAP server "+configuration.getHost()+":"+configuration.getPort()+" due to unknown reasons");
             }
         } catch (LdapException e) {
+            connectionLog.error(connection, "connect", e, connectionConfig.getLdapHost() + ":" + connectionConfig.getLdapPort());
             try {
                 connection.close();
-            } catch (Exception e1) {
-                LOG.error("Error closing connection (handling error during creation of a new connection): {1}", e.getMessage(), e);
+            } catch (Exception closeException) {
+                connectionLog.error(connection, "close", "close after connect failure: " + closeException.getMessage(), connectionConfig.getLdapHost() + ":" + connectionConfig.getLdapPort());
+                LOG.error("Error closing connection (handling error during creation of a new connection): {1}", closeException.getMessage(), closeException);
             }
             RuntimeException processedException = errorHandler.processLdapException("Unable to connect to LDAP server "+configuration.getHost()+":"+configuration.getPort(), e);
             // This is always connection failed, even if other error is indicated.
@@ -550,12 +567,12 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> {
         bind(connection, server, server.getBindDn(), server.getBindPassword());
     }
 
-    private void bind(LdapNetworkConnection connection, ServerDefinition server, String bindDn, GuardedString bindPassword) {
+    private void bind(LdapNetworkConnection connection, ServerDefinition serverDef, String bindDn, GuardedString bindPassword) {
         final BindRequest bindRequest = new BindRequestImpl();
         try {
             bindRequest.setDn(new Dn(createBindSchemaManager(), bindDn));
         } catch (LdapInvalidDnException e) {
-            throw new ConfigurationException("bindDn is not in DN format (server "+server+"): "+e.getMessage(), e);
+            throw new ConfigurationException("bindDn is not in DN format (server "+serverDef+"): "+e.getMessage(), e);
         }
 
         if (bindPassword != null) {
@@ -578,6 +595,7 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> {
         }
         LdapResult ldapResult = bindResponse.getLdapResult();
         if (ldapResult.getResultCode() != ResultCodeEnum.SUCCESS) {
+            connectionLog.error(connection, "bind", ldapResult, bindDn);
             throw errorHandler.processLdapResult("Unable to bind to LDAP server "
                     + connection.getConfig().getLdapHost() + ":" + connection.getConfig().getLdapPort()
                     + " as " + bindDn, ldapResult);
@@ -585,6 +603,7 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> {
         LOG.info("Bound to {0}:{1} as {2}: {3} ({4})",
                 connection.getConfig().getLdapHost(), connection.getConfig().getLdapPort(),
                 bindDn, ldapResult.getDiagnosticMessage(), ldapResult.getResultCode());
+        connectionLog.success(connection, "bind", bindDn);
     }
 
     private SchemaManager createBindSchemaManager() {
@@ -638,15 +657,11 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> {
 
         final LdapConnectionConfig connectionConfig = createLdapConnectionConfig(server);
         LOG.ok("Connecting to server {0} as user {1} (runAs)", connectionConfig.getLdapHost(), runAsUser);
-        LdapNetworkConnection connection = connectConnection(connectionConfig, runAsUser);
+        LdapNetworkConnection connection = connectConnection(server, connectionConfig, runAsUser);
         try {
             bind(connection, server, runAsUser, runWithPassword);
         } catch (RuntimeException e) {
-            try {
-                connection.close();
-            } catch (Exception e1) {
-                LOG.error("Error closing connection (error handling of a bind of a new connection): {1}", e1.getMessage(), e1);
-            }
+            closeConnection(server, "failed bind", e);
             // This is a special runAs situation. We really want to throw the real error here.
             // If we would throw ConnectionFailedException here, then midPoint would consider that to be a network error.
             // But here we know that this is no ordinary network error. It is an authentication error.
@@ -668,6 +683,7 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> {
             return false;
         }
         if (!defaultServerDefinition.getConnection().isConnected()) {
+            connectionLog.failedCheckAlive(defaultServerDefinition.getConnection(), "server-initiated connection close");
             return false;
         }
         // TODO: try some NOOP operation
@@ -693,10 +709,12 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> {
             // Those are "special" connections that are not default server connections.
             // For example connections that were created for runAs feature.
             try {
-                unbindIfNeeded(connection, null);
+                unbindIfNeeded(null, connection, null);
                 connection.close();
+                connectionLog.success(connection, "close");
             } catch (Exception e) {
                 LOG.error("Error closing special connection: {0}", e.getMessage(), e);
+                connectionLog.errorTagged(connection, "close", e,"ignored");
             }
         }
     }
@@ -706,14 +724,14 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> {
      * Existing connection will be torn down (unbound, closed).
      * Fresh connection to the same server will be established.
      */
-    public LdapNetworkConnection reconnect(LdapNetworkConnection connection, Exception reason) {
-        LOG.warn("Reconnecting connection {0}, reason: {1}", LdapUtil.formatConnectionInfo(connection), reason);
+    public LdapNetworkConnection reconnect(LdapNetworkConnection connection, Exception reconnectReasonException) {
+        LOG.warn("Reconnecting connection {0}, reason: {1}", LdapUtil.formatConnectionInfo(connection), reconnectReasonException);
         ServerDefinition serverDefinition = findServerDefinition(connection);
-        try {
-            closeConnection(serverDefinition, reason);
-        } catch (IOException e) {
-            LOG.info("Error closing connection {0} while reconnecting: {1}", LdapUtil.formatConnectionInfo(connection), e.getMessage());
+        String closeReason = "unspecified reconnect";
+        if (reconnectReasonException != null) {
+            closeReason = "reconnect due to " + reconnectReasonException.getClass().getSimpleName();
         }
+        closeConnection(serverDefinition, closeReason, reconnectReasonException);
         connectServer(serverDefinition);
         return serverDefinition.getConnection();
     }

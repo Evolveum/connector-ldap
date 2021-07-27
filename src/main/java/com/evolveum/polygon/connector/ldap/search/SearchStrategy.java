@@ -21,11 +21,7 @@ import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.exception.LdapException;
 import org.apache.directory.api.ldap.model.exception.LdapReferralException;
 import org.apache.directory.api.ldap.model.filter.ExprNode;
-import org.apache.directory.api.ldap.model.message.AliasDerefMode;
-import org.apache.directory.api.ldap.model.message.LdapResult;
-import org.apache.directory.api.ldap.model.message.Referral;
-import org.apache.directory.api.ldap.model.message.SearchRequest;
-import org.apache.directory.api.ldap.model.message.SearchScope;
+import org.apache.directory.api.ldap.model.message.*;
 import org.apache.directory.api.ldap.model.message.controls.SortRequest;
 import org.apache.directory.api.ldap.model.message.controls.SortRequestImpl;
 import org.apache.directory.api.ldap.model.name.Dn;
@@ -65,11 +61,12 @@ public abstract class SearchStrategy<C extends AbstractLdapConfiguration> {
     private int numberOfEntriesFound = 0;
     private int retryAttempts = 0;
     protected LdapNetworkConnection connection;
+    private final ConnectionLog connectionLog;
 
     protected SearchStrategy(ConnectionManager<C> connectionManager, AbstractLdapConfiguration configuration,
             AbstractSchemaTranslator<C> schemaTranslator, ObjectClass objectClass,
             org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
-            ResultsHandler handler, ErrorHandler errorHandler, OperationOptions options) {
+            ResultsHandler handler, ErrorHandler errorHandler, ConnectionLog connectionLog, OperationOptions options) {
         super();
         this.connectionManager = connectionManager;
         this.configuration = configuration;
@@ -78,6 +75,7 @@ public abstract class SearchStrategy<C extends AbstractLdapConfiguration> {
         this.ldapObjectClass = ldapObjectClass;
         this.handler = handler;
         this.errorHandler = errorHandler;
+        this.connectionLog = connectionLog;
         this.options = options;
     }
 
@@ -131,6 +129,8 @@ public abstract class SearchStrategy<C extends AbstractLdapConfiguration> {
         this.attributeHandler = attributeHandler;
     }
 
+    protected abstract String getStrategyTag();
+
     public boolean allowPartialResults() {
         if (options == null) {
             return false;
@@ -181,7 +181,7 @@ public abstract class SearchStrategy<C extends AbstractLdapConfiguration> {
         try {
             searchCursor = connection.search(req);
         } catch (LdapReferralException e) {
-            logSearchError(e);
+            logSearchError(req, 0, e);
             returnConnection();
             String referralStrategy = configuration.getReferralStrategy();
             if (configuration.isReferralStrategyFollow()) {
@@ -196,7 +196,7 @@ public abstract class SearchStrategy<C extends AbstractLdapConfiguration> {
                 throw new ConfigurationException("Unknown value of referralStrategy configuration property: "+referralStrategy);
             }
         } catch (LdapException e) {
-            logSearchError(e);
+            logSearchError(req, 0, e);
             returnConnection();
             throw e;
         }
@@ -216,9 +216,12 @@ public abstract class SearchStrategy<C extends AbstractLdapConfiguration> {
         }
     }
 
-    protected void logSearchResult(String type, LdapResult ldapResult) {
-        if (LOG.isOk()) {
-            OperationLog.logOperationRes(connection, "Search RES {0}:\n{1}", type, ldapResult);
+    protected void logSearchOperationDone(SearchRequest req, Integer numEntries, SearchResultDone searchResultDone) {
+        if (searchResultDone == null) {
+            connectionLog.searchWarning(connection, req, numEntries, getStrategyTag(), "Search ended without DONE message");
+        } else {
+            connectionLog.searchSuccess(connection, req, numEntries, getStrategyTag());
+            // TODO: referral?
         }
     }
 
@@ -228,13 +231,20 @@ public abstract class SearchStrategy<C extends AbstractLdapConfiguration> {
         }
     }
 
-    protected void logSearchError(LdapException e) {
+    protected void logSearchError(SearchRequest req, Integer numEntries, LdapException e) {
         OperationLog.logOperationErr(connection, "Search ERR {0}: {1}", e.getClass().getName(), e.getMessage(), e);
+        connectionLog.searchError(connection, e, req, numEntries, getStrategyTag());
     }
 
     protected boolean handleResult(Entry entry) {
         numberOfEntriesFound++;
         return handler.handle(schemaTranslator.toConnIdObject(connection, objectClass, entry, attributeHandler));
+    }
+
+    protected void logSearchResult(String type, LdapResult ldapResult) {
+        if (LOG.isOk()) {
+            OperationLog.logOperationRes(connection, "Search RES {0}:\n{1}", type, ldapResult);
+        }
     }
 
     protected boolean hasSortOption() {
@@ -341,6 +351,8 @@ public abstract class SearchStrategy<C extends AbstractLdapConfiguration> {
     public ErrorHandler getErrorHandler() {
         return errorHandler;
     }
+
+    public ConnectionLog getConnectionLog() { return connectionLog; }
 
     protected RuntimeException processLdapException(String connectorMessage, LdapException ldapException) {
         return getErrorHandler().processLdapException(connectorMessage, ldapException);
