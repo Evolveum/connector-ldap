@@ -100,10 +100,21 @@ public class DefaultSearchStrategy<C extends AbstractLdapConfiguration> extends 
                         responseResultCount++;
                         Entry entry = ((SearchResultEntry)response).getEntry();
                         logSearchResult(entry);
-                        boolean proceed = handleResult(entry);
-                        if (!proceed) {
+                        boolean handlerProceed = handleResult(entry);
+                        if (!handlerProceed) {
                             LOG.ok("Ending search because handler returned false");
-                            // We really want to abandon the operation here.
+                            // Try to get next entry before going for abandon.
+                            // Chances are that the search will end in a natural way anyway.
+                            // In fact, this happens quite a lot for searches that expect just a single entry as result.
+                            // E.g. search using primary identifier (entryUUID).
+                            // The handler returns false, as it is satisfied with a single result.
+                            // The LDAP server is done with the search as well, with "done" message waiting in the queue (cursor).
+                            // We want to give the Directory API a change to read and process the "done" message.
+                            // In that case the cursor will be closed quietly, and we do not have to do explicit abandon.
+                            searchCursor.next();
+                            // We do not really care what entry the cursor points at this point.
+                            // If it is "done" entry, the cursor is closed already and the next command will NOT issue an abandon.
+                            // It it is a regular entry, then the abandon is in order and the following attempt to close the cursor will do it.
                             LdapUtil.closeAbandonCursor(searchCursor);
                             break;
                         }
