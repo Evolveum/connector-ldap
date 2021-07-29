@@ -15,18 +15,17 @@
  */
 package com.evolveum.polygon.connector.ldap;
 
-import java.io.Closeable;
-import java.io.IOException;
+import java.io.*;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 
 import org.apache.commons.lang3.StringUtils;
+import org.apache.directory.api.ldap.model.constants.SchemaConstants;
+import org.apache.directory.api.ldap.model.entry.Attribute;
+import org.apache.directory.api.ldap.model.entry.Entry;
+import org.apache.directory.api.ldap.model.entry.Value;
 import org.apache.directory.api.ldap.model.exception.LdapException;
 import org.apache.directory.api.ldap.model.exception.LdapInvalidDnException;
 import org.apache.directory.api.ldap.model.exception.LdapURLEncodingException;
@@ -124,6 +123,9 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> {
     }
 
     private LdapNetworkConnection getConnection(ServerDefinition server) {
+        if (server == null) {
+            server = defaultServerDefinition;
+        }
         if (!server.isConnected()) {
             connectServer(server);
         }
@@ -736,6 +738,9 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> {
         return serverDefinition.getConnection();
     }
 
+    public ServerDefinition getDefaultServerDefinition() {
+        return defaultServerDefinition;
+    }
 
     private ServerDefinition findServerDefinition(LdapNetworkConnection connection) {
         if (connection == null) {
@@ -768,6 +773,87 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> {
         }
         return selected;
     }
+
+    public Entry getRootDse(ServerDefinition serverDef) {
+        if (serverDef == null) {
+            serverDef = defaultServerDefinition;
+        }
+        if (serverDef.getRootDse() == null) {
+            try {
+                serverDef.setRootDse(getRootDseForce(serverDef, null));
+            } catch (LdapException e) {
+                throw new ConnectorIOException("Error getting changelog data from root DSE: " + e.getMessage(), e);
+            }
+        }
+        return serverDef.getRootDse();
+    }
+
+    /**
+     * Always explicitly fetch root DSE from server, even if we already have it.
+     * Used during "test connection", also can be used to obtain specific versions of rootDSE from broken LDAP servers.
+     */
+    public Entry getRootDseForce(ServerDefinition serverDef, String... attributesToGet) throws LdapException {
+        if (attributesToGet == null || attributesToGet.length == 0) {
+            attributesToGet = SchemaConstants.ALL_ATTRIBUTES_ARRAY;
+        }
+        if (serverDef == null) {
+            serverDef = defaultServerDefinition;
+        }
+        LdapNetworkConnection connection = getConnection(serverDef);
+        try {
+            Entry rootDse = connection.getRootDse(attributesToGet);
+            connectionLog.success(connection, "rootDSE", Arrays.toString(attributesToGet));
+            Writer buffer = new StringWriter();
+            PrintWriter pw = new PrintWriter(buffer);
+            new RuntimeException("ROOTDSE").printStackTrace(pw);
+            LOG.info("ROOTDSE:\n{0}", buffer.toString());
+            return rootDse;
+        } catch (LdapException e) {
+            connectionLog.error(connection, "rootDSE", e, Arrays.toString(attributesToGet));
+            // TODO: reconnect?
+            throw e;
+        }
+    }
+
+    public boolean supportsControl(ServerDefinition serverDef, String oid) {
+        if (serverDef == null) {
+            serverDef = defaultServerDefinition;
+        }
+        return getSupportedControls(serverDef).contains(oid);
+    }
+
+    public List<String> getSupportedControls(ServerDefinition serverDef) {
+        if (serverDef == null) {
+            serverDef = defaultServerDefinition;
+        }
+        if (serverDef.getSupportedControls() == null) {
+            List<String> supportedControls = new ArrayList<>();
+            Entry rootDse = getRootDse(serverDef);
+            Attribute attr = rootDse.get( SchemaConstants.SUPPORTED_CONTROL_AT );
+            if (attr == null) {
+                // Unlikely. Perhaps the server does not respond properly to "+" attribute query
+                // (such as 389ds server). So let's try again and let's be more explicit.
+                try {
+                    LOG.info("Getting root DSE again, as your lame LDAP server does not properly respond to '+'");
+                    rootDse = getRootDseForce(serverDef, SchemaConstants.SUPPORTED_CONTROL_AT);
+                } catch (LdapException e) {
+                    throw new ConnectorIOException("Error getting changelog data from root DSE: " + e.getMessage(), e);
+                }
+                attr = rootDse.get(SchemaConstants.SUPPORTED_CONTROL_AT);
+            }
+            if (attr == null) {
+                // Still no luck? Bad, bad server! We have nothing to do here, but at least warn the user.
+                LOG.warn("Cannot fetch supported controls from root DSE. Is security too tight or is your server mad?");
+            } else {
+                for ( Value value : attr ) {
+                    supportedControls.add(value.getString());
+                }
+            }
+            serverDef.setSupportedControls(supportedControls);
+        }
+        return serverDef.getSupportedControls();
+    }
+
 
     public String dumpServers() {
         StringBuilder sb = new StringBuilder();

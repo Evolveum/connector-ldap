@@ -17,8 +17,10 @@ package com.evolveum.polygon.connector.ldap;
 
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
+import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.exception.LdapInvalidDnException;
 import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.ldap.model.url.LdapUrl;
@@ -51,6 +53,8 @@ public class ServerDefinition {
     }
 
     private LdapNetworkConnection connection;
+    private Entry rootDse;
+    private List<String> supportedControls;
 
     public static ServerDefinition createDefaultDefinition(AbstractLdapConfiguration configuration) {
         ServerDefinition def = new ServerDefinition();
@@ -313,6 +317,22 @@ public class ServerDefinition {
 
     public boolean isConnected() {
         return connection != null && connection.isConnected();
+    }
+
+    public Entry getRootDse() {
+        return rootDse;
+    }
+
+    public void setRootDse(Entry rootDse) {
+        this.rootDse = rootDse;
+    }
+
+    public List<String> getSupportedControls() {
+        return supportedControls;
+    }
+
+    public void setSupportedControls(List<String> supportedControls) {
+        this.supportedControls = supportedControls;
     }
 
     public boolean matches(LdapUrl url) {

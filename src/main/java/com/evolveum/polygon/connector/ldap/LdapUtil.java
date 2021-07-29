@@ -462,13 +462,6 @@ public class LdapUtil {
         return in.replaceAll("\\p{C}", "?");
     }
 
-    public static Entry getRootDse(ConnectionManager<? extends AbstractLdapConfiguration> connectionManager, String... attributesToGet) {
-        try {
-            return connectionManager.getDefaultConnection().getRootDse(attributesToGet);
-        } catch (LdapException e) {
-            throw new ConnectorIOException("Error getting changelog data from root DSE: "+e.getMessage(), e);
-        }
-    }
 
     /**
      * Check if a given ObjectClass is present in the entry.

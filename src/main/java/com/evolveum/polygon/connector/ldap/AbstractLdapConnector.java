@@ -16,7 +16,6 @@
 
 package com.evolveum.polygon.connector.ldap;
 
-import java.io.IOException;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -189,9 +188,11 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
             // We also want the root DSE fetch operation clearly marked in the log files.
             // This is explicit connection test, which is not used during normal operation.
             // Therefore slight inefficiency caused by a second root DSE fetch should not be a problem.
-            LOG.ok("Fetching root DSE");
-            Entry rootDse = connectionManager.getDefaultConnection().getRootDse();
+            LOG.ok("Fetching root DSE (again)");
+            Entry rootDse = connectionManager.getRootDseForce(null);
             LOG.ok("Root DSE: {0}", rootDse);
+            // Remember root DSE. In case that we have not fetched it yet, we want to make it available for reuse.
+            connectionManager.getDefaultServerDefinition().setRootDse(rootDse);
         } catch (LdapException e) {
             throw processLdapException(null, e);
         }
@@ -324,73 +325,80 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 
     protected SchemaManager getSchemaManager() {
         if (schemaManager == null) {
-            try {
-                boolean schemaQuirksMode = configuration.isSchemaQuirksMode();
-                LOG.ok("Loading schema (quirksMode={0})", schemaQuirksMode);
-
-                // Construction of SchemaManager actually loads all the schemas from server.
-                // They are just not completely parsed and processed yet.
-                DefaultSchemaManager newSchemaManager = createSchemaManager(schemaQuirksMode);
-
-                SchemaErrorHandler schemaErrorHandler = createSchemaErrorHandler();
-                if (schemaErrorHandler != null) {
-                    newSchemaManager.setErrorHandler(schemaErrorHandler);
-                }
-                try {
-                    if (schemaQuirksMode) {
-                        newSchemaManager.setRelaxed();
-                        newSchemaManager.loadAllEnabledRelaxed();
-                    } else {
-                        newSchemaManager.loadAllEnabled();
-                    }
-                } catch (Exception e) {
-                    throw new ConnectorIOException(e.getMessage(), e);
-                }
-                if ( !newSchemaManager.getErrors().isEmpty() ) {
-                    if (schemaQuirksMode) {
-                        LOG.ok("There are {0} schema errors, but we are in quirks mode so we are ignoring them", newSchemaManager.getErrors().size());
-                        if (isLogSchemaErrors()) {
-                            for (Throwable error: newSchemaManager.getErrors()) {
-                                LOG.ok("Schema error (ignored): {0}: {1}", error.getClass().getName(), error.getMessage());
-                            }
-                        }
-                    } else {
-                        throw new ConnectorIOException("Errors loading schema "+newSchemaManager.getErrors());
-                    }
-                }
-                schemaManager = newSchemaManager;
-//                connection.setSchemaManager(defSchemaManager);
-//                connection.loadSchema(defSchemaManager);
-            } catch (LdapException e) {
-                Throwable cause = e.getCause();
-                if (cause instanceof ParseException) {
-                    // Schema parsing error
-                    // We are throwing InvalidAttributeValueException here, even though we should not.
-                    // But we take InvalidAttributeValueException to means general schema-related error.
-                    throw new InvalidAttributeValueException("Error parsing resource schema: "+cause.getMessage(), e);
-                }
-                throw new ConnectorIOException(e.getMessage(), e);
-            } catch (Exception e) {
-                // Brutal. We cannot really do anything smarter here.
-                throw new ConnectorException(e.getMessage(), e);
-            }
-
-            try {
-                LOG.info("Schema loaded, {0} schemas, {1} object classes, {2} attributes, {3} syntaxes, {4} errors",
-                        schemaManager.getAllSchemas().size(),
-                        schemaManager.getObjectClassRegistry().size(),
-                        schemaManager.getAttributeTypeRegistry().size(),
-                        schemaManager.getLdapSyntaxRegistry().size(),
-                        schemaManager.getErrors().size());
-            } catch (Exception e) {
-                throw new RuntimeException(e.getMessage(),e);
-            }
-            patchSchemaManager(schemaManager);
+            initializeSchemaManager();
         }
         return schemaManager;
     }
 
-    protected DefaultSchemaManager createSchemaManager(boolean schemaQuirksMode) throws LdapException {
+    protected void initializeSchemaManager() {
+        try {
+            boolean schemaQuirksMode = configuration.isSchemaQuirksMode();
+            LOG.ok("Loading schema (quirksMode={0})", schemaQuirksMode);
+
+            // Construction of SchemaManager actually loads all the schemas from server.
+            // They are just not completely parsed and processed yet.
+            DefaultSchemaManager newSchemaManager = createBlankSchemaManager(schemaQuirksMode);
+
+            SchemaErrorHandler schemaErrorHandler = createSchemaErrorHandler();
+            if (schemaErrorHandler != null) {
+                newSchemaManager.setErrorHandler(schemaErrorHandler);
+            }
+            try {
+                if (schemaQuirksMode) {
+                    newSchemaManager.setRelaxed();
+                    newSchemaManager.loadAllEnabledRelaxed();
+                } else {
+                    newSchemaManager.loadAllEnabled();
+                }
+                connectionLog.schemaSuccess(connectionManager.getDefaultConnection(), newSchemaManager.getObjectClassRegistry().size(), newSchemaManager.getErrors().size());
+            } catch (Exception e) {
+                connectionLog.schemaError(connectionManager.getDefaultConnection(), e);
+                // TODO: try to reconnect?
+                throw new ConnectorIOException(e.getMessage(), e);
+            }
+            if ( !newSchemaManager.getErrors().isEmpty() ) {
+                if (schemaQuirksMode) {
+                    LOG.ok("There are {0} schema errors, but we are in quirks mode so we are ignoring them", newSchemaManager.getErrors().size());
+                    if (isLogSchemaErrors()) {
+                        for (Throwable error: newSchemaManager.getErrors()) {
+                            LOG.ok("Schema error (ignored): {0}: {1}", error.getClass().getName(), error.getMessage());
+                        }
+                    }
+                } else {
+                    throw new ConnectorIOException("Errors loading schema "+newSchemaManager.getErrors());
+                }
+            }
+            schemaManager = newSchemaManager;
+//                connection.setSchemaManager(defSchemaManager);
+//                connection.loadSchema(defSchemaManager);
+        } catch (LdapException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof ParseException) {
+                // Schema parsing error
+                // We are throwing InvalidAttributeValueException here, even though we should not.
+                // But we take InvalidAttributeValueException to means general schema-related error.
+                throw new InvalidAttributeValueException("Error parsing resource schema: "+cause.getMessage(), e);
+            }
+            throw new ConnectorIOException(e.getMessage(), e);
+        } catch (Exception e) {
+            // Brutal. We cannot really do anything smarter here.
+            throw new ConnectorException(e.getMessage(), e);
+        }
+
+        try {
+            LOG.info("Schema loaded, {0} schemas, {1} object classes, {2} attributes, {3} syntaxes, {4} errors",
+                    schemaManager.getAllSchemas().size(),
+                    schemaManager.getObjectClassRegistry().size(),
+                    schemaManager.getAttributeTypeRegistry().size(),
+                    schemaManager.getLdapSyntaxRegistry().size(),
+                    schemaManager.getErrors().size());
+        } catch (Exception e) {
+            throw new RuntimeException(e.getMessage(),e);
+        }
+        patchSchemaManager(schemaManager);
+    }
+
+    protected DefaultSchemaManager createBlankSchemaManager(boolean schemaQuirksMode) throws LdapException {
         // Construction of SchemaLoader actually loads all the schemas from server.
         DefaultSchemaLoader schemaLoader = new DefaultSchemaLoader(connectionManager.getDefaultConnection(), schemaQuirksMode);
         return new DefaultSchemaManager(schemaLoader);
@@ -800,7 +808,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
             return getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
 
         } else if (LdapConfiguration.PAGING_STRATEGY_SPR.equals(pagingStrategy)) {
-            if (supportsControl(PagedResults.OID)) {
+            if (connectionManager.supportsControl(null, PagedResults.OID)) {
                 LOG.ok("Selecting SimplePaged search strategy because strategy setting is set to {0}", pagingStrategy);
                 return new SimplePagedResultsSearchStrategy<>(connectionManager, configuration, schemaTranslator, objectClass, ldapObjectClass, handler, getErrorHandler(), connectionLog, options);
             } else {
@@ -808,7 +816,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
             }
 
         } else if (LdapConfiguration.PAGING_STRATEGY_VLV.equals(pagingStrategy)) {
-            if (supportsControl(VirtualListViewRequest.OID)) {
+            if (connectionManager.supportsControl(null, VirtualListViewRequest.OID)) {
                 LOG.ok("Selecting VLV search strategy because strategy setting is set to {0}", pagingStrategy);
                 return new VlvSearchStrategy<>(connectionManager, configuration, getSchemaTranslator(), objectClass, ldapObjectClass, handler, getErrorHandler(), connectionLog, options);
             } else {
@@ -820,18 +828,18 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
                 // Always prefer VLV even if the offset is 1. We expect that the client will use paging and subsequent
                 // queries will come with offset other than 1. The server may use a slightly different sorting for VLV and other
                 // paging mechanisms. Bu we want consisten results. Therefore in this case prefer VLV even if it might be less efficient.
-                if (supportsControl(VirtualListViewRequest.OID)) {
+                if (connectionManager.supportsControl(null, VirtualListViewRequest.OID)) {
                     LOG.ok("Selecting VLV search strategy because strategy setting is set to {0} and the request specifies an offset", pagingStrategy);
                     return new VlvSearchStrategy<>(connectionManager, configuration, getSchemaTranslator(), objectClass, ldapObjectClass, handler, getErrorHandler(), connectionLog, options);
                 } else {
                     throw new UnsupportedOperationException("Requested search from offset ("+options.getPagedResultsOffset()+"), but the server does not support VLV. Unable to execute the search.");
                 }
             } else {
-                if (supportsControl(PagedResults.OID)) {
+                if (connectionManager.supportsControl(null, PagedResults.OID)) {
                     // SPR is usually a better choice if no offset is specified. Less overhead on the server.
                     LOG.ok("Selecting SimplePaged search strategy because strategy setting is set to {0} and the request does not specify an offset", pagingStrategy);
                     return new SimplePagedResultsSearchStrategy<>(connectionManager, configuration, schemaTranslator, objectClass, ldapObjectClass, handler, getErrorHandler(), connectionLog, options);
-                } else if (supportsControl(VirtualListViewRequest.OID)) {
+                } else if (connectionManager.supportsControl(null, VirtualListViewRequest.OID)) {
                     return new VlvSearchStrategy<>(connectionManager, configuration, getSchemaTranslator(), objectClass, ldapObjectClass, handler, getErrorHandler(), connectionLog, options);
                 } else {
                     throw new UnsupportedOperationException("Requested paged search, but the server does not support VLV or PagedResultsControl. Unable to execute the search.");
@@ -840,14 +848,6 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
         }
 
         return getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
-    }
-
-    private boolean supportsControl(String oid) {
-        try {
-            return connectionManager.getDefaultConnection().getSupportedControls().contains(oid);
-        } catch (LdapException e) {
-            throw new ConnectorIOException("Cannot fetch list of supported controls: "+e.getMessage(), e);
-        }
     }
 
     protected SearchStrategy<C> getDefaultSearchStrategy(ObjectClass objectClass,
@@ -1462,7 +1462,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
     }
 
     private SyncStrategy<C> chooseSyncStrategyAuto() {
-        Entry rootDse = LdapUtil.getRootDse(connectionManager, SunChangelogSyncStrategy.ROOT_DSE_ATTRIBUTE_CHANGELOG_NAME);
+        Entry rootDse = connectionManager.getRootDse(null);
         org.apache.directory.api.ldap.model.entry.Attribute changelogAttribute = rootDse.get(SunChangelogSyncStrategy.ROOT_DSE_ATTRIBUTE_CHANGELOG_NAME);
         if (changelogAttribute != null) {
             LOG.ok("Choosing Sun ChangeLog sync strategy (found {0} attribute in root DSE)", SunChangelogSyncStrategy.ROOT_DSE_ATTRIBUTE_CHANGELOG_NAME);

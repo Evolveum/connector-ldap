@@ -67,6 +67,11 @@ public class ConnectionLog {
         LOG.info("CONN {0} {1} error: {2}", getConnectionDesc(serverDef), operation, exception.getMessage());
     }
 
+    public void error(LdapNetworkConnection connection, String operation, Exception exception) {
+        if (!isError()) { return; }
+        LOG.info("CONN {0} {1} error: {2}", getConnectionDesc(connection), operation, exception.getMessage());
+    }
+
     public void error(ServerDefinition serverDef, String operation, Exception exception, Object params) {
         if (!isError()) { return; }
         LOG.info("CONN {0} {1} error: {2} ({3})", getConnectionDesc(serverDef), operation, exception.getMessage(), params);
@@ -169,4 +174,13 @@ public class ConnectionLog {
         return LdapUtil.formatConnectionInfo(connection);
     }
 
+    public void schemaSuccess(LdapNetworkConnection connection, int numberOfObjectClasses, int numberOfSchemaErrors) {
+        if (!isSuccess()) { return; }
+        LOG.info("CONN {0} schema success ({1} objectclasses, {2} errors)", getConnectionDesc(connection), numberOfObjectClasses, numberOfSchemaErrors);
+    }
+
+    public void schemaError(LdapNetworkConnection connection, Exception e) {
+        if (!isError()) { return; }
+        LOG.info("CONN {0} schema error: {2}", getConnectionDesc(connection), e.getMessage());
+    }
 }

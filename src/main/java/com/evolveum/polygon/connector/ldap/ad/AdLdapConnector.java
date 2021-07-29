@@ -16,8 +16,6 @@
 
 package com.evolveum.polygon.connector.ldap.ad;
 
-import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -31,11 +29,6 @@ import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.entry.Modification;
 import org.apache.directory.api.ldap.model.exception.LdapException;
 import org.apache.directory.api.ldap.model.exception.LdapInvalidDnException;
-import org.apache.directory.api.ldap.model.exception.LdapOperationException;
-import org.apache.directory.api.ldap.model.exception.LdapOtherException;
-import org.apache.directory.api.ldap.model.filter.AndNode;
-import org.apache.directory.api.ldap.model.filter.ExprNode;
-import org.apache.directory.api.ldap.model.message.LdapResult;
 import org.apache.directory.api.ldap.model.message.ModifyResponse;
 import org.apache.directory.api.ldap.model.message.ResultCodeEnum;
 import org.apache.directory.api.ldap.model.message.SearchScope;
@@ -123,7 +116,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
     }
 
     @Override
-    protected DefaultSchemaManager createSchemaManager(boolean schemaQuirksMode) throws LdapException {
+    protected DefaultSchemaManager createBlankSchemaManager(boolean schemaQuirksMode) throws LdapException {
         if (getConfiguration().isNativeAdSchema()) {
             // Construction of SchemaLoader actually loads all the schemas from server.
             AdSchemaLoader schemaLoader = new AdSchemaLoader(getConnectionManager().getDefaultConnection());
@@ -137,7 +130,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 
             return new AdSchemaManager(schemaLoader);
         } else {
-            return super.createSchemaManager(schemaQuirksMode);
+            return super.createBlankSchemaManager(schemaQuirksMode);
         }
     }
 
