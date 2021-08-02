@@ -372,6 +372,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 //                connection.setSchemaManager(defSchemaManager);
 //                connection.loadSchema(defSchemaManager);
         } catch (LdapException e) {
+            connectionLog.schemaError(connectionManager.getDefaultConnection(), e);
             Throwable cause = e.getCause();
             if (cause instanceof ParseException) {
                 // Schema parsing error
@@ -381,6 +382,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
             }
             throw new ConnectorIOException(e.getMessage(), e);
         } catch (Exception e) {
+            connectionLog.schemaError(connectionManager.getDefaultConnection(), e);
             // Brutal. We cannot really do anything smarter here.
             throw new ConnectorException(e.getMessage(), e);
         }

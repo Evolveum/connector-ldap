@@ -441,7 +441,12 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> {
         LdapConnectionConfig connectionConfig = new LdapConnectionConfig();
         connectionConfig.setLdapHost(serverDefinition.getHost());
         connectionConfig.setLdapPort(serverDefinition.getPort());
-        connectionConfig.setTimeout(serverDefinition.getConnectTimeout());
+        connectionConfig.setTimeout(serverDefinition.getTimeout());
+        connectionConfig.setConnectTimeout(serverDefinition.getConnectTimeout());
+        connectionConfig.setWriteOperationTimeout(serverDefinition.getWriteOperationTimeout());
+        connectionConfig.setReadOperationTimeout(serverDefinition.getReadOperationTimeout());
+        connectionConfig.setCloseTimeout(serverDefinition.getCloseTimeout());
+        connectionConfig.setSendTimeout(serverDefinition.getSendTimeout());
 
         String connectionSecurity = serverDefinition.getConnectionSecurity();
         //noinspection StatementWithEmptyBody
@@ -803,10 +808,6 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> {
         try {
             Entry rootDse = connection.getRootDse(attributesToGet);
             connectionLog.success(connection, "rootDSE", Arrays.toString(attributesToGet));
-            Writer buffer = new StringWriter();
-            PrintWriter pw = new PrintWriter(buffer);
-            new RuntimeException("ROOTDSE").printStackTrace(pw);
-            LOG.info("ROOTDSE:\n{0}", buffer.toString());
             return rootDse;
         } catch (LdapException e) {
             connectionLog.error(connection, "rootDSE", e, Arrays.toString(attributesToGet));

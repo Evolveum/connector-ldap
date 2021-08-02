@@ -181,6 +181,6 @@ public class ConnectionLog {
 
     public void schemaError(LdapNetworkConnection connection, Exception e) {
         if (!isError()) { return; }
-        LOG.info("CONN {0} schema error: {2}", getConnectionDesc(connection), e.getMessage());
+        LOG.info("CONN {0} schema error: {1}", getConnectionDesc(connection), e.getMessage());
     }
 }
