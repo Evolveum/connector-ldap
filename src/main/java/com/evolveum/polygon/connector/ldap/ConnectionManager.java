@@ -23,18 +23,15 @@ import java.util.*;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.directory.api.ldap.model.constants.SchemaConstants;
+import org.apache.directory.api.ldap.model.cursor.CursorException;
+import org.apache.directory.api.ldap.model.cursor.SearchCursor;
 import org.apache.directory.api.ldap.model.entry.Attribute;
 import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.entry.Value;
 import org.apache.directory.api.ldap.model.exception.LdapException;
 import org.apache.directory.api.ldap.model.exception.LdapInvalidDnException;
 import org.apache.directory.api.ldap.model.exception.LdapURLEncodingException;
-import org.apache.directory.api.ldap.model.message.BindRequest;
-import org.apache.directory.api.ldap.model.message.BindRequestImpl;
-import org.apache.directory.api.ldap.model.message.BindResponse;
-import org.apache.directory.api.ldap.model.message.LdapResult;
-import org.apache.directory.api.ldap.model.message.Referral;
-import org.apache.directory.api.ldap.model.message.ResultCodeEnum;
+import org.apache.directory.api.ldap.model.message.*;
 import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.ldap.model.schema.SchemaManager;
 import org.apache.directory.api.ldap.model.schema.registries.Schema;
@@ -693,7 +690,45 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> {
             connectionLog.failedCheckAlive(defaultServerDefinition.getConnection(), "server-initiated connection close");
             return false;
         }
-        // TODO: try some NOOP operation
+        if (configuration.isCheckAliveRootDse()) {
+            SearchRequest rootDseRequest = new SearchRequestImpl();
+            rootDseRequest.setBase(Dn.ROOT_DSE);
+            rootDseRequest.setScope(SearchScope.OBJECT);
+            rootDseRequest.setFilter(LdapUtil.createAllSearchFilter());
+            // Fetch "no attributes" to make the search as efficient as possible (low overhead).
+            // We do not care whether server works, we want to check that network works.
+            rootDseRequest.addAttributes("1.1");
+            SearchCursor rootDseCursor;
+            try {
+                rootDseCursor = defaultServerDefinition.getConnection().search(rootDseRequest, configuration.getCheckAliveTimeout());
+            } catch (LdapException e) {
+                connectionLog.failedCheckAlive(defaultServerDefinition.getConnection(), "root DSE search request: " + e.getMessage());
+                return false;
+            }
+            try {
+                if (rootDseCursor.next()) {
+                    Response rootDseResponse = rootDseCursor.get();
+                    if (rootDseResponse == null) {
+                        // Very strange case indeed
+                        connectionLog.failedCheckAlive(defaultServerDefinition.getConnection(), "root DSE search response: null entry in response");
+                        return false;
+                    }
+                    // We have a response. We do not really care what is it.
+                    // The mere fact that we have it tells us that the network works.
+                    // Let's invoke curson.next() here to properly close the cursor without abandon.
+                    rootDseCursor.next();
+                    rootDseCursor.close();
+                    connectionLog.success(defaultServerDefinition.getConnection(), "rootDSE", "checkAlive");
+                } else {
+                    // No entries in root DSE search
+                    connectionLog.failedCheckAlive(defaultServerDefinition.getConnection(), "root DSE search response: no entry in response");
+                    return false;
+                }
+            } catch (LdapException | CursorException | IOException e) {
+                connectionLog.failedCheckAlive(defaultServerDefinition.getConnection(), "root DSE search response: " + e.getMessage());
+                return false;
+            }
+        }
         return true;
     }
 

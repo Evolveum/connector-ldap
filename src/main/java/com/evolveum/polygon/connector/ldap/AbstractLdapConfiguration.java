@@ -160,6 +160,18 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
     private Long sendTimeout;
 
     /**
+     * Timeout for connection liveliness test (checkAlive connector operation, in milliseconds).
+     */
+    private Long checkAliveTimeout;
+
+    /**
+     * Fetch root DSE as part of connection liveliness test.
+     * This provides a reliable connection liveliness test, handling many strange cases.
+     * However, it adds another round-trip for every connector operation.
+     */
+    private boolean checkAliveRootDse = false;
+
+    /**
      * Enable use of TCP keepalives on LDAP connections.
      */
     private boolean tcpKeepAlive = false;
@@ -609,6 +621,26 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
     }
 
     @ConfigurationProperty(order = 16)
+    public Long getCheckAliveTimeout() {
+        return checkAliveTimeout;
+    }
+
+    @SuppressWarnings("unused")
+    public void setCheckAliveTimeout(Long checkAliveTimeout) {
+        this.checkAliveTimeout = checkAliveTimeout;
+    }
+
+    @ConfigurationProperty(order = 17)
+    public boolean isCheckAliveRootDse() {
+        return checkAliveRootDse;
+    }
+
+    @SuppressWarnings("unused")
+    public void setCheckAliveRootDse(boolean checkAliveRootDse) {
+        this.checkAliveRootDse = checkAliveRootDse;
+    }
+
+    @ConfigurationProperty(order = 18)
     public boolean isTcpKeepAlive() { return tcpKeepAlive; }
 
     @SuppressWarnings("unused")
@@ -616,7 +648,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.tcpKeepAlive = tcpKeepAlive;
     }
 
-    @ConfigurationProperty(order = 17)
+    @ConfigurationProperty(order = 19)
     public int getMaximumNumberOfAttempts() {
         return maximumNumberOfAttempts;
     }
@@ -626,7 +658,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.maximumNumberOfAttempts = maximumNumberOfAttempts;
     }
 
-    @ConfigurationProperty(order = 18)
+    @ConfigurationProperty(order = 20)
     public String getBaseContext() {
         return baseContext;
     }
@@ -636,7 +668,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.baseContext = baseContext;
     }
 
-    @ConfigurationProperty(order = 19)
+    @ConfigurationProperty(order = 21)
     public String[] getServers() {
         return servers;
     }
@@ -646,7 +678,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.servers = servers;
     }
 
-    @ConfigurationProperty(order = 20)
+    @ConfigurationProperty(order = 22)
     public String getReferralStrategy() {
         return referralStrategy;
     }
@@ -656,7 +688,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.referralStrategy = referralStrategy;
     }
 
-    @ConfigurationProperty(order = 21)
+    @ConfigurationProperty(order = 23)
     public String getPasswordAttribute() {
         return passwordAttribute;
     }
@@ -665,7 +697,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.passwordAttribute = passwordAttribute;
     }
 
-    @ConfigurationProperty(order = 22)
+    @ConfigurationProperty(order = 24)
     public String getPasswordHashAlgorithm() {
         return passwordHashAlgorithm;
     }
@@ -675,7 +707,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.passwordHashAlgorithm = passwordHashAlgorithm;
     }
 
-    @ConfigurationProperty(order = 23)
+    @ConfigurationProperty(order = 25)
     public String getPasswordReadStrategy() {
         return passwordReadStrategy;
     }
@@ -685,7 +717,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.passwordReadStrategy = passwordReadStrategy;
     }
 
-    @ConfigurationProperty(order = 24)
+    @ConfigurationProperty(order = 26)
     public String getPagingStrategy() {
         return pagingStrategy;
     }
@@ -695,7 +727,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.pagingStrategy = pagingStrategy;
     }
 
-    @ConfigurationProperty(order = 25)
+    @ConfigurationProperty(order = 27)
     public int getPagingBlockSize() {
         return pagingBlockSize;
     }
@@ -705,7 +737,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.pagingBlockSize = pagingBlockSize;
     }
 
-    @ConfigurationProperty(order = 26)
+    @ConfigurationProperty(order = 28)
     public String getVlvSortAttribute() {
         return vlvSortAttribute;
     }
@@ -714,7 +746,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.vlvSortAttribute = vlvSortAttribute;
     }
 
-    @ConfigurationProperty(order = 27)
+    @ConfigurationProperty(order = 29)
     public String getVlvSortOrderingRule() {
         return vlvSortOrderingRule;
     }
@@ -724,7 +756,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.vlvSortOrderingRule = vlvSortOrderingRule;
     }
 
-    @ConfigurationProperty(order = 28)
+    @ConfigurationProperty(order = 30)
     public String getUidAttribute() {
         return uidAttribute;
     }
@@ -733,7 +765,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.uidAttribute = uidAttribute;
     }
 
-    @ConfigurationProperty(order = 29)
+    @ConfigurationProperty(order = 31)
     public String[] getOperationalAttributes() {
         return operationalAttributes;
     }
@@ -743,7 +775,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.operationalAttributes = operationalAttributes;
     }
 
-    @ConfigurationProperty(order = 30)
+    @ConfigurationProperty(order = 32)
     public boolean isReadSchema() {
         return readSchema;
     }
@@ -753,7 +785,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.readSchema = readSchema;
     }
 
-    @ConfigurationProperty(order = 31)
+    @ConfigurationProperty(order = 33)
     public boolean isSchemaQuirksMode() {
         return schemaQuirksMode;
     }
@@ -763,7 +795,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.schemaQuirksMode = schemaQuirksMode;
     }
 
-    @ConfigurationProperty(order = 32)
+    @ConfigurationProperty(order = 34)
     public boolean isAllowUnknownAttributes() {
         return allowUnknownAttributes;
     }
@@ -773,7 +805,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.allowUnknownAttributes = allowUnknownAttributes;
     }
 
-    @ConfigurationProperty(order = 33)
+    @ConfigurationProperty(order = 35)
     public String getUsePermissiveModify() {
         return usePermissiveModify;
     }
@@ -783,7 +815,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.usePermissiveModify = usePermissiveModify;
     }
 
-    @ConfigurationProperty(order = 34)
+    @ConfigurationProperty(order = 36)
     public String getUseTreeDelete() {
         return useTreeDelete;
     }
@@ -793,7 +825,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.useTreeDelete = useTreeDelete;
     }
 
-    @ConfigurationProperty(order = 35)
+    @ConfigurationProperty(order = 37)
     public String getSynchronizationStrategy() {
         return synchronizationStrategy;
     }
@@ -802,7 +834,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.synchronizationStrategy = synchronizationStrategy;
     }
 
-    @ConfigurationProperty(order = 36)
+    @ConfigurationProperty(order = 38)
     public String getBaseContextToSynchronize() {
         return baseContextToSynchronize;
     }
@@ -812,7 +844,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.baseContextToSynchronize = baseContextToSynchronize;
     }
 
-    @ConfigurationProperty(order = 37)
+    @ConfigurationProperty(order = 39)
     public String[] getObjectClassesToSynchronize() {
         return objectClassesToSynchronize;
     }
@@ -822,7 +854,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.objectClassesToSynchronize = objectClassesToSynchronize;
     }
 
-    @ConfigurationProperty(order = 38)
+    @ConfigurationProperty(order = 40)
     public String[] getAttributesToSynchronize() {
         return attributesToSynchronize;
     }
@@ -832,7 +864,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.attributesToSynchronize = attributesToSynchronize;
     }
 
-    @ConfigurationProperty(order = 39)
+    @ConfigurationProperty(order = 41)
     public String[] getModifiersNamesToFilterOut() {
         return modifiersNamesToFilterOut;
     }
@@ -842,7 +874,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.modifiersNamesToFilterOut = modifiersNamesToFilterOut;
     }
 
-    @ConfigurationProperty(order = 40)
+    @ConfigurationProperty(order = 42)
     public int getChangeLogBlockSize() {
         return changeLogBlockSize;
     }
@@ -852,7 +884,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.changeLogBlockSize = changeLogBlockSize;
     }
 
-    @ConfigurationProperty(order = 41)
+    @ConfigurationProperty(order = 43)
     public String getChangeNumberAttribute() {
         return changeNumberAttribute;
     }
@@ -862,7 +894,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.changeNumberAttribute = changeNumberAttribute;
     }
 
-    @ConfigurationProperty(order = 42)
+    @ConfigurationProperty(order = 44)
     public boolean isUseUnsafeNameHint() {
         return useUnsafeNameHint;
     }
@@ -872,7 +904,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.useUnsafeNameHint = useUnsafeNameHint;
     }
 
-    @ConfigurationProperty(order = 43)
+    @ConfigurationProperty(order = 45)
     public boolean isEnableExtraTests() {
         return enableExtraTests;
     }
@@ -882,7 +914,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.enableExtraTests = enableExtraTests;
     }
 
-    @ConfigurationProperty(order = 44)
+    @ConfigurationProperty(order = 46)
     public String getTimestampPresentation() {
         return timestampPresentation;
     }
@@ -892,7 +924,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.timestampPresentation = timestampPresentation;
     }
 
-    @ConfigurationProperty(order = 45)
+    @ConfigurationProperty(order = 47)
     public boolean isIncludeObjectClassFilter() {
         return includeObjectClassFilter;
     }
@@ -902,7 +934,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.includeObjectClassFilter = includeObjectClassFilter;
     }
 
-    @ConfigurationProperty(order = 46)
+    @ConfigurationProperty(order = 48)
     public boolean isAlternativeObjectClassDetection() {
         return alternativeObjectClassDetection;
     }
@@ -912,7 +944,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.alternativeObjectClassDetection = alternativeObjectClassDetection;
     }
 
-    @ConfigurationProperty(order = 47)
+    @ConfigurationProperty(order = 49)
     public boolean isStructuralObjectClassesToAuxiliary() {
         return structuralObjectClassesToAuxiliary;
     }
@@ -922,7 +954,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.structuralObjectClassesToAuxiliary = structuralObjectClassesToAuxiliary;
     }
 
-    @ConfigurationProperty(order = 48)
+    @ConfigurationProperty(order = 50)
     public String getRunAsStrategy() {
         return runAsStrategy;
     }
@@ -932,7 +964,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.runAsStrategy = runAsStrategy;
     }
 
-    @ConfigurationProperty(order = 49)
+    @ConfigurationProperty(order = 51)
     public String getAdditionalSearchFilter() {
         return additionalSearchFilter;
     }
@@ -942,7 +974,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.additionalSearchFilter = additionalSearchFilter;
     }
 
-    @ConfigurationProperty(order = 50)
+    @ConfigurationProperty(order = 52)
     public String getDefaultSearchScope() {
         return defaultSearchScope;
     }
@@ -952,7 +984,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.defaultSearchScope = searchScope;
     }
 
-    @ConfigurationProperty(order = 51)
+    @ConfigurationProperty(order = 53)
     public boolean isAllowUntrustedSsl() {
         return allowUntrustedSsl;
     }
@@ -962,7 +994,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.allowUntrustedSsl = allowUntrustedSsl;
     }
 
-    @ConfigurationProperty(order = 52)
+    @ConfigurationProperty(order = 54)
     public boolean isUseUnbind() {
         return useUnbind;
     }
@@ -1023,6 +1055,10 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 
         if (timeout == null) {
             timeout = DEFAULT_TIMEOUT;
+        }
+
+        if (checkAliveTimeout == null) {
+            checkAliveTimeout = timeout;
         }
     }
 
