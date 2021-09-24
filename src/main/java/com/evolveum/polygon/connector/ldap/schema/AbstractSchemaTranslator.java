@@ -1482,6 +1482,12 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
                     md = MessageDigest.getInstance("SHA-1");
             } else if ( alg.equalsIgnoreCase("SMD5") || alg.equalsIgnoreCase("MD5") ) {
                 md = MessageDigest.getInstance("MD5");
+            } else if ( alg.equalsIgnoreCase("SSHA-256") || alg.equalsIgnoreCase("SHA-256") ) {
+                md = MessageDigest.getInstance("SHA-256");
+            } else if ( alg.equalsIgnoreCase("SSHA-384") || alg.equalsIgnoreCase("SHA-384") ) {
+                md = MessageDigest.getInstance("SHA-384");
+            }  else if ( alg.equalsIgnoreCase("SSHA-512") || alg.equalsIgnoreCase("SHA-512") ) {
+                md = MessageDigest.getInstance("SHA-512");
             }
         } catch (NoSuchAlgorithmException e) {
             throw new ConnectorException("Could not find MessageDigest algorithm: "+alg);
@@ -1492,7 +1498,9 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
         }
 
         byte[] salt = {};
-        if (alg.equalsIgnoreCase("SSHA") || alg.equalsIgnoreCase("SMD5")) {
+        if (alg.equalsIgnoreCase("SSHA") || alg.equalsIgnoreCase("SMD5")
+                || alg.equalsIgnoreCase("SSHA-256") || alg.equalsIgnoreCase("SSHA-384")
+                || alg.equalsIgnoreCase("SSHA-512")) {
             Random rnd = new Random();
             rnd.setSeed(System.currentTimeMillis() + seed);
             salt = new byte[8];
