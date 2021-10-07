@@ -125,11 +125,11 @@ public class ServerDefinition {
         def.bindDn = getStringProp(props, "bindDn", configuration.getBindDn());
         def.bindPassword = getGuardedStringProp(props, "bindPassword", configuration.getBindPassword());
         def.timeout = getLongProp(props, "timeout", configuration.getTimeout());
-        def.connectTimeout = getLongProp(props, "connectTimeout", configuration.getConnectTimeout());
-        def.writeOperationTimeout = getLongProp(props, "writeOperationTimeout", configuration.getConnectTimeout());
-        def.readOperationTimeout = getLongProp(props, "readOperationTimeout", configuration.getConnectTimeout());
-        def.closeTimeout = getLongProp(props, "closeTimeout", configuration.getConnectTimeout());
-        def.sendTimeout = getLongProp(props, "sendTimeout", configuration.getConnectTimeout());
+        def.connectTimeout = getLongProp(props, "connectTimeout", configuration.getConnectTimeout(), def.timeout);
+        def.writeOperationTimeout = getLongProp(props, "writeOperationTimeout", configuration.getConnectTimeout(), def.timeout);
+        def.readOperationTimeout = getLongProp(props, "readOperationTimeout", configuration.getConnectTimeout(), def.timeout);
+        def.closeTimeout = getLongProp(props, "closeTimeout", configuration.getConnectTimeout(), def.timeout);
+        def.sendTimeout = getLongProp(props, "sendTimeout", configuration.getConnectTimeout(), def.timeout);
         try {
             def.baseContext = new Dn(getStringProp(props, "baseContext", configuration.getBaseContext()));
         } catch (LdapInvalidDnException e) {
@@ -220,6 +220,23 @@ public class ServerDefinition {
         String propVal = props.get(key);
         if (propVal == null) {
             return defaultVal;
+        } else {
+            if (StringUtil.isBlank(propVal)) {
+                return null;
+            } else {
+                return Long.parseLong(propVal);
+            }
+        }
+    }
+
+    private static Long getLongProp(Map<String, String> props, String key, Long upstreamValue, long defaultVal) {
+        String propVal = props.get(key);
+        if (propVal == null) {
+            if (upstreamValue == null) {
+                return defaultVal;
+            } else {
+                return upstreamValue;
+            }
         } else {
             if (StringUtil.isBlank(propVal)) {
                 return null;
