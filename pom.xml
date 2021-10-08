@@ -27,7 +27,7 @@
     </parent>
 
     <artifactId>connector-ldap</artifactId>
-    <version>3.3</version>
+    <version>3.4-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>LDAP Connector</name>
