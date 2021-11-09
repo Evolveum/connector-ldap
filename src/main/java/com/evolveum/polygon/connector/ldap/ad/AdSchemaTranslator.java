@@ -16,6 +16,7 @@
 package com.evolveum.polygon.connector.ldap.ad;
 
 import java.io.UnsupportedEncodingException;
+import java.nio.charset.StandardCharsets;
 
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.directory.api.ldap.model.constants.SchemaConstants;
@@ -30,6 +31,7 @@ import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException;
 import org.identityconnectors.framework.common.objects.AttributeInfoBuilder;
+import org.identityconnectors.framework.common.objects.ConnectorObject;
 import org.identityconnectors.framework.common.objects.ConnectorObjectBuilder;
 import org.identityconnectors.framework.common.objects.ObjectClassInfoBuilder;
 import org.identityconnectors.framework.common.objects.OperationalAttributes;
@@ -37,6 +39,9 @@ import org.identityconnectors.framework.common.objects.OperationalAttributes;
 import com.evolveum.polygon.connector.ldap.LdapConstants;
 import com.evolveum.polygon.connector.ldap.LdapUtil;
 import com.evolveum.polygon.connector.ldap.ad.AdConstants.UAC;
+import com.evolveum.polygon.connector.ldap.ad.AdUserParametersHandler.CtxCfgFlagsBitValues;
+import com.evolveum.polygon.connector.ldap.ad.AdUserParametersHandler.UserParametersAttributes;
+import com.evolveum.polygon.connector.ldap.ad.AdUserParametersHandler.UserParametersValueTypes;
 import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
 
 
@@ -105,6 +110,27 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
 
                 ocib.addAttributeInfo(uacAb.build());
             }
+        }
+        
+        //create userParameters attribtues
+        if (!getConfiguration().isRawUserParametersAttribute() && isUserObjectClass(ldapObjectClass.getName())) {
+            for (UserParametersAttributes up : UserParametersAttributes.values()) {
+                AttributeInfoBuilder upAb = new AttributeInfoBuilder(up.getName());
+                upAb.setType(String.class);
+                ocib.addAttributeInfo(upAb.build());
+                // strings have an additional widestring representation
+                if (up.getType().equals(UserParametersValueTypes.STRING_VALUE)) {
+                    AttributeInfoBuilder upAbWideString = new AttributeInfoBuilder(up.getName()+"W");
+                    upAbWideString.setType(String.class);
+                    ocib.addAttributeInfo(upAbWideString.build());
+                }
+            }
+            for(CtxCfgFlagsBitValues flag : CtxCfgFlagsBitValues.values()) {
+                AttributeInfoBuilder upFlagAb = new AttributeInfoBuilder(flag.name());
+                upFlagAb.setType(Boolean.class);
+                ocib.addAttributeInfo(upFlagAb.build());
+            }
+            
         }
     }
 
@@ -230,6 +256,23 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
                     } else {
                         cob.addAttribute(uac.name(), Boolean.TRUE);
                     }
+                }
+            }
+        }
+        if (!getConfiguration().isRawUserParametersAttribute() && isUserObjectClass(objectClassName)) {
+            Attribute userParametersAttr = entry.get(AdUserParametersHandler.USER_PARAMETERS_LDAP_ATTR_NAME);
+            if (userParametersAttr != null) {
+                AdUserParametersHandler handler = new AdUserParametersHandler();
+                try {
+                    handler.setUserParameters(userParametersAttr.getString());
+                    try {
+                        cob.addAttributes(handler.toIcf());
+                    } catch (AdUserParametersHandlerException e) {
+                        LOG.error(e, "Could not parse userParameters to icf Attributes");
+                        throw new InvalidAttributeValueException(e);
+                    }
+                } catch (LdapInvalidAttributeValueException e) {
+                    throw new InvalidAttributeValueException(e);
                 }
             }
         }
