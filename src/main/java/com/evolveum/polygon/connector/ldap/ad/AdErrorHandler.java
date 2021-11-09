@@ -75,6 +75,13 @@ public class AdErrorHandler extends ErrorHandler {
 
     @Override
     public RuntimeException processLdapException(String connectorMessage, LdapException ldapException) {
+
+        DsidError dsidError = DsidError.parseDiagnosticMessage(ldapException.getMessage());
+        if (dsidError != null) {
+            LdapUtil.logOperationError(connectorMessage, ldapException, dsidError.getMessage());
+            throw instantiateException(dsidError.getExceptionClass(), dsidError.getMessage());
+        }
+
         if (ldapException instanceof LdapOtherException) {
             RuntimeException otherExpression = processOtherError(connectorMessage, ldapException.getMessage(), null, (LdapOtherException) ldapException);
             if (otherExpression != null) {

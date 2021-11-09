@@ -102,7 +102,7 @@ public class SunChangelogSyncStrategy<C extends AbstractLdapConfiguration> exten
             ldapObjectClass = getSchemaTranslator().toLdapObjectClass(icfObjectClass);
         }
 
-        Entry rootDse = LdapUtil.getRootDse(getConnectionManager(), ROOT_DSE_ATTRIBUTE_CHANGELOG_NAME, ROOT_DSE_ATTRIBUTE_FIRST_CHANGE_NUMBER_NAME, ROOT_DSE_ATTRIBUTE_LAST_CHANGE_NUMBER_NAME);
+        Entry rootDse = getConnectionManager().getRootDse(null);
         Attribute changelogAttribute = rootDse.get(ROOT_DSE_ATTRIBUTE_CHANGELOG_NAME);
         if (changelogAttribute == null) {
             throw new ConnectorException("Cannot locate changelog, the root DSE attribute "+ROOT_DSE_ATTRIBUTE_CHANGELOG_NAME+" is not present");

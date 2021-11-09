@@ -115,10 +115,14 @@ public class AdAttributeHandler implements AttributeHandler {
             }
         } catch (LdapException e) {
             OperationLog.logOperationErr(connection, "Search ERR {0}: {1}", e.getClass().getName(), e.getMessage(), e);
+            searchStrategy.getConnectionLog().error(connection, "search", e, dn + " OBJECT (objectclass=*)");
             throw searchStrategy.getErrorHandler().processLdapException("Range search for "+dn+" with "+attributesToGet+" failed", e);
         }
 
         OperationLog.logOperationRes(connection, "Search RES {0}", entry);
+        if (searchStrategy.getConnectionLog().isSuccess()) {
+            searchStrategy.getConnectionLog().success(connection, "search", dn + " OBJECT (objectclass=*)");
+        }
 
         return entry.get(attrName);
     }

@@ -16,7 +16,6 @@
 
 package com.evolveum.polygon.connector.ldap;
 
-import java.io.IOException;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -130,6 +129,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
     private ErrorHandler errorHandler = null;
     private Boolean usePermissiveModify = null;
     private Boolean useTreeDelete = null;
+    private ConnectionLog connectionLog;
 
     public AbstractLdapConnector() {
         super();
@@ -152,8 +152,10 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
         this.configuration = (C)configuration;
         this.configuration.recompute();
         errorHandler = createErrorHandler();
+        this.connectionLog = new ConnectionLog();
         connectionManager = new ConnectionManager<>(this.configuration);
         connectionManager.setErrorHandler(errorHandler);
+        connectionManager.setConnectionLog(connectionLog);
         connectionManager.connect();
         if (LOG.isOk()) {
             LOG.ok("Servers:\n{0}", connectionManager.dumpServers());
@@ -165,6 +167,8 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
     protected ErrorHandler getErrorHandler() {
         return errorHandler;
     }
+
+    public ConnectionLog getConnectionLog() { return connectionLog; }
 
     @Override
     public void test() {
@@ -178,21 +182,25 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
         checkAlive();
         additionalConnectionTests();
         try {
-            LOG.ok("Fetching root DSE");
-            Entry rootDse = connectionManager.getDefaultConnection().getRootDse();
+            // Although we may have fetched the root DSE already
+            // (e.g. during schema processing in connector initialization), we want to do it again.
+            // The errors reported by Apache Directory API may be confusing.
+            // We also want the root DSE fetch operation clearly marked in the log files.
+            // This is explicit connection test, which is not used during normal operation.
+            // Therefore slight inefficiency caused by a second root DSE fetch should not be a problem.
+            LOG.ok("Fetching root DSE (again)");
+            Entry rootDse = connectionManager.getRootDseForce(null);
             LOG.ok("Root DSE: {0}", rootDse);
+            // Remember root DSE. In case that we have not fetched it yet, we want to make it available for reuse.
+            connectionManager.getDefaultServerDefinition().setRootDse(rootDse);
         } catch (LdapException e) {
             throw processLdapException(null, e);
         }
     }
 
     protected void cleanupBeforeTest() {
-        try {
-            LOG.ok("Closing connections ... to reopen them again");
-            connectionManager.close();
-        } catch (IOException e) {
-            throw new ConnectorIOException(e.getMessage(), e);
-        }
+        LOG.ok("Closing connections ... to reopen them again");
+        connectionManager.close("connection test");
         schemaManager = null;
         schemaTranslator = null;
     }
@@ -317,73 +325,82 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 
     protected SchemaManager getSchemaManager() {
         if (schemaManager == null) {
-            try {
-                boolean schemaQuirksMode = configuration.isSchemaQuirksMode();
-                LOG.ok("Loading schema (quirksMode={0})", schemaQuirksMode);
-
-                // Construction of SchemaManager actually loads all the schemas from server.
-                // They are just not completely parsed and processed yet.
-                DefaultSchemaManager newSchemaManager = createSchemaManager(schemaQuirksMode);
-
-                SchemaErrorHandler schemaErrorHandler = createSchemaErrorHandler();
-                if (schemaErrorHandler != null) {
-                    newSchemaManager.setErrorHandler(schemaErrorHandler);
-                }
-                try {
-                    if (schemaQuirksMode) {
-                        newSchemaManager.setRelaxed();
-                        newSchemaManager.loadAllEnabledRelaxed();
-                    } else {
-                        newSchemaManager.loadAllEnabled();
-                    }
-                } catch (Exception e) {
-                    throw new ConnectorIOException(e.getMessage(), e);
-                }
-                if ( !newSchemaManager.getErrors().isEmpty() ) {
-                    if (schemaQuirksMode) {
-                        LOG.ok("There are {0} schema errors, but we are in quirks mode so we are ignoring them", newSchemaManager.getErrors().size());
-                        if (isLogSchemaErrors()) {
-                            for (Throwable error: newSchemaManager.getErrors()) {
-                                LOG.ok("Schema error (ignored): {0}: {1}", error.getClass().getName(), error.getMessage());
-                            }
-                        }
-                    } else {
-                        throw new ConnectorIOException("Errors loading schema "+newSchemaManager.getErrors());
-                    }
-                }
-                schemaManager = newSchemaManager;
-//                connection.setSchemaManager(defSchemaManager);
-//                connection.loadSchema(defSchemaManager);
-            } catch (LdapException e) {
-                Throwable cause = e.getCause();
-                if (cause instanceof ParseException) {
-                    // Schema parsing error
-                    // We are throwing InvalidAttributeValueException here, even though we should not.
-                    // But we take InvalidAttributeValueException to means general schema-related error.
-                    throw new InvalidAttributeValueException("Error parsing resource schema: "+cause.getMessage(), e);
-                }
-                throw new ConnectorIOException(e.getMessage(), e);
-            } catch (Exception e) {
-                // Brutal. We cannot really do anything smarter here.
-                throw new ConnectorException(e.getMessage(), e);
-            }
-
-            try {
-                LOG.info("Schema loaded, {0} schemas, {1} object classes, {2} attributes, {3} syntaxes, {4} errors",
-                        schemaManager.getAllSchemas().size(),
-                        schemaManager.getObjectClassRegistry().size(),
-                        schemaManager.getAttributeTypeRegistry().size(),
-                        schemaManager.getLdapSyntaxRegistry().size(),
-                        schemaManager.getErrors().size());
-            } catch (Exception e) {
-                throw new RuntimeException(e.getMessage(),e);
-            }
-            patchSchemaManager(schemaManager);
+            initializeSchemaManager();
         }
         return schemaManager;
     }
 
-    protected DefaultSchemaManager createSchemaManager(boolean schemaQuirksMode) throws LdapException {
+    protected void initializeSchemaManager() {
+        try {
+            boolean schemaQuirksMode = configuration.isSchemaQuirksMode();
+            LOG.ok("Loading schema (quirksMode={0})", schemaQuirksMode);
+
+            // Construction of SchemaManager actually loads all the schemas from server.
+            // They are just not completely parsed and processed yet.
+            DefaultSchemaManager newSchemaManager = createBlankSchemaManager(schemaQuirksMode);
+
+            SchemaErrorHandler schemaErrorHandler = createSchemaErrorHandler();
+            if (schemaErrorHandler != null) {
+                newSchemaManager.setErrorHandler(schemaErrorHandler);
+            }
+            try {
+                if (schemaQuirksMode) {
+                    newSchemaManager.setRelaxed();
+                    newSchemaManager.loadAllEnabledRelaxed();
+                } else {
+                    newSchemaManager.loadAllEnabled();
+                }
+                connectionLog.schemaSuccess(connectionManager.getDefaultConnection(), newSchemaManager.getObjectClassRegistry().size(), newSchemaManager.getErrors().size());
+            } catch (Exception e) {
+                connectionLog.schemaError(connectionManager.getDefaultConnection(), e);
+                // TODO: try to reconnect?
+                throw new ConnectorIOException(e.getMessage(), e);
+            }
+            if ( !newSchemaManager.getErrors().isEmpty() ) {
+                if (schemaQuirksMode) {
+                    LOG.ok("There are {0} schema errors, but we are in quirks mode so we are ignoring them", newSchemaManager.getErrors().size());
+                    if (isLogSchemaErrors()) {
+                        for (Throwable error: newSchemaManager.getErrors()) {
+                            LOG.ok("Schema error (ignored): {0}: {1}", error.getClass().getName(), error.getMessage());
+                        }
+                    }
+                } else {
+                    throw new ConnectorIOException("Errors loading schema "+newSchemaManager.getErrors());
+                }
+            }
+            schemaManager = newSchemaManager;
+//                connection.setSchemaManager(defSchemaManager);
+//                connection.loadSchema(defSchemaManager);
+        } catch (LdapException e) {
+            connectionLog.schemaError(connectionManager.getDefaultConnection(), e);
+            Throwable cause = e.getCause();
+            if (cause instanceof ParseException) {
+                // Schema parsing error
+                // We are throwing InvalidAttributeValueException here, even though we should not.
+                // But we take InvalidAttributeValueException to means general schema-related error.
+                throw new InvalidAttributeValueException("Error parsing resource schema: "+cause.getMessage(), e);
+            }
+            throw new ConnectorIOException(e.getMessage(), e);
+        } catch (Exception e) {
+            connectionLog.schemaError(connectionManager.getDefaultConnection(), e);
+            // Brutal. We cannot really do anything smarter here.
+            throw new ConnectorException(e.getMessage(), e);
+        }
+
+        try {
+            LOG.info("Schema loaded, {0} schemas, {1} object classes, {2} attributes, {3} syntaxes, {4} errors",
+                    schemaManager.getAllSchemas().size(),
+                    schemaManager.getObjectClassRegistry().size(),
+                    schemaManager.getAttributeTypeRegistry().size(),
+                    schemaManager.getLdapSyntaxRegistry().size(),
+                    schemaManager.getErrors().size());
+        } catch (Exception e) {
+            throw new RuntimeException(e.getMessage(),e);
+        }
+        patchSchemaManager(schemaManager);
+    }
+
+    protected DefaultSchemaManager createBlankSchemaManager(boolean schemaQuirksMode) throws LdapException {
         // Construction of SchemaLoader actually loads all the schemas from server.
         DefaultSchemaLoader schemaLoader = new DefaultSchemaLoader(connectionManager.getDefaultConnection(), schemaQuirksMode);
         return new DefaultSchemaManager(schemaLoader);
@@ -793,17 +810,17 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
             return getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
 
         } else if (LdapConfiguration.PAGING_STRATEGY_SPR.equals(pagingStrategy)) {
-            if (supportsControl(PagedResults.OID)) {
+            if (connectionManager.supportsControl(null, PagedResults.OID)) {
                 LOG.ok("Selecting SimplePaged search strategy because strategy setting is set to {0}", pagingStrategy);
-                return new SimplePagedResultsSearchStrategy<>(connectionManager, configuration, schemaTranslator, objectClass, ldapObjectClass, handler, getErrorHandler(), options);
+                return new SimplePagedResultsSearchStrategy<>(connectionManager, configuration, schemaTranslator, objectClass, ldapObjectClass, handler, getErrorHandler(), connectionLog, options);
             } else {
                 throw new ConfigurationException("Configured paging strategy "+pagingStrategy+", but the server does not support PagedResultsControl.");
             }
 
         } else if (LdapConfiguration.PAGING_STRATEGY_VLV.equals(pagingStrategy)) {
-            if (supportsControl(VirtualListViewRequest.OID)) {
+            if (connectionManager.supportsControl(null, VirtualListViewRequest.OID)) {
                 LOG.ok("Selecting VLV search strategy because strategy setting is set to {0}", pagingStrategy);
-                return new VlvSearchStrategy<>(connectionManager, configuration, getSchemaTranslator(), objectClass, ldapObjectClass, handler, getErrorHandler(), options);
+                return new VlvSearchStrategy<>(connectionManager, configuration, getSchemaTranslator(), objectClass, ldapObjectClass, handler, getErrorHandler(), connectionLog, options);
             } else {
                 throw new ConfigurationException("Configured paging strategy "+pagingStrategy+", but the server does not support VLV.");
             }
@@ -813,19 +830,19 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
                 // Always prefer VLV even if the offset is 1. We expect that the client will use paging and subsequent
                 // queries will come with offset other than 1. The server may use a slightly different sorting for VLV and other
                 // paging mechanisms. Bu we want consisten results. Therefore in this case prefer VLV even if it might be less efficient.
-                if (supportsControl(VirtualListViewRequest.OID)) {
+                if (connectionManager.supportsControl(null, VirtualListViewRequest.OID)) {
                     LOG.ok("Selecting VLV search strategy because strategy setting is set to {0} and the request specifies an offset", pagingStrategy);
-                    return new VlvSearchStrategy<>(connectionManager, configuration, getSchemaTranslator(), objectClass, ldapObjectClass, handler, getErrorHandler(), options);
+                    return new VlvSearchStrategy<>(connectionManager, configuration, getSchemaTranslator(), objectClass, ldapObjectClass, handler, getErrorHandler(), connectionLog, options);
                 } else {
                     throw new UnsupportedOperationException("Requested search from offset ("+options.getPagedResultsOffset()+"), but the server does not support VLV. Unable to execute the search.");
                 }
             } else {
-                if (supportsControl(PagedResults.OID)) {
+                if (connectionManager.supportsControl(null, PagedResults.OID)) {
                     // SPR is usually a better choice if no offset is specified. Less overhead on the server.
                     LOG.ok("Selecting SimplePaged search strategy because strategy setting is set to {0} and the request does not specify an offset", pagingStrategy);
-                    return new SimplePagedResultsSearchStrategy<>(connectionManager, configuration, schemaTranslator, objectClass, ldapObjectClass, handler, getErrorHandler(), options);
-                } else if (supportsControl(VirtualListViewRequest.OID)) {
-                    return new VlvSearchStrategy<>(connectionManager, configuration, getSchemaTranslator(), objectClass, ldapObjectClass, handler, getErrorHandler(), options);
+                    return new SimplePagedResultsSearchStrategy<>(connectionManager, configuration, schemaTranslator, objectClass, ldapObjectClass, handler, getErrorHandler(), connectionLog, options);
+                } else if (connectionManager.supportsControl(null, VirtualListViewRequest.OID)) {
+                    return new VlvSearchStrategy<>(connectionManager, configuration, getSchemaTranslator(), objectClass, ldapObjectClass, handler, getErrorHandler(), connectionLog, options);
                 } else {
                     throw new UnsupportedOperationException("Requested paged search, but the server does not support VLV or PagedResultsControl. Unable to execute the search.");
                 }
@@ -835,18 +852,10 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
         return getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
     }
 
-    private boolean supportsControl(String oid) {
-        try {
-            return connectionManager.getDefaultConnection().getSupportedControls().contains(oid);
-        } catch (LdapException e) {
-            throw new ConnectorIOException("Cannot fetch list of supported controls: "+e.getMessage(), e);
-        }
-    }
-
     protected SearchStrategy<C> getDefaultSearchStrategy(ObjectClass objectClass,
             org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
             ResultsHandler handler, OperationOptions options) {
-        return new DefaultSearchStrategy<>(connectionManager, configuration, getSchemaTranslator(), objectClass, ldapObjectClass, handler, getErrorHandler(), options);
+        return new DefaultSearchStrategy<>(connectionManager, configuration, getSchemaTranslator(), objectClass, ldapObjectClass, handler, getErrorHandler(), connectionLog, options);
     }
 
     @Override
@@ -938,20 +947,24 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 
         } catch (LdapException e) {
             OperationLog.logOperationErr(connection, "Add ERROR {0}: {1}", dnStringFromName, e.getMessage(), e);
+            connectionLog.error(connection, "add", e, dnStringFromName);
             connectionManager.returnConnection(connection);
             throw processLdapException("Error adding LDAP entry "+dnStringFromName, e);
         }
 
         OperationLog.logOperationRes(connection, "Add RES {0}: {1}", dnStringFromName, addResponse.getLdapResult());
+        connectionLog.success(connection, "add", dnStringFromName);
 
-        connectionManager.returnConnection(connection);
+        // Do NOT return the connection here. We want to use the same connection for read-after-create.
 
         if (addResponse.getLdapResult().getResultCode() != ResultCodeEnum.SUCCESS) {
+            connectionManager.returnConnection(connection);
             throw processCreateResult(dnStringFromName, addResponse);
         }
 
         String uidAttributeName = configuration.getUidAttribute();
         if (LdapUtil.isDnAttribute(uidAttributeName)) {
+            connectionManager.returnConnection(connection);
             return new Uid(dnStringFromName);
         }
 
@@ -962,12 +975,14 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
             }
         }
         if (uid != null) {
+            connectionManager.returnConnection(connection);
             return uid;
         }
 
-        // read the entry back and return UID
+        // read the entry back and return UID (a.k.a. read-after-create)
 
-        Entry entryRead = searchSingleEntry(connectionManager, entry.getDn(), LdapUtil.createAllSearchFilter(), SearchScope.OBJECT,
+        // NOTE: searchSingleEntry will return the connection to the connectionManager
+        Entry entryRead = searchSingleEntry(connectionManager, connection, entry.getDn(), LdapUtil.createAllSearchFilter(), SearchScope.OBJECT,
                 new String[]{ uidAttributeName }, "re-reading entry to get UID", options);
         if (entryRead == null) {
             throw new UnknownUidException("Cannot re-reading entry to get UID, entry was not found: "+entry.getDn());
@@ -1081,8 +1096,12 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
                 // that well.
                 connection.moveAndRename(oldDn.getName(), newDn.getName());
                 OperationLog.logOperationRes(connection, "MoveAndRename RES OK {0} -> {1}", oldDn, newDn);
+                if (connectionLog.isSuccess()) {
+                    connectionLog.success(connection, "rename", oldDn + " -> " + newDn);
+                }
             } catch (LdapException e) {
                 OperationLog.logOperationErr(connection, "MoveAndRename ERROR {0} -> {1}: {2}", oldDn, newDn, e.getMessage(), e);
+                connectionLog.error(connection, "rename",  e,oldDn + " -> " + newDn);
                 throw processLdapException("Rename/move of LDAP entry from "+oldDn+" to "+newDn+" failed", e);
             } finally {
                 connectionManager.returnConnection(connection);
@@ -1178,12 +1197,14 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
             if (LOG.isOk()) {
                 OperationLog.logOperationRes(connection, "Modify RES {0}: {1}", dn, modifyResponse.getLdapResult());
             }
+            connectionLog.success(connection, "modify", dn);
 
             if (modifyResponse.getLdapResult().getResultCode() != ResultCodeEnum.SUCCESS) {
                 throw processModifyResult(dn, modifications, modifyResponse);
             }
         } catch (LdapException e) {
             OperationLog.logOperationErr(connection, "Modify ERROR {0}: {1}: {2}", dn, dumpModifications(modifications), e.getMessage(), e);
+            connectionLog.error(connection, "modify", e, dn);
             throw processModifyResult(dn.toString(), modifications, e);
         } finally {
             connectionManager.returnConnection(connection);
@@ -1443,7 +1464,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
     }
 
     private SyncStrategy<C> chooseSyncStrategyAuto() {
-        Entry rootDse = LdapUtil.getRootDse(connectionManager, SunChangelogSyncStrategy.ROOT_DSE_ATTRIBUTE_CHANGELOG_NAME);
+        Entry rootDse = connectionManager.getRootDse(null);
         org.apache.directory.api.ldap.model.entry.Attribute changelogAttribute = rootDse.get(SunChangelogSyncStrategy.ROOT_DSE_ATTRIBUTE_CHANGELOG_NAME);
         if (changelogAttribute != null) {
             LOG.ok("Choosing Sun ChangeLog sync strategy (found {0} attribute in root DSE)", SunChangelogSyncStrategy.ROOT_DSE_ATTRIBUTE_CHANGELOG_NAME);
@@ -1479,30 +1500,6 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
         deleteAttempt(dn, uid, options);
     }
 
-    private void deleteAttemptX(Dn dn, Uid uid, OperationOptions options) {
-
-        LdapNetworkConnection connection = connectionManager.getConnection(dn, options);
-
-        try {
-
-            if (LOG.isOk()) {
-                OperationLog.logOperationReq(connection, "Delete REQ {0}, control=TREE", dn);
-            }
-
-            connection.deleteTree(dn);
-
-            if (LOG.isOk()) {
-                OperationLog.logOperationRes(connection, "Delete RES {0}", dn);
-            }
-
-        } catch (LdapException e) {
-            OperationLog.logOperationErr(connection, "Delete ERROR {0}: {1}", dn, e.getMessage(), e);
-            throw processLdapException("Failed to delete entry with DN "+dn+" (UID="+uid+")", e);
-        } finally {
-            connectionManager.returnConnection(connection);
-        }
-    }
-
     private void deleteAttempt(Dn dn, Uid uid, OperationOptions options) {
 
         LdapNetworkConnection connection = connectionManager.getConnection(dn, options);
@@ -1530,8 +1527,11 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
             }
 
             if (deleteResponse.getLdapResult().getResultCode() != ResultCodeEnum.SUCCESS) {
+                connectionLog.error(connection, "delete", deleteResponse.getLdapResult(), dn);
                 throw processLdapResult("Error deleting LDAP entry "+dn, deleteResponse.getLdapResult());
             }
+
+            connectionLog.success(connection, "delete", dn);
 
         } catch (LdapException e) {
             OperationLog.logOperationErr(connection, "Delete ERROR {0}: {1}", dn, e.getMessage(), e);
@@ -1588,7 +1588,17 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
      */
     protected Entry searchSingleEntry(ConnectionManager<C> connectionManager, Dn baseDn, ExprNode filterNode,
             SearchScope scope, String[] attributesToGet, String descMessage, OperationOptions options) {
-        return searchSingleEntry(connectionManager, baseDn, filterNode,
+        return searchSingleEntry(connectionManager, null, baseDn, filterNode,
+                scope, attributesToGet, descMessage, baseDn, options);
+    }
+
+    /**
+     * Use provided connection by default.
+     * Used for operations where we do not want to change connection (such as read-after-create).
+     */
+    protected Entry searchSingleEntry(ConnectionManager<C> connectionManager, LdapNetworkConnection givenConnection, Dn baseDn, ExprNode filterNode,
+                                      SearchScope scope, String[] attributesToGet, String descMessage, OperationOptions options) {
+        return searchSingleEntry(connectionManager, givenConnection, baseDn, filterNode,
                 scope, attributesToGet, descMessage, baseDn, options);
     }
 
@@ -1598,11 +1608,21 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
      * This is needed in case where the nameHing in the __NAME__ may be out of date and we need to search by
      * primary identifier. But we still want to use the nameHint to select the server. Chances are it is still
      * good for that.
+     *
+     * NOTE: this method returns the connection to connection manager, even if it is given connection.
+     * The connection is not supposed to be reused after this operation.
+     * Yes, it would be cleaner to leave the connection "unreturned" and leave the responsibility to return it on the caller.
+     * And maybe one day we will do it. But not this day. As it would complicate error handling, which is quite complex already.
      */
-    protected Entry searchSingleEntry(ConnectionManager<C> connectionManager, Dn baseDn, ExprNode filterNode,
+    protected Entry searchSingleEntry(ConnectionManager<C> connectionManager, LdapNetworkConnection givenConnection, Dn baseDn, ExprNode filterNode,
             SearchScope scope, String[] attributesToGet, String descMessage, Dn dnHint, OperationOptions options) {
 
-        LdapNetworkConnection connection = connectionManager.getConnection(dnHint, options);
+        LdapNetworkConnection connection;
+        if (givenConnection == null) {
+            connection = connectionManager.getConnection(dnHint, options);
+        } else {
+            connection = givenConnection;
+        }
 
         if (filterNode == null) {
             filterNode = LdapUtil.createAllSearchFilter();
@@ -1636,6 +1656,21 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
                         entry = ((SearchResultEntry)response).getEntry();
                         if (OperationLog.isLogOperations()) {
                             OperationLog.logOperationRes(connection, "Search RES {0}", entry);
+                            connectionLog.searchSuccess(connection, searchReq, 1, null);
+                        }
+                        // WARNING: Do not remove this check.
+                        // We have to invoke cursor.next() when the cursor is done, even though we know that it is done.
+                        // The implementation of cursor.next() sets the "done" status of the cursor.
+                        // If we do not do that, the subsequent close() operation on the cursor will send an
+                        // ABANDON command, even though the operation is already finished.
+                        // MID-7091
+                        if (cursor.next()) {
+                            // This is a "base" search, we know that it cannot (should not?) return more than one entry.
+                            // But LDAP world is strange, let's be extra sure.
+                            Response nextResponse = cursor.get();
+                            LOG.warn("Unexpected search result while searching for single entry. We are going to abandon the operation.");
+                            LdapUtil.closeAbandonCursor(cursor);
+                            // throw new ConnectorException("Unexpected search result: "+nextResponse);
                         }
                         break;
                     }
@@ -1644,6 +1679,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
                     return null;
                 }
             } catch (CursorLdapReferralException e) {
+                connectionLog.searchReferral(connection, searchReq, e.getReferralInfo());
                 LOG.ok("Got cursor referral exception while resolving {0}: {1}", descMessage, e.getReferralInfo());
                 if (configuration.isReferralStrategyFollow()) {
                     LdapUrl referralUrl;
@@ -1654,12 +1690,16 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
                     }
                     connectionManager.returnConnection(connection);
                     connection = connectionManager.getConnection(baseDn, referralUrl, options);
+                    if (givenConnection != null && connection != givenConnection) {
+                        LOG.warn("Connection switch due to referral to {0} during a consistency-sensitive operation (such as read-after-write), risk of inconsistent results",e.getReferralInfo());
+                    }
                     if (referralUrl.getDn() != null) {
                         baseDn = referralUrl.getDn();
                     }
                     if (LOG.isOk()) {
                         LOG.ok("Following referral to {0} / {1}", LdapUtil.formatConnectionInfo(connection), baseDn);
                     }
+                    // Next iteration of the loop will re-try the operation with the same parameter, but different connection
                 } else if (configuration.isReferralStrategyIgnore()) {
                     // We cannot really "ignore" this referral otherwise we cannot resolve DN
                     throw new ConfigurationException("Got referral to "+e.getReferralInfo()+" while resolving DN. "
@@ -1669,12 +1709,19 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
                     throw new ConnectorIOException("Error reading "+descMessage+": "+e.getMessage(), e);
                 }
             } catch (LdapException e) {
-                throw processLdapException("Error reading "+descMessage, e);
+                connectionLog.searchError(connection, e, searchReq, null, null);
+                RuntimeException connidException = processLdapException("Error reading " + descMessage, e);
+                if (connidException instanceof ReconnectException) {
+                    connection = connectionManager.reconnect(connection, connidException);
+                    // Next iteration of the loop will re-try the operation with the same parameter, but different connection
+                } else {
+                    throw connidException;
+                }
             } catch (CursorException e) {
                 throw new ConnectorIOException("Error reading "+descMessage+": "+e.getMessage(), e);
             } finally {
                 if (cursor != null) {
-                    LdapUtil.closeCursor(cursor);
+                    LdapUtil.closeDoneCursor(cursor);
                 }
                 connectionManager.returnConnection(connection);
             }
@@ -1697,11 +1744,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
         LOG.info("Disposing {0} connector instance {1}", this.getClass().getSimpleName(), this);
         configuration = null;
         if (connectionManager != null) {
-            try {
-                connectionManager.close();
-            } catch (IOException e) {
-                throw new ConnectorIOException(e.getMessage(), e);
-            }
+            connectionManager.close("connector dispose");
             connectionManager = null;
             schemaManager = null;
             schemaTranslator = null;

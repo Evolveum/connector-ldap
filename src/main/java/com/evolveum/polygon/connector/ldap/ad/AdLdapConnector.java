@@ -121,7 +121,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
     }
 
     @Override
-    protected DefaultSchemaManager createSchemaManager(boolean schemaQuirksMode) throws LdapException {
+    protected DefaultSchemaManager createBlankSchemaManager(boolean schemaQuirksMode) throws LdapException {
         if (getConfiguration().isNativeAdSchema()) {
             // Construction of SchemaLoader actually loads all the schemas from server.
             AdSchemaLoader schemaLoader = new AdSchemaLoader(getConnectionManager().getDefaultConnection());
@@ -135,7 +135,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 
             return new AdSchemaManager(schemaLoader);
         } else {
-            return super.createSchemaManager(schemaQuirksMode);
+            return super.createBlankSchemaManager(schemaQuirksMode);
         }
     }
 
@@ -523,7 +523,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
             // Make a search directly to the global catalog server. Present that as final result.
             // We know that this can return at most one object. Therefore always use simple search.
             SearchStrategy<AdLdapConfiguration> searchStrategy = new DefaultSearchStrategy<>(globalCatalogConnectionManager,
-                    getConfiguration(), getSchemaTranslator(), objectClass, ldapObjectClass, handler, getErrorHandler(), options);
+                    getConfiguration(), getSchemaTranslator(), objectClass, ldapObjectClass, handler, getErrorHandler(), getConnectionLog(), options);
             String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
             Dn guidDn = getSchemaTranslator().getGuidDn(uidValue);
             try {
@@ -622,7 +622,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
             Dn guidDn = getSchemaTranslator().getGuidDn(guid);
 
             LOG.ok("Resolvig DN by search for {0} (no global catalog)", guidDn);
-            Entry entry = searchSingleEntry(getConnectionManager(), guidDn, LdapUtil.createAllSearchFilter(), SearchScope.OBJECT,
+            Entry entry = searchSingleEntry(getConnectionManager(), null, guidDn, LdapUtil.createAllSearchFilter(), SearchScope.OBJECT,
                     new String[]{AbstractLdapConfiguration.PSEUDO_ATTRIBUTE_DN_NAME}, "LDAP entry for GUID "+guid, dnHint, options);
 
             if (entry != null) {
