@@ -95,6 +95,16 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
      * the userAccountControl will be exposed as a simple attribute.
      */
     private boolean rawUserAccountControlAttribute = false;
+    
+    /**
+     * If set to false the connector will interpret the content of
+     * userParameters attribute and will decompose it to pseudo-attributes
+     * for CtxWFHomeDir, CtxWFProfilePath etc.
+     * If set to true then the connector will NOT do any interpretation and
+     * the userParameters will be exposed as a simple attribute.
+     */
+    private boolean rawUserParametersAttribute = true;
+    
 
     /**
      * If set to true, then the connector will use native AD schema definition.
@@ -204,8 +214,17 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
     public void setRawUserAccountControlAttribute(boolean rawUserAccountControlAttribute) {
         this.rawUserAccountControlAttribute = rawUserAccountControlAttribute;
     }
-
+    
     @ConfigurationProperty(order = 107)
+    public boolean isRawUserParametersAttribute() {
+        return rawUserParametersAttribute;
+    }
+
+    public void setRawUserParametersAttribute(boolean rawUserParametersAttribute) {
+        this.rawUserParametersAttribute = rawUserParametersAttribute;
+    }
+
+    @ConfigurationProperty(order = 108)
     public boolean isNativeAdSchema() {
         return nativeAdSchema;
     }
@@ -214,7 +233,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
         this.nativeAdSchema = nativeAdSchema;
     }
 
-    @ConfigurationProperty(order = 108)
+    @ConfigurationProperty(order = 109)
     public boolean isTweakSchema() {
         return tweakSchema;
     }
@@ -223,7 +242,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
         this.tweakSchema = tweakSchema;
     }
 
-    @ConfigurationProperty(order = 109)
+    @ConfigurationProperty(order = 110)
     public boolean isIncludeObjectCategoryFilter() {
         return includeObjectCategoryFilter;
     }
@@ -232,7 +251,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
         this.includeObjectCategoryFilter = includeObjectCategoryFilter;
     }
 
-    @ConfigurationProperty(order = 110)
+    @ConfigurationProperty(order = 111)
     public boolean isAddDefaultObjectCategory() {
         return addDefaultObjectCategory;
     }
@@ -241,7 +260,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
         this.addDefaultObjectCategory = addDefaultObjectCategory;
     }
 
-    @ConfigurationProperty(order = 111)
+    @ConfigurationProperty(order = 112)
     public boolean isForcePasswordChangeAtNextLogon() {
         return forcePasswordChangeAtNextLogon;
     }
@@ -249,7 +268,6 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
     public void setForcePasswordChangeAtNextLogon(boolean forcePasswordChangeAtNextLogon) {
         this.forcePasswordChangeAtNextLogon = forcePasswordChangeAtNextLogon;
     }
-
 
     @Override
     public void recompute() {

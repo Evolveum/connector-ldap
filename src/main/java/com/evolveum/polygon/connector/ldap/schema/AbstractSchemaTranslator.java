@@ -1198,7 +1198,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
         }
 
         extendConnectorObject(cob, entry, connIdStructuralObjectClassInfo.getType());
-
+        
         return cob.build();
     }
 

@@ -22,12 +22,11 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import com.evolveum.polygon.connector.ldap.*;
-import com.evolveum.polygon.connector.ldap.sync.ModifyTimestampSyncStrategy;
 import org.apache.directory.api.ldap.model.constants.SchemaConstants;
 import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.entry.Modification;
 import org.apache.directory.api.ldap.model.exception.LdapException;
+import org.apache.directory.api.ldap.model.exception.LdapInvalidAttributeValueException;
 import org.apache.directory.api.ldap.model.exception.LdapInvalidDnException;
 import org.apache.directory.api.ldap.model.message.ModifyResponse;
 import org.apache.directory.api.ldap.model.message.ResultCodeEnum;
@@ -57,6 +56,7 @@ import org.apache.directory.api.ldap.model.schema.syntaxCheckers.OctetStringSynt
 import org.apache.directory.api.ldap.schema.manager.impl.DefaultSchemaManager;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
 import org.identityconnectors.common.logging.Log;
+import org.identityconnectors.framework.common.exceptions.ConnectorException;
 import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException;
 import org.identityconnectors.framework.common.exceptions.UnknownUidException;
 import org.identityconnectors.framework.common.objects.Attribute;
@@ -72,10 +72,15 @@ import org.identityconnectors.framework.spi.Configuration;
 import org.identityconnectors.framework.spi.ConnectorClass;
 
 import com.evolveum.polygon.common.SchemaUtil;
-import com.evolveum.polygon.connector.ldap.schema.LdapFilterTranslator;
+import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
+import com.evolveum.polygon.connector.ldap.AbstractLdapConnector;
+import com.evolveum.polygon.connector.ldap.ErrorHandler;
+import com.evolveum.polygon.connector.ldap.LdapUtil;
 import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
+import com.evolveum.polygon.connector.ldap.schema.LdapFilterTranslator;
 import com.evolveum.polygon.connector.ldap.search.DefaultSearchStrategy;
 import com.evolveum.polygon.connector.ldap.search.SearchStrategy;
+import com.evolveum.polygon.connector.ldap.sync.ModifyTimestampSyncStrategy;
 
 @ConnectorClass(displayNameKey = "connector.ldap.ad.display", configurationClass = AdLdapConfiguration.class)
 public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> {
@@ -253,16 +258,103 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
     @Override
     public Set<AttributeDelta> updateDelta(org.identityconnectors.framework.common.objects.ObjectClass connIdObjectClass, Uid uid, Set<AttributeDelta> deltas,
             OperationOptions options) {
+        boolean isRawUac = !getConfiguration().isRawUserAccountControlAttribute();
+        boolean isRawUp = !getConfiguration().isRawUserParametersAttribute();
 
-        if (getConfiguration().isRawUserAccountControlAttribute()) {
-            return super.updateDelta(connIdObjectClass, uid, deltas, options);
+        if (isRawUac || isRawUp) {
+            // we need existing entry since we need to update binary attribute if present
+            Entry existingEntry = getExistingEntry(uid);
+
+            if (isRawUac) {
+                deltas = prepareUacDeltas(uid, deltas, existingEntry);
+            }
+            if (isRawUp) {
+                deltas = prepareUpDeltas(uid, deltas, existingEntry);
+            }
         }
-        else return super.updateDelta(connIdObjectClass, uid, prepareDeltas(uid, deltas), options);
 
+        return super.updateDelta(connIdObjectClass, uid, deltas, options);
     }
 
 
-    private Set<AttributeDelta> prepareDeltas(Uid uid, Set<AttributeDelta> deltas)  {
+    private Set<AttributeDelta> prepareUpDeltas(Uid uid, Set<AttributeDelta> deltas, Entry existingEntry) {
+        AdUserParametersHandler handler = new AdUserParametersHandler();
+
+        Set<AttributeDelta> newDeltas = new HashSet<AttributeDelta>();
+       
+        org.apache.directory.api.ldap.model.entry.Attribute upAttribute = existingEntry.get(AdUserParametersHandler.USER_PARAMETERS_LDAP_ATTR_NAME);
+        if (upAttribute != null) {
+            try {
+                handler.setUserParameters(upAttribute.getString());
+            } catch (LdapInvalidAttributeValueException e) {
+                throw new ConnectorException("The existing userparameters attribute in LDAP is not a string value, it is "
+                        + upAttribute.getAttributeType().getName(), e);
+            }
+        }
+        for (AttributeDelta delta : deltas) {
+            String deltaName = delta.getName();
+            if (AdUserParametersHandler.isUserParametersAttribute(deltaName)) {
+                LOG.ok("Applying deltas for userParameters attribute {0}", delta);
+                try {
+                    if (delta.getValuesToAdd() != null && !delta.getValuesToAdd().isEmpty()) {
+                        handler.toLdap(deltaName, delta.getValuesToAdd().get(0));
+                    }
+                    if (delta.getValuesToReplace() != null) {
+                        if (delta.getValuesToReplace().size() > 0) {
+                            handler.toLdap(deltaName, delta.getValuesToReplace().get(0));
+                        }
+                        else {
+                            // empty replace here... we interpret it as remove 
+                            handler.toLdap(deltaName, null);
+                        }
+                    }
+                    if (delta.getValuesToRemove() != null) {
+                        handler.toLdap(deltaName, null);
+                    }
+                } catch (AdUserParametersHandlerException e) {
+                    throw new ConnectorException("There was an error while preparing Userparameters delta " + deltaName,
+                            e);
+                }
+            }
+            //all others remain unchanged
+            else {
+                newDeltas.add(delta);
+            }
+        }
+
+        //create new delta for userParameters, having new value
+        String userParametersUpdated = handler.getUserParameters();
+        if (userParametersUpdated != null) {
+            AttributeDelta uacAttrDelta = AttributeDeltaBuilder.build(AdUserParametersHandler.USER_PARAMETERS_LDAP_ATTR_NAME, userParametersUpdated);
+            newDeltas.add(uacAttrDelta);
+        }
+
+        return newDeltas;
+
+    }
+
+    private Entry getExistingEntry(Uid uid) {
+        if (uid.getNameHintValue() == null) {
+            throw new ConnectorException("Can not search for existing entry with null name-hint-value");
+        }
+        Entry existingEntry;
+        try {
+            // TODO: (String)uid.getValue().get(0) uid: invaliddn
+            existingEntry = searchSingleEntry(getConnectionManager(), new Dn((String) uid.getNameHintValue()), null,
+                    SearchScope.OBJECT, null, "pre-read of entry values for binary attributes", null);
+        } catch (LdapInvalidDnException e) {
+            throw new InvalidAttributeValueException(
+                    "Cannot pre-read of entry for attribute binary attributes: " + uid);
+        }
+        LOG.ok("Pre-read entry for binary attributes:\n{0}", existingEntry);
+
+        if (existingEntry == null) {
+            throw new UnknownUidException("Cannot pre-read of entry for attribute binary attributes: " + uid);
+        }
+        return existingEntry;
+    }
+
+    private Set<AttributeDelta> prepareUacDeltas(Uid uid, Set<AttributeDelta> deltas, Entry existingEntry)  {
 
         Set<AdConstants.UAC> uacAddSet = new HashSet<AdConstants.UAC>();
         Set<AdConstants.UAC> uacDelSet = new HashSet<AdConstants.UAC>();
@@ -286,7 +378,9 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
                             if ((Boolean)val) {
                                 val = new Boolean(false);
                             }
-                            else val = new Boolean(true);
+                            else {
+                                val = new Boolean(true);
+                            }
                         }
 
                         //value was changed to true
@@ -294,32 +388,22 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
                             uacAddSet.add(uacVal);
                         }
                         //value was changed to false
-                        else uacDelSet.add(uacVal);
+                        else {
+                            uacDelSet.add(uacVal);
+                        }
                     }
                 }
             }
             //all others remain unchanged
-            else newDeltas.add(delta);
+            else {
+                newDeltas.add(delta);
+            }
         }
         //no uac attributes affected: return original deltas
         if (uacDelSet.isEmpty() && uacAddSet.isEmpty()) {
             return deltas;
         }
         // We need original value
-        Entry existingEntry;
-        try {
-            //TODO: (String)uid.getValue().get(0) uid: invaliddn
-            existingEntry = searchSingleEntry(getConnectionManager(), new Dn((String)uid.getNameHintValue()), null, SearchScope.OBJECT, null,
-                    "pre-read of entry values for attribute "+AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME, null);
-            } catch (LdapInvalidDnException e) {
-                throw new InvalidAttributeValueException("Cannot pre-read of entry for attribute "+ AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME + ": "+uid);
-            }
-            LOG.ok("Pre-read entry for {0}:\n{1}", AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME, existingEntry);
-
-        if (existingEntry == null) {
-            throw new UnknownUidException("Cannot pre-read of entry for attribute "+ AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME + ": "+uid);
-        }
-
         Integer userAccountControl = LdapUtil.getIntegerAttribute(existingEntry, AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME, null);
 
         //if bit is not set: add it
