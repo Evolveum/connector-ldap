@@ -21,6 +21,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.apache.directory.api.ldap.model.constants.SchemaConstants;
 import org.apache.directory.api.ldap.model.entry.Entry;
@@ -63,6 +64,7 @@ import org.identityconnectors.framework.common.objects.Attribute;
 import org.identityconnectors.framework.common.objects.AttributeBuilder;
 import org.identityconnectors.framework.common.objects.AttributeDelta;
 import org.identityconnectors.framework.common.objects.AttributeDeltaBuilder;
+import org.identityconnectors.framework.common.objects.AttributeUtil;
 import org.identityconnectors.framework.common.objects.OperationOptions;
 import org.identityconnectors.framework.common.objects.OperationalAttributeInfos;
 import org.identityconnectors.framework.common.objects.OperationalAttributes;
@@ -159,6 +161,42 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
     protected boolean isLogSchemaErrors() {
         // There are too many built-in schema errors in AD that this only pollutes the logs
         return false;
+    }
+
+    @Override
+    public Uid create(org.identityconnectors.framework.common.objects.ObjectClass connIdObjectClass, Set<Attribute> createAttributes, OperationOptions options) {
+
+        if (getConfiguration().isAllowFSPProcessing()) {
+            createAttributes = prepareFSPAttributes(createAttributes);
+
+            if (getSchemaTranslator().isFSPObjectClass(connIdObjectClass)) {
+                // Return DN as UID instead of GUID here because AD doesn't allow creating FSP directly
+                return new Uid(AttributeUtil.getNameFromAttributes(createAttributes).getNameValue());
+            }
+        }
+
+        return super.create(connIdObjectClass, createAttributes, options);
+    }
+
+    private Set<Attribute> prepareFSPAttributes(Set<Attribute> createAttributes) {
+        Set<Attribute> newCreateAttributes = new HashSet<>();
+        for (Attribute icfAttr: createAttributes) {
+            if (icfAttr.is(getConfiguration().getGroupObjectMemberAttribute())) {
+                // Convert to <SID=...> format if it contains DN for FSP object
+                List<Object> values = icfAttr.getValue().stream()
+                        .map(v -> getSchemaTranslator().resolveMemberDn(v.toString()))
+                        .collect(Collectors.toList());
+                Attribute attr = new AttributeBuilder()
+                        .setName(getConfiguration().getGroupObjectMemberAttribute())
+                        .addValue(values)
+                        .build();
+                newCreateAttributes.add(attr);
+            } else {
+                // all others remain unchanged
+                newCreateAttributes.add(icfAttr);
+            }
+        }
+        return newCreateAttributes;
     }
 
     @Override
@@ -271,6 +309,10 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
             if (isRawUp) {
                 deltas = prepareUpDeltas(uid, deltas, existingEntry);
             }
+        }
+
+        if (getConfiguration().isAllowFSPProcessing()) {
+            deltas = prepareFSPDeltas(deltas);
         }
 
         return super.updateDelta(connIdObjectClass, uid, deltas, options);
@@ -426,6 +468,26 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
         return newDeltas;
     }
 
+    private Set<AttributeDelta> prepareFSPDeltas(Set<AttributeDelta> deltas) {
+        Set<AttributeDelta> newDeltas = new HashSet<>();
+        for (AttributeDelta delta : deltas) {
+            if (delta.is(getConfiguration().getGroupObjectMemberAttribute()) && delta.getValuesToAdd() != null) {
+                // Convert to <SID=...> format if it contains DN for FSP object
+                List<Object> values = delta.getValuesToAdd().stream()
+                        .map(v -> getSchemaTranslator().resolveMemberDn(v.toString()))
+                        .collect(Collectors.toList());
+                AttributeDelta newDelta = new AttributeDeltaBuilder()
+                        .setName(getConfiguration().getGroupObjectMemberAttribute())
+                        .addValueToAdd(values)
+                        .build();
+                newDeltas.add(newDelta);
+            } else {
+                // all others remain unchanged
+                newDeltas.add(delta);
+            }
+        }
+        return newDeltas;
+    }
 
     @Override
     protected void addAttributeModification(Dn dn, List<Modification> modifications, ObjectClass ldapStructuralObjectClass,
@@ -467,7 +529,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 
         // Trivial (but not really realistic) case: UID is DN
 
-        if (LdapUtil.isDnAttribute(getConfiguration().getUidAttribute())) {
+        if (LdapUtil.isDnAttribute(getConfiguration().getUidAttribute()) || getSchemaTranslator().isFSPDn(uid.getUidValue())) {
 
             return searchByDn(getSchemaTranslator().toDn(uidValue), objectClass, ldapObjectClass, handler, options);
 
