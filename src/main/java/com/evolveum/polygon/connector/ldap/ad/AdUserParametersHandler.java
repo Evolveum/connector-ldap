@@ -456,7 +456,7 @@ public class AdUserParametersHandler {
         UserParametersAttributes attr = UserParametersAttributes.getByName(paramName);
         if (attr == null) {
             if (CtxCfgFlagsBitValues.contains(paramName)) {
-        	flagAttr = CtxCfgFlagsBitValues.valueOf(paramName);
+                flagAttr = CtxCfgFlagsBitValues.valueOf(paramName);
             }
             if (flagAttr == null) {
                 throw new AdUserParametersHandlerException("Unknown userParameter attribute " + paramName);
