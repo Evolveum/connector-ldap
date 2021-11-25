@@ -42,6 +42,8 @@ public class AdUserParametersHandler {
     public static final Charset CHARSET = StandardCharsets.UTF_16LE;
     public static final Charset ASCII_CHARSET = StandardCharsets.US_ASCII;
 
+    public static final long CNF_PRESENT_DEFAULT = 0xB00B1E55L;
+    
     // value of raw userParameters (value in LDAP)
     private byte[] userParameters;
 
@@ -60,13 +62,13 @@ public class AdUserParametersHandler {
         DISABLECCM(0x00000080), DISABLELPT(0x00000040), DISABLECLIP(0x00000020), DISABLEEXE(0x00000010),
         WALLPAPERDISABLED(0x00000008), DISABLECAM(0x00000004);
 
-        private int mask;
+        private long mask;
 
-        CtxCfgFlagsBitValues(int mask) {
+        CtxCfgFlagsBitValues(long mask) {
             this.mask = mask;
         }
 
-        public boolean isBit(int val) {
+        public boolean isBit(long val) {
             return ((val & mask) == mask);
         }
 
@@ -78,7 +80,7 @@ public class AdUserParametersHandler {
          * @param set if true will set bit to 1 otherwise 0
          * @return updated flags integer value
          */
-        public int setBit(int flagsVal, boolean set) {
+        public long setBit(long flagsVal, boolean set) {
             if (set) {
                 flagsVal |= mask;
             } else {
@@ -137,7 +139,7 @@ public class AdUserParametersHandler {
          * @param value number value of searched CtxShadowValues instance
          * @return corresponding CtxShadowValues instance or null if nothing matches.
          */
-        public static CtxShadowValues getByValue(int value) {
+        public static CtxShadowValues getByValue(long value) {
             CtxShadowValues result = null;
             for (CtxShadowValues next : CtxShadowValues.values()) {
                 if (next.getValue() == value) {
@@ -319,6 +321,9 @@ public class AdUserParametersHandler {
 
         }
         if (!foundExisting && !delete) {
+            if (userParameters == null) {
+                appendAttribute(intToHexaByteArray(CNF_PRESENT_DEFAULT, 8), UserParametersAttributes.CTX_CFG_PRESENT.name.getBytes(CHARSET));
+            }
             appendAttribute(arrayValue, paramNameArray);
         }
         // if a string value is edited the wide string value must be edited as well
@@ -499,9 +504,9 @@ public class AdUserParametersHandler {
                         "Unkown userParameter attr type " + attr.getType().toString());
             }
         } else {
-            int currentFlagsVal = getCurrentFlagVal();
+            long currentFlagsVal = getCurrentFlagVal();
             if (paramValue instanceof Boolean) {
-                int updatedFlagsVal = flagAttr.setBit(currentFlagsVal, (boolean) paramValue);
+                long updatedFlagsVal = flagAttr.setBit(currentFlagsVal, (boolean) paramValue);
                 result = intToHexaByteArray(updatedFlagsVal, 8);
             } else {
                 throw new AdUserParametersHandlerException("Unkown userParameter attr flag value type "
@@ -520,8 +525,8 @@ public class AdUserParametersHandler {
      * @return byte array containing the characters of hex representation of given
      *         integer
      */
-    private byte[] intToHexaByteArray(int paramValue, int size) {
-        String hexString = Integer.toHexString(paramValue);
+    private byte[] intToHexaByteArray(long paramValue, int size) {
+        String hexString = Long.toHexString(paramValue);
         for (int i = hexString.length(); i < size; i++) {
             hexString = "0" + hexString;
         }
@@ -542,8 +547,8 @@ public class AdUserParametersHandler {
      * @throws AdUserParametersHandlerException if signature of global
      *                                          userParameters is violated
      */
-    private Integer getCurrentFlagVal() throws AdUserParametersHandlerException {
-        int currentValue = 0;
+    private Long getCurrentFlagVal() throws AdUserParametersHandlerException {
+        long currentValue = 0;
         if (userParameters != null) {
             ByteBuffer buffer = getByteBuffer(userParameters);
             buffer.position(SIGNATURE_POSITION);
@@ -616,7 +621,7 @@ public class AdUserParametersHandler {
             nextAttrBuilder.setName(userParametersAttribute.getName());
 
             boolean alreadyAdded = false;
-            Integer valueInt;
+            Long valueInt;
             switch (userParametersAttribute.getType()) {
             case FLAG_VALUE:
                 // this field is represented as a bitmask
@@ -672,6 +677,21 @@ public class AdUserParametersHandler {
         return result;
 
     }
+    
+    
+    /**
+     * Returns empty user parameters
+     * @return
+     */
+    private String getDefaultUserParameters() {
+        byte[] defaultUserParameters = new byte[48];
+       
+        ByteBuffer buffer = getByteBuffer(defaultUserParameters);
+        buffer.position(SIGNATURE_POSITION).putChar('P');
+        buffer.position(NUMBER_OF_ATTRIBUTES_POSITION).putChar((char) 0);
+        buffer.get(defaultUserParameters);
+        return new String(userParameters, CHARSET);
+    }
 
     /**
      * this converts a byte array to an integer. That byte array contains the string
@@ -680,18 +700,20 @@ public class AdUserParametersHandler {
      * @param attrValue
      * @return
      */
-    private Integer getIntValue(byte[] attrValue, boolean signed) {
+    private Long getIntValue(byte[] attrValue, boolean signed) {
         String valueStr = "";
+        
         for (byte b : attrValue) {
             char nextChar = (char) b;
             LOG.ok("Next byte value: {0}", nextChar);
             valueStr += nextChar;
         }
-        Integer valueInt;
+        long valueInt;
+       // valueStr = "aa" + valueStr;
         if (signed) {
-            valueInt = Integer.parseInt(valueStr, 16);
+            valueInt = Integer.parseInt(valueStr);
         } else {
-            valueInt = Integer.parseUnsignedInt(valueStr, 16);
+            valueInt = Long.parseUnsignedLong(valueStr, 16);
         }
         return valueInt;
     }
@@ -711,7 +733,7 @@ public class AdUserParametersHandler {
             // grab the hex in pairs
             String output = hex.substring(i, (i + 2));
             // convert hex to decimal
-            int decimal = Integer.parseInt(output, 16);
+            long decimal = Long.parseUnsignedLong(output);
             // convert the decimal to character
             sb.append((char) decimal);
         }
@@ -752,6 +774,9 @@ public class AdUserParametersHandler {
         String result = null;
         if (userParameters != null) {
             result = new String(userParameters, CHARSET);
+        }
+        else {
+            result = getDefaultUserParameters();
         }
         return result;
     }
