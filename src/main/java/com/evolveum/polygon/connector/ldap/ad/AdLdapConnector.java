@@ -528,7 +528,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 
 
         // Trivial (but not really realistic) case: UID is DN
-
+        // Also, when the FSP object is first created, the UID is a DN, so it needs to be handled specially
         if (LdapUtil.isDnAttribute(getConfiguration().getUidAttribute()) || getSchemaTranslator().isFSPDn(uid.getUidValue())) {
 
             return searchByDn(getSchemaTranslator().toDn(uidValue), objectClass, ldapObjectClass, handler, options);
