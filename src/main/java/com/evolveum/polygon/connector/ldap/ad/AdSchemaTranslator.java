@@ -17,6 +17,8 @@ package com.evolveum.polygon.connector.ldap.ad;
 
 import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.directory.api.ldap.model.constants.SchemaConstants;
@@ -33,6 +35,7 @@ import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueE
 import org.identityconnectors.framework.common.objects.AttributeInfoBuilder;
 import org.identityconnectors.framework.common.objects.ConnectorObject;
 import org.identityconnectors.framework.common.objects.ConnectorObjectBuilder;
+import org.identityconnectors.framework.common.objects.ObjectClass;
 import org.identityconnectors.framework.common.objects.ObjectClassInfoBuilder;
 import org.identityconnectors.framework.common.objects.OperationalAttributes;
 
@@ -68,6 +71,9 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
     private static final String[] OPTIONAL_TOP_ATTRIBUTES = {
             "ntsecuritydescriptor", "instancetype", "objectcategory"
     };
+
+    private static final ObjectClass FSP_OBJECT_CLASS = new ObjectClass("foreignSecurityPrincipal");
+    private static final Pattern FSP_DN_PATTERN = Pattern.compile("^CN=(.*),CN=ForeignSecurityPrincipals,DC=.*", Pattern.CASE_INSENSITIVE);
 
     private AttributeType guidAttributeType = null;
 
@@ -212,6 +218,26 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
             value |= bytes[i] & 0xFF;
         }
         sb.append("-").append(value);
+    }
+
+    public boolean isFSPObjectClass(ObjectClass objectClass) {
+        return FSP_OBJECT_CLASS.equals(objectClass);
+    }
+
+    public boolean isFSPDn(String dnString) {
+        return FSP_DN_PATTERN.matcher(dnString).matches();
+    }
+
+    public String resolveMemberDn(String dnString) {
+        Matcher matcher = FSP_DN_PATTERN.matcher(dnString);
+        if (matcher.matches()) {
+            return getSidDn(matcher.group(1));
+        }
+        return dnString;
+    }
+
+    public String getSidDn(String sid) {
+        return "<SID=" + sid + ">";
     }
 
     @Override
