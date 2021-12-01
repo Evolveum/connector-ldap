@@ -22,7 +22,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import org.apache.commons.lang3.StringUtils;
 import org.apache.directory.api.ldap.model.constants.SchemaConstants;
 import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.entry.Modification;
@@ -188,10 +187,12 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
     private Set<Attribute> prepareCreateUserParametersAttributes(Set<Attribute> createAttributes,
             Set<Attribute> newCreateAttributes) {
         AdUserParametersHandler handler = new AdUserParametersHandler();
+        boolean foundUpAttr = false;
         // collect deltas affecting userParameters
         for (Attribute createAttr : createAttributes) {
             String attrName = createAttr.getName();
             if (AdUserParametersHandler.isUserParametersAttribute(attrName) && !createAttr.getValue().isEmpty()) {
+                foundUpAttr = true;
                 // its possible that another prepare function already added the attribute
                 newCreateAttributes.remove(createAttr);
                 try {
@@ -209,7 +210,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
             }
         }
         // finally add userParameters raw attribute
-        if (!StringUtils.isBlank(handler.getUserParameters())) {
+        if (foundUpAttr) {
             Attribute userParameters = AttributeBuilder.build(AdUserParametersHandler.USER_PARAMETERS_LDAP_ATTR_NAME,
                     handler.getUserParameters());
             newCreateAttributes.add(userParameters);
@@ -343,7 +344,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 
     private Set<AttributeDelta> prepareUpDeltas(Uid uid, Set<AttributeDelta> deltas, Entry existingEntry) {
         AdUserParametersHandler handler = new AdUserParametersHandler();
-
+        boolean foundUpAttr = false;
         Set<AttributeDelta> newDeltas = new HashSet<AttributeDelta>();
        
         org.apache.directory.api.ldap.model.entry.Attribute upAttribute = existingEntry.get(AdUserParametersHandler.USER_PARAMETERS_LDAP_ATTR_NAME);
@@ -358,6 +359,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
         for (AttributeDelta delta : deltas) {
             String deltaName = delta.getName();
             if (AdUserParametersHandler.isUserParametersAttribute(deltaName)) {
+                foundUpAttr = true;
                 LOG.ok("Applying deltas for userParameters attribute {0}", delta);
                 try {
                     if (delta.getValuesToAdd() != null && !delta.getValuesToAdd().isEmpty()) {
@@ -388,7 +390,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 
         //create new delta for userParameters, having new value
         String userParametersUpdated = handler.getUserParameters();
-        if (userParametersUpdated != null) {
+        if (userParametersUpdated != null && foundUpAttr) {
             AttributeDelta uacAttrDelta = AttributeDeltaBuilder.build(AdUserParametersHandler.USER_PARAMETERS_LDAP_ATTR_NAME, userParametersUpdated);
             newDeltas.add(uacAttrDelta);
         }
