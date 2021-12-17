@@ -126,10 +126,10 @@ public class ServerDefinition {
         def.bindPassword = getGuardedStringProp(props, "bindPassword", configuration.getBindPassword());
         def.timeout = getLongProp(props, "timeout", configuration.getTimeout());
         def.connectTimeout = getLongProp(props, "connectTimeout", configuration.getConnectTimeout(), def.timeout);
-        def.writeOperationTimeout = getLongProp(props, "writeOperationTimeout", configuration.getConnectTimeout(), def.timeout);
-        def.readOperationTimeout = getLongProp(props, "readOperationTimeout", configuration.getConnectTimeout(), def.timeout);
-        def.closeTimeout = getLongProp(props, "closeTimeout", configuration.getConnectTimeout(), def.timeout);
-        def.sendTimeout = getLongProp(props, "sendTimeout", configuration.getConnectTimeout(), def.timeout);
+        def.writeOperationTimeout = getLongProp(props, "writeOperationTimeout", configuration.getWriteOperationTimeout(), def.timeout);
+        def.readOperationTimeout = getLongProp(props, "readOperationTimeout", configuration.getReadOperationTimeout(), def.timeout);
+        def.closeTimeout = getLongProp(props, "closeTimeout", configuration.getCloseTimeout(), def.timeout);
+        def.sendTimeout = getLongProp(props, "sendTimeout", configuration.getSendTimeout(), def.timeout);
         try {
             def.baseContext = new Dn(getStringProp(props, "baseContext", configuration.getBaseContext()));
         } catch (LdapInvalidDnException e) {
