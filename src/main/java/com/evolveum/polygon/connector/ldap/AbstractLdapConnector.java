@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2020 Evolveum
+ * Copyright (c) 2015-2022 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -592,7 +592,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
         // We know that this can return at most one object. Therefore always use simple search.
         SearchStrategy<C> searchStrategy = getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
 
-        String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
+        String[] attributesToGet = determineAttributesToGet(ldapObjectClass, options);
         try {
 
             searchStrategy.search(dn, applyAdditionalSearchFilterNode(null), SearchScope.OBJECT, attributesToGet);
@@ -625,10 +625,10 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
         } else {
             // We know that this can return at most one object. Therefore always use simple search.
             SearchStrategy<C> searchStrategy = getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
-            String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
+            String[] attributesToGet = determineAttributesToGet(ldapObjectClass, options);
             SearchScope scope = getScope(options);
 
-            ExprNode filterNode = applyAdditionalSearchFilterNode(LdapUtil.createUidSearchFilter(uidValue, ldapObjectClass, getSchemaTranslator()));
+            ExprNode filterNode = applyAdditionalSearchFilterNode(getSchemaTranslator().createUidSearchFilter(uidValue, ldapObjectClass));
 
             Dn baseDn = getBaseDn(options);
 
@@ -693,7 +693,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
         LdapFilterTranslator filterTranslator = new LdapFilterTranslator(getSchemaTranslator(), ldapObjectClass);
         ScopedFilter scopedFilter = filterTranslator.translate(otherSubfilter, ldapObjectClass);
         ExprNode filterNode = scopedFilter.getFilter();
-        String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
+        String[] attributesToGet = determineAttributesToGet(ldapObjectClass, options);
         SearchScope scope = getScope(options);
         Dn baseDn = getBaseDn(options);
         checkBaseDnPresent(baseDn);
@@ -719,7 +719,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
         LdapFilterTranslator filterTranslator = createLdapFilterTranslator(ldapObjectClass);
         ScopedFilter scopedFilter = filterTranslator.translate(connIdFilter, ldapObjectClass);
         ExprNode filterNode = scopedFilter.getFilter();
-        String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
+        String[] attributesToGet = determineAttributesToGet(ldapObjectClass, options);
 
         SearchStrategy<C> searchStrategy;
         if (scopedFilter.getBaseDn() != null) {
@@ -784,8 +784,8 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
         return SearchScope.getSearchScope( SearchScope.getSearchScope( options.getScope() ) );
     }
 
-    protected String[] getAttributesToGet(org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass, OperationOptions options) {
-        return LdapUtil.getAttributesToGet(ldapObjectClass, options, getSchemaTranslator());
+    protected String[] determineAttributesToGet(org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass, OperationOptions options) {
+        return getSchemaTranslator().determineAttributesToGet(ldapObjectClass, options);
     }
 
     protected SearchStrategy<C> chooseSearchStrategy(ObjectClass objectClass,

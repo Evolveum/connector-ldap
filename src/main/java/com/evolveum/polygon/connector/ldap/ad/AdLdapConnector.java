@@ -550,7 +550,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
             searchStrategy.setExplicitConnection(connection);
 
             Dn guidDn = getSchemaTranslator().getGuidDn(uidValue);
-            String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
+            String[] attributesToGet = determineAttributesToGet(ldapObjectClass, options);
             try {
                 searchStrategy.search(guidDn, applyAdditionalSearchFilterNode(null), SearchScope.OBJECT, attributesToGet);
             } catch (LdapException e) {
@@ -569,7 +569,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
             // the correct domain controller in multi-domain environment.
             // We know that this can return at most one object. Therefore always use simple search.
             SearchStrategy<AdLdapConfiguration> searchStrategy = getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
-            String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
+            String[] attributesToGet = determineAttributesToGet(ldapObjectClass, options);
             Dn guidDn = getSchemaTranslator().getGuidDn(uidValue);
             try {
                 searchStrategy.search(guidDn, applyAdditionalSearchFilterNode(LdapUtil.createAllSearchFilter()), SearchScope.OBJECT, attributesToGet);
@@ -586,7 +586,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
             // We know that this can return at most one object. Therefore always use simple search.
             SearchStrategy<AdLdapConfiguration> searchStrategy = new DefaultSearchStrategy<>(globalCatalogConnectionManager,
                     getConfiguration(), getSchemaTranslator(), objectClass, ldapObjectClass, handler, getErrorHandler(), getConnectionLog(), options);
-            String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
+            String[] attributesToGet = determineAttributesToGet(ldapObjectClass, options);
             Dn guidDn = getSchemaTranslator().getGuidDn(uidValue);
             try {
                 searchStrategy.search(guidDn, applyAdditionalSearchFilterNode(LdapUtil.createAllSearchFilter()), SearchScope.OBJECT, attributesToGet);
@@ -618,7 +618,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
             LdapNetworkConnection connection = getConnectionManager().getConnection(dn, options);
             searchStrategy.setExplicitConnection(connection);
 
-            String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
+            String[] attributesToGet = determineAttributesToGet(ldapObjectClass, options);
             try {
                 searchStrategy.search(guidDn, applyAdditionalSearchFilterNode(null), SearchScope.OBJECT, attributesToGet);
             } catch (LdapException e) {
@@ -639,7 +639,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
             LOG.ok("Cannot find object with GUID {0} by using name hint or global catalog. Resorting to brute-force search",
                     uidValue);
             Dn guidDn = getSchemaTranslator().getGuidDn(uidValue);
-            String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
+            String[] attributesToGet = determineAttributesToGet(ldapObjectClass, options);
             for (LdapNetworkConnection connection: getConnectionManager().getAllConnections()) {
                 SearchStrategy<AdLdapConfiguration> searchStrategy = getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
                 searchStrategy.setExplicitConnection(connection);

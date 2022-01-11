@@ -39,6 +39,9 @@ import org.apache.directory.api.ldap.model.entry.Value;
 import org.apache.directory.api.ldap.model.exception.LdapException;
 import org.apache.directory.api.ldap.model.exception.LdapInvalidAttributeValueException;
 import org.apache.directory.api.ldap.model.exception.LdapInvalidDnException;
+import org.apache.directory.api.ldap.model.exception.LdapNoSuchAttributeException;
+import org.apache.directory.api.ldap.model.filter.EqualityNode;
+import org.apache.directory.api.ldap.model.filter.ExprNode;
 import org.apache.directory.api.ldap.model.message.controls.PagedResults;
 import org.apache.directory.api.ldap.model.message.controls.SortRequest;
 import org.apache.directory.api.ldap.model.name.Dn;
@@ -53,25 +56,7 @@ import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.common.exceptions.ConfigurationException;
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
 import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException;
-import org.identityconnectors.framework.common.objects.Attribute;
-import org.identityconnectors.framework.common.objects.AttributeBuilder;
-import org.identityconnectors.framework.common.objects.AttributeDelta;
-import org.identityconnectors.framework.common.objects.AttributeInfo;
-import org.identityconnectors.framework.common.objects.AttributeInfoBuilder;
-import org.identityconnectors.framework.common.objects.AttributeValueCompleteness;
-import org.identityconnectors.framework.common.objects.ConnectorObject;
-import org.identityconnectors.framework.common.objects.ConnectorObjectBuilder;
-import org.identityconnectors.framework.common.objects.Name;
-import org.identityconnectors.framework.common.objects.ObjectClass;
-import org.identityconnectors.framework.common.objects.ObjectClassInfo;
-import org.identityconnectors.framework.common.objects.ObjectClassInfoBuilder;
-import org.identityconnectors.framework.common.objects.OperationOptionInfoBuilder;
-import org.identityconnectors.framework.common.objects.OperationalAttributeInfos;
-import org.identityconnectors.framework.common.objects.PredefinedAttributeInfos;
-import org.identityconnectors.framework.common.objects.PredefinedAttributes;
-import org.identityconnectors.framework.common.objects.Schema;
-import org.identityconnectors.framework.common.objects.SchemaBuilder;
-import org.identityconnectors.framework.common.objects.Uid;
+import org.identityconnectors.framework.common.objects.*;
 import org.identityconnectors.framework.spi.operations.SearchOp;
 import org.identityconnectors.framework.spi.operations.SyncOp;
 
@@ -300,6 +285,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 
     private void addAttributeTypes(Map<String, AttributeInfo> attrInfoList, List<AttributeType> attributeTypes, boolean isRequired) {
         for (AttributeType ldapAttribute: attributeTypes) {
+
             if (!shouldTranslateAttribute(ldapAttribute.getName())) {
                 LOG.ok("Skipping translation of attribute {0} because it should not be translated", ldapAttribute.getName());
                 continue;
@@ -343,7 +329,16 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
     }
 
     protected boolean isOperational(AttributeType ldapAttribute) {
-        return ldapAttribute.isOperational();
+        if (ldapAttribute.isOperational()) {
+            return true;
+        }
+        return isConfiguredAsOperational(ldapAttribute.getName());
+    }
+
+    protected boolean isConfiguredAsOperational(String ldapAttributeName) {
+        // Note: attributeName is raw name from resource, it may have wild letter case.
+        // However, we stick to case-sensitive comparison by default. This may be overridden in subclasses (e.g. AD).
+        return ArrayUtils.contains(configuration.getOperationalAttributes(), ldapAttributeName);
     }
 
     protected void setAttributeMultiplicityAndPermissions(AttributeType ldapAttributeType, String icfAttributeName, AttributeInfoBuilder aib) {
@@ -413,23 +408,38 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
         } else {
             ldapAttributeName = connIdAttributeName;
         }
+        if (isVirtualAttribute(connIdAttributeName)) {
+            return null;
+        }
         try {
-            AttributeType attributeType = schemaManager.lookupAttributeTypeRegistry(ldapAttributeName);
-            if (attributeType == null && configuration.isAllowUnknownAttributes()) {
-                // Create fake attribute type
-                attributeType = createFauxAttributeType(ldapAttributeName);
+            AttributeType attributeType = schemaManager.getAttributeTypeRegistry().lookup(ldapAttributeName);
+            if (attributeType == null) {
+                if (allowAttributeWithoutDefinition(ldapAttributeName)) {
+                    // Create fake attribute type
+                    attributeType = createFauxAttributeType(ldapAttributeName);
+                } else {
+                    throw new IllegalArgumentException("Unknown LDAP attribute " + ldapAttributeName + " (translated from ConnId attribute " + connIdAttributeName + ")");
+                }
             }
             return attributeType;
-        } catch (LdapException e) {
-            if (ArrayUtils.contains(configuration.getOperationalAttributes(), ldapAttributeName) || configuration.isAllowUnknownAttributes()) {
+        } catch (LdapNoSuchAttributeException e) {
+            if (allowAttributeWithoutDefinition(ldapAttributeName)) {
                 // Create fake attribute type
-                AttributeType attributeType = new AttributeType(ldapAttributeName);
-                attributeType.setNames(ldapAttributeName);
-                return attributeType;
+                return createFauxAttributeType(ldapAttributeName);
             } else {
-                throw new IllegalArgumentException("Unknown LDAP attribute "+ldapAttributeName+" (translated from ICF attribute "+connIdAttributeName+")", e);
+                throw new IllegalArgumentException("Unknown LDAP attribute " + ldapAttributeName + " (translated from ConnId attribute "+connIdAttributeName+"): " + e.getMessage(), e);
             }
+        } catch (LdapException e) {
+            throw new IllegalArgumentException("Error translating LDAP attribute " + ldapAttributeName + " (translated from ConnId attribute "+connIdAttributeName+"): " + e.getMessage(), e);
         }
+    }
+
+    protected boolean isVirtualAttribute(String connIdAttributeName) {
+        return false;
+    }
+
+    private boolean allowAttributeWithoutDefinition(String ldapAttributeName) {
+        return isConfiguredAsOperational(ldapAttributeName)  || configuration.isAllowUnknownAttributes();
     }
 
     public AttributeType createFauxAttributeType(String attributeName) {
@@ -1657,8 +1667,90 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
         return configuration.getOperationalAttributes();
     }
 
+    public boolean isOperationalAttribute(String icfAttr) {
+        String[] operationalAttributes = getOperationalAttributes();
+        if (operationalAttributes == null) {
+            return false;
+        }
+        for (String opAt: operationalAttributes) {
+            if (opAt.equals(icfAttr)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public String getUidAttribute() {
         return configuration.getUidAttribute();
+    }
+
+
+    public String[] determineAttributesToGet(org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
+                                              OperationOptions options, String... additionalAttributes) {
+        String[] operationalAttributes = getOperationalAttributes();
+        if (options == null || options.getAttributesToGet() == null) {
+            String[] ldapAttrs = new String[2 + operationalAttributes.length + additionalAttributes.length];
+            ldapAttrs[0] = "*";
+            ldapAttrs[1] = getUidAttribute();
+            int i = 2;
+            for (String operationalAttribute: operationalAttributes) {
+                ldapAttrs[i] = operationalAttribute;
+                i++;
+            }
+            for (String additionalAttribute: additionalAttributes) {
+                ldapAttrs[i] = additionalAttribute;
+                i++;
+            }
+            return ldapAttrs;
+        }
+        String[] connidAttrs = options.getAttributesToGet();
+        int extraAttrs = 2;
+        if (options.getReturnDefaultAttributes() != null && options.getReturnDefaultAttributes()) {
+            extraAttrs++;
+        }
+        List<String> ldapAttrs = new ArrayList<String>(connidAttrs.length + operationalAttributes.length + extraAttrs);
+        if (options.getReturnDefaultAttributes() != null && options.getReturnDefaultAttributes()) {
+            ldapAttrs.add("*");
+        }
+        for (String connidAttr: connidAttrs) {
+            if (Name.NAME.equals(connidAttr)) {
+                continue;
+            }
+            AttributeType ldapAttributeType = toLdapAttribute(ldapObjectClass, connidAttr);
+            if (isValidAttributeToGet(connidAttr, ldapAttributeType)) {
+                if (ldapAttributeType == null) {
+                    // No definition for this attribute. It is most likely operational attribute that is not in the schema.
+                    if (isOperationalAttribute(connidAttr)) {
+                        ldapAttrs.add(connidAttr);
+                    } else {
+                        throw new InvalidAttributeValueException("Unknown attribute '" + connidAttr + "' (in attributesToGet)");
+                    }
+                } else {
+                    ldapAttrs.add(ldapAttributeType.getName());
+                }
+            }
+        }
+        for (String operationalAttribute: operationalAttributes) {
+            ldapAttrs.add(operationalAttribute);
+        }
+        for (String additionalAttribute: additionalAttributes) {
+            ldapAttrs.add(additionalAttribute);
+        }
+        ldapAttrs.add(getUidAttribute());
+        ldapAttrs.add(SchemaConstants.OBJECT_CLASS_AT);
+        return ldapAttrs.toArray(new String[ldapAttrs.size()]);
+    }
+
+    // To be overridden in subclasses.
+    protected boolean isValidAttributeToGet(String connidAttr, AttributeType ldapAttributeType) {
+        return true;
+    }
+
+    public ExprNode createUidSearchFilter(String uidValue,
+                                                 org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
+        AttributeType ldapAttributeType = toLdapAttribute(ldapObjectClass, Uid.NAME);
+        Value ldapValue = toLdapIdentifierValue(ldapAttributeType, uidValue);
+        return new EqualityNode<>(ldapAttributeType, ldapValue);
     }
 
     private static class TypeSubType {

@@ -17,6 +17,8 @@ package com.evolveum.polygon.connector.ldap.ad;
 
 import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -56,13 +58,18 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
 
     private static final Log LOG = Log.getLog(AdSchemaTranslator.class);
 
+    // Note: List the attributes here as all lowercase.
+    // AD varies the letter case in attribute names quite a lot, therefore the connector looks for
+    // attribute names using their lower-case versions.
     private static final String[] OPERATIONAL_ATTRIBUTE_NAMES = {
         "distinguishedname", "dscorepropagationdata",
         "allowedattributes", "allowedattributeseffective",
         "allowedchildclasses", "allowedchildclasseseffective",
         "replpropertymetadata",
         "usnchanged", "usncreated",
-        "whenchanged", "whencreated"};
+        "whenchanged", "whencreated",
+
+    };
 
     /**
      * List of attributes in the top object class that are specified as
@@ -474,15 +481,45 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
     }
 
     @Override
-    protected boolean isOperational(AttributeType ldapAttribute) {
-        if (super.isOperational(ldapAttribute)) {
+    protected boolean isConfiguredAsOperational(String ldapAttributeName) {
+        // AD is using attribute letter case quite wildly, therefore use case-ignore search
+        if (ldapAttributeName.toLowerCase().startsWith("msds-")) {
             return true;
         }
-        String attrName = ldapAttribute.getName().toLowerCase();
-        if (attrName.startsWith("msds-")) {
+        for (String confOpAttr : OPERATIONAL_ATTRIBUTE_NAMES) {
+            if (confOpAttr.equalsIgnoreCase(ldapAttributeName)) {
+                return true;
+            }
+        }
+        for (String confOpAttr : getConfiguration().getOperationalAttributes()) {
+            if (confOpAttr.equalsIgnoreCase(ldapAttributeName)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    protected boolean isVirtualAttribute(String connIdAttributeName) {
+        if (AdConstants.UAC.forName(connIdAttributeName) != null) {
             return true;
         }
-        return ArrayUtils.contains(OPERATIONAL_ATTRIBUTE_NAMES, attrName);
+        return false;
+    }
+
+    @Override
+    protected boolean isValidAttributeToGet(String connidAttr, AttributeType ldapAttributeType) {
+        if (isVirtualAttribute(connidAttr)) {
+            return false;
+        }
+        if (ldapAttributeType == null) {
+            // Strange, but not too strange for AD. Let's allow it.
+            return true;
+        }
+        List<String> searchFlags = ldapAttributeType.getExtension("X-SEARCH-FLAGS");
+        if (searchFlags != null) {
+            LOG.info("X-SEARCH-FLAGS on {0}: {1}", connidAttr, searchFlags);
+        }
+        return true;
     }
 
 }

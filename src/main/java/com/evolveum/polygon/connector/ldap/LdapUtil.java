@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015-2020 Evolveum
+ * Copyright (c) 2015-2022 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -180,153 +180,6 @@ public class LdapUtil {
         throw new InvalidAttributeValueException("Invalid boolean value '"+stringVal+"'");
     }
 
-    public static String[] getAttributesToGet(org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
-            OperationOptions options, AbstractSchemaTranslator schemaTranslator, String... additionalAttributes) {
-        String[] operationalAttributes = schemaTranslator.getOperationalAttributes();
-        if (options == null || options.getAttributesToGet() == null) {
-            String[] ldapAttrs = new String[2 + operationalAttributes.length + additionalAttributes.length];
-            ldapAttrs[0] = "*";
-            ldapAttrs[1] = schemaTranslator.getUidAttribute();
-            int i = 2;
-            for (String operationalAttribute: operationalAttributes) {
-                ldapAttrs[i] = operationalAttribute;
-                i++;
-            }
-            for (String additionalAttribute: additionalAttributes) {
-                ldapAttrs[i] = additionalAttribute;
-                i++;
-            }
-            return ldapAttrs;
-        }
-        String[] icfAttrs = options.getAttributesToGet();
-        int extraAttrs = 2;
-        if (options.getReturnDefaultAttributes() != null && options.getReturnDefaultAttributes()) {
-            extraAttrs++;
-        }
-        List<String> ldapAttrs = new ArrayList<String>(icfAttrs.length + operationalAttributes.length + extraAttrs);
-        if (options.getReturnDefaultAttributes() != null && options.getReturnDefaultAttributes()) {
-            ldapAttrs.add("*");
-        }
-        for (String icfAttr: icfAttrs) {
-            if (Name.NAME.equals(icfAttr)) {
-                continue;
-            }
-            AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, icfAttr);
-            if (ldapAttributeType == null) {
-                // No definition for this attribute. It is most likely operational attribute that is not in the schema.
-                if (isOperationalAttribute(schemaTranslator, icfAttr)) {
-                    ldapAttrs.add(icfAttr);
-                } else {
-                    throw new InvalidAttributeValueException("Unknown attribute '"+icfAttr+"' (in attributesToGet)");
-                }
-            } else {
-                ldapAttrs.add(ldapAttributeType.getName());
-            }
-        }
-        for (String operationalAttribute: operationalAttributes) {
-            ldapAttrs.add(operationalAttribute);
-        }
-        for (String additionalAttribute: additionalAttributes) {
-            ldapAttrs.add(additionalAttribute);
-        }
-        ldapAttrs.add(schemaTranslator.getUidAttribute());
-        ldapAttrs.add(SchemaConstants.OBJECT_CLASS_AT);
-        return ldapAttrs.toArray(new String[ldapAttrs.size()]);
-    }
-
-    public static boolean isOperationalAttribute(AbstractSchemaTranslator schemaTranslator, String icfAttr) {
-        String[] operationalAttributes = schemaTranslator.getOperationalAttributes();
-        if (operationalAttributes == null) {
-            return false;
-        }
-        for (String opAt: operationalAttributes) {
-            if (opAt.equals(icfAttr)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * Fetch a single entry using its DN.
-     *
-     * @param connection The LDAP connection to use
-     * @param dn The entry's DN
-     * @param ldapObjectClass The entry's ObjectClass
-     * @param options The options to use
-     * @param schemaTranslator The Schema translator instance
-     * @return The found entry, or null if none is found.
-     */
-    public static Entry fetchEntry(LdapNetworkConnection connection, String dn,
-            org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
-            OperationOptions options, AbstractSchemaTranslator schemaTranslator, ErrorHandler errorHandler) {
-        String[] attributesToGet = getAttributesToGet(ldapObjectClass, options, schemaTranslator);
-        Entry entry = null;
-        LOG.ok("Search REQ base={0}, filter={1}, scope={2}, attributes={3}",
-                dn, AbstractLdapConfiguration.SEARCH_FILTER_ALL, SearchScope.OBJECT, attributesToGet);
-
-        try {
-            entry = connection.lookup( dn, attributesToGet );
-        } catch (LdapException e) {
-            LOG.error("Search ERR {0}: {1}", e.getClass().getName(), e.getMessage(), e);
-            throw errorHandler.processLdapException("Search for "+dn+" failed", e);
-        }
-
-        LOG.ok("Search RES {0}", entry);
-
-        return entry;
-    }
-
-    public static Entry fetchEntryByUid(LdapNetworkConnection connection, String uid,
-            org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
-            OperationOptions options, AbstractLdapConfiguration configuration, AbstractSchemaTranslator schemaTranslator, ErrorHandler errorHandler) {
-        String[] attributesToGet = getAttributesToGet(ldapObjectClass, options, schemaTranslator);
-        ExprNode filter = createUidSearchFilter(uid, ldapObjectClass, schemaTranslator);
-        return searchSingleEntry(connection, configuration.getBaseContext(), SearchScope.SUBTREE, filter, attributesToGet, errorHandler);
-    }
-
-    public static Entry searchSingleEntry(LdapNetworkConnection connection, String baseDn, SearchScope scope,
-            ExprNode filter, String[] attributesToGet, ErrorHandler errorHandler) {
-        SearchRequest req = new SearchRequestImpl();
-        try {
-            req.setBase(new Dn(baseDn));
-        } catch (LdapInvalidDnException e) {
-            throw new IllegalArgumentException(e.getMessage(), e);
-        }
-        req.setScope(scope);
-        req.setFilter(filter);
-        if (attributesToGet != null) {
-            req.addAttributes(attributesToGet);
-        }
-        Entry entry = null;
-        try {
-            SearchCursor searchCursor = connection.search(req);
-            while (searchCursor.next()) {
-                Response response = searchCursor.get();
-                if (response instanceof SearchResultEntry) {
-                    if (entry != null) {
-                        LOG.error("Search for {0} in {1} (scope {2}) returned more than one entry:\n{1}",
-                                filter, baseDn, scope, searchCursor.get());
-                        throw new IllegalStateException("Search for "+filter+" in "+baseDn+" returned unexpected entries");
-                    }
-                    entry = ((SearchResultEntry)response).getEntry();
-                }
-            }
-            closeDoneCursor(searchCursor);
-        } catch (LdapException e) {
-            throw errorHandler.processLdapException("Search for "+filter+" in "+baseDn+" failed", e);
-        } catch (CursorException e) {
-            throw new ConnectorIOException("Search for "+filter+" in "+baseDn+" failed: "+e.getMessage(), e);
-        }
-        if (entry == null) {
-            // This is a suspicious situation. The caller usually assumes that an entry will be found.
-            // If nothing is found, it may be a permission problem, or something similar, which is usually hard to diagnose.
-            // Let's help the poor engineer by logging the details of the search.
-            LOG.ok("Search for single entry baseDn={0}, scope={1}, filter={2} returned no result", baseDn, scope, filter);
-        }
-        return entry;
-    }
-
     public static ExprNode filterAnd(ExprNode f1, ExprNode f2) {
         if (f1 == null) {
             return f2;
@@ -380,13 +233,6 @@ public class LdapUtil {
 
     public static ExprNode createAllSearchFilter() {
         return new PresenceNode(SchemaConstants.OBJECT_CLASS_AT);
-    }
-
-    public static ExprNode createUidSearchFilter(String uidValue,
-            org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass, AbstractSchemaTranslator schemaTranslator) {
-        AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, Uid.NAME);
-        Value ldapValue = schemaTranslator.toLdapIdentifierValue(ldapAttributeType, uidValue);
-        return new EqualityNode<>(ldapAttributeType, ldapValue);
     }
 
     public static ExprNode parseSearchFilter(String stringFilter) {
