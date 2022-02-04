@@ -53,8 +53,7 @@ public class AdUserParametersHandler {
      * userParameters
      */
     public static enum CtxCfgFlagsBitValues {
-        UNDEFINED1(0x00000000), UNDEFINED2(0x00000001), UNDEFINED3(0x00000002), UNDEFINED4(0x10000000),
-        UNDEFINED5(0x20000000), UNDEFINED6(0x40000000), UNDEFINED7(0x80000000), INHERITCALLBACK(0x08000000),
+        INHERITCALLBACK(0x08000000),
         INHERITCALLBACKNUMBER(0x04000000), INHERITSHADOW(0x02000000), INHERITMAXSESSIONTIME(0x01000000),
         INHERITMAXDISCONNECTIONTIME(0x00800000), INHERITMAXIDLETIME(0x00400000), INHERITAUTOCLIENT(0x00200000),
         INHERITSECURITY(0x00100000), PROMPTFORPASSWORD(0x00080000), RESETBROKEN(0x00040000), RECONNECTSAME(0x00020000),
@@ -545,6 +544,12 @@ public class AdUserParametersHandler {
         for (int i = hexString.length(); i < size; i++) {
             hexString = "0" + hexString;
         }
+        if (hexString.length() > size) {
+            // remove first bytes until we have correct size
+            int overheadCount = hexString.length() - size;
+            hexString = hexString.substring(overheadCount);
+        }
+        LOG.ok("Will convert hexstring " + hexString + " to bytearray");
         ByteBuffer buffer = ByteBuffer.allocate(size);
         buffer.position(0);
         for (char c : hexString.toCharArray()) {
