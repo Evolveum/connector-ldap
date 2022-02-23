@@ -95,10 +95,9 @@ public class ModifyTimestampSyncStrategy<C extends AbstractLdapConfiguration> ex
             throw new IllegalArgumentException("Synchronization token is not string, it is "+fromToken.getClass());
         }
 
-        String[] attributesToGet = LdapUtil.getAttributesToGet(ldapObjectClass, options,
-                getSchemaTranslator(), SchemaConstants.MODIFY_TIMESTAMP_AT,
-                SchemaConstants.CREATE_TIMESTAMP_AT, SchemaConstants.MODIFIERS_NAME_AT,
-                SchemaConstants.CREATORS_NAME_AT);
+        String[] attributesToGet = getSchemaTranslator().determineAttributesToGet(ldapObjectClass, options,
+                SchemaConstants.MODIFY_TIMESTAMP_AT, SchemaConstants.CREATE_TIMESTAMP_AT,
+                SchemaConstants.MODIFIERS_NAME_AT, SchemaConstants.CREATORS_NAME_AT);
 
         String baseContext = determineSyncBaseContext();
         if (LOG.isOk()) {

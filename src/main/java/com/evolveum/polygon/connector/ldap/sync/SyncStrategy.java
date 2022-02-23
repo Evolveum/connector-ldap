@@ -16,10 +16,18 @@
 package com.evolveum.polygon.connector.ldap.sync;
 
 import com.evolveum.polygon.connector.ldap.ErrorHandler;
+import org.apache.directory.api.ldap.model.cursor.CursorException;
+import org.apache.directory.api.ldap.model.cursor.SearchCursor;
 import org.apache.directory.api.ldap.model.entry.Entry;
+import org.apache.directory.api.ldap.model.exception.LdapException;
+import org.apache.directory.api.ldap.model.exception.LdapInvalidDnException;
+import org.apache.directory.api.ldap.model.filter.ExprNode;
+import org.apache.directory.api.ldap.model.message.*;
+import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.ldap.model.schema.SchemaManager;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
 import org.identityconnectors.common.logging.Log;
+import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
 import org.identityconnectors.framework.common.objects.ObjectClass;
 import org.identityconnectors.framework.common.objects.OperationOptions;
 import org.identityconnectors.framework.common.objects.SyncResultsHandler;
@@ -108,4 +116,73 @@ public abstract class SyncStrategy<C extends AbstractLdapConfiguration> {
         }
     }
 
+    protected Entry fetchEntry(LdapNetworkConnection connection, String dn,
+                                   org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
+                                   OperationOptions options) {
+        String[] attributesToGet = schemaTranslator.determineAttributesToGet(ldapObjectClass, options);
+        Entry entry = null;
+        LOG.ok("Search REQ base={0}, filter={1}, scope={2}, attributes={3}",
+                dn, AbstractLdapConfiguration.SEARCH_FILTER_ALL, SearchScope.OBJECT, attributesToGet);
+
+        try {
+            entry = connection.lookup( dn, attributesToGet );
+        } catch (LdapException e) {
+            LOG.error("Search ERR {0}: {1}", e.getClass().getName(), e.getMessage(), e);
+            throw errorHandler.processLdapException("Search for "+dn+" failed", e);
+        }
+
+        LOG.ok("Search RES {0}", entry);
+
+        return entry;
+    }
+
+    public Entry fetchEntryByUid(LdapNetworkConnection connection, String uid,
+                                        org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
+                                        OperationOptions options) {
+        String[] attributesToGet = getSchemaTranslator().determineAttributesToGet(ldapObjectClass, options);
+        ExprNode filter = getSchemaTranslator().createUidSearchFilter(uid, ldapObjectClass);
+        return searchSingleEntry(connection, configuration.getBaseContext(), SearchScope.SUBTREE, filter, attributesToGet);
+    }
+
+    public Entry searchSingleEntry(LdapNetworkConnection connection, String baseDn, SearchScope scope,
+                                          ExprNode filter, String[] attributesToGet) {
+        SearchRequest req = new SearchRequestImpl();
+        try {
+            req.setBase(new Dn(baseDn));
+        } catch (LdapInvalidDnException e) {
+            throw new IllegalArgumentException(e.getMessage(), e);
+        }
+        req.setScope(scope);
+        req.setFilter(filter);
+        if (attributesToGet != null) {
+            req.addAttributes(attributesToGet);
+        }
+        Entry entry = null;
+        try {
+            SearchCursor searchCursor = connection.search(req);
+            while (searchCursor.next()) {
+                Response response = searchCursor.get();
+                if (response instanceof SearchResultEntry) {
+                    if (entry != null) {
+                        LOG.error("Search for {0} in {1} (scope {2}) returned more than one entry:\n{1}",
+                                filter, baseDn, scope, searchCursor.get());
+                        throw new IllegalStateException("Search for "+filter+" in "+baseDn+" returned unexpected entries");
+                    }
+                    entry = ((SearchResultEntry)response).getEntry();
+                }
+            }
+            LdapUtil.closeDoneCursor(searchCursor);
+        } catch (LdapException e) {
+            throw errorHandler.processLdapException("Search for "+filter+" in "+baseDn+" failed", e);
+        } catch (CursorException e) {
+            throw new ConnectorIOException("Search for "+filter+" in "+baseDn+" failed: "+e.getMessage(), e);
+        }
+        if (entry == null) {
+            // This is a suspicious situation. The caller usually assumes that an entry will be found.
+            // If nothing is found, it may be a permission problem, or something similar, which is usually hard to diagnose.
+            // Let's help the poor engineer by logging the details of the search.
+            LOG.ok("Search for single entry baseDn={0}, scope={1}, filter={2} returned no result", baseDn, scope, filter);
+        }
+        return entry;
+    }
 }

@@ -17,8 +17,10 @@ package com.evolveum.polygon.connector.ldap;
 
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
+import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.exception.LdapInvalidDnException;
 import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.ldap.model.url.LdapUrl;
@@ -42,7 +44,12 @@ public class ServerDefinition {
     private String authenticationType;
     private String bindDn;
     private GuardedString bindPassword;
-    private long connectTimeout;
+    private Long timeout;
+    private Long connectTimeout;
+    private Long writeOperationTimeout;
+    private Long readOperationTimeout;
+    private Long closeTimeout;
+    private Long sendTimeout;
     private Dn baseContext;
     private Origin origin = Origin.CONFIGURATION;
 
@@ -51,19 +58,12 @@ public class ServerDefinition {
     }
 
     private LdapNetworkConnection connection;
+    private Entry rootDse;
+    private List<String> supportedControls;
 
     public static ServerDefinition createDefaultDefinition(AbstractLdapConfiguration configuration) {
         ServerDefinition def = new ServerDefinition();
-        def.host = configuration.getHost();
-        def.port = configuration.getPort();
-        def.connectionSecurity = configuration.getConnectionSecurity();
-        def.sslProtocol = configuration.getSslProtocol();
-        def.enabledSecurityProtocols = configuration.getEnabledSecurityProtocols();
-        def.enabledCipherSuites = configuration.getEnabledCipherSuites();
-        def.authenticationType = configuration.getAuthenticationType();
-        def.bindDn = configuration.getBindDn();
-        def.bindPassword = configuration.getBindPassword();
-        def.connectTimeout = configuration.getConnectTimeout();
+        def.copyAllFromConfiguration(configuration);
         try {
             def.baseContext = new Dn(configuration.getBaseContext());
         } catch (LdapInvalidDnException e) {
@@ -72,6 +72,29 @@ public class ServerDefinition {
         def.origin = Origin.CONFIGURATION;
         return def;
     }
+
+    private void copyAllFromConfiguration(AbstractLdapConfiguration configuration) {
+        this.host = configuration.getHost();
+        this.port = configuration.getPort();
+        this.connectionSecurity = configuration.getConnectionSecurity();
+        copyMiscFromConfiguration(configuration);
+    }
+
+    private void copyMiscFromConfiguration(AbstractLdapConfiguration configuration) {
+        this.sslProtocol = configuration.getSslProtocol();
+        this.enabledSecurityProtocols = configuration.getEnabledSecurityProtocols();
+        this.enabledCipherSuites = configuration.getEnabledCipherSuites();
+        this.authenticationType = configuration.getAuthenticationType();
+        this.bindDn = configuration.getBindDn();
+        this.bindPassword = configuration.getBindPassword();
+        this.timeout = configuration.getTimeout();
+        this.connectTimeout = configuration.getConnectTimeout();
+        this.writeOperationTimeout = configuration.getWriteOperationTimeout();
+        this.readOperationTimeout = configuration.getReadOperationTimeout();
+        this.closeTimeout = configuration.getCloseTimeout();
+        this.sendTimeout = configuration.getSendTimeout();
+    }
+
 
     public static ServerDefinition parse(AbstractLdapConfiguration configuration, String serverConfigLine, int lineNumber) {
         String[] clauses = serverConfigLine.split(";");
@@ -101,7 +124,12 @@ public class ServerDefinition {
         def.authenticationType = getStringProp(props, "authenticationType", configuration.getAuthenticationType());
         def.bindDn = getStringProp(props, "bindDn", configuration.getBindDn());
         def.bindPassword = getGuardedStringProp(props, "bindPassword", configuration.getBindPassword());
-        def.connectTimeout = getLongProp(props, "connectTimeout", configuration.getConnectTimeout());
+        def.timeout = getLongProp(props, "timeout", configuration.getTimeout());
+        def.connectTimeout = getLongProp(props, "connectTimeout", configuration.getConnectTimeout(), def.timeout);
+        def.writeOperationTimeout = getLongProp(props, "writeOperationTimeout", configuration.getWriteOperationTimeout(), def.timeout);
+        def.readOperationTimeout = getLongProp(props, "readOperationTimeout", configuration.getReadOperationTimeout(), def.timeout);
+        def.closeTimeout = getLongProp(props, "closeTimeout", configuration.getCloseTimeout(), def.timeout);
+        def.sendTimeout = getLongProp(props, "sendTimeout", configuration.getSendTimeout(), def.timeout);
         try {
             def.baseContext = new Dn(getStringProp(props, "baseContext", configuration.getBaseContext()));
         } catch (LdapInvalidDnException e) {
@@ -130,13 +158,7 @@ public class ServerDefinition {
         } else {
             def.port = url.getPort();
         }
-        def.sslProtocol = configuration.getSslProtocol();
-        def.enabledSecurityProtocols = configuration.getEnabledSecurityProtocols();
-        def.enabledCipherSuites = configuration.getEnabledCipherSuites();
-        def.authenticationType = configuration.getAuthenticationType();
-        def.bindDn = configuration.getBindDn();
-        def.bindPassword = configuration.getBindPassword();
-        def.connectTimeout = configuration.getConnectTimeout();
+        def.copyMiscFromConfiguration(configuration);
         def.baseContext = null;
         def.origin = Origin.REFERRAL;
         return def;
@@ -198,6 +220,23 @@ public class ServerDefinition {
         String propVal = props.get(key);
         if (propVal == null) {
             return defaultVal;
+        } else {
+            if (StringUtil.isBlank(propVal)) {
+                return null;
+            } else {
+                return Long.parseLong(propVal);
+            }
+        }
+    }
+
+    private static Long getLongProp(Map<String, String> props, String key, Long upstreamValue, long defaultVal) {
+        String propVal = props.get(key);
+        if (propVal == null) {
+            if (upstreamValue == null) {
+                return defaultVal;
+            } else {
+                return upstreamValue;
+            }
         } else {
             if (StringUtil.isBlank(propVal)) {
                 return null;
@@ -279,12 +318,28 @@ public class ServerDefinition {
         this.bindPassword = bindPassword;
     }
 
-    public long getConnectTimeout() {
+    public Long getTimeout() {
+        return timeout;
+    }
+
+    public Long getConnectTimeout() {
         return connectTimeout;
     }
 
-    public void setConnectTimeout(long connectTimeout) {
-        this.connectTimeout = connectTimeout;
+    public Long getWriteOperationTimeout() {
+        return writeOperationTimeout;
+    }
+
+    public Long getReadOperationTimeout() {
+        return readOperationTimeout;
+    }
+
+    public Long getCloseTimeout() {
+        return closeTimeout;
+    }
+
+    public Long getSendTimeout() {
+        return sendTimeout;
     }
 
     public Dn getBaseContext() {
@@ -315,6 +370,22 @@ public class ServerDefinition {
         return connection != null && connection.isConnected();
     }
 
+    public Entry getRootDse() {
+        return rootDse;
+    }
+
+    public void setRootDse(Entry rootDse) {
+        this.rootDse = rootDse;
+    }
+
+    public List<String> getSupportedControls() {
+        return supportedControls;
+    }
+
+    public void setSupportedControls(List<String> supportedControls) {
+        this.supportedControls = supportedControls;
+    }
+
     public boolean matches(LdapUrl url) {
         if (!url.getHost().equalsIgnoreCase(host)) {
             return false;
@@ -337,7 +408,7 @@ public class ServerDefinition {
         result = prime * result + ((baseContext == null) ? 0 : baseContext.hashCode());
         result = prime * result + ((bindDn == null) ? 0 : bindDn.hashCode());
         result = prime * result + ((bindPassword == null) ? 0 : bindPassword.hashCode());
-        result = prime * result + (int) (connectTimeout ^ (connectTimeout >>> 32));
+        result = prime * result + (int) (timeout ^ (timeout >>> 32));
         result = prime * result + ((connection == null) ? 0 : connection.hashCode());
         result = prime * result + ((connectionSecurity == null) ? 0 : connectionSecurity.hashCode());
         result = prime * result + Arrays.hashCode(enabledCipherSuites);
@@ -388,7 +459,7 @@ public class ServerDefinition {
         } else if (!bindPassword.equals(other.bindPassword)) {
             return false;
         }
-        if (connectTimeout != other.connectTimeout) {
+        if (timeout != other.timeout) {
             return false;
         }
         if (connection == null) {

@@ -21,6 +21,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.apache.directory.api.ldap.model.constants.SchemaConstants;
 import org.apache.directory.api.ldap.model.entry.Entry;
@@ -63,6 +64,7 @@ import org.identityconnectors.framework.common.objects.Attribute;
 import org.identityconnectors.framework.common.objects.AttributeBuilder;
 import org.identityconnectors.framework.common.objects.AttributeDelta;
 import org.identityconnectors.framework.common.objects.AttributeDeltaBuilder;
+import org.identityconnectors.framework.common.objects.AttributeUtil;
 import org.identityconnectors.framework.common.objects.OperationOptions;
 import org.identityconnectors.framework.common.objects.OperationalAttributeInfos;
 import org.identityconnectors.framework.common.objects.OperationalAttributes;
@@ -121,7 +123,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
     }
 
     @Override
-    protected DefaultSchemaManager createSchemaManager(boolean schemaQuirksMode) throws LdapException {
+    protected DefaultSchemaManager createBlankSchemaManager(boolean schemaQuirksMode) throws LdapException {
         if (getConfiguration().isNativeAdSchema()) {
             // Construction of SchemaLoader actually loads all the schemas from server.
             AdSchemaLoader schemaLoader = new AdSchemaLoader(getConnectionManager().getDefaultConnection());
@@ -135,7 +137,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 
             return new AdSchemaManager(schemaLoader);
         } else {
-            return super.createSchemaManager(schemaQuirksMode);
+            return super.createBlankSchemaManager(schemaQuirksMode);
         }
     }
 
@@ -162,8 +164,43 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
     }
 
     @Override
-    protected Set<Attribute> prepareCreateConnIdAttributes(
-            org.identityconnectors.framework.common.objects.ObjectClass connIdObjectClass,
+    public Uid create(org.identityconnectors.framework.common.objects.ObjectClass connIdObjectClass, Set<Attribute> createAttributes, OperationOptions options) {
+
+        if (getConfiguration().isAllowFSPProcessing()) {
+            createAttributes = prepareFSPAttributes(createAttributes);
+
+            if (getSchemaTranslator().isFSPObjectClass(connIdObjectClass)) {
+                // Return DN as UID instead of GUID here because AD doesn't allow creating FSP directly
+                return new Uid(AttributeUtil.getNameFromAttributes(createAttributes).getNameValue());
+            }
+        }
+
+        return super.create(connIdObjectClass, createAttributes, options);
+    }
+
+    private Set<Attribute> prepareFSPAttributes(Set<Attribute> createAttributes) {
+        Set<Attribute> newCreateAttributes = new HashSet<>();
+        for (Attribute icfAttr: createAttributes) {
+            if (icfAttr.is(getConfiguration().getGroupObjectMemberAttribute())) {
+                // Convert to <SID=...> format if it contains DN for FSP object
+                List<Object> values = icfAttr.getValue().stream()
+                        .map(v -> getSchemaTranslator().resolveMemberDn(v.toString()))
+                        .collect(Collectors.toList());
+                Attribute attr = new AttributeBuilder()
+                        .setName(getConfiguration().getGroupObjectMemberAttribute())
+                        .addValue(values)
+                        .build();
+                newCreateAttributes.add(attr);
+            } else {
+                // all others remain unchanged
+                newCreateAttributes.add(icfAttr);
+            }
+        }
+        return newCreateAttributes;
+    }
+
+    @Override
+    protected Set<Attribute> prepareCreateConnIdAttributes(org.identityconnectors.framework.common.objects.ObjectClass connIdObjectClass,
             org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass,
             Set<Attribute> createAttributes) {
         if ((getConfiguration().isRawUserParametersAttribute() && getConfiguration().isRawUserAccountControlAttribute())
@@ -338,6 +375,10 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
             }
         }
 
+        if (getConfiguration().isAllowFSPProcessing()) {
+            deltas = prepareFSPDeltas(deltas);
+        }
+
         return super.updateDelta(connIdObjectClass, uid, deltas, options);
     }
 
@@ -492,6 +533,26 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
         return newDeltas;
     }
 
+    private Set<AttributeDelta> prepareFSPDeltas(Set<AttributeDelta> deltas) {
+        Set<AttributeDelta> newDeltas = new HashSet<>();
+        for (AttributeDelta delta : deltas) {
+            if (delta.is(getConfiguration().getGroupObjectMemberAttribute()) && delta.getValuesToAdd() != null) {
+                // Convert to <SID=...> format if it contains DN for FSP object
+                List<Object> values = delta.getValuesToAdd().stream()
+                        .map(v -> getSchemaTranslator().resolveMemberDn(v.toString()))
+                        .collect(Collectors.toList());
+                AttributeDelta newDelta = new AttributeDeltaBuilder()
+                        .setName(getConfiguration().getGroupObjectMemberAttribute())
+                        .addValueToAdd(values)
+                        .build();
+                newDeltas.add(newDelta);
+            } else {
+                // all others remain unchanged
+                newDeltas.add(delta);
+            }
+        }
+        return newDeltas;
+    }
 
     @Override
     protected void addAttributeModification(Dn dn, List<Modification> modifications, ObjectClass ldapStructuralObjectClass,
@@ -532,8 +593,8 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 
 
         // Trivial (but not really realistic) case: UID is DN
-
-        if (LdapUtil.isDnAttribute(getConfiguration().getUidAttribute())) {
+        // Also, when the FSP object is first created, the UID is a DN, so it needs to be handled specially
+        if (LdapUtil.isDnAttribute(getConfiguration().getUidAttribute()) || getSchemaTranslator().isFSPDn(uid.getUidValue())) {
 
             return searchByDn(getSchemaTranslator().toDn(uidValue), objectClass, ldapObjectClass, handler, options);
 
@@ -554,7 +615,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
             searchStrategy.setExplicitConnection(connection);
 
             Dn guidDn = getSchemaTranslator().getGuidDn(uidValue);
-            String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
+            String[] attributesToGet = determineAttributesToGet(ldapObjectClass, options);
             try {
                 searchStrategy.search(guidDn, applyAdditionalSearchFilterNode(null), SearchScope.OBJECT, attributesToGet);
             } catch (LdapException e) {
@@ -573,7 +634,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
             // the correct domain controller in multi-domain environment.
             // We know that this can return at most one object. Therefore always use simple search.
             SearchStrategy<AdLdapConfiguration> searchStrategy = getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
-            String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
+            String[] attributesToGet = determineAttributesToGet(ldapObjectClass, options);
             Dn guidDn = getSchemaTranslator().getGuidDn(uidValue);
             try {
                 searchStrategy.search(guidDn, applyAdditionalSearchFilterNode(LdapUtil.createAllSearchFilter()), SearchScope.OBJECT, attributesToGet);
@@ -589,8 +650,8 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
             // Make a search directly to the global catalog server. Present that as final result.
             // We know that this can return at most one object. Therefore always use simple search.
             SearchStrategy<AdLdapConfiguration> searchStrategy = new DefaultSearchStrategy<>(globalCatalogConnectionManager,
-                    getConfiguration(), getSchemaTranslator(), objectClass, ldapObjectClass, handler, getErrorHandler(), options);
-            String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
+                    getConfiguration(), getSchemaTranslator(), objectClass, ldapObjectClass, handler, getErrorHandler(), getConnectionLog(), options);
+            String[] attributesToGet = determineAttributesToGet(ldapObjectClass, options);
             Dn guidDn = getSchemaTranslator().getGuidDn(uidValue);
             try {
                 searchStrategy.search(guidDn, applyAdditionalSearchFilterNode(LdapUtil.createAllSearchFilter()), SearchScope.OBJECT, attributesToGet);
@@ -622,7 +683,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
             LdapNetworkConnection connection = getConnectionManager().getConnection(dn, options);
             searchStrategy.setExplicitConnection(connection);
 
-            String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
+            String[] attributesToGet = determineAttributesToGet(ldapObjectClass, options);
             try {
                 searchStrategy.search(guidDn, applyAdditionalSearchFilterNode(null), SearchScope.OBJECT, attributesToGet);
             } catch (LdapException e) {
@@ -643,7 +704,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
             LOG.ok("Cannot find object with GUID {0} by using name hint or global catalog. Resorting to brute-force search",
                     uidValue);
             Dn guidDn = getSchemaTranslator().getGuidDn(uidValue);
-            String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
+            String[] attributesToGet = determineAttributesToGet(ldapObjectClass, options);
             for (LdapNetworkConnection connection: getConnectionManager().getAllConnections()) {
                 SearchStrategy<AdLdapConfiguration> searchStrategy = getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
                 searchStrategy.setExplicitConnection(connection);
@@ -688,7 +749,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
             Dn guidDn = getSchemaTranslator().getGuidDn(guid);
 
             LOG.ok("Resolvig DN by search for {0} (no global catalog)", guidDn);
-            Entry entry = searchSingleEntry(getConnectionManager(), guidDn, LdapUtil.createAllSearchFilter(), SearchScope.OBJECT,
+            Entry entry = searchSingleEntry(getConnectionManager(), null, guidDn, LdapUtil.createAllSearchFilter(), SearchScope.OBJECT,
                     new String[]{AbstractLdapConfiguration.PSEUDO_ATTRIBUTE_DN_NAME}, "LDAP entry for GUID "+guid, dnHint, options);
 
             if (entry != null) {

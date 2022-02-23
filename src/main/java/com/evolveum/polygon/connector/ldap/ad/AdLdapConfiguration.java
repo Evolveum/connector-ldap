@@ -151,6 +151,10 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
      */
     private boolean forcePasswordChangeAtNextLogon = false;
 
+    /**
+     * If set to true then the connector will process FSP(Foreign Security Principal).
+     */
+    private boolean allowFSPProcessing = false;
 
     @ConfigurationProperty(order = 100)
     public String getUserObjectClass() {
@@ -267,6 +271,15 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 
     public void setForcePasswordChangeAtNextLogon(boolean forcePasswordChangeAtNextLogon) {
         this.forcePasswordChangeAtNextLogon = forcePasswordChangeAtNextLogon;
+    }
+
+    @ConfigurationProperty(order = 113)
+    public boolean isAllowFSPProcessing() {
+        return allowFSPProcessing;
+    }
+
+    public void setAllowFSPProcessing(boolean allowFSPProcessing) {
+        this.allowFSPProcessing = allowFSPProcessing;
     }
 
     @Override

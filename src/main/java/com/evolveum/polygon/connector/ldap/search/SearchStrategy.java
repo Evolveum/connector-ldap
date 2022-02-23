@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2019 Evolveum
+ * Copyright (c) 2015-2021 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,11 +21,7 @@ import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.exception.LdapException;
 import org.apache.directory.api.ldap.model.exception.LdapReferralException;
 import org.apache.directory.api.ldap.model.filter.ExprNode;
-import org.apache.directory.api.ldap.model.message.AliasDerefMode;
-import org.apache.directory.api.ldap.model.message.LdapResult;
-import org.apache.directory.api.ldap.model.message.Referral;
-import org.apache.directory.api.ldap.model.message.SearchRequest;
-import org.apache.directory.api.ldap.model.message.SearchScope;
+import org.apache.directory.api.ldap.model.message.*;
 import org.apache.directory.api.ldap.model.message.controls.SortRequest;
 import org.apache.directory.api.ldap.model.message.controls.SortRequestImpl;
 import org.apache.directory.api.ldap.model.name.Dn;
@@ -33,6 +29,7 @@ import org.apache.directory.api.ldap.model.schema.AttributeType;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.framework.common.exceptions.ConfigurationException;
+import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
 import org.identityconnectors.framework.common.objects.ObjectClass;
 import org.identityconnectors.framework.common.objects.OperationOptions;
 import org.identityconnectors.framework.common.objects.QualifiedUid;
@@ -62,11 +59,14 @@ public abstract class SearchStrategy<C extends AbstractLdapConfiguration> {
     private AttributeHandler attributeHandler;
     private LdapNetworkConnection explicitConnection = null;
     private int numberOfEntriesFound = 0;
+    private int retryAttempts = 0;
+    protected LdapNetworkConnection connection;
+    private final ConnectionLog connectionLog;
 
     protected SearchStrategy(ConnectionManager<C> connectionManager, AbstractLdapConfiguration configuration,
             AbstractSchemaTranslator<C> schemaTranslator, ObjectClass objectClass,
             org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
-            ResultsHandler handler, ErrorHandler errorHandler, OperationOptions options) {
+            ResultsHandler handler, ErrorHandler errorHandler, ConnectionLog connectionLog, OperationOptions options) {
         super();
         this.connectionManager = connectionManager;
         this.configuration = configuration;
@@ -75,6 +75,7 @@ public abstract class SearchStrategy<C extends AbstractLdapConfiguration> {
         this.ldapObjectClass = ldapObjectClass;
         this.handler = handler;
         this.errorHandler = errorHandler;
+        this.connectionLog = connectionLog;
         this.options = options;
     }
 
@@ -128,6 +129,8 @@ public abstract class SearchStrategy<C extends AbstractLdapConfiguration> {
         this.attributeHandler = attributeHandler;
     }
 
+    protected abstract String getStrategyTag();
+
     public boolean allowPartialResults() {
         if (options == null) {
             return false;
@@ -169,17 +172,17 @@ public abstract class SearchStrategy<C extends AbstractLdapConfiguration> {
         req.setDerefAliases(AliasDerefMode.NEVER_DEREF_ALIASES);
     }
 
-    protected SearchCursor executeSearch(LdapNetworkConnection connection, SearchRequest req) throws LdapException {
+    protected SearchCursor executeSearch(SearchRequest req) throws LdapException {
         if (req.getFilter() == null) {
             req.setFilter(LdapConfiguration.SEARCH_FILTER_ALL);
         }
-        logSearchRequest(connection, req);
+        logSearchRequest(req);
         SearchCursor searchCursor;
         try {
             searchCursor = connection.search(req);
         } catch (LdapReferralException e) {
-            logSearchError(connection, e);
-            returnConnection(connection);
+            logSearchError(req, 0, e);
+            returnConnection();
             String referralStrategy = configuration.getReferralStrategy();
             if (configuration.isReferralStrategyFollow()) {
                 // This should not happen!
@@ -193,45 +196,55 @@ public abstract class SearchStrategy<C extends AbstractLdapConfiguration> {
                 throw new ConfigurationException("Unknown value of referralStrategy configuration property: "+referralStrategy);
             }
         } catch (LdapException e) {
-            logSearchError(connection, e);
-            returnConnection(connection);
+            logSearchError(req, 0, e);
+            returnConnection();
             throw e;
         }
         return searchCursor;
     }
 
-    protected void logSearchRequest(LdapNetworkConnection connection, SearchRequest req) {
+    protected void logSearchRequest(SearchRequest req) {
         if (LOG.isOk()) {
             OperationLog.logOperationReq(connection, "Search REQ base={0}, filter={1}, scope={2}, attributes={3}, controls={4}",
                     req.getBase(), req.getFilter(), req.getScope(), req.getAttributes(), LdapUtil.toShortString(req.getControls()));
         }
     }
 
-    protected void logSearchResult(LdapNetworkConnection connection, Entry entry) {
+    protected void logSearchResult(Entry entry) {
         if (LOG.isOk()) {
             OperationLog.logOperationRes(connection, "Search RES {0}", entry);
         }
     }
 
-    protected void logSearchResult(LdapNetworkConnection connection, String type, LdapResult ldapResult) {
-        if (LOG.isOk()) {
-            OperationLog.logOperationRes(connection, "Search RES {0}:\n{1}", type, ldapResult);
+    protected void logSearchOperationDone(SearchRequest req, Integer numEntries, SearchResultDone searchResultDone) {
+        if (searchResultDone == null) {
+            connectionLog.searchWarning(connection, req, numEntries, getStrategyTag(), "Search ended without DONE message");
+        } else {
+            connectionLog.searchSuccess(connection, req, numEntries, getStrategyTag());
+            // TODO: referral?
         }
     }
 
-    protected void logSearchResult(LdapNetworkConnection connection, String type, LdapResult ldapResult, String extra) {
+    protected void logSearchResult(String type, LdapResult ldapResult, String extra) {
         if (LOG.isOk()) {
             OperationLog.logOperationRes(connection, "Search RES {0}: {1}\n{2}", type, extra, ldapResult);
         }
     }
 
-    protected void logSearchError(LdapNetworkConnection connection, LdapException e) {
+    protected void logSearchError(SearchRequest req, Integer numEntries, LdapException e) {
         OperationLog.logOperationErr(connection, "Search ERR {0}: {1}", e.getClass().getName(), e.getMessage(), e);
+        connectionLog.searchError(connection, e, req, numEntries, getStrategyTag());
     }
 
-    protected boolean handleResult(LdapNetworkConnection connection, Entry entry) {
+    protected boolean handleResult(Entry entry) {
         numberOfEntriesFound++;
         return handler.handle(schemaTranslator.toConnIdObject(connection, objectClass, entry, attributeHandler));
+    }
+
+    protected void logSearchResult(String type, LdapResult ldapResult) {
+        if (LOG.isOk()) {
+            OperationLog.logOperationRes(connection, "Search RES {0}:\n{1}", type, ldapResult);
+        }
     }
 
     protected boolean hasSortOption() {
@@ -269,30 +282,40 @@ public abstract class SearchStrategy<C extends AbstractLdapConfiguration> {
         return sortReqControl;
     }
 
-    protected LdapNetworkConnection getConnection(Dn base) {
-        if (explicitConnection != null) {
-            return explicitConnection;
+    protected void connect(Dn base) {
+        if (explicitConnection == null) {
+            connection = connectionManager.getConnection(getEffectiveBase(base), options);
+        } else {
+            connection = explicitConnection;
         }
-        return connectionManager.getConnection(getEffectiveBase(base), options);
     }
 
-    protected LdapNetworkConnection getConnection(Dn base, Referral referral) {
-        if (explicitConnection != null) {
-            return explicitConnection;
+    protected void connect(Dn base, Referral referral) {
+        if (explicitConnection == null) {
+            connection = connectionManager.getConnection(getEffectiveBase(base), referral, options);
+        } else {
+            connection = explicitConnection;
         }
-        return connectionManager.getConnection(getEffectiveBase(base), referral, options);
     }
 
-    protected LdapNetworkConnection getConnectionReconnect(Dn base, LdapNetworkConnection oldConnection) {
-        return getConnectionReconnect(base, null, oldConnection);
+    protected void connectionReconnect(Dn base, Exception reconnectReason) {
+        connectionReconnect(base, null, reconnectReason);
     }
 
-    protected LdapNetworkConnection getConnectionReconnect(Dn base, Referral referral, LdapNetworkConnection oldConnection) {
+    protected void connectionReconnect(Dn base, Referral referral, Exception reconnectReason) {
         if (explicitConnection != null) {
-            return explicitConnection;
+            return;
         }
-        connectionManager.returnConnection(oldConnection);
-        return connectionManager.getConnectionReconnect(getEffectiveBase(base), referral, options);
+        connectionManager.returnConnection(connection);
+        connection = connectionManager.getConnectionReconnect(getEffectiveBase(base), referral, options, reconnectReason);
+    }
+
+    /**
+     * Forces reconnect of current connection, reusing the same connection parameters (server, DN, etc.)
+     * This method is used if there is a problem with the connection and the operation has to be re-tried on the same server.
+     */
+    protected void reconnectSameServer(Exception reason) {
+        connection = connectionManager.reconnect(connection, reason);
     }
 
     private Dn getEffectiveBase(Dn origBase) {
@@ -317,7 +340,7 @@ public abstract class SearchStrategy<C extends AbstractLdapConfiguration> {
         }
     }
 
-    protected void returnConnection(LdapNetworkConnection connection) {
+    protected void returnConnection() {
         connectionManager.returnConnection(connection);
     }
 
@@ -329,11 +352,22 @@ public abstract class SearchStrategy<C extends AbstractLdapConfiguration> {
         return errorHandler;
     }
 
+    public ConnectionLog getConnectionLog() { return connectionLog; }
+
     protected RuntimeException processLdapException(String connectorMessage, LdapException ldapException) {
         return getErrorHandler().processLdapException(connectorMessage, ldapException);
     }
 
     protected RuntimeException processLdapResult(String connectorMessage, LdapResult ldapResult) {
         return getErrorHandler().processLdapResult(connectorMessage, ldapResult);
+    }
+
+    protected void incrementRetryAttempts() {
+        retryAttempts++;
+        if (retryAttempts > getConfiguration().getMaximumNumberOfAttempts()) {
+            returnConnection();
+            // TODO: better exception. Maybe re-throw exception from the last error?
+            throw new ConnectorIOException("Maximum number of attempts exceeded");
+        }
     }
 }

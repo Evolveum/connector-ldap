@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015-2020 Evolveum
+ * Copyright (c) 2015-2022 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,30 +34,9 @@ import org.apache.directory.api.ldap.model.cursor.SearchCursor;
 import org.apache.directory.api.ldap.model.entry.Attribute;
 import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.entry.Value;
-import org.apache.directory.api.ldap.model.exception.LdapAdminLimitExceededException;
-import org.apache.directory.api.ldap.model.exception.LdapAffectMultipleDsaException;
-import org.apache.directory.api.ldap.model.exception.LdapAliasDereferencingException;
-import org.apache.directory.api.ldap.model.exception.LdapAliasException;
-import org.apache.directory.api.ldap.model.exception.LdapAttributeInUseException;
-import org.apache.directory.api.ldap.model.exception.LdapAuthenticationException;
-import org.apache.directory.api.ldap.model.exception.LdapAuthenticationNotSupportedException;
-import org.apache.directory.api.ldap.model.exception.LdapConfigurationException;
-import org.apache.directory.api.ldap.model.exception.LdapContextNotEmptyException;
-import org.apache.directory.api.ldap.model.exception.LdapEntryAlreadyExistsException;
 import org.apache.directory.api.ldap.model.exception.LdapException;
-import org.apache.directory.api.ldap.model.exception.LdapInvalidAttributeTypeException;
-import org.apache.directory.api.ldap.model.exception.LdapInvalidAttributeValueException;
 import org.apache.directory.api.ldap.model.exception.LdapInvalidDnException;
-import org.apache.directory.api.ldap.model.exception.LdapInvalidSearchFilterException;
-import org.apache.directory.api.ldap.model.exception.LdapLoopDetectedException;
-import org.apache.directory.api.ldap.model.exception.LdapNoPermissionException;
-import org.apache.directory.api.ldap.model.exception.LdapNoSuchAttributeException;
-import org.apache.directory.api.ldap.model.exception.LdapNoSuchObjectException;
 import org.apache.directory.api.ldap.model.exception.LdapOperationException;
-import org.apache.directory.api.ldap.model.exception.LdapSchemaException;
-import org.apache.directory.api.ldap.model.exception.LdapSchemaViolationException;
-import org.apache.directory.api.ldap.model.exception.LdapStrongAuthenticationRequiredException;
-import org.apache.directory.api.ldap.model.exception.LdapUnwillingToPerformException;
 import org.apache.directory.api.ldap.model.filter.AndNode;
 import org.apache.directory.api.ldap.model.filter.EqualityNode;
 import org.apache.directory.api.ldap.model.filter.ExprNode;
@@ -66,7 +45,6 @@ import org.apache.directory.api.ldap.model.filter.PresenceNode;
 import org.apache.directory.api.ldap.model.message.Control;
 import org.apache.directory.api.ldap.model.message.LdapResult;
 import org.apache.directory.api.ldap.model.message.Response;
-import org.apache.directory.api.ldap.model.message.ResultCodeEnum;
 import org.apache.directory.api.ldap.model.message.SearchRequest;
 import org.apache.directory.api.ldap.model.message.SearchRequestImpl;
 import org.apache.directory.api.ldap.model.message.SearchResultEntry;
@@ -79,17 +57,10 @@ import org.apache.directory.api.ldap.model.schema.AttributeType;
 import org.apache.directory.api.util.GeneralizedTime;
 import org.apache.directory.ldap.client.api.LdapConnectionConfig;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
-import org.apache.directory.ldap.client.api.exception.InvalidConnectionException;
 import org.identityconnectors.common.logging.Log;
-import org.identityconnectors.framework.common.exceptions.AlreadyExistsException;
-import org.identityconnectors.framework.common.exceptions.ConfigurationException;
-import org.identityconnectors.framework.common.exceptions.ConnectionFailedException;
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
 import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
-import org.identityconnectors.framework.common.exceptions.ConnectorSecurityException;
 import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException;
-import org.identityconnectors.framework.common.exceptions.PermissionDeniedException;
-import org.identityconnectors.framework.common.exceptions.UnknownUidException;
 import org.identityconnectors.framework.common.objects.Name;
 import org.identityconnectors.framework.common.objects.OperationOptions;
 import org.identityconnectors.framework.common.objects.Uid;
@@ -209,147 +180,6 @@ public class LdapUtil {
         throw new InvalidAttributeValueException("Invalid boolean value '"+stringVal+"'");
     }
 
-    public static String[] getAttributesToGet(org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
-            OperationOptions options, AbstractSchemaTranslator schemaTranslator, String... additionalAttributes) {
-        String[] operationalAttributes = schemaTranslator.getOperationalAttributes();
-        if (options == null || options.getAttributesToGet() == null) {
-            String[] ldapAttrs = new String[2 + operationalAttributes.length + additionalAttributes.length];
-            ldapAttrs[0] = "*";
-            ldapAttrs[1] = schemaTranslator.getUidAttribute();
-            int i = 2;
-            for (String operationalAttribute: operationalAttributes) {
-                ldapAttrs[i] = operationalAttribute;
-                i++;
-            }
-            for (String additionalAttribute: additionalAttributes) {
-                ldapAttrs[i] = additionalAttribute;
-                i++;
-            }
-            return ldapAttrs;
-        }
-        String[] icfAttrs = options.getAttributesToGet();
-        int extraAttrs = 2;
-        if (options.getReturnDefaultAttributes() != null && options.getReturnDefaultAttributes()) {
-            extraAttrs++;
-        }
-        List<String> ldapAttrs = new ArrayList<String>(icfAttrs.length + operationalAttributes.length + extraAttrs);
-        if (options.getReturnDefaultAttributes() != null && options.getReturnDefaultAttributes()) {
-            ldapAttrs.add("*");
-        }
-        for (String icfAttr: icfAttrs) {
-            if (Name.NAME.equals(icfAttr)) {
-                continue;
-            }
-            AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, icfAttr);
-            if (ldapAttributeType == null) {
-                // No definition for this attribute. It is most likely operational attribute that is not in the schema.
-                if (isOperationalAttribute(schemaTranslator, icfAttr)) {
-                    ldapAttrs.add(icfAttr);
-                } else {
-                    throw new InvalidAttributeValueException("Unknown attribute '"+icfAttr+"' (in attributesToGet)");
-                }
-            } else {
-                ldapAttrs.add(ldapAttributeType.getName());
-            }
-        }
-        for (String operationalAttribute: operationalAttributes) {
-            ldapAttrs.add(operationalAttribute);
-        }
-        for (String additionalAttribute: additionalAttributes) {
-            ldapAttrs.add(additionalAttribute);
-        }
-        ldapAttrs.add(schemaTranslator.getUidAttribute());
-        ldapAttrs.add(SchemaConstants.OBJECT_CLASS_AT);
-        return ldapAttrs.toArray(new String[ldapAttrs.size()]);
-    }
-
-    public static boolean isOperationalAttribute(AbstractSchemaTranslator schemaTranslator, String icfAttr) {
-        String[] operationalAttributes = schemaTranslator.getOperationalAttributes();
-        if (operationalAttributes == null) {
-            return false;
-        }
-        for (String opAt: operationalAttributes) {
-            if (opAt.equals(icfAttr)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * Fetch a single entry using its DN.
-     *
-     * @param connection The LDAP connection to use
-     * @param dn The entry's DN
-     * @param ldapObjectClass The entry's ObjectClass
-     * @param options The options to use
-     * @param schemaTranslator The Schema translator instance
-     * @return The found entry, or null if none is found.
-     */
-    public static Entry fetchEntry(LdapNetworkConnection connection, String dn,
-            org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
-            OperationOptions options, AbstractSchemaTranslator schemaTranslator, ErrorHandler errorHandler) {
-        String[] attributesToGet = getAttributesToGet(ldapObjectClass, options, schemaTranslator);
-        Entry entry = null;
-        LOG.ok("Search REQ base={0}, filter={1}, scope={2}, attributes={3}",
-                dn, AbstractLdapConfiguration.SEARCH_FILTER_ALL, SearchScope.OBJECT, attributesToGet);
-
-        try {
-            entry = connection.lookup( dn, attributesToGet );
-        } catch (LdapException e) {
-            LOG.error("Search ERR {0}: {1}", e.getClass().getName(), e.getMessage(), e);
-            throw errorHandler.processLdapException("Search for "+dn+" failed", e);
-        }
-
-        LOG.ok("Search RES {0}", entry);
-
-        return entry;
-    }
-
-    public static Entry fetchEntryByUid(LdapNetworkConnection connection, String uid,
-            org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
-            OperationOptions options, AbstractLdapConfiguration configuration, AbstractSchemaTranslator schemaTranslator, ErrorHandler errorHandler) {
-        String[] attributesToGet = getAttributesToGet(ldapObjectClass, options, schemaTranslator);
-        ExprNode filter = createUidSearchFilter(uid, ldapObjectClass, schemaTranslator);
-        return searchSingleEntry(connection, configuration.getBaseContext(), SearchScope.SUBTREE, filter, attributesToGet, errorHandler);
-    }
-
-    public static Entry searchSingleEntry(LdapNetworkConnection connection, String baseDn, SearchScope scope,
-            ExprNode filter, String[] attributesToGet, ErrorHandler errorHandler) {
-        SearchRequest req = new SearchRequestImpl();
-        try {
-            req.setBase(new Dn(baseDn));
-        } catch (LdapInvalidDnException e) {
-            throw new IllegalArgumentException(e.getMessage(), e);
-        }
-        req.setScope(scope);
-        req.setFilter(filter);
-        if (attributesToGet != null) {
-            req.addAttributes(attributesToGet);
-        }
-        Entry entry = null;
-        try {
-            SearchCursor searchCursor = connection.search(req);
-            while (searchCursor.next()) {
-                Response response = searchCursor.get();
-                if (response instanceof SearchResultEntry) {
-                    if (entry != null) {
-                        LOG.error("Search for {0} in {1} (scope {2}) returned more than one entry:\n{1}",
-                                filter, baseDn, scope, searchCursor.get());
-                        throw new IllegalStateException("Search for "+filter+" in "+baseDn+" returned unexpected entries");
-                    }
-                    entry = ((SearchResultEntry)response).getEntry();
-                }
-            }
-            closeCursor(searchCursor);
-        } catch (LdapException e) {
-            throw errorHandler.processLdapException("Search for "+filter+" in "+baseDn+" failed", e);
-        } catch (CursorException e) {
-            throw new ConnectorIOException("Search for "+filter+" in "+baseDn+" failed: "+e.getMessage(), e);
-        }
-        return entry;
-    }
-
     public static ExprNode filterAnd(ExprNode f1, ExprNode f2) {
         if (f1 == null) {
             return f2;
@@ -403,13 +233,6 @@ public class LdapUtil {
 
     public static ExprNode createAllSearchFilter() {
         return new PresenceNode(SchemaConstants.OBJECT_CLASS_AT);
-    }
-
-    public static ExprNode createUidSearchFilter(String uidValue,
-            org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass, AbstractSchemaTranslator schemaTranslator) {
-        AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, Uid.NAME);
-        Value ldapValue = schemaTranslator.toLdapIdentifierValue(ldapAttributeType, uidValue);
-        return new EqualityNode<>(ldapAttributeType, ldapValue);
     }
 
     public static ExprNode parseSearchFilter(String stringFilter) {
@@ -485,13 +308,6 @@ public class LdapUtil {
         return in.replaceAll("\\p{C}", "?");
     }
 
-    public static Entry getRootDse(ConnectionManager<? extends AbstractLdapConfiguration> connectionManager, String... attributesToGet) {
-        try {
-            return connectionManager.getDefaultConnection().getRootDse(attributesToGet);
-        } catch (LdapException e) {
-            throw new ConnectorIOException("Error getting changelog data from root DSE: "+e.getMessage(), e);
-        }
-    }
 
     /**
      * Check if a given ObjectClass is present in the entry.
@@ -577,7 +393,7 @@ public class LdapUtil {
         if (port != null) {
             sb.append(":").append(port);
         }
-        sb.append("/ ");
+        sb.append("/");
         return sb.toString();
     }
 
@@ -593,7 +409,36 @@ public class LdapUtil {
         return list;
     }
 
-    public static void closeCursor(SearchCursor cursor) {
+    /**
+     * Close search cursor, assuming that the operation is done.
+     * This should never cause an ABANDON request.
+     * NOTE: Make sure you call cursor.next() before closing the cursor, even if you do not care about the result.
+     * Otherwise the "done" state of the cursor may not be properly updated, and this operation will fail (MID-7091).
+     */
+    public static void closeDoneCursor(SearchCursor cursor) {
+        // Explicitly check for "done" status of the cursor here.
+        // If the cursor is not "done", invoking close() will initiate ABANDON command (MID-7091).
+        // We do not want that, that is additional round-trip and it is really annoying.
+        // Invoking close() without having the cursor in "done" state is usually a bug in the connector.
+        // We want to fail early here, otherwise the bug will never get fixed.
+        if (!cursor.isDone()) {
+            throw new ConnectorException("Closing search cursor that is not DONE (indicates bug in LDAP connector)");
+        }
+        try {
+            cursor.close();
+        } catch (IOException e) {
+            // Log the error, but otherwise ignore it. This is unlikely to cause
+            // any serious harm for the operation.
+            LOG.warn("Error closing the search cursor (continuing the operation anyway):", e);
+        }
+    }
+
+    /**
+     * Close search cursor, explicitly abandoning the operation in case that it is not done.
+     * NOTE: Make sure you call cursor.next() before closing the cursor, even if you do not care about the result.
+     * Otherwise the "done" state of the cursor may not be properly updated, and this may send unnecessary abandon request (MID-7091).
+     */
+    public static void closeAbandonCursor(SearchCursor cursor) {
         try {
             cursor.close();
         } catch (IOException e) {
