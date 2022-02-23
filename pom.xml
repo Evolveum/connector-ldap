@@ -39,19 +39,29 @@
 
     <repositories>
         <repository>
-            <id>evolveum-nexus-releases</id>
-            <name>Internal Releases</name>
-            <url>http://nexus.evolveum.com/nexus/content/repositories/releases/</url>
+            <id>evolveum</id>
+            <name>Evolveum Public Releases</name>
+            <url>https://nexus.evolveum.com/nexus/content/groups/public/</url>
         </repository>
         <repository>
             <id>evolveum-nexus-snapshots</id>
             <name>Internal Releases</name>
-            <url>http://nexus.evolveum.com/nexus/content/repositories/snapshots/</url>
+            <url>https://nexus.evolveum.com/nexus/content/repositories/snapshots/</url>
         </repository>
         <repository>
             <id>apache-snapshots</id>
             <name>Apache Snapshots</name>
-            <url>http://repository.apache.org/snapshots/</url>
+            <url>https://repository.apache.org/snapshots/</url>
+        </repository>
+        <!--
+        We need this for Sleepycat JE, version 5.0.73 is released OK, but newer versions
+        (like 5.0.103) is in Maven central plugin repository, which is obviously wrong.
+        So we need Oracle's repo too.
+        -->
+        <repository>
+            <id>oracle</id>
+            <name>Oracle</name>
+            <url>https://download.oracle.com/maven/</url>
         </repository>
     </repositories>
 
@@ -118,6 +128,39 @@
           <version>1.7.25</version>
           <scope>provided</scope>
         </dependency>
+
+        <!-- TEST DEPENDENCIES -->
+
+        <dependency>
+            <groupId>commons-io</groupId>
+            <artifactId>commons-io</artifactId>
+            <version>2.11.0</version>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.forgerock.opendj</groupId>
+            <artifactId>opendj</artifactId>
+            <version>2.6.2</version>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.forgerock.opendj</groupId>
+            <artifactId>opendj-ldap-sdk</artifactId>
+            <version>2.6.2</version>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Needed for OpenDJ in tests -->
+        <dependency>
+            <groupId>com.sleepycat</groupId>
+            <artifactId>je</artifactId>
+            <version>5.0.103</version>
+            <!-- upgrade to 18.x is not possible with currently used OpenDJ -->
+            <scope>test</scope>
+        </dependency>
+
 
     </dependencies>
 </project>
