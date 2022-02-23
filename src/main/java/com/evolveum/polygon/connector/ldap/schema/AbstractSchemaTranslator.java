@@ -31,6 +31,7 @@ import java.util.Map;
 import java.util.Random;
 
 import com.evolveum.polygon.connector.ldap.*;
+import com.evolveum.polygon.connector.ldap.connection.ConnectionManager;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.directory.api.ldap.extras.controls.vlv.VirtualListViewRequest;
 import org.apache.directory.api.ldap.model.constants.SchemaConstants;
@@ -54,6 +55,7 @@ import org.apache.directory.ldap.client.api.exception.InvalidConnectionException
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.common.exceptions.ConfigurationException;
+import org.identityconnectors.framework.common.exceptions.ConnectionFailedException;
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
 import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException;
 import org.identityconnectors.framework.common.objects.*;
@@ -95,7 +97,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
     }
 
     @SuppressWarnings("unchecked")
-    public Schema translateSchema(ConnectionManager<C> connection, ErrorHandler errorHandler) throws InvalidConnectionException {
+    public Schema translateSchema(ConnectionManager<C> connectionManager, ErrorHandler errorHandler) {
         SchemaBuilder schemaBuilder = new SchemaBuilder(LdapConnector.class);
         LOG.ok("Translating LDAP schema from {0}", schemaManager);
 
@@ -132,14 +134,12 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 
         List<String> supportedControls;
         try {
-            supportedControls = connection.getDefaultConnection().getSupportedControls();
-        } catch (InvalidConnectionException e) {
+            supportedControls = connectionManager.getSupportedControls();
+        } catch (ConnectionFailedException e) {
+            // This should not really happen.
+            // We should have root DSE fetched already, therefore this operation
+            // should only read the information from memory.
             throw e;
-        } catch (LdapException e) {
-            if (e.getCause() instanceof InvalidConnectionException) {
-                throw (InvalidConnectionException)e.getCause();
-            }
-            throw errorHandler.processLdapException("Error getting supported controls", e);
         }
         if (supportedControls.contains(PagedResults.OID) || supportedControls.contains(VirtualListViewRequest.OID)) {
             schemaBuilder.defineOperationOption(OperationOptionInfoBuilder.buildPageSize(), SearchOp.class);
@@ -177,7 +177,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
     /**
      * Make sure that we have icfSchema
      */
-    public void prepareConnIdSchema(ConnectionManager<C> connectionManager, ErrorHandler errorHandler) throws InvalidConnectionException {
+    public void prepareConnIdSchema(ConnectionManager<C> connectionManager, ErrorHandler errorHandler) {
         if (connIdSchema == null) {
             translateSchema(connectionManager, errorHandler);
         }

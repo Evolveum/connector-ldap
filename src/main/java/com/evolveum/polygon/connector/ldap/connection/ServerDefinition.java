@@ -13,13 +13,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.evolveum.polygon.connector.ldap;
+package com.evolveum.polygon.connector.ldap.connection;
 
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
+import com.evolveum.polygon.connector.ldap.LdapUtil;
+import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
 import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.exception.LdapInvalidDnException;
 import org.apache.directory.api.ldap.model.name.Dn;
@@ -28,6 +31,7 @@ import org.apache.directory.ldap.client.api.LdapNetworkConnection;
 import org.identityconnectors.common.StringUtil;
 import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.common.exceptions.ConfigurationException;
+import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException;
 
 /**
  * @author semancik
@@ -35,6 +39,7 @@ import org.identityconnectors.framework.common.exceptions.ConfigurationException
  */
 public class ServerDefinition {
 
+    // Configuration
     private String host;
     private int port;
     private String connectionSecurity;
@@ -51,15 +56,33 @@ public class ServerDefinition {
     private Long closeTimeout;
     private Long sendTimeout;
     private Dn baseContext;
-    private Origin origin = Origin.CONFIGURATION;
+    private String baseContextString;
+    private boolean primary;
+    private Long switchBackInterval;
 
-    enum Origin {
-        CONFIGURATION, REFERRAL;
-    }
-
+    // State
     private LdapNetworkConnection connection;
     private Entry rootDse;
     private List<String> supportedControls;
+
+    /**
+     * Set to true if the server was tried for connection.
+     */
+    private boolean attempt = false;
+
+    /**
+     * Set to true if the server is active - if it is currently used to make queries.
+     * Server servers may be active at the same time, as long as they have distinct base contexts.
+     */
+    private boolean active = false;
+
+    /**
+     * Timestamp of a moment that we have learned that this server is down.
+     * In millis since the epoch.
+     * Used to measure an interval to switch back to primary.
+     */
+    private Long downTimestamp;
+
 
     public static ServerDefinition createDefaultDefinition(AbstractLdapConfiguration configuration) {
         ServerDefinition def = new ServerDefinition();
@@ -69,8 +92,15 @@ public class ServerDefinition {
         } catch (LdapInvalidDnException e) {
             throw new ConfigurationException("Wrong DN format in baseContext: "+e.getMessage(), e);
         }
-        def.origin = Origin.CONFIGURATION;
+        def.primary = true;
+        def.active = true;
         return def;
+    }
+
+
+    public <C extends AbstractLdapConfiguration> void applySchema(AbstractSchemaTranslator<C> schemaTranslator) {
+        this.baseContext = LdapUtil.makeSchemaAwareDn(this.baseContext, schemaTranslator);
+        this.baseContextString = this.baseContext.getNormName();
     }
 
     private void copyAllFromConfiguration(AbstractLdapConfiguration configuration) {
@@ -132,35 +162,15 @@ public class ServerDefinition {
         def.sendTimeout = getLongProp(props, "sendTimeout", configuration.getSendTimeout(), def.timeout);
         try {
             def.baseContext = new Dn(getStringProp(props, "baseContext", configuration.getBaseContext()));
+            def.baseContextString = def.baseContext.getNormName();
         } catch (LdapInvalidDnException e) {
             throw new ConfigurationException("Wrong DN format in baseContext in server definition (line "+lineNumber+"): "+e.getMessage(), e);
         }
-        def.origin = Origin.CONFIGURATION;
-        return def;
-    }
-
-    public static ServerDefinition createDefinition(AbstractLdapConfiguration configuration, LdapUrl url) {
-        ServerDefinition def = new ServerDefinition();
-        def.host = url.getHost();
-        int defaultPort = 389;
-        if (LdapUrl.LDAPS_SCHEME.equals(url.getScheme())) {
-            defaultPort = 636;
-            def.connectionSecurity = AbstractLdapConfiguration.CONNECTION_SECURITY_SSL;
-        } else {
-            if (AbstractLdapConfiguration.CONNECTION_SECURITY_STARTTLS.equals(configuration.getConnectionSecurity())) {
-                def.connectionSecurity = AbstractLdapConfiguration.CONNECTION_SECURITY_STARTTLS;
-            } else {
-                def.connectionSecurity = AbstractLdapConfiguration.CONNECTION_SECURITY_NONE;
-            }
+        def.primary = getBooleanProp(props, "primary", false);
+        if (def.primary) {
+            def.active = true;
         }
-        if (url.getPort() < 0) {
-            def.port = defaultPort;
-        } else {
-            def.port = url.getPort();
-        }
-        def.copyMiscFromConfiguration(configuration);
-        def.baseContext = null;
-        def.origin = Origin.REFERRAL;
+        def.switchBackInterval = getLongProp(props, "switchBackInterval", configuration.getSwitchBackInterval());
         return def;
     }
 
@@ -242,6 +252,19 @@ public class ServerDefinition {
                 return null;
             } else {
                 return Long.parseLong(propVal);
+            }
+        }
+    }
+
+    private static boolean getBooleanProp(Map<String, String> props, String key, boolean defaultVal) {
+        String propVal = props.get(key);
+        if (propVal == null) {
+            return defaultVal;
+        } else {
+            if (StringUtil.isBlank(propVal)) {
+                return defaultVal;
+            } else {
+                return Boolean.parseBoolean(propVal);
             }
         }
     }
@@ -346,16 +369,11 @@ public class ServerDefinition {
         return baseContext;
     }
 
-    public void setBaseContext(Dn baseContext) {
-        this.baseContext = baseContext;
-    }
-
-    public Origin getOrigin() {
-        return origin;
-    }
-
-    public void setOrigin(Origin origin) {
-        this.origin = origin;
+    /**
+     * Returns base context (DN) in a normalized form, suitable for quick comparison.
+     */
+    public String getBaseContextString() {
+        return baseContextString;
     }
 
     public LdapNetworkConnection getConnection() {
@@ -386,18 +404,39 @@ public class ServerDefinition {
         this.supportedControls = supportedControls;
     }
 
-    public boolean matches(LdapUrl url) {
-        if (!url.getHost().equalsIgnoreCase(host)) {
-            return false;
+    public boolean isPrimary() {
+        return primary;
+    }
+
+    public boolean isActive() {
+        return active;
+    }
+
+    public void setActive(boolean active) {
+        this.active = active;
+    }
+
+    public boolean wasAttempt() {
+        return attempt;
+    }
+
+    public void setAttempt() {
+        this.attempt = true;
+    }
+
+    public void resetAttempt() {
+        this.attempt = false;
+    }
+
+    public boolean isAvailable(long now) {
+        if (downTimestamp == null) {
+            return true;
         }
-        if (url.getPort() != port) {
-            return false;
-        }
-        if (LdapUrl.LDAPS_SCHEME.equals(url.getScheme()) &&
-                !connectionSecurity.equals(AbstractLdapConfiguration.CONNECTION_SECURITY_SSL)) {
-            return false;
-        }
-        return true;
+        return (now - downTimestamp > switchBackInterval);
+    }
+
+    public void markDown(long now) {
+        downTimestamp = now;
     }
 
     @Override
@@ -505,7 +544,7 @@ public class ServerDefinition {
     @Override
     public String toString() {
         return "ServerDefinition(host=" + host + ", port=" + port + ", connectionSecurity="
-                + connectionSecurity + ", bindDn=" + bindDn + ", baseContext=" + baseContext + ", origin=" + origin
+                + connectionSecurity + ", bindDn=" + bindDn + ", baseContext=" + baseContext
                 + ", connection=" + getConnectionStatusString(connection) + ")";
     }
 
@@ -518,6 +557,10 @@ public class ServerDefinition {
         } else {
             return "disconnected";
         }
+    }
+
+    public String shortDesc() {
+        return host + ":" + port + " " + baseContext;
     }
 
 }

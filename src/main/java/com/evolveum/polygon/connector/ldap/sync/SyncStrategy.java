@@ -34,7 +34,7 @@ import org.identityconnectors.framework.common.objects.SyncResultsHandler;
 import org.identityconnectors.framework.common.objects.SyncToken;
 
 import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
-import com.evolveum.polygon.connector.ldap.ConnectionManager;
+import com.evolveum.polygon.connector.ldap.connection.ConnectionManager;
 import com.evolveum.polygon.connector.ldap.LdapUtil;
 import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
 

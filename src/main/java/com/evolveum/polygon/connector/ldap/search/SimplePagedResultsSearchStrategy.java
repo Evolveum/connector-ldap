@@ -18,6 +18,7 @@ package com.evolveum.polygon.connector.ldap.search;
 import java.util.Base64;
 
 import com.evolveum.polygon.connector.ldap.*;
+import com.evolveum.polygon.connector.ldap.connection.ConnectionManager;
 import org.apache.directory.api.ldap.model.cursor.CursorException;
 import org.apache.directory.api.ldap.model.cursor.SearchCursor;
 import org.apache.directory.api.ldap.model.entry.Entry;
@@ -93,7 +94,6 @@ public class SimplePagedResultsSearchStrategy<C extends AbstractLdapConfiguratio
         int numberOfResultsSkipped = 0;
 
         connect(baseDn);
-        Referral referral = null; // remember this in case we need a reconnect
 
         OUTER: do {
             if (getOptions() != null && getOptions().getPageSize() != null &&
@@ -117,7 +117,7 @@ public class SimplePagedResultsSearchStrategy<C extends AbstractLdapConfiguratio
                         // checkAlive or connection manager.
                         LOG.ok("Connection error ({0}), reconnecting", e.getMessage(), e);
                         // No need to close the cursor here. It is already closed as part of error handling in next() method.
-                        connectionReconnect(baseDn, referral, e);
+                        connectionReconnect(baseDn, e);
                         incrementRetryAttempts();
                         continue OUTER;
                     }
@@ -177,21 +177,8 @@ public class SimplePagedResultsSearchStrategy<C extends AbstractLdapConfiguratio
                     }
                     logSearchResult("Done", ldapResult, compileExtraMessage(pagedResultsResponseControl));
 
-                    if (ldapResult.getResultCode() == ResultCodeEnum.REFERRAL && !getConfiguration().isReferralStrategyThrow()) {
-                        referral = ldapResult.getReferral();
-                        if (getConfiguration().isReferralStrategyIgnore()) {
-                            LOG.ok("Ignoring referral {0}", referral);
-                        } else {
-                            LOG.ok("Following referral {0}", referral);
-                            incrementRetryAttempts();
-                            connect(baseDn, referral);
-                            if (connection == null) {
-                                throw new ConnectorIOException("Cannot get connection based on referral "+referral);
-                            }
-                            lastListSize = -1;
-                            cookie = null;
-                            continue;
-                        }
+                    if (ldapResult.getResultCode() == ResultCodeEnum.REFERRAL) {
+                        LOG.ok("Ignoring referral {0}", ldapResult.getReferral());
 
                     } else if (ldapResult.getResultCode() == ResultCodeEnum.SUCCESS) {
                         // continue the loop

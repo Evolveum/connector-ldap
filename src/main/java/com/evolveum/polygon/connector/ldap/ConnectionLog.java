@@ -15,6 +15,7 @@
  */
 package com.evolveum.polygon.connector.ldap;
 
+import com.evolveum.polygon.connector.ldap.connection.ServerDefinition;
 import org.apache.directory.api.ldap.model.message.LdapResult;
 import org.apache.directory.api.ldap.model.message.SearchRequest;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;

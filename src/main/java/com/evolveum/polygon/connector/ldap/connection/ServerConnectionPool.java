@@ -13,29 +13,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.evolveum.polygon.connector.ldap;
+package com.evolveum.polygon.connector.ldap.connection;
 
-import java.io.*;
-import java.security.KeyStore;
-import java.security.KeyStoreException;
-import java.security.NoSuchAlgorithmException;
-import java.util.*;
-
-import org.apache.commons.lang3.StringUtils;
-import org.apache.directory.api.ldap.model.constants.SchemaConstants;
-import org.apache.directory.api.ldap.model.cursor.CursorException;
-import org.apache.directory.api.ldap.model.cursor.SearchCursor;
-import org.apache.directory.api.ldap.model.entry.Attribute;
-import org.apache.directory.api.ldap.model.entry.Entry;
-import org.apache.directory.api.ldap.model.entry.Value;
+import com.evolveum.polygon.common.GuardedStringAccessor;
+import com.evolveum.polygon.connector.ldap.*;
+import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
 import org.apache.directory.api.ldap.model.exception.LdapException;
 import org.apache.directory.api.ldap.model.exception.LdapInvalidDnException;
-import org.apache.directory.api.ldap.model.exception.LdapURLEncodingException;
 import org.apache.directory.api.ldap.model.message.*;
 import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.ldap.model.schema.SchemaManager;
 import org.apache.directory.api.ldap.model.schema.registries.Schema;
-import org.apache.directory.api.ldap.model.url.LdapUrl;
 import org.apache.directory.api.ldap.schema.manager.impl.DefaultSchemaManager;
 import org.apache.directory.ldap.client.api.LdapConnectionConfig;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
@@ -47,81 +35,220 @@ import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.common.exceptions.ConfigurationException;
 import org.identityconnectors.framework.common.exceptions.ConnectionFailedException;
-import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
 import org.identityconnectors.framework.common.objects.OperationOptions;
-
-import com.evolveum.polygon.common.GuardedStringAccessor;
-import com.evolveum.polygon.connector.ldap.ServerDefinition.Origin;
-import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
 
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
+import java.io.IOException;
+import java.security.KeyStore;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.util.*;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
- * @author Radovan Semancik
+ * Set of server connections for the same base context.
  *
+ * Not really a "pool" and definitely not a "connection pool", but you know,
+ * there are only two hard things in computer science.
+ *
+ * @author Radovan Semancik
  */
-public class ConnectionManager<C extends AbstractLdapConfiguration> {
+public class ServerConnectionPool<C extends AbstractLdapConfiguration> {
 
-    private static final Log LOG = Log.getLog(ConnectionManager.class);
-    private static final Random rnd = new Random();
+    private static final Log LOG = Log.getLog(ServerConnectionPool.class);
 
     private final C configuration;
-    private final String[] serversConfiguration;
-    private ServerDefinition defaultServerDefinition = null;
-    private List<ServerDefinition> servers;
     private AbstractSchemaTranslator<C> schemaTranslator;
-    private ErrorHandler errorHandler;
+    private final ErrorHandler errorHandler;
+    private final ConnectionLog connectionLog;
+
+    private final List<ServerDefinition> servers = new ArrayList<>();
     private final ConnectorBinaryAttributeDetector<C> binaryAttributeDetector = new ConnectorBinaryAttributeDetector<>();
-    private ConnectionLog connectionLog;
 
-    public ConnectionManager(C configuration) {
-        this(configuration, configuration.getServers(), true);
-    }
-
-    public ConnectionManager(C configuration, String[] serversConfiguration, boolean useDefaultConnection) {
+    public ServerConnectionPool(C configuration, ErrorHandler errorHandler, ConnectionLog connectionLog) {
         this.configuration = configuration;
-        this.serversConfiguration = serversConfiguration;
-        buildServerList(useDefaultConnection);
-    }
-
-    private void buildServerList(boolean useDefaultConnection) {
-        servers = new ArrayList<>();
-        if (useDefaultConnection) {
-            defaultServerDefinition = ServerDefinition.createDefaultDefinition(configuration);
-            servers.add(defaultServerDefinition);
-        }
-        if (serversConfiguration != null) {
-            for(int line = 0; line < serversConfiguration.length; line++) {
-                servers.add(ServerDefinition.parse(configuration, serversConfiguration[line], line));
-            }
-        }
-    }
-
-    public AbstractSchemaTranslator<C> getSchemaTranslator() {
-        return schemaTranslator;
+        this.errorHandler = errorHandler;
+        this.connectionLog = connectionLog;
     }
 
     public void setSchemaTranslator(AbstractSchemaTranslator<C> schemaTranslator) {
         this.schemaTranslator = schemaTranslator;
         binaryAttributeDetector.setSchemaTranslator(schemaTranslator);
+        // Make sure all base contexts of all servers are schema aware, and that we have proper normalized string values.
+        for (ServerDefinition server : servers) {
+            server.applySchema(schemaTranslator);
+        }
+
     }
 
-    public void setErrorHandler(ErrorHandler errorHandler) {
-        this.errorHandler = errorHandler;
+    public void addServerDefinition(ServerDefinition serverDefinition) {
+        if (serverDefinition.isPrimary()) {
+            if (servers.size() > 0 && servers.get(0).isPrimary()) {
+                throw new ConfigurationException("More than one primary server specified for base context " + serverDefinition.getBaseContext());
+            }
+            // We want primary server to be always first.
+            // This makes server lookup easier, as we can simply follow list ordering.
+            servers.add(0, serverDefinition);
+        } else {
+            servers.add(serverDefinition);
+        }
     }
 
-    public ConnectionLog getConnectionLog() {
-        return connectionLog;
+    public List<ServerDefinition> getServers() {
+        return servers;
     }
 
-    public void setConnectionLog(ConnectionLog connectionLog) {
-        this.connectionLog = connectionLog;
+    public Dn getBaseContext() {
+        // We can use any definition here, all should have the same value
+        return getPrimaryServer().getBaseContext();
     }
 
-    private LdapNetworkConnection getConnection(ServerDefinition server) {
-        if (server == null) {
-            server = defaultServerDefinition;
+    public String getBaseContextString() {
+        // We can use any definition here, all should have the same value
+        return getPrimaryServer().getBaseContextString();
+    }
+
+    /**
+     * Returns working connection (as far as we know) for new operations.
+     */
+    public LdapNetworkConnection getConnection(OperationOptions options) {
+        // Too loud for normal operation, but may be useful for debugging
+//        LOG.ok("Selecting server for {0} from servers:\n{1}", base, dumpServers());
+
+        for (ServerDefinition server : servers) {
+            server.resetAttempt();
+        }
+
+        long now = System.currentTimeMillis();
+        ConnectionFailedException lastException = null;
+
+        // Try primary server first, if available.
+        // We always want to stick to primary if we can.
+
+        ServerDefinition primaryServer = getPrimaryServer();
+        if (primaryServer.isAvailable(now)) {
+            primaryServer.setAttempt();
+            try {
+                LdapNetworkConnection connection = getServerConnection(primaryServer, options);
+                setActiveServer(primaryServer);
+                return connection;
+            } catch (ConnectionFailedException e) {
+                lastException = e;
+                LOG.ok("Failed to connect to primary server {0} for base context {1} (still trying other servers): {2}",
+                        primaryServer.shortDesc(), primaryServer.getBaseContext(), e.getMessage());
+                primaryServer.markDown(now);
+            }
+        }
+
+        // Try current active server second.
+        // Once we choose a secondary server, we want to stick with it as long as we can.
+        // Switching severs around wildly (randomly) is a recipe for getting consistency problems.
+
+        ServerDefinition activeServer = getActiveServer();
+        if (activeServer != null && activeServer != primaryServer && activeServer.isAvailable(now)) {
+            activeServer.setAttempt();
+            try {
+                LdapNetworkConnection connection = getServerConnection(activeServer, options);
+                setActiveServer(activeServer);
+                return connection;
+            } catch (ConnectionFailedException e) {
+                lastException = e;
+                LOG.ok("Failed to connect to active server {0} for base context {1} (still trying other servers): {2}",
+                        activeServer.shortDesc(), activeServer.getBaseContext(), e.getMessage());
+                activeServer.markDown(now);
+            }
+        }
+
+        // Try all other available servers third.
+        // If any of them works, it becomes a new active.
+
+        for (ServerDefinition server : servers) {
+            if (!server.wasAttempt() && server.isAvailable(now)) {
+                server.setAttempt();
+                try {
+                    LdapNetworkConnection connection = getServerConnection(server, options);
+                    setActiveServer(server);
+                    return connection;
+                } catch (ConnectionFailedException e) {
+                    lastException = e;
+                    LOG.ok("Failed to connect to server {0} for base context {1} (still trying other servers): {2}",
+                            server.shortDesc(), server.getBaseContext(), e.getMessage());
+                    server.markDown(now);
+                }
+            }
+        }
+
+        // We are getting desperate now. Re-try connection to all servers that we have not tried yet,
+        // regardless of downtime intervals. Any connection is better than no connection.
+
+        for (ServerDefinition server : servers) {
+            if (!server.wasAttempt()) {
+                server.setAttempt();
+                try {
+                    LdapNetworkConnection connection = getServerConnection(server, options);
+                    setActiveServer(server);
+                    return connection;
+                } catch (ConnectionFailedException e) {
+                    lastException = e;
+                    LOG.ok("Failed to connect to server {0} for base context {1} (desperate attempt): {2}",
+                            server.shortDesc(), server.getBaseContext(), e.getMessage());
+                    // NOT marking the server as down here.
+                    // The server was not available in previous pass, therefore it is down already.
+                    // Re-marking it as down would ruin the timestamp.
+                }
+            }
+        }
+
+        // No servers are accessible. Just re-throw the last exception. This is as good as any.
+        throw lastException;
+    }
+
+    private ServerDefinition findServerDefinition(LdapNetworkConnection connection) {
+        if (connection == null) {
+            return null;
+        }
+        for (ServerDefinition server : servers) {
+            if (server.getConnection() == connection) {
+                return server;
+            }
+        }
+        return null;
+    }
+
+    public boolean isServerConnection(LdapNetworkConnection connection) {
+        return findServerDefinition(connection) != null;
+    }
+
+    public ServerDefinition getPrimaryServer() {
+        return servers.get(0);
+    }
+
+    private ServerDefinition getActiveServer() {
+        for (ServerDefinition server : servers) {
+            if (server.isActive()) {
+                return server;
+            }
+        }
+        return null;
+    }
+
+    private void setActiveServer(ServerDefinition activeServer) {
+        for (ServerDefinition server : servers) {
+            // We really want to == instead of equals() here.
+            // This is faster, and good enough for this case.
+            if (server == activeServer) {
+                server.setActive(true);
+            } else {
+                server.setActive(false);
+            }
+        }
+    }
+
+    private LdapNetworkConnection getServerConnection(ServerDefinition server, OperationOptions options) {
+        if (needsSpecialConnection(options)) {
+            return createSpecialConnection(server, options);
         }
         if (!server.isConnected()) {
             connectServer(server);
@@ -129,241 +256,56 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> {
         return server.getConnection();
     }
 
-    public LdapNetworkConnection getDefaultConnection() {
-        if (defaultServerDefinition == null) {
-            throw new IllegalStateException("No default connection in this connection manager");
-        }
-        return getConnection(defaultServerDefinition);
-    }
+    // TODO TODO TODO TODO TODO TODO
 
-    public LdapNetworkConnection getConnectionReconnect(Dn base, Referral referral, OperationOptions options, Exception reconnectException) {
-        LdapUrl ldapUrl = getLdapUrl(referral);
-        ServerDefinition server = selectServer(base, ldapUrl);
-        if (needsSpecialConnection(options)) {
-            return createSpecialConnection(server, options);
+    /**
+     * Returns new working connection, handling failures that happen in a middle of an operation.
+     * As we are in the middle of an operation, we prefer to reconnect to the same server, if possible.
+     */
+    public LdapNetworkConnection getConnectionReconnect(LdapNetworkConnection failedConnection, OperationOptions options, Exception reconnectException) {
+        // This error happened in the middle of an operation.
+        // We will try to reconnect to the same server as we were connected to, even if we are failed over to other server.
+        // There may be state stored on the original server, such as paging/sorting state, therefore there may be
+        // Significant benefit in not switching the severs right now, even if primary is available again.
+        ServerDefinition server = findServerDefinition(failedConnection);
+        if (server == null) {
+            throw new IllegalStateException("No server for connection, probably a connector bug");
         }
         String closeReason = "unknown reason";
         if (reconnectException != null) {
             closeReason = "reconnect due to " + reconnectException.getClass().getSimpleName();
             LOG.ok("Reconnecting server {0} due to {1}: {2}", server, closeReason, reconnectException.getMessage());
-        }
-        if (referral != null) {
-            closeReason = "referral";
-            LOG.ok("Reconnecting server {0} due to referral {1}: {2}", server, referral);
-        }
-        if (reconnectException == null && referral == null) {
-            if (referral != null) {
-                LOG.ok("Reconnecting server {0} due to unknown reason", server);
-            }
+        } else {
+            LOG.ok("Reconnecting server {0} due to unknown reason", server);
         }
         if (server.isConnected()) {
-            closeConnection(server, closeReason, reconnectException);
+            closeServerConnection(server, closeReason, reconnectException);
         }
-        connectServer(server);
-        return server.getConnection();
-    }
-
-    public LdapNetworkConnection getConnection(Dn base, OperationOptions options) {
-        // Too loud for normal operation, but may be useful for debugging
-//        LOG.ok("Selecting server for {0} from servers:\n{1}", base, dumpServers());
-        ServerDefinition server = selectServer(base);
-        if (needsSpecialConnection(options)) {
-            return createSpecialConnection(server, options);
-        }
-        return getConnection(server);
-    }
-
-    public LdapNetworkConnection getConnection(Dn base, Referral referral, OperationOptions options) {
-        return getConnection(base, getLdapUrl(referral), options);
-    }
-
-    private LdapUrl getLdapUrl(Referral referral) {
-        if (referral == null) {
-            return null;
-        }
-        Collection<String> ldapUrls = referral.getLdapUrls();
-        if (ldapUrls == null || ldapUrls.isEmpty()) {
-            return null;
-        }
-        String urlString = selectRandomItem(ldapUrls);
-        LdapUrl ldapUrl;
         try {
-            ldapUrl = new LdapUrl(urlString);
-        } catch (LdapURLEncodingException e) {
-            throw new IllegalArgumentException("Wrong LDAP URL '"+urlString+"': "+e.getMessage());
+            return getServerConnection(server, options);
+        } catch (ConnectionFailedException e) {
+            LOG.ok("Cannot reconnect to the same server {0}, trying other servers", server);
         }
-        return ldapUrl;
-    }
-
-    public LdapNetworkConnection getConnection(Dn base, LdapUrl url, OperationOptions options) {
-        ServerDefinition server = selectServer(base, url);
-        if (needsSpecialConnection(options)) {
-            return createSpecialConnection(server, options);
-        }
-        if (!server.isConnected()) {
-            connectServer(server);
-        }
-        return server.getConnection();
+        return getConnection(options);
     }
 
     public LdapNetworkConnection getRandomConnection() {
         ServerDefinition server = selectRandomServer();
-        if (!server.isConnected()) {
-            connectServer(server);
-        }
-        return server.getConnection();
-    }
-
-    public Iterable<LdapNetworkConnection> getAllConnections() {
-
-        final Iterator<ServerDefinition> serversIterator = servers.iterator();
-
-        //noinspection Convert2Lambda
-        return new Iterable<LdapNetworkConnection>() {
-
-            @Override
-            public Iterator<LdapNetworkConnection> iterator() {
-                return new Iterator<LdapNetworkConnection>() {
-
-                    @Override
-                    public boolean hasNext() {
-                        return serversIterator.hasNext();
-                    }
-
-                    @Override
-                    public LdapNetworkConnection next() {
-                        return getConnection(serversIterator.next());
-                    }
-
-                    @Override
-                    public void remove() {
-                            serversIterator.remove();
-                    }
-
-                };
-            }
-        };
-
-    }
-
-    private ServerDefinition selectServer(Dn dn) {
-        String stringDn = dn != null ? dn.getName() : null;
-        if (StringUtils.isBlank(stringDn) || !Character.isAlphabetic(stringDn.charAt(0))) {
-            // Do not even bother to choose. There are the strange
-            // things such as empty DN or the <GUID=...> insanity.
-            // The selection will not work anyway.
-            if (defaultServerDefinition == null) {
-                throw new IllegalStateException("No default connection in this connection manager");
-            }
-            return defaultServerDefinition;
-        }
-        Dn selectedBaseContext = null;
-        for (ServerDefinition server: servers) {
-            Dn serverBaseContext = server.getBaseContext();
-            // Too loud for normal operation, but may be useful for debugging
-//            LOG.ok("SELECT: considering {0} ({1}) for {2}", server.getHost(), serverBaseContext, dn);
-            if (serverBaseContext == null) {
-                continue;
-            }
-            if (serverBaseContext.equals(dn)) {
-                // we cannot get tighter match than this
-                selectedBaseContext = dn;
-                // Too loud for normal operation, but may be useful for debugging
-//                LOG.ok("SELECT: accepting {0} because {1} is an exact match", server.getHost(), serverBaseContext);
-                break;
-            }
-            if (LdapUtil.isAncestorOf(serverBaseContext, dn, schemaTranslator)) {
-                if (serverBaseContext.isDescendantOf(selectedBaseContext)) {
-                    // Too loud for normal operation, but may be useful for debugging
-//                    LOG.ok("SELECT: accepting {0} because {1} is under {2} and it is the best we have", server.getHost(), dn, serverBaseContext);
-                    selectedBaseContext = serverBaseContext;
-                } else {
-                    // Too loud for normal operation, but may be useful for debugging
-//                    LOG.ok("SELECT: accepting {0} because {1} is under {2} but it is NOT the best we have, {3} is better",
-//                            server.getHost(), dn, serverBaseContext, selectedBaseContext);
-                }
-            } else {
-                // Too loud for normal operation, but may be useful for debugging
-//                LOG.ok("SELECT: refusing {0} because {1} ({2}) is not under {3} ({4})", server.getHost(),
-//                        dn, dn.isSchemaAware(),
-//                        serverBaseContext, serverBaseContext.isSchemaAware());
-            }
-        }
-        // Too loud for normal operation, but may be useful for debugging
-//        LOG.ok("SELECT: selected base context: {0}", selectedBaseContext);
-        List<ServerDefinition> selectedServers = new ArrayList<>();
-        for (ServerDefinition server: servers) {
-            if (selectedBaseContext == null && server.getBaseContext() == null) {
-                if (server.getOrigin() == Origin.REFERRAL) {
-                    // avoid using dynamically added servers as a fallback
-                    // for all queries
-                    continue;
-                } else {
-                    selectedServers.add(server);
-                }
-            }
-            if (selectedBaseContext == null || server.getBaseContext() == null) {
-                continue;
-            }
-            if (selectedBaseContext.equals(server.getBaseContext())) {
-                selectedServers.add(server);
-            }
-        }
-        // Too loud for normal operation, but may be useful for debugging
-//        LOG.ok("SELECT: selected server list: {0}", selectedServers);
-        ServerDefinition selectedServer = selectRandomItem(selectedServers);
-        if (selectedServer == null) {
-            // Too loud for normal operation, but may be useful for debugging
-//            LOG.ok("SELECT: selected default for {0}", dn);
-            if (defaultServerDefinition == null) {
-                throw new IllegalStateException("No default connection in this connection manager");
-            }
-            return defaultServerDefinition;
-        } else {
-            // Too loud for normal operation, but may be useful for debugging
-//            LOG.ok("SELECT: selected {0} for {1}", selectedServer.getHost(), dn);
-            return selectedServer;
-        }
-    }
-
-    private ServerDefinition selectServer(Dn dn, LdapUrl url) {
-        if (url == null) {
-            return selectServer(dn);
-        }
-        for (ServerDefinition server: servers) {
-            if (server.matches(url)) {
-                return server;
-            }
-        }
-        ServerDefinition server = ServerDefinition.createDefinition(configuration, url);
-        servers.add(server);
-        return server;
+        return getServerConnection(server, null);
     }
 
     private ServerDefinition selectRandomServer() {
-        return selectRandomItem(servers);
-    }
-
-    @SuppressWarnings("unused")
-    public ConnectorBinaryAttributeDetector<C> getBinaryAttributeDetector() {
-        return binaryAttributeDetector;
-    }
-
-    public boolean isConnected() {
-        if (defaultServerDefinition == null) {
-            throw new IllegalStateException("No default connection in this connection manager");
-        }
-        return defaultServerDefinition.getConnection() != null && defaultServerDefinition.getConnection().isConnected();
+        return LdapUtil.selectRandomItem(servers);
     }
 
     public void close(String reason) {
         // Make sure that we attempt to close all connection even if there are some exceptions during the close.
         for (ServerDefinition serverDef: servers) {
-            closeConnection(serverDef, reason,null);
+            closeServerConnection(serverDef, reason,null);
         }
     }
 
-    private void closeConnection(ServerDefinition serverDef, String closeReason, Exception reconnectReasonException) {
+    private void closeServerConnection(ServerDefinition serverDef, String closeReason, Exception reconnectReasonException) {
         if (serverDef.getConnection() != null) {
             try {
                 unbindIfNeeded(serverDef, serverDef.getConnection(), reconnectReasonException);
@@ -428,12 +370,6 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> {
         return true;
     }
 
-    public void connect() {
-        if (defaultServerDefinition != null) {
-            connectServer(defaultServerDefinition);
-        }
-    }
-
     private LdapConnectionConfig createLdapConnectionConfig(ServerDefinition serverDefinition) {
         LdapConnectionConfig connectionConfig = new LdapConnectionConfig();
         connectionConfig.setLdapHost(serverDefinition.getHost());
@@ -479,16 +415,16 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> {
         return connectionConfig;
     }
 
-    private void connectServer(ServerDefinition serverDef) {
+    public LdapNetworkConnection connectServer(ServerDefinition serverDef) {
         if (serverDef.getConnection() != null) {
-            closeConnection(serverDef, "strange close/open", new RuntimeException("old connection open while creating new connection"));
+            closeServerConnection(serverDef, "strange close/open", new RuntimeException("old connection open while creating new connection"));
         }
         final LdapConnectionConfig connectionConfig = createLdapConnectionConfig(serverDef);
         LdapNetworkConnection connection = connectConnection(serverDef, connectionConfig, configuration.getBindDn());
         try {
             bind(connection, serverDef);
         } catch (RuntimeException e) {
-            closeConnection(serverDef, "failed bind", e);
+            closeServerConnection(serverDef, "failed bind", e);
             // This is always connection failed, even if other error is indicated.
             // E.g. if this is a wrong password, we do nor really want to indicate wrong password.
             // If we did and if this happen during password change operation, then midPoint code could
@@ -498,6 +434,7 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> {
             throw new ConnectionFailedException(e.getMessage(), e);
         }
         serverDef.setConnection(connection);
+        return connection;
     }
 
     private TrustManager[] createTrustManager() {
@@ -532,9 +469,7 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> {
                 } else if (connectionConfig.isUseTls()) {
                     connectionSecurity = "tls";
                 }
-                LOG.ok("Connection security: {0} (sslProtocol={1}, enabledSecurityProtocols={2}, enabledCipherSuites={3}",
-                        connectionSecurity, connectionConfig.getSslProtocol(),
-                        connectionConfig.getEnabledProtocols(), connectionConfig.getEnabledCipherSuites());
+                LOG.ok("Connection security: {0} (sslProtocol={1}, enabledSecurityProtocols={2}, enabledCipherSuites={3}", connectionSecurity, connectionConfig.getSslProtocol(), connectionConfig.getEnabledProtocols(), connectionConfig.getEnabledCipherSuites());
                 LOG.ok("Connection networking parameters: timeout={0}, keepalive={1}", configuration.getConnectTimeout(), configuration.isTcpKeepAlive());
             }
             boolean connected = connection.connect();
@@ -544,7 +479,7 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> {
             }
             if (!connected) {
                 connectionLog.error(connection, "connect", "Not connected after connect", connectionConfig.getLdapHost() + ":" + connectionConfig.getLdapPort());
-                throw new ConnectionFailedException("Unable to connect to LDAP server "+configuration.getHost()+":"+configuration.getPort()+" due to unknown reasons");
+                throw new ConnectionFailedException("Unable to connect to LDAP server " + configuration.getHost() + ":" + configuration.getPort() + " due to unknown reasons");
             }
         } catch (LdapException e) {
             connectionLog.error(connection, "connect", e, connectionConfig.getLdapHost() + ":" + connectionConfig.getLdapPort());
@@ -593,16 +528,30 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> {
         try {
             bindResponse = connection.bind(bindRequest);
         } catch (LdapException e) {
-            throw errorHandler.processLdapException("Unable to bind to LDAP server "
+            RuntimeException processedException = errorHandler.processLdapException("Unable to bind to LDAP server "
                     + connection.getConfig().getLdapHost() + ":" + connection.getConfig().getLdapPort()
                     + " as " + bindDn, e);
+            // This is always connection failed, even if other error is indicated.
+            // E.g. if this is a wrong password, we do nor really want to indicate wrong password.
+            // If we did and if this happens during password change operation, then midPoint code could
+            // think that the new password does not satisfy password policies. Which would be wrong.
+            // Therefore, just use the message from the processed exception. But always clearly indicate
+            // that this is a connection problem.
+            throw new ConnectionFailedException(processedException.getMessage(), e);
         }
         LdapResult ldapResult = bindResponse.getLdapResult();
         if (ldapResult.getResultCode() != ResultCodeEnum.SUCCESS) {
             connectionLog.error(connection, "bind", ldapResult, bindDn);
-            throw errorHandler.processLdapResult("Unable to bind to LDAP server "
+            RuntimeException processedException =  errorHandler.processLdapResult("Unable to bind to LDAP server "
                     + connection.getConfig().getLdapHost() + ":" + connection.getConfig().getLdapPort()
                     + " as " + bindDn, ldapResult);
+            // This is always connection failed, even if other error is indicated.
+            // E.g. if this is a wrong password, we do nor really want to indicate wrong password.
+            // If we did and if this happens during password change operation, then midPoint code could
+            // think that the new password does not satisfy password policies. Which would be wrong.
+            // Therefore, just use the message from the processed exception. But always clearly indicate
+            // that this is a connection problem.
+            throw new ConnectionFailedException(processedException.getMessage());
         }
         LOG.info("Bound to {0}:{1} as {2}: {3} ({4})",
                 connection.getConfig().getLdapHost(), connection.getConfig().getLdapPort(),
@@ -665,7 +614,7 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> {
         try {
             bind(connection, server, runAsUser, runWithPassword);
         } catch (RuntimeException e) {
-            closeConnection(server, "failed bind", e);
+            closeServerConnection(server, "failed bind", e);
             // This is a special runAs situation. We really want to throw the real error here.
             // If we would throw ConnectionFailedException here, then midPoint would consider that to be a network error.
             // But here we know that this is no ordinary network error. It is an authentication error.
@@ -678,59 +627,6 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> {
         return connection;
     }
 
-    public boolean isAlive() {
-        if (defaultServerDefinition == null) {
-            throw new IllegalStateException("No default connection in this connection manager");
-        }
-
-        if (defaultServerDefinition.getConnection() == null) {
-            return false;
-        }
-        if (!defaultServerDefinition.getConnection().isConnected()) {
-            connectionLog.failedCheckAlive(defaultServerDefinition.getConnection(), "server-initiated connection close");
-            return false;
-        }
-        if (configuration.isCheckAliveRootDse()) {
-            SearchRequest rootDseRequest = new SearchRequestImpl();
-            rootDseRequest.setBase(Dn.ROOT_DSE);
-            rootDseRequest.setScope(SearchScope.OBJECT);
-            rootDseRequest.setFilter(LdapUtil.createAllSearchFilter());
-            // Fetch "no attributes" to make the search as efficient as possible (low overhead).
-            // We do not care whether server works, we want to check that network works.
-            rootDseRequest.addAttributes("1.1");
-            SearchCursor rootDseCursor;
-            try {
-                rootDseCursor = defaultServerDefinition.getConnection().search(rootDseRequest, configuration.getCheckAliveTimeout());
-            } catch (LdapException e) {
-                connectionLog.failedCheckAlive(defaultServerDefinition.getConnection(), "root DSE search request: " + e.getMessage());
-                return false;
-            }
-            try {
-                if (rootDseCursor.next()) {
-                    Response rootDseResponse = rootDseCursor.get();
-                    if (rootDseResponse == null) {
-                        // Very strange case indeed
-                        connectionLog.failedCheckAlive(defaultServerDefinition.getConnection(), "root DSE search response: null entry in response");
-                        return false;
-                    }
-                    // We have a response. We do not really care what is it.
-                    // The mere fact that we have it tells us that the network works.
-                    // Let's invoke curson.next() here to properly close the cursor without abandon.
-                    rootDseCursor.next();
-                    rootDseCursor.close();
-                    connectionLog.success(defaultServerDefinition.getConnection(), "rootDSE", "checkAlive");
-                } else {
-                    // No entries in root DSE search
-                    connectionLog.failedCheckAlive(defaultServerDefinition.getConnection(), "root DSE search response: no entry in response");
-                    return false;
-                }
-            } catch (LdapException | CursorException | IOException e) {
-                connectionLog.failedCheckAlive(defaultServerDefinition.getConnection(), "root DSE search response: " + e.getMessage());
-                return false;
-            }
-        }
-        return true;
-    }
 
     /**
      *  Returns connection back to connection manager for future use.
@@ -773,132 +669,33 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> {
         if (reconnectReasonException != null) {
             closeReason = "reconnect due to " + reconnectReasonException.getClass().getSimpleName();
         }
-        closeConnection(serverDefinition, closeReason, reconnectReasonException);
+        closeServerConnection(serverDefinition, closeReason, reconnectReasonException);
         connectServer(serverDefinition);
         return serverDefinition.getConnection();
     }
 
-    public ServerDefinition getDefaultServerDefinition() {
-        return defaultServerDefinition;
-    }
-
-    private ServerDefinition findServerDefinition(LdapNetworkConnection connection) {
-        if (connection == null) {
-            return null;
-        }
+    public <T> T brutalSearch(Function<LdapNetworkConnection, T> searcher) {
         for (ServerDefinition server : servers) {
-            if (server.getConnection() == connection) {
-                return server;
+            LdapNetworkConnection connection = getServerConnection(server, null);
+            T result = searcher.apply(connection);
+            if (result != null) {
+                return result;
             }
         }
         return null;
     }
 
-    private boolean isServerConnection(LdapNetworkConnection connection) {
-        return findServerDefinition(connection) != null;
-    }
-
-    private <T> T selectRandomItem(Collection<T> collection) {
-        if (collection == null || collection.isEmpty()) {
-            return null;
-        }
-        if (collection.size() == 1) {
-            return collection.iterator().next();
-        }
-        int index = rnd.nextInt(collection.size());
-        T selected = null;
-        Iterator<T> iterator = collection.iterator();
-        for (int i=0; i<=index; i++) {
-            selected = iterator.next();
-        }
-        return selected;
-    }
-
-    public Entry getRootDse(ServerDefinition serverDef) {
-        if (serverDef == null) {
-            serverDef = defaultServerDefinition;
-        }
-        if (serverDef.getRootDse() == null) {
-            try {
-                serverDef.setRootDse(getRootDseForce(serverDef, null));
-            } catch (LdapException e) {
-                throw new ConnectorIOException("Error getting changelog data from root DSE: " + e.getMessage(), e);
-            }
-        }
-        return serverDef.getRootDse();
-    }
-
-    /**
-     * Always explicitly fetch root DSE from server, even if we already have it.
-     * Used during "test connection", also can be used to obtain specific versions of rootDSE from broken LDAP servers.
-     */
-    public Entry getRootDseForce(ServerDefinition serverDef, String... attributesToGet) throws LdapException {
-        if (attributesToGet == null || attributesToGet.length == 0) {
-            attributesToGet = SchemaConstants.ALL_ATTRIBUTES_ARRAY;
-        }
-        if (serverDef == null) {
-            serverDef = defaultServerDefinition;
-        }
-        LdapNetworkConnection connection = getConnection(serverDef);
-        try {
-            Entry rootDse = connection.getRootDse(attributesToGet);
-            connectionLog.success(connection, "rootDSE", Arrays.toString(attributesToGet));
-            return rootDse;
-        } catch (LdapException e) {
-            connectionLog.error(connection, "rootDSE", e, Arrays.toString(attributesToGet));
-            // TODO: reconnect?
-            throw e;
-        }
-    }
-
-    public boolean supportsControl(ServerDefinition serverDef, String oid) {
-        if (serverDef == null) {
-            serverDef = defaultServerDefinition;
-        }
-        return getSupportedControls(serverDef).contains(oid);
-    }
-
-    public List<String> getSupportedControls(ServerDefinition serverDef) {
-        if (serverDef == null) {
-            serverDef = defaultServerDefinition;
-        }
-        if (serverDef.getSupportedControls() == null) {
-            List<String> supportedControls = new ArrayList<>();
-            Entry rootDse = getRootDse(serverDef);
-            Attribute attr = rootDse.get( SchemaConstants.SUPPORTED_CONTROL_AT );
-            if (attr == null) {
-                // Unlikely. Perhaps the server does not respond properly to "+" attribute query
-                // (such as 389ds server). So let's try again and let's be more explicit.
-                try {
-                    LOG.info("Getting root DSE again, as your lame LDAP server does not properly respond to '+'");
-                    rootDse = getRootDseForce(serverDef, SchemaConstants.SUPPORTED_CONTROL_AT);
-                } catch (LdapException e) {
-                    throw new ConnectorIOException("Error getting changelog data from root DSE: " + e.getMessage(), e);
-                }
-                attr = rootDse.get(SchemaConstants.SUPPORTED_CONTROL_AT);
-            }
-            if (attr == null) {
-                // Still no luck? Bad, bad server! We have nothing to do here, but at least warn the user.
-                LOG.warn("Cannot fetch supported controls from root DSE. Is security too tight or is your server mad?");
-            } else {
-                for ( Value value : attr ) {
-                    supportedControls.add(value.getString());
-                }
-            }
-            serverDef.setSupportedControls(supportedControls);
-        }
-        return serverDef.getSupportedControls();
-    }
-
-
-    public String dumpServers() {
+    public String dump() {
         StringBuilder sb = new StringBuilder();
         Iterator<ServerDefinition> iterator = servers.iterator();
         while (iterator.hasNext()) {
             ServerDefinition server = iterator.next();
             sb.append(server.toString());
-            if (server == defaultServerDefinition) {
-                sb.append(" DEFAULT");
+            if (server.isPrimary()) {
+                sb.append(" PRIMARY");
+            }
+            if (server.isActive()) {
+                sb.append(" ACTIVE");
             }
             if (iterator.hasNext()) {
                 sb.append("\n");
@@ -906,4 +703,9 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> {
         }
         return sb.toString();
     }
+
+    public String shortDesc() {
+        return getBaseContext() + " (" + servers.size() + " servers)";
+    }
+
 }

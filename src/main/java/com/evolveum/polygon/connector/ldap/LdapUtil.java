@@ -18,13 +18,7 @@ package com.evolveum.polygon.connector.ldap;
 import java.io.IOException;
 import java.text.ParseException;
 import java.time.ZonedDateTime;
-import java.util.ArrayList;
-import java.util.Base64;
-import java.util.Calendar;
-import java.util.Date;
-import java.util.GregorianCalendar;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import org.apache.directory.api.ldap.extras.controls.vlv.VirtualListViewRequest;
 import org.apache.directory.api.ldap.model.constants.SchemaConstants;
@@ -74,6 +68,7 @@ import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
 public class LdapUtil {
 
     private static final Log LOG = Log.getLog(LdapUtil.class);
+    private static final Random rnd = new Random();
 
     public static boolean isDnAttribute(String attributeName) {
         return LdapConfiguration.PSEUDO_ATTRIBUTE_DN_NAME.equals(attributeName);
@@ -555,21 +550,46 @@ public class LdapUtil {
         // not really do because there may be DN capitalization issues. So just we need to
         // create schema-aware versions and compare these.
 
-        Dn upperSA;
-        try {
-            upperSA = new Dn(schemaTranslator.getSchemaManager(), upper.toString());
-        } catch (LdapInvalidDnException e) {
-            throw new InvalidAttributeValueException("Invalid DN: " + upper.toString() + ": " + e.getMessage(), e);
-        }
+        return makeSchemaAwareDn(upper, schemaTranslator).isAncestorOf(makeSchemaAwareDn(lower, schemaTranslator));
+    }
 
-        Dn lowerSA;
-        try {
-            lowerSA = new Dn(schemaTranslator.getSchemaManager(), lower.toString());
-        } catch (LdapInvalidDnException e) {
-            throw new InvalidAttributeValueException("Invalid DN: " + lower.toString() + ": " + e.getMessage(), e);
-        }
+    public static boolean isDescendantOf(Dn upper, Dn lower, AbstractSchemaTranslator<?> schemaTranslator) {
+        // We have two non-schema-aware DNs here. So simple lower.isDescendantOf(upper) will
+        // not really do because there may be DN capitalization issues. So just we need to
+        // create schema-aware versions and compare these.
 
-        return upperSA.isAncestorOf(lowerSA);
+        return makeSchemaAwareDn(lower, schemaTranslator).isDescendantOf(makeSchemaAwareDn(upper, schemaTranslator));
+    }
+
+    public static <C extends AbstractLdapConfiguration> Dn makeSchemaAwareDn(Dn dn, AbstractSchemaTranslator<C> schemaTranslator) {
+        if (dn == null) {
+            return null;
+        }
+        if (dn.isSchemaAware()) {
+            return dn;
+        }
+        try {
+            return new Dn(schemaTranslator.getSchemaManager(), dn);
+        } catch (LdapInvalidDnException e) {
+            throw new InvalidAttributeValueException("Invalid DN: " + dn + ": " + e.getMessage(), e);
+        }
+    }
+
+
+    public static <T> T selectRandomItem(Collection<T> collection) {
+        if (collection == null || collection.isEmpty()) {
+            return null;
+        }
+        if (collection.size() == 1) {
+            return collection.iterator().next();
+        }
+        int index = rnd.nextInt(collection.size());
+        T selected = null;
+        Iterator<T> iterator = collection.iterator();
+        for (int i=0; i<=index; i++) {
+            selected = iterator.next();
+        }
+        return selected;
     }
 
 }

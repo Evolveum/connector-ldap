@@ -16,6 +16,7 @@
 package com.evolveum.polygon.connector.ldap.search;
 
 import com.evolveum.polygon.connector.ldap.*;
+import com.evolveum.polygon.connector.ldap.connection.ConnectionManager;
 import org.apache.directory.api.ldap.model.cursor.CursorException;
 import org.apache.directory.api.ldap.model.cursor.SearchCursor;
 import org.apache.directory.api.ldap.model.entry.Entry;
@@ -51,10 +52,10 @@ public class DefaultSearchStrategy<C extends AbstractLdapConfiguration> extends 
     private static final Log LOG = Log.getLog(DefaultSearchStrategy.class);
 
     public DefaultSearchStrategy(ConnectionManager<C> connectionManager, AbstractLdapConfiguration configuration,
-            AbstractSchemaTranslator<C> schemaTranslator, ObjectClass objectClass,
-            org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
-            ResultsHandler handler, ErrorHandler errorHandler, ConnectionLog connectionLog,
-            OperationOptions options) {
+                                 AbstractSchemaTranslator<C> schemaTranslator, ObjectClass objectClass,
+                                 org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
+                                 ResultsHandler handler, ErrorHandler errorHandler, ConnectionLog connectionLog,
+                                 OperationOptions options) {
         super(connectionManager, configuration, schemaTranslator, objectClass, ldapObjectClass, handler, errorHandler, connectionLog, options);
     }
 
@@ -92,7 +93,7 @@ public class DefaultSearchStrategy<C extends AbstractLdapConfiguration> extends 
                         // checkAlive or connection manager.
                         LOG.ok("Connection error ({0}), reconnecting", e.getMessage(), e);
                         // No need to close the cursor here. It is already closed as part of error handling in next() method.
-                        connectionReconnect(baseDn, referral, e);
+                        connectionReconnect(baseDn, e);
                         continue OUTER;
                     }
                     Response response = searchCursor.get();
@@ -141,17 +142,9 @@ public class DefaultSearchStrategy<C extends AbstractLdapConfiguration> extends 
                     LdapResult ldapResult = searchResultDone.getLdapResult();
                     logSearchResult("Done", searchResultDone.getLdapResult());
 
-                    if (ldapResult.getResultCode() == ResultCodeEnum.REFERRAL && !getConfiguration().isReferralStrategyThrow()) {
+                    if (ldapResult.getResultCode() == ResultCodeEnum.REFERRAL) {
                         referral = ldapResult.getReferral();
-                        if (getConfiguration().isReferralStrategyIgnore()) {
-                            LOG.ok("Ignoring referral {0}", referral);
-                        } else {
-                            LOG.ok("Following referral {0}", referral);
-                            connect(baseDn, referral);
-                            if (connection == null) {
-                                throw new ConnectorIOException("Cannot get connection based on referral "+referral);
-                            }
-                        }
+                        LOG.ok("Ignoring referral {0}", referral);
 
                     } else if (ldapResult.getResultCode() == ResultCodeEnum.SUCCESS) {
                         break;
