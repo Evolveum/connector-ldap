@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  ~ Copyright (c) 2015-2021 Evolveum
+  ~ Copyright (c) 2015-2022 Evolveum
   ~
   ~ Licensed under the Apache License, Version 2.0 (the "License");
   ~ you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@
         <artifactId>connector-parent</artifactId>
         <groupId>com.evolveum.polygon</groupId>
         <version>1.5.0.0</version>
-        <relativePath></relativePath>
     </parent>
 
     <artifactId>connector-ldap</artifactId>
@@ -74,6 +73,10 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <source>11</source>
+                    <target>11</target>
+                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

@@ -60,6 +60,7 @@ import org.apache.directory.api.ldap.model.schema.Normalizer;
 import org.apache.directory.api.ldap.model.schema.SchemaErrorHandler;
 import org.apache.directory.api.ldap.model.schema.SchemaManager;
 import org.apache.directory.api.ldap.model.url.LdapUrl;
+import org.apache.directory.api.ldap.schema.loader.JarLdifSchemaLoader;
 import org.apache.directory.api.ldap.schema.manager.impl.DefaultSchemaManager;
 import org.apache.directory.ldap.client.api.DefaultSchemaLoader;
 import org.apache.directory.ldap.client.api.LdapConnection;
@@ -205,10 +206,14 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
         analyzeDn(configuration.getBaseContext());
         analyzeDn(configuration.getBindDn());
 
-//        testAncestor("dc=example,dc=com", "uid=foo,ou=people,dc=example,dc=com", true);
-//        testAncestor("uid=foo,ou=people,dc=example,dc=com", "dc=example,dc=com", false);
-//        testAncestor("dc=example,dc=com", "dc=example,dc=com", true);
-//        testAncestor("dc=example,dc=com", "CN=foo bar,OU=people,DC=example,DC=com", true);
+        if (getSchemaManager().getRegistries().getNormalizerRegistry().size() == 0) {
+            throw new IllegalStateException("Normalizer registry is empty, value comparison will not work correctly.");
+        }
+
+        testAncestor("dc=example,dc=com", "uid=foo,ou=people,dc=example,dc=com", true);
+        testAncestor("uid=foo,ou=people,dc=example,dc=com", "dc=example,dc=com", false);
+        testAncestor("dc=example,dc=com", "dc=example,dc=com", true);
+        testAncestor("dc=example,dc=com", "CN=foo bar,OU=people,DC=example,DC=com", true);
         // TODO: This fails for LDAP servers (MID-3477)
         testAncestor("dc=example,dc=com", "CN=foo bar,OU=people,DC=EXamPLE,DC=COM", true);
         testAncestor("DC=example,DC=com", "cn=foo bar,ou=people,dc=example,dc=com", true);
@@ -330,6 +335,20 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
             if (schemaErrorHandler != null) {
                 newSchemaManager.setErrorHandler(schemaErrorHandler);
             }
+
+            // Directory API needs "system" schema to operate correctly.
+            // This schema contains built-in matching rules, normalizers, etc.
+            // There are references to class names, therefore this part cannot possibly be
+            // fetched from an LDAP server.
+            // We need to load it explicitly from the Directory API distribution JAR
+            //
+            // We to allow loading of multiple resources, mostly for testability.
+            // E.g. midPoint integration tests are using the API both directly (asserting state of LDAP server)
+            // and indirectly (in the connector). Therefore from the point of view of the connector the resources
+            // are loaded twice. They are the same, therefore loading any of them is OK.
+            JarLdifSchemaLoader jarLoader = new JarLdifSchemaLoader(true);
+            newSchemaManager.load(jarLoader.getSchema("system"));
+
             try {
                 if (schemaQuirksMode) {
                     newSchemaManager.setRelaxed();
