@@ -354,7 +354,15 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> {
     }
 
     public Entry getRootDse() {
-        if (rootDse == null) {
+        return getRootDse(true);
+    }
+
+    public Entry getRootDseFresh() {
+        return getRootDse(false);
+    }
+
+    private Entry getRootDse(boolean allowCached) {
+        if (rootDse == null || !allowCached) {
             LdapNetworkConnection connection = defaultPool.getConnection(null);
             try {
                 rootDse = fetchRootDse(connection);
