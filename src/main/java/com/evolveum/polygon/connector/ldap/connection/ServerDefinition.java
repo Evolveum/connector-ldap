@@ -90,7 +90,7 @@ public class ServerDefinition {
         def.copyAllFromConfiguration(configuration);
         try {
             def.baseContext = new Dn(configuration.getBaseContext());
-            def.baseContextString = def.baseContext.getNormName();
+            def.baseContextString = stringifyBaseContext(def.baseContext);
         } catch (LdapInvalidDnException e) {
             throw new ConfigurationException("Wrong DN format in baseContext: "+e.getMessage(), e);
         }
@@ -99,10 +99,15 @@ public class ServerDefinition {
         return def;
     }
 
+    private static String stringifyBaseContext(Dn baseContext) {
+        // Do NOT use getNormName() here. It may be too "norm",
+        // leading to weirdness such as 0.9.2342.19200300.100.1.25= evolveum ,0.9.2342.19200300.100.1.25= com
+        return baseContext.toString();
+    }
+
 
     public <C extends AbstractLdapConfiguration> void applySchema(AbstractSchemaTranslator<C> schemaTranslator) {
-        this.baseContext = LdapUtil.makeSchemaAwareDn(this.baseContext, schemaTranslator);
-        this.baseContextString = this.baseContext.getNormName();
+        this.baseContextString = stringifyBaseContext(this.baseContext);
     }
 
     private void copyAllFromConfiguration(AbstractLdapConfiguration configuration) {
@@ -164,7 +169,7 @@ public class ServerDefinition {
         def.sendTimeout = getLongProp(props, "sendTimeout", configuration.getSendTimeout(), def.timeout);
         try {
             def.baseContext = new Dn(getStringProp(props, "baseContext", configuration.getBaseContext()));
-            def.baseContextString = def.baseContext.getNormName();
+            def.baseContextString = stringifyBaseContext(def.baseContext);
         } catch (LdapInvalidDnException e) {
             throw new ConfigurationException("Wrong DN format in baseContext in server definition (line "+lineNumber+"): "+e.getMessage(), e);
         }

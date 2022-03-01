@@ -126,6 +126,8 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> {
     public LdapNetworkConnection getConnection(Dn base, OperationOptions options) {
         ServerConnectionPool<C> pool = selectPool(base);
         if (pool == null) {
+            // Dumping configuration here, to make diagnotic easier
+            LOG.info("Server configuration:\n{0}", dump());
             throw new ConfigurationException("No LDAP server configured for DN " + base);
         }
         LdapNetworkConnection connection = pool.getConnection(options);
@@ -164,7 +166,6 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> {
      * Select server connection pool that can handle the provided DN.
      */
     private ServerConnectionPool<C> selectPool(Dn dn) {
-        dn = LdapUtil.makeSchemaAwareDn(dn, schemaTranslator);
         String stringDn = dn != null ? dn.getName() : null;
         ServerConnectionPool<C> selectedPool = null;
         if (StringUtils.isBlank(stringDn) || !Character.isAlphabetic(stringDn.charAt(0))) {
@@ -192,8 +193,8 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> {
                     LOG.ok("SELECT: accepting POOL {0} because {1} is an exact match", pool.shortDesc(), poolBaseContext);
                     break;
                 }
-                if (LdapUtil.isAncestorOf(poolBaseContext, dn, schemaTranslator)) {
-                    if (selectedPool == null || LdapUtil.isDescendantOf(selectedPool.getBaseContext(), poolBaseContext, schemaTranslator)) {
+                if (LdapUtil.isAncestorOf(poolBaseContext, dn)) {
+                    if (selectedPool == null || LdapUtil.isDescendantOf(selectedPool.getBaseContext(), poolBaseContext)) {
                         // Too loud for normal operation, but may be useful for debugging
                         LOG.ok("SELECT: accepting POOL {0} because {1} is under {2} and it is the best we have",
                                 pool.shortDesc(), dn, poolBaseContext);

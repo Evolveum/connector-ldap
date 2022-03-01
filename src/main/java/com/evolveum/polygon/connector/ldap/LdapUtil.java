@@ -46,7 +46,9 @@ import org.apache.directory.api.ldap.model.message.SearchScope;
 import org.apache.directory.api.ldap.model.message.controls.PagedResults;
 import org.apache.directory.api.ldap.model.message.controls.SortKey;
 import org.apache.directory.api.ldap.model.message.controls.SortRequest;
+import org.apache.directory.api.ldap.model.name.Ava;
 import org.apache.directory.api.ldap.model.name.Dn;
+import org.apache.directory.api.ldap.model.name.Rdn;
 import org.apache.directory.api.ldap.model.schema.AttributeType;
 import org.apache.directory.api.util.GeneralizedTime;
 import org.apache.directory.ldap.client.api.LdapConnectionConfig;
@@ -545,34 +547,78 @@ public class LdapUtil {
         }
     }
 
-    public static boolean isAncestorOf(Dn upper, Dn lower, AbstractSchemaTranslator<?> schemaTranslator) {
-        // We have two non-schema-aware DNs here. So simple upper.isAncestorOf(lower) will
-        // not really do because there may be DN capitalization issues. So just we need to
-        // create schema-aware versions and compare these.
-
-        return makeSchemaAwareDn(upper, schemaTranslator).isAncestorOf(makeSchemaAwareDn(lower, schemaTranslator));
-    }
-
-    public static boolean isDescendantOf(Dn upper, Dn lower, AbstractSchemaTranslator<?> schemaTranslator) {
-        // We have two non-schema-aware DNs here. So simple lower.isDescendantOf(upper) will
-        // not really do because there may be DN capitalization issues. So just we need to
-        // create schema-aware versions and compare these.
-
-        return makeSchemaAwareDn(lower, schemaTranslator).isDescendantOf(makeSchemaAwareDn(upper, schemaTranslator));
-    }
-
-    public static <C extends AbstractLdapConfiguration> Dn makeSchemaAwareDn(Dn dn, AbstractSchemaTranslator<C> schemaTranslator) {
-        if (dn == null) {
-            return null;
-        }
-        if (dn.isSchemaAware()) {
-            return dn;
-        }
+    public static Dn asDn(String stringDn) {
         try {
-            return new Dn(schemaTranslator.getSchemaManager(), dn);
+            return new Dn(stringDn);
         } catch (LdapInvalidDnException e) {
-            throw new InvalidAttributeValueException("Invalid DN: " + dn + ": " + e.getMessage(), e);
+            throw new ConnectorException("Cannot parse '"+stringDn+" as DN: "+e.getMessage(), e);
         }
+    }
+
+    public static boolean isAncestorOf(Dn upper, Dn lower) {
+        return isDescendantOf(lower, upper);
+    }
+
+    public static boolean isDescendantOf(Dn lower, Dn upper) {
+        if (upper == null) {
+            return false;
+        }
+        if (lower == null) {
+            return false;
+        }
+        if (upper.size() > lower.size()) {
+            return false;
+        }
+
+        for ( int i = upper.size() - 1; i >= 0; i-- ) {
+            Rdn upperRdn = upper.getRdns().get( upper.size() - i - 1 );
+            Rdn lowerRdn = lower.getRdns().get( lower.size() - i - 1 );
+
+            if (!equalsRdn(upperRdn, lowerRdn)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean equalsRdn(Rdn a, Rdn b) {
+        if (a == b) {
+            return true;
+        }
+        if (a.size() != b.size()) {
+            return false;
+        }
+        switch (a.size()) {
+            case 0:
+                return true;
+            case 1:
+                return equalAva(a.getAva(), b.getAva());
+            default:
+                for (Ava aAva : a) {
+                    if (!containsAva(b, aAva)) {
+                        return false;
+                    }
+                }
+                return true;
+        }
+    }
+
+    private static boolean containsAva(Rdn rdn, Ava ava) {
+        for (Ava rdnAva: rdn) {
+            if (equalAva(rdnAva, ava)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean equalAva(Ava a, Ava b) {
+        if (!a.getName().equalsIgnoreCase(b.getName())) {
+            return false;
+        }
+        String aStr = a.getValue().getString();
+        String bStr = b.getValue().getString();
+        return aStr.equalsIgnoreCase(bStr);
     }
 
 
