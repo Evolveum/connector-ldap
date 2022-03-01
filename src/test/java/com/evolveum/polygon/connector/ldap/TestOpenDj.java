@@ -17,6 +17,7 @@
 package com.evolveum.polygon.connector.ldap;
 
 import org.identityconnectors.framework.api.ConnectorFacade;
+import org.identityconnectors.framework.common.objects.Schema;
 import org.testng.annotations.Test;
 
 public class TestOpenDj extends AbstractOpenDjTest {
@@ -26,6 +27,13 @@ public class TestOpenDj extends AbstractOpenDjTest {
         ConnectorFacade connector = createConnectorInstance();
         connector.test();
         // No exception = no problem
+    }
+
+    @Test
+    public void testOpSchema() throws Exception {
+        ConnectorFacade connector = createConnectorInstance();
+        Schema schema = connector.schema();
+        // TODO: asserts
     }
 
 }

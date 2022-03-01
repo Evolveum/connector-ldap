@@ -419,20 +419,23 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> {
         }
     }
 
-
     public String dump() {
         StringBuilder sb = new StringBuilder();
+        dump(sb);
+        return sb.toString();
+    }
+
+    public void dump(StringBuilder sb) {
         Iterator<ServerConnectionPool<C>> iterator = pools.iterator();
         while (iterator.hasNext()) {
             ServerConnectionPool<C> pool = iterator.next();
-            sb.append(pool.toString());
             if (pool == defaultPool) {
-                sb.append(" DEFAULT");
+                sb.append("DEFAULT ");
             }
+            pool.dump(sb);
             if (iterator.hasNext()) {
                 sb.append("\n");
             }
         }
-        return sb.toString();
     }
 }

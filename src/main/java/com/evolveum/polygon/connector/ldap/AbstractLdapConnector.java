@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.Set;
 
 import com.evolveum.polygon.connector.ldap.connection.ConnectionManager;
+import com.evolveum.polygon.connector.ldap.schema.*;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.directory.api.ldap.extras.controls.ad.TreeDeleteImpl;
 import org.apache.directory.api.ldap.extras.controls.permissiveModify.PermissiveModify;
@@ -45,7 +46,6 @@ import org.apache.directory.api.ldap.model.entry.Value;
 import org.apache.directory.api.ldap.model.exception.LdapException;
 import org.apache.directory.api.ldap.model.exception.LdapInvalidAttributeValueException;
 import org.apache.directory.api.ldap.model.exception.LdapInvalidDnException;
-import org.apache.directory.api.ldap.model.exception.LdapURLEncodingException;
 import org.apache.directory.api.ldap.model.filter.AndNode;
 import org.apache.directory.api.ldap.model.filter.EqualityNode;
 import org.apache.directory.api.ldap.model.filter.ExprNode;
@@ -53,19 +53,10 @@ import org.apache.directory.api.ldap.model.message.*;
 import org.apache.directory.api.ldap.model.message.controls.PagedResults;
 import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.ldap.model.name.Rdn;
-import org.apache.directory.api.ldap.model.schema.AttributeType;
-import org.apache.directory.api.ldap.model.schema.LdapSyntax;
-import org.apache.directory.api.ldap.model.schema.MatchingRule;
-import org.apache.directory.api.ldap.model.schema.Normalizer;
-import org.apache.directory.api.ldap.model.schema.SchemaErrorHandler;
-import org.apache.directory.api.ldap.model.schema.SchemaManager;
-import org.apache.directory.api.ldap.model.url.LdapUrl;
-import org.apache.directory.api.ldap.schema.loader.JarLdifSchemaLoader;
+import org.apache.directory.api.ldap.model.schema.*;
 import org.apache.directory.api.ldap.schema.manager.impl.DefaultSchemaManager;
 import org.apache.directory.ldap.client.api.DefaultSchemaLoader;
-import org.apache.directory.ldap.client.api.LdapConnection;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
-import org.apache.directory.ldap.client.api.exception.InvalidConnectionException;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.common.exceptions.ConfigurationException;
@@ -105,10 +96,6 @@ import org.identityconnectors.framework.spi.operations.TestOp;
 import org.identityconnectors.framework.spi.operations.UpdateDeltaOp;
 
 import com.evolveum.polygon.common.SchemaUtil;
-import com.evolveum.polygon.connector.ldap.schema.GuardedStringValue;
-import com.evolveum.polygon.connector.ldap.schema.LdapFilterTranslator;
-import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
-import com.evolveum.polygon.connector.ldap.schema.ScopedFilter;
 import com.evolveum.polygon.connector.ldap.search.DefaultSearchStrategy;
 import com.evolveum.polygon.connector.ldap.search.SearchStrategy;
 import com.evolveum.polygon.connector.ldap.search.SimplePagedResultsSearchStrategy;
@@ -342,13 +329,16 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
             // fetched from an LDAP server.
             // We need to load it explicitly from the Directory API distribution JAR
             //
-            // We to allow loading of multiple resources, mostly for testability.
-            // E.g. midPoint integration tests are using the API both directly (asserting state of LDAP server)
-            // and indirectly (in the connector). Therefore from the point of view of the connector the resources
-            // are loaded twice. They are the same, therefore loading any of them is OK.
-            JarLdifSchemaLoader jarLoader = new JarLdifSchemaLoader(true);
-            newSchemaManager.load(jarLoader.getSchema("system"));
+            // Note: make sure this is loaded first, before we retrieve the schema from server.
+            // We want matching rules to be properly wired to normalizers and other structures.
+            // The schema taken from the server does not have that.
+            LOG.ok("Loading internal schema");
+            SystemSchemaLoader systemLoader = new SystemSchemaLoader();
+            newSchemaManager.load(systemLoader.getInternalSchema());
 
+            LOG.ok("Schema manager: {0} normalizers", newSchemaManager.getRegistries().getNormalizerRegistry().size());
+
+            LOG.ok("Loading LDAP schema");
             try {
                 if (schemaQuirksMode) {
                     newSchemaManager.setRelaxed();
@@ -356,6 +346,9 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
                 } else {
                     newSchemaManager.loadAllEnabled();
                 }
+
+                LOG.ok("Schema manager 2: {0} normalizers", newSchemaManager.getRegistries().getNormalizerRegistry().size());
+
                 connectionLog.schemaSuccess(connection, newSchemaManager.getObjectClassRegistry().size(), newSchemaManager.getErrors().size());
             } catch (Exception e) {
                 connectionLog.schemaError(connection, e);
@@ -404,10 +397,20 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
             throw new RuntimeException(e.getMessage(),e);
         }
         patchSchemaManager(schemaManager);
+
+        // TODO: Experiment
+
+//        try {
+//            org.apache.directory.api.ldap.model.schema.ObjectClass oc = schemaManager.lookupObjectClassRegistry("user");
+//            LOG.info("OC:user:\n{0}", oc);
+//        } catch (LdapException e) {
+//            throw new RuntimeException(e.getMessage(),e);
+//        }
     }
 
+
     protected DefaultSchemaManager createBlankSchemaManager(LdapNetworkConnection connection, boolean schemaQuirksMode) throws LdapException {
-        // Construction of SchemaLoader actually loads all the schemas from server.
+        // Note: constructor of SchemaLoader actually loads all the schemas from server.
         DefaultSchemaLoader schemaLoader = new DefaultSchemaLoader(connection, schemaQuirksMode);
         return new DefaultSchemaManager(schemaLoader);
     }

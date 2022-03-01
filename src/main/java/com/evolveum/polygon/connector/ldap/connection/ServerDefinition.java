@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 
 import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
+import com.evolveum.polygon.connector.ldap.LdapConfiguration;
 import com.evolveum.polygon.connector.ldap.LdapUtil;
 import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
 import org.apache.directory.api.ldap.model.entry.Entry;
@@ -89,6 +90,7 @@ public class ServerDefinition {
         def.copyAllFromConfiguration(configuration);
         try {
             def.baseContext = new Dn(configuration.getBaseContext());
+            def.baseContextString = def.baseContext.getNormName();
         } catch (LdapInvalidDnException e) {
             throw new ConfigurationException("Wrong DN format in baseContext: "+e.getMessage(), e);
         }
@@ -541,13 +543,6 @@ public class ServerDefinition {
         return true;
     }
 
-    @Override
-    public String toString() {
-        return "ServerDefinition(host=" + host + ", port=" + port + ", connectionSecurity="
-                + connectionSecurity + ", bindDn=" + bindDn + ", baseContext=" + baseContext
-                + ", connection=" + getConnectionStatusString(connection) + ")";
-    }
-
     private String getConnectionStatusString(LdapNetworkConnection conn) {
         if (conn == null) {
             return null;
@@ -559,8 +554,45 @@ public class ServerDefinition {
         }
     }
 
-    public String shortDesc() {
+    public String dump() {
+        StringBuilder sb = new StringBuilder();
+        dump(sb);
+        return sb.toString();
+    }
+
+    public void dump(StringBuilder sb) {
+        if (connectionSecurity == null || LdapConfiguration.CONNECTION_SECURITY_NONE.equals(connectionSecurity)) {
+            sb.append("ldap://");
+        } else {
+            sb.append("ldaps://");
+        }
+        sb.append(host).append(":").append(port);
+        sb.append("/");
+        sb.append(baseContext);
+        sb.append(" bind:");
+        sb.append(bindDn);
+        if (primary) {
+            sb.append(" PRIMARY");
+        }
+        if (active) {
+            sb.append(" ACTIVE");
+        }
+        if (connection != null) {
+            sb.append(" CONNECTION");
+            if (connection.isConnected()) {
+                sb.append(" CONNECTED");
+            }
+        }
+    }
+
+        public String shortDesc() {
         return host + ":" + port + " " + baseContext;
     }
 
+        @Override
+        public String toString() {
+            return "ServerDefinition(host=" + host + ", port=" + port + ", connectionSecurity="
+                    + connectionSecurity + ", bindDn=" + bindDn + ", baseContext=" + baseContext
+                    + ", connection=" + getConnectionStatusString(connection) + ")";
+        }
 }

@@ -687,21 +687,21 @@ public class ServerConnectionPool<C extends AbstractLdapConfiguration> {
 
     public String dump() {
         StringBuilder sb = new StringBuilder();
+        dump(sb);
+        return sb.toString();
+    }
+
+    public void dump(StringBuilder sb) {
+        sb.append("POOL ").append(getBaseContextString()).append("\n");
         Iterator<ServerDefinition> iterator = servers.iterator();
         while (iterator.hasNext()) {
             ServerDefinition server = iterator.next();
-            sb.append(server.toString());
-            if (server.isPrimary()) {
-                sb.append(" PRIMARY");
-            }
-            if (server.isActive()) {
-                sb.append(" ACTIVE");
-            }
+            sb.append("  ");
+            server.dump(sb);
             if (iterator.hasNext()) {
                 sb.append("\n");
             }
         }
-        return sb.toString();
     }
 
     public String shortDesc() {
