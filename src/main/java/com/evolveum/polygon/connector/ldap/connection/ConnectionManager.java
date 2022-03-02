@@ -194,7 +194,7 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> {
                     break;
                 }
                 if (LdapUtil.isAncestorOf(poolBaseContext, dn)) {
-                    if (selectedPool == null || LdapUtil.isDescendantOf(selectedPool.getBaseContext(), poolBaseContext)) {
+                    if (selectedPool == null || LdapUtil.isDescendantOf(poolBaseContext, selectedPool.getBaseContext())) {
                         // Too loud for normal operation, but may be useful for debugging
                         LOG.ok("SELECT: accepting POOL {0} because {1} is under {2} and it is the best we have",
                                 pool.shortDesc(), dn, poolBaseContext);
@@ -212,7 +212,7 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> {
             }
         }
         // Too loud for normal operation, but may be useful for debugging
-        LOG.ok("SELECT: selected POOL {0} for {1}", selectedPool, dn);
+        LOG.ok("SELECT: selected POOL {0} for {1}", selectedPool==null?null:selectedPool.shortDesc(), dn);
         return selectedPool;
     }
 
