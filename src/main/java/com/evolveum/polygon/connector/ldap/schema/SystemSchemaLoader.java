@@ -44,6 +44,12 @@ import java.util.regex.Pattern;
  * (and other things) to work correctly.
  *
  * Also, this loader renames the schema from "system" to "internal" to avoid conflicts.
+ *
+ * Note: this may be no longer necessary. We are doing DN comparison in a special-purspose
+ * simplified code in LdapUtil.
+ * However, we keep this code. It might be needed in the future, e.g. for comparing LDAP
+ * values.
+ * Even though we keep the code for now, it is perfectly OK to remove it in case of any problems.
  */
 public class SystemSchemaLoader extends AbstractSchemaLoader {
 

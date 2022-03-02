@@ -285,6 +285,12 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
             // Note: make sure this is loaded first, before we retrieve the schema from server.
             // We want matching rules to be properly wired to normalizers and other structures.
             // The schema taken from the server does not have that.
+            //
+            // Note: this may be no longer necessary. We are doing DN comparison in a special-purspose
+            // simplified code in LdapUtil.
+            // However, we keep this code. It might be needed in the future, e.g. for comparing LDAP
+            // values.
+            // Even though we keep the code for now, it is perfectly OK to remove it in case of any problems.
             LOG.ok("Loading internal schema");
             SystemSchemaLoader systemLoader = new SystemSchemaLoader();
             newSchemaManager.load(systemLoader.getInternalSchema());
