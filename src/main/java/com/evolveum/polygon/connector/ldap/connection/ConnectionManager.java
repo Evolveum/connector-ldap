@@ -166,23 +166,26 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> {
      * Select server connection pool that can handle the provided DN.
      */
     private ServerConnectionPool<C> selectPool(Dn dn) {
+        if (dn == null) {
+            return defaultPool;
+        }
         String stringDn = dn != null ? dn.getName() : null;
         ServerConnectionPool<C> selectedPool = null;
         if (StringUtils.isBlank(stringDn) || !Character.isAlphabetic(stringDn.charAt(0))) {
             // Do not even bother to choose. There are the strange
             // things such as empty DN or the <GUID=...> insanity.
             // The selection will not work anyway.
-            LOG.ok("SELECT: Abnormal DN, falling back to default pool : {0}", dn);
+//            LOG.ok("SELECT: Abnormal DN, falling back to default pool : {0}", dn);
             if (defaultPool == null) {
                 throw new IllegalStateException("No default connection in this connection manager");
             }
             return defaultPool;
         } else {
-            LOG.ok("SELECT: Selecting pool for DN {0}", dn);
+//            LOG.ok("SELECT: Selecting pool for DN {0}", dn);
             for(ServerConnectionPool<C> pool: pools) {
                 Dn poolBaseContext = pool.getBaseContext();
                 // Too loud for normal operation, but may be useful for debugging
-                LOG.ok("SELECT: considering POOL {0} for {1}", pool.shortDesc(), dn);
+//                LOG.ok("SELECT: considering POOL {0} for {1}", pool.shortDesc(), dn);
                 if (poolBaseContext == null) {
                     continue;
                 }
@@ -190,24 +193,24 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> {
                     // we cannot get tighter match than this
                     selectedPool = pool;
                     // Too loud for normal operation, but may be useful for debugging
-                    LOG.ok("SELECT: accepting POOL {0} because {1} is an exact match", pool.shortDesc(), poolBaseContext);
+//                    LOG.ok("SELECT: accepting POOL {0} because {1} is an exact match", pool.shortDesc(), poolBaseContext);
                     break;
                 }
                 if (LdapUtil.isAncestorOf(poolBaseContext, dn)) {
                     if (selectedPool == null || LdapUtil.isDescendantOf(poolBaseContext, selectedPool.getBaseContext())) {
                         // Too loud for normal operation, but may be useful for debugging
-                        LOG.ok("SELECT: accepting POOL {0} because {1} is under {2} and it is the best we have",
-                                pool.shortDesc(), dn, poolBaseContext);
+//                        LOG.ok("SELECT: accepting POOL {0} because {1} is under {2} and it is the best we have",
+//                                pool.shortDesc(), dn, poolBaseContext);
                         selectedPool = pool;
                     } else {
                         // Too loud for normal operation, but may be useful for debugging
-                        LOG.ok("SELECT: refusing POOL {0} because {1} is under {2} but it is NOT the best we have, POOL {3} is better",
-                                pool.shortDesc(), dn, poolBaseContext, selectedPool.shortDesc());
+//                        LOG.ok("SELECT: refusing POOL {0} because {1} is under {2} but it is NOT the best we have, POOL {3} is better",
+//                                pool.shortDesc(), dn, poolBaseContext, selectedPool.shortDesc());
                     }
                 } else {
                     // Too loud for normal operation, but may be useful for debugging
-                    LOG.ok("SELECT: refusing POOL {0} because {1} ({2}) is not under {3} ({4})",
-                            pool.shortDesc(), dn, dn.isSchemaAware(), poolBaseContext, poolBaseContext.isSchemaAware());
+//                    LOG.ok("SELECT: refusing POOL {0} because {1} ({2}) is not under {3} ({4})",
+//                            pool.shortDesc(), dn, dn.isSchemaAware(), poolBaseContext, poolBaseContext.isSchemaAware());
                 }
             }
         }

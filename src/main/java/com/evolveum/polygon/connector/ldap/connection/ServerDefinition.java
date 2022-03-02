@@ -130,6 +130,7 @@ public class ServerDefinition {
         this.readOperationTimeout = configuration.getReadOperationTimeout();
         this.closeTimeout = configuration.getCloseTimeout();
         this.sendTimeout = configuration.getSendTimeout();
+        this.switchBackInterval = configuration.getSwitchBackInterval();
     }
 
 
@@ -583,10 +584,16 @@ public class ServerDefinition {
             sb.append(" ACTIVE");
         }
         if (connection != null) {
-            sb.append(" CONNECTION");
+            sb.append(" CONNECTION(");
             if (connection.isConnected()) {
-                sb.append(" CONNECTED");
+                sb.append("connected");
+            } else {
+                sb.append("disconnected");
             }
+            sb.append(")");
+        }
+        if (downTimestamp != null) {
+            sb.append(" DOWN(").append(System.currentTimeMillis() - downTimestamp).append("ms)");
         }
     }
 

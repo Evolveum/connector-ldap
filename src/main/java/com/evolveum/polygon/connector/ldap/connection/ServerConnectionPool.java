@@ -127,6 +127,8 @@ public class ServerConnectionPool<C extends AbstractLdapConfiguration> {
         // Try primary server first, if available.
         // We always want to stick to primary if we can.
 
+//        LOG.info("POOL STATE(0):\n{0}", dump());
+
         ServerDefinition primaryServer = getPrimaryServer();
         if (primaryServer.isAvailable(now)) {
             primaryServer.setAttempt();
@@ -140,7 +142,13 @@ public class ServerConnectionPool<C extends AbstractLdapConfiguration> {
                         primaryServer.shortDesc(), primaryServer.getBaseContext(), e.getMessage());
                 primaryServer.markDown(now);
             }
+        } else {
+            if (LOG.isOk()) {
+                LOG.ok("Primary server {0} is not available, trying other servers", primaryServer.shortDesc());
+            }
         }
+
+//        LOG.info("POOL STATE(1):\n{0}", dump());
 
         // Try current active server second.
         // Once we choose a secondary server, we want to stick with it as long as we can.

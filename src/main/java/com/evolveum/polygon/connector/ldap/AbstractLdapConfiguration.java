@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2021 Evolveum
+ * Copyright (c) 2015-2022 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -461,7 +461,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
      */
     private String additionalSearchFilter;
 
-    // TODO: failover, accountSynchronizationFilter
+    // TODO: accountSynchronizationFilter
     // MAYBE TODO: respectResourcePasswordPolicyChangeAfterReset? filterWithOrInsteadOfAnd?
     //               removeLogEntryObjectClassFromFilter? synchronizePasswords? passwordAttributeToSynchronize?
 
