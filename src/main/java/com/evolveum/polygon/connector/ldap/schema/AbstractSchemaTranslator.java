@@ -705,7 +705,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
         }
 
         String syntaxOid = ldapAttributeType.getSyntaxOid();
-        if (SchemaConstants.OCTET_STRING_SYNTAX.equals(syntaxOid)) {
+        if (isBinarySyntax(syntaxOid)) {
             // Expect hex-encoded value (see toIcfIdentifierValue())
             byte[] bytes = LdapUtil.hexToBinary(icfAttributeValue);
             // Do NOT set attributeType in the Value in this case.
