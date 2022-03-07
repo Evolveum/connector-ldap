@@ -958,7 +958,10 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
      * @param attributeType The AttributeType for which we want the Syntax
      * @return The LdapSyntax instance for this AttributeType
      */
-    LdapSyntax getSyntax(AttributeType attributeType) {
+    private LdapSyntax getSyntax(AttributeType attributeType) {
+        if (attributeType == null) {
+            return null;
+        }
         LdapSyntax syntax = attributeType.getSyntax();
 
         if (syntax == null && attributeType.getSyntaxOid() != null) {
@@ -980,6 +983,15 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
         return syntax;
     }
 
+    private String getSyntaxOid(AttributeType attributeType) {
+        LdapSyntax syntax = getSyntax(attributeType);
+        if (syntax == null) {
+            return null;
+        } else {
+            return syntax.getOid();
+        }
+    }
+
     /**
      * Used to format __UID__ and __NAME__.
      */
@@ -994,9 +1006,11 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
             }
         }
 
-        if ((ldapAttributeType != null) && isBinaryAttribute( ldapAttributeName )) {
-            LOG.ok("Converting identifier to ICF: {0} (syntax {1}, value {2}): explicit binary",
-                ldapAttributeName, getSyntax(ldapAttributeType).getOid(), ldapValue.getClass());
+        if ((ldapAttributeType != null) && isBinaryAttribute(ldapAttributeName)) {
+            if (LOG.isOk()) {
+                LOG.ok("Converting identifier to ConnId: {0} (syntax {1}, value {2}): explicit binary",
+                        ldapAttributeName, getSyntaxOid(ldapAttributeType), ldapValue.getClass());
+            }
 
             byte[] bytes = ldapValue.getBytes();
 
@@ -1009,9 +1023,10 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
             // Assume that identifiers are short. It is more readable to use hex representation than base64.
             return LdapUtil.binaryToHex(bytes);
         } else {
-            LOG.ok("Converting identifier to ICF: {0} (syntax {1}, value {2}): implicit string", ldapAttributeName,
-                ldapAttributeType==null?null:getSyntax(ldapAttributeType).getOid(),
-                ldapValue.getClass());
+            if (LOG.isOk()) {
+                LOG.ok("Converting identifier to ConnId: {0} (syntax {1}, value {2}): implicit string",
+                        ldapAttributeName, getSyntaxOid(ldapAttributeType), ldapValue.getClass());
+            }
 
             return ldapValue.getString();
         }
