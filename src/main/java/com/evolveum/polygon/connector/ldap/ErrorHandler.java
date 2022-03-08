@@ -92,7 +92,7 @@ public class ErrorHandler {
         } else if (ldapException instanceof LdapTlsHandshakeException) {
             if (ldapException.getMessage().contains("the trustAnchors parameter must be non-empty")) {
                 // Provide helpful message for this bizarre exception.
-                re = new ConnectionFailedException("TLS handshake failed: truststore cannot be accessed", ldapException);
+                re = new ConnectionFailedException("TLS handshake failed: truststore cannot be accessed, or matching key for host not found", ldapException);
             } else {
                 re = new ConnectionFailedException(connectorMessage + exceptionMessage, ldapException);
             }
