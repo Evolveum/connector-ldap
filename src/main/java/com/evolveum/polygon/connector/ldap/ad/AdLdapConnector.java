@@ -282,10 +282,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
                         // OperationalAttributes.ENABLE_NAME = true means
                         // AdConstants.UAC.ADS_UF_ACCOUNTDISABLE = false
                         if (createAttrName.equals(OperationalAttributes.ENABLE_NAME)) {
-                            if ((Boolean) val) {
-                                val = Boolean.FALSE;
-                            } else
-                                val = Boolean.TRUE;
+                            val = !((Boolean) val);
                         }
 
                         // value was changed to true
