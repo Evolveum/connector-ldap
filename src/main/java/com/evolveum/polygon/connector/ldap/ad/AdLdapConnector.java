@@ -55,6 +55,7 @@ import org.apache.directory.api.ldap.model.schema.registries.SchemaObjectRegistr
 import org.apache.directory.api.ldap.model.schema.syntaxCheckers.DirectoryStringSyntaxChecker;
 import org.apache.directory.api.ldap.model.schema.syntaxCheckers.OctetStringSyntaxChecker;
 import org.apache.directory.api.ldap.schema.manager.impl.DefaultSchemaManager;
+import org.apache.directory.ldap.client.api.LdapConnection;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
@@ -94,7 +95,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
     @Override
     public void init(Configuration configuration) {
         super.init(configuration);
-        globalCatalogConnectionManager = new GlobalCatalogConnectionManager(getConfiguration());
+        globalCatalogConnectionManager = new GlobalCatalogConnectionManager(getConfiguration(), getErrorHandler(), getConnectionLog());
     }
 
     @Override
@@ -109,10 +110,6 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
     }
 
     @Override
-    protected void reconnectAfterTest() {
-    }
-
-    @Override
     protected AbstractSchemaTranslator<AdLdapConfiguration> createSchemaTranslator() {
         return new AdSchemaTranslator(getSchemaManager(), getConfiguration());
     }
@@ -123,10 +120,10 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
     }
 
     @Override
-    protected DefaultSchemaManager createBlankSchemaManager(boolean schemaQuirksMode) throws LdapException {
+    protected DefaultSchemaManager createBlankSchemaManager(LdapNetworkConnection connection, boolean schemaQuirksMode) throws LdapException {
         if (getConfiguration().isNativeAdSchema()) {
             // Construction of SchemaLoader actually loads all the schemas from server.
-            AdSchemaLoader schemaLoader = new AdSchemaLoader(getConnectionManager().getDefaultConnection());
+            AdSchemaLoader schemaLoader = new AdSchemaLoader(connection);
 
             if (LOG.isOk()) {
                 LOG.ok("AD Schema loader: {0} schemas ({1} enabled)", schemaLoader.getAllSchemas().size(), schemaLoader.getAllEnabled().size());
@@ -137,7 +134,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 
             return new AdSchemaManager(schemaLoader);
         } else {
-            return super.createBlankSchemaManager(schemaQuirksMode);
+            return super.createBlankSchemaManager(connection, schemaQuirksMode);
         }
     }
 
@@ -702,7 +699,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
                     uidValue);
             Dn guidDn = getSchemaTranslator().getGuidDn(uidValue);
             String[] attributesToGet = determineAttributesToGet(ldapObjectClass, options);
-            for (LdapNetworkConnection connection: getConnectionManager().getAllConnections()) {
+            return getConnectionManager().brutalSearch(connection -> {
                 SearchStrategy<AdLdapConfiguration> searchStrategy = getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
                 searchStrategy.setExplicitConnection(connection);
 
@@ -714,8 +711,11 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 
                 if (searchStrategy.getNumberOfEntriesFound() > 0) {
                     return searchStrategy;
+                } else {
+                    return null;
                 }
-            }
+            });
+
 
         } else {
             LOG.ok("Cannot find object with GUID {0} by using name hint or global catalog. Brute-force search is disabled. Found nothing.",

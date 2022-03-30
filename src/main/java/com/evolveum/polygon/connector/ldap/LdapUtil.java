@@ -18,13 +18,7 @@ package com.evolveum.polygon.connector.ldap;
 import java.io.IOException;
 import java.text.ParseException;
 import java.time.ZonedDateTime;
-import java.util.ArrayList;
-import java.util.Base64;
-import java.util.Calendar;
-import java.util.Date;
-import java.util.GregorianCalendar;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import org.apache.directory.api.ldap.extras.controls.vlv.VirtualListViewRequest;
 import org.apache.directory.api.ldap.model.constants.SchemaConstants;
@@ -52,7 +46,9 @@ import org.apache.directory.api.ldap.model.message.SearchScope;
 import org.apache.directory.api.ldap.model.message.controls.PagedResults;
 import org.apache.directory.api.ldap.model.message.controls.SortKey;
 import org.apache.directory.api.ldap.model.message.controls.SortRequest;
+import org.apache.directory.api.ldap.model.name.Ava;
 import org.apache.directory.api.ldap.model.name.Dn;
+import org.apache.directory.api.ldap.model.name.Rdn;
 import org.apache.directory.api.ldap.model.schema.AttributeType;
 import org.apache.directory.api.util.GeneralizedTime;
 import org.apache.directory.ldap.client.api.LdapConnectionConfig;
@@ -74,6 +70,7 @@ import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
 public class LdapUtil {
 
     private static final Log LOG = Log.getLog(LdapUtil.class);
+    private static final Random rnd = new Random();
 
     public static boolean isDnAttribute(String attributeName) {
         return LdapConfiguration.PSEUDO_ATTRIBUTE_DN_NAME.equals(attributeName);
@@ -550,26 +547,95 @@ public class LdapUtil {
         }
     }
 
-    public static boolean isAncestorOf(Dn upper, Dn lower, AbstractSchemaTranslator<?> schemaTranslator) {
-        // We have two non-schema-aware DNs here. So simple upper.isAncestorOf(lower) will
-        // not really do because there may be DN capitalization issues. So just we need to
-        // create schema-aware versions and compare these.
-
-        Dn upperSA;
+    public static Dn asDn(String stringDn) {
         try {
-            upperSA = new Dn(schemaTranslator.getSchemaManager(), upper.toString());
+            return new Dn(stringDn);
         } catch (LdapInvalidDnException e) {
-            throw new InvalidAttributeValueException("Invalid DN: " + upper.toString() + ": " + e.getMessage(), e);
+            throw new ConnectorException("Cannot parse '"+stringDn+" as DN: "+e.getMessage(), e);
+        }
+    }
+
+    public static boolean isAncestorOf(Dn upper, Dn lower) {
+        return isDescendantOf(lower, upper);
+    }
+
+    public static boolean isDescendantOf(Dn lower, Dn upper) {
+        if (upper == null) {
+            return false;
+        }
+        if (lower == null) {
+            return false;
+        }
+        if (upper.size() > lower.size()) {
+            return false;
         }
 
-        Dn lowerSA;
-        try {
-            lowerSA = new Dn(schemaTranslator.getSchemaManager(), lower.toString());
-        } catch (LdapInvalidDnException e) {
-            throw new InvalidAttributeValueException("Invalid DN: " + lower.toString() + ": " + e.getMessage(), e);
-        }
+        for ( int i = upper.size() - 1; i >= 0; i-- ) {
+            Rdn upperRdn = upper.getRdns().get( upper.size() - i - 1 );
+            Rdn lowerRdn = lower.getRdns().get( lower.size() - i - 1 );
 
-        return upperSA.isAncestorOf(lowerSA);
+            if (!equalsRdn(upperRdn, lowerRdn)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean equalsRdn(Rdn a, Rdn b) {
+        if (a == b) {
+            return true;
+        }
+        if (a.size() != b.size()) {
+            return false;
+        }
+        switch (a.size()) {
+            case 0:
+                return true;
+            case 1:
+                return equalAva(a.getAva(), b.getAva());
+            default:
+                for (Ava aAva : a) {
+                    if (!containsAva(b, aAva)) {
+                        return false;
+                    }
+                }
+                return true;
+        }
+    }
+
+    private static boolean containsAva(Rdn rdn, Ava ava) {
+        for (Ava rdnAva: rdn) {
+            if (equalAva(rdnAva, ava)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean equalAva(Ava a, Ava b) {
+        if (!a.getName().equalsIgnoreCase(b.getName())) {
+            return false;
+        }
+        String aStr = a.getValue().getString();
+        String bStr = b.getValue().getString();
+        return aStr.equalsIgnoreCase(bStr);
+    }
+
+
+    public static <T> T selectRandomItem(Collection<T> collection) {
+        if (collection == null || collection.isEmpty()) {
+            return null;
+        }
+        if (collection.size() == 1) {
+            return collection.iterator().next();
+        }
+        int index = rnd.nextInt(collection.size());
+        T selected = null;
+        Iterator<T> iterator = collection.iterator();
+        for (int i=0; i<=index; i++) {
+            selected = iterator.next();
+        }
+        return selected;
     }
 
 }

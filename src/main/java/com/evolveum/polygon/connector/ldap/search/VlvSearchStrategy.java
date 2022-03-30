@@ -19,6 +19,7 @@ import java.util.Base64;
 import java.util.List;
 
 import com.evolveum.polygon.connector.ldap.*;
+import com.evolveum.polygon.connector.ldap.connection.ConnectionManager;
 import org.apache.directory.api.ldap.extras.controls.vlv.VirtualListViewRequest;
 import org.apache.directory.api.ldap.extras.controls.vlv.VirtualListViewRequestImpl;
 import org.apache.directory.api.ldap.extras.controls.vlv.VirtualListViewResponse;
@@ -62,10 +63,10 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
     private byte[] cookie = null;
 
     public VlvSearchStrategy(ConnectionManager<C> connectionManager, AbstractLdapConfiguration configuration,
-            AbstractSchemaTranslator<C> schemaTranslator, ObjectClass objectClass,
-            org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
-            ResultsHandler handler, ErrorHandler errorHandler, ConnectionLog connectionLog,
-            OperationOptions options) {
+                             AbstractSchemaTranslator<C> schemaTranslator, ObjectClass objectClass,
+                             org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
+                             ResultsHandler handler, ErrorHandler errorHandler, ConnectionLog connectionLog,
+                             OperationOptions options) {
         super(connectionManager, configuration, schemaTranslator, objectClass, ldapObjectClass, handler, errorHandler, connectionLog, options);
     }
 
@@ -111,7 +112,6 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
         }
 
         connect(baseDn);
-        Referral referral = null; // remember this in case we need a reconnect
 
         Dn lastResultDn = null;
         int numberOfResutlsReturned = 0;
@@ -158,7 +158,7 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
                         // checkAlive or connection manager.
                         LOG.ok("Connection error ({0}), reconnecting", e.getMessage(), e);
                         // No need to close the cursor here. It is already closed as part of error handling in next() method.
-                        connectionReconnect(baseDn, referral, e);
+                        connectionReconnect(baseDn, e);
                         incrementRetryAttempts();
                         continue OUTER;
                     }
@@ -262,21 +262,8 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
                     }
                     logSearchResult( "Done", ldapResult, extra);
 
-                    if (ldapResult.getResultCode() == ResultCodeEnum.REFERRAL && !getConfiguration().isReferralStrategyThrow()) {
-                        referral = ldapResult.getReferral();
-                        if (getConfiguration().isReferralStrategyIgnore()) {
-                            LOG.ok("Ignoring referral {0}", referral);
-                        } else {
-                            LOG.ok("Following referral {0}", referral);
-                            incrementRetryAttempts();
-                            connect(baseDn, referral);
-                            if (connection == null) {
-                                throw new ConnectorIOException("Cannot get connection based on referral "+referral);
-                            }
-                            lastListSize = 0;
-                            cookie = null;
-                            continue;
-                        }
+                    if (ldapResult.getResultCode() == ResultCodeEnum.REFERRAL) {
+                        LOG.ok("Ignoring referral {0}", ldapResult.getReferral());
 
                     } else if (ldapResult.getResultCode() == ResultCodeEnum.SUCCESS) {
                         // continue the loop

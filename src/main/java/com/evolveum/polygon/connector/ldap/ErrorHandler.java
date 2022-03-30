@@ -89,6 +89,13 @@ public class ErrorHandler {
             re = new InvalidAttributeValueException(connectorMessage + exceptionMessage, ldapException);
         } else if (ldapException instanceof LdapUnwillingToPerformException) {
             re = new PermissionDeniedException(connectorMessage + exceptionMessage, ldapException);
+        } else if (ldapException instanceof LdapTlsHandshakeException) {
+            if (ldapException.getMessage().contains("the trustAnchors parameter must be non-empty")) {
+                // Provide helpful message for this bizarre exception.
+                re = new ConnectionFailedException("TLS handshake failed: truststore cannot be accessed, or matching key for host not found", ldapException);
+            } else {
+                re = new ConnectionFailedException(connectorMessage + exceptionMessage, ldapException);
+            }
         } else {
             re = new ConnectorIOException(connectorMessage + exceptionMessage, ldapException);
         }

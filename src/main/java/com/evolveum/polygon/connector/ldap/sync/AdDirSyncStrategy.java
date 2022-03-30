@@ -19,6 +19,7 @@ import java.util.Arrays;
 import java.util.Base64;
 
 import com.evolveum.polygon.connector.ldap.*;
+import com.evolveum.polygon.connector.ldap.connection.ConnectionManager;
 import org.apache.directory.api.ldap.extras.controls.ad.AdDirSyncRequestImpl;
 import org.apache.directory.api.ldap.extras.controls.ad.AdDirSyncResponse;
 import org.apache.directory.api.ldap.extras.controls.ad.AdShowDeleted;

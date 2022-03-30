@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  ~ Copyright (c) 2015-2021 Evolveum
+  ~ Copyright (c) 2015-2022 Evolveum
   ~
   ~ Licensed under the Apache License, Version 2.0 (the "License");
   ~ you may not use this file except in compliance with the License.
@@ -23,11 +23,10 @@
         <artifactId>connector-parent</artifactId>
         <groupId>com.evolveum.polygon</groupId>
         <version>1.5.0.0</version>
-        <relativePath></relativePath>
     </parent>
 
     <artifactId>connector-ldap</artifactId>
-    <version>3.4.1-SNAPSHOT</version>
+    <version>3.4.1</version>
     <packaging>jar</packaging>
 
     <name>LDAP Connector</name>
@@ -39,19 +38,29 @@
 
     <repositories>
         <repository>
-            <id>evolveum-nexus-releases</id>
-            <name>Internal Releases</name>
-            <url>http://nexus.evolveum.com/nexus/content/repositories/releases/</url>
+            <id>evolveum</id>
+            <name>Evolveum Public Releases</name>
+            <url>https://nexus.evolveum.com/nexus/content/groups/public/</url>
         </repository>
         <repository>
             <id>evolveum-nexus-snapshots</id>
             <name>Internal Releases</name>
-            <url>http://nexus.evolveum.com/nexus/content/repositories/snapshots/</url>
+            <url>https://nexus.evolveum.com/nexus/content/repositories/snapshots/</url>
         </repository>
         <repository>
             <id>apache-snapshots</id>
             <name>Apache Snapshots</name>
-            <url>http://repository.apache.org/snapshots/</url>
+            <url>https://repository.apache.org/snapshots/</url>
+        </repository>
+        <!--
+        We need this for Sleepycat JE, version 5.0.73 is released OK, but newer versions
+        (like 5.0.103) is in Maven central plugin repository, which is obviously wrong.
+        So we need Oracle's repo too.
+        -->
+        <repository>
+            <id>oracle</id>
+            <name>Oracle</name>
+            <url>https://download.oracle.com/maven/</url>
         </repository>
     </repositories>
 
@@ -64,6 +73,10 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <source>11</source>
+                    <target>11</target>
+                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -81,7 +94,7 @@
         <dependency>
             <groupId>org.apache.directory.api</groupId>
             <artifactId>api-all</artifactId>
-            <version>2.1.0e2</version>
+            <version>2.1.0e3</version>
             <exclusions>
                 <!-- Exclude SLF4J API from the lib to avoid bundling it with the
                      connector. The SLF4J is already part of midPoint.
@@ -118,6 +131,39 @@
           <version>1.7.25</version>
           <scope>provided</scope>
         </dependency>
+
+        <!-- TEST DEPENDENCIES -->
+
+        <dependency>
+            <groupId>commons-io</groupId>
+            <artifactId>commons-io</artifactId>
+            <version>2.11.0</version>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.forgerock.opendj</groupId>
+            <artifactId>opendj</artifactId>
+            <version>2.6.2</version>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.forgerock.opendj</groupId>
+            <artifactId>opendj-ldap-sdk</artifactId>
+            <version>2.6.2</version>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Needed for OpenDJ in tests -->
+        <dependency>
+            <groupId>com.sleepycat</groupId>
+            <artifactId>je</artifactId>
+            <version>5.0.103</version>
+            <!-- upgrade to 18.x is not possible with currently used OpenDJ -->
+            <scope>test</scope>
+        </dependency>
+
 
     </dependencies>
 </project>

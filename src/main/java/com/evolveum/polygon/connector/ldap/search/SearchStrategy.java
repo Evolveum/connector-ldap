@@ -16,6 +16,7 @@
 package com.evolveum.polygon.connector.ldap.search;
 
 import com.evolveum.polygon.connector.ldap.*;
+import com.evolveum.polygon.connector.ldap.connection.ConnectionManager;
 import org.apache.directory.api.ldap.model.cursor.SearchCursor;
 import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.exception.LdapException;
@@ -162,13 +163,7 @@ public abstract class SearchStrategy<C extends AbstractLdapConfiguration> {
     }
 
     protected void applyCommonConfiguration(SearchRequest req) {
-        if (configuration.isReferralStrategyFollow()) {
-            req.followReferrals();
-        } else if (configuration.isReferralStrategyIgnore()) {
-            req.ignoreReferrals();
-        } else if (configuration.isReferralStrategyThrow()) {
-            // nothing to do
-        }
+        req.ignoreReferrals();
         req.setDerefAliases(AliasDerefMode.NEVER_DEREF_ALIASES);
     }
 
@@ -183,18 +178,8 @@ public abstract class SearchStrategy<C extends AbstractLdapConfiguration> {
         } catch (LdapReferralException e) {
             logSearchError(req, 0, e);
             returnConnection();
-            String referralStrategy = configuration.getReferralStrategy();
-            if (configuration.isReferralStrategyFollow()) {
-                // This should not happen!
-                throw new IllegalStateException("Got referral "+e.getReferralInfo()+" while not expecting it: "+e.getMessage(),e);
-            } else if (configuration.isReferralStrategyIgnore()) {
-                LOG.ok("Ignoring referral {0}", e.getReferralInfo());
-                return null;
-            } else if (configuration.isReferralStrategyThrow()) {
-                throw e;
-            } else {
-                throw new ConfigurationException("Unknown value of referralStrategy configuration property: "+referralStrategy);
-            }
+            LOG.ok("Ignoring referral {0}", e.getReferralInfo());
+            return null;
         } catch (LdapException e) {
             logSearchError(req, 0, e);
             returnConnection();
@@ -290,24 +275,12 @@ public abstract class SearchStrategy<C extends AbstractLdapConfiguration> {
         }
     }
 
-    protected void connect(Dn base, Referral referral) {
-        if (explicitConnection == null) {
-            connection = connectionManager.getConnection(getEffectiveBase(base), referral, options);
-        } else {
-            connection = explicitConnection;
-        }
-    }
-
     protected void connectionReconnect(Dn base, Exception reconnectReason) {
-        connectionReconnect(base, null, reconnectReason);
-    }
-
-    protected void connectionReconnect(Dn base, Referral referral, Exception reconnectReason) {
         if (explicitConnection != null) {
             return;
         }
         connectionManager.returnConnection(connection);
-        connection = connectionManager.getConnectionReconnect(getEffectiveBase(base), referral, options, reconnectReason);
+        connection = connectionManager.getConnectionReconnect(connection, getEffectiveBase(base), options, reconnectReason);
     }
 
     /**

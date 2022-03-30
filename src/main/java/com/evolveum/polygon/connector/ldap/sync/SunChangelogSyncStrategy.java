@@ -18,6 +18,7 @@ package com.evolveum.polygon.connector.ldap.sync;
 import java.io.IOException;
 
 import com.evolveum.polygon.connector.ldap.*;
+import com.evolveum.polygon.connector.ldap.connection.ConnectionManager;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.directory.api.ldap.model.cursor.CursorException;
 import org.apache.directory.api.ldap.model.cursor.EntryCursor;
@@ -102,7 +103,7 @@ public class SunChangelogSyncStrategy<C extends AbstractLdapConfiguration> exten
             ldapObjectClass = getSchemaTranslator().toLdapObjectClass(icfObjectClass);
         }
 
-        Entry rootDse = getConnectionManager().getRootDse(null);
+        Entry rootDse = getConnectionManager().getRootDse();
         Attribute changelogAttribute = rootDse.get(ROOT_DSE_ATTRIBUTE_CHANGELOG_NAME);
         if (changelogAttribute == null) {
             throw new ConnectorException("Cannot locate changelog, the root DSE attribute "+ROOT_DSE_ATTRIBUTE_CHANGELOG_NAME+" is not present");
@@ -130,7 +131,9 @@ public class SunChangelogSyncStrategy<C extends AbstractLdapConfiguration> exten
         LOG.ok("Searching changelog {0} with {1}", changelogDn, changelogSearchFilter);
         int numChangelogEntries = 0;
         int numProcessedEntries = 0;
-        LdapNetworkConnection connection = getConnectionManager().getConnection(getSchemaTranslator().toDn(changelogDn), options);
+        // Do not ask connection for changelogDn here. Connection manager is NOT configured to recognize this DN.
+        // Ask the default connection (dn=null), connection to top-level base context servers
+        LdapNetworkConnection connection = getConnectionManager().getConnection(null, options);
         try {
             EntryCursor searchCursor = connection.search(changelogDn, changelogSearchFilter, SearchScope.ONELEVEL,
                     changeNumberAttributeName,
@@ -305,12 +308,10 @@ public class SunChangelogSyncStrategy<C extends AbstractLdapConfiguration> exten
 
     @Override
     public SyncToken getLatestSyncToken(ObjectClass objectClass) {
-        Entry rootDse;
-        try {
-            rootDse = getConnectionManager().getDefaultConnection().getRootDse(ROOT_DSE_ATTRIBUTE_LAST_CHANGE_NUMBER_NAME);
-        } catch (LdapException e) {
-            throw new ConnectorIOException("Error getting latest sync token from root DSE: "+e.getMessage(), e);
-        }
+        // We want to get a very fresh root DSE.
+        // Root DSE might be caches, with outdated lastChangeNumber value.
+        // We have to make sure we have recent value
+        Entry rootDse = getConnectionManager().getRootDseFresh();
         Attribute lastChangeNumberAttribute = rootDse.get(ROOT_DSE_ATTRIBUTE_LAST_CHANGE_NUMBER_NAME);
         if (lastChangeNumberAttribute == null) {
             return null;

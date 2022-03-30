@@ -15,11 +15,13 @@
  */
 package com.evolveum.polygon.connector.ldap.ad;
 
+import com.evolveum.polygon.connector.ldap.ConnectionLog;
+import com.evolveum.polygon.connector.ldap.ErrorHandler;
 import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
 import org.identityconnectors.framework.common.objects.OperationOptions;
 
-import com.evolveum.polygon.connector.ldap.ConnectionManager;
+import com.evolveum.polygon.connector.ldap.connection.ConnectionManager;
 
 /**
  * @author semancik
@@ -27,18 +29,13 @@ import com.evolveum.polygon.connector.ldap.ConnectionManager;
  */
 public class GlobalCatalogConnectionManager extends ConnectionManager<AdLdapConfiguration> {
 
-    public GlobalCatalogConnectionManager(AdLdapConfiguration configuration) {
-        super(configuration, configuration.getGlobalCatalogServers(), false);
+    public GlobalCatalogConnectionManager(AdLdapConfiguration configuration, ErrorHandler errorHandler, ConnectionLog connectionLog) {
+        super(configuration, errorHandler, connectionLog);
     }
 
     @Override
-    public LdapNetworkConnection getDefaultConnection() {
-        return super.getRandomConnection();
-    }
-
-    @Override
-    public LdapNetworkConnection getConnection(Dn base, OperationOptions options) {
-        return super.getRandomConnection();
+    protected String[] getServersConfiguration() {
+        return getConfiguration().getGlobalCatalogServers();
     }
 
 }

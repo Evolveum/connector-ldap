@@ -19,6 +19,7 @@ import java.util.Arrays;
 import java.util.Calendar;
 
 import com.evolveum.polygon.connector.ldap.*;
+import com.evolveum.polygon.connector.ldap.connection.ConnectionManager;
 import org.apache.directory.api.ldap.model.constants.SchemaConstants;
 import org.apache.directory.api.ldap.model.cursor.CursorException;
 import org.apache.directory.api.ldap.model.cursor.CursorLdapReferralException;
@@ -31,7 +32,6 @@ import org.apache.directory.api.ldap.model.filter.EqualityNode;
 import org.apache.directory.api.ldap.model.filter.ExprNode;
 import org.apache.directory.api.ldap.model.filter.GreaterEqNode;
 import org.apache.directory.api.ldap.model.filter.OrNode;
-import org.apache.directory.api.ldap.model.message.ResultCodeEnum;
 import org.apache.directory.api.ldap.model.message.SearchScope;
 import org.apache.directory.api.ldap.model.schema.SchemaManager;
 import org.apache.directory.api.util.GeneralizedTime;
@@ -133,24 +133,8 @@ public class ModifyTimestampSyncStrategy<C extends AbstractLdapConfiguration> ex
                     entry = searchCursor.get();
 
                 } catch (CursorLdapReferralException e) {
-                    if (getConfiguration().isReferralStrategyIgnore()) {
-                        // Ignore the referral, as that is what we have been told to do.
-                        // However, this probably won't work anyway. This server probably does not have the data.
-                        LOG.ok("Ignoring referral during timestamp-based synchronization: {0}", e.getReferralInfo());
-                        continue;
-                    } else if (getConfiguration().isReferralStrategyFollow()) {
-                        // We need heavier re-structure of the code to properly support this.
-                        // Probably re-use SearchStrategy here. We probably want that to properly support VLV/SPR here.
-                        LOG.error("Received unexpected referral during timestamp-based synchronization. Referral strategy is set to 'follow', however, this functionality is not implemented yet: {0}", e.getReferralInfo());
-                        OperationLog.logOperationErr(connection, "Search ERR {0}: {1} REFERAL: {2}", e.getClass().getName(), e.getMessage(), e.getReferralInfo(), e);
-                        returnConnection(connection);
-                        throw new UnsupportedOperationException("Referral follow not supported while searching for changes (" + searchFilter + "): " + e.getMessage(), e);
-                    } else {
-                        LOG.error("Received unexpected referral during timestamp-based synchronization: {0}", e.getReferralInfo());
-                        OperationLog.logOperationErr(connection, "Search ERR {0}: {1} REFERAL: {2}", e.getClass().getName(), e.getMessage(), e.getReferralInfo(), e);
-                        returnConnection(connection);
-                        throw new ConnectorIOException("Unexpected referral while searching for changes (" + searchFilter + "): " + e.getMessage(), e);
-                    }
+                    LOG.ok("Ignoring referral during timestamp-based synchronization: {0}", e.getReferralInfo());
+                    continue;
                 } catch (CursorException e) {
                     OperationLog.logOperationErr(connection, "Search ERR {0}: {1}", e.getClass().getName(), e.getMessage(), e);
                     returnConnection(connection);

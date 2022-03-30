@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2021 Evolveum
+ * Copyright (c) 2015-2022 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -47,6 +47,8 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
     public static final String BOOLEAN_FALSE = "FALSE";
 
     public static final String OBJECTCLASS_TOP_NAME = "top";
+
+    private static final long DEFAULT_SWITCH_BACK_INTERVAL = 10000L;
 
     /**
      * The LDAP server hostname.
@@ -166,8 +168,9 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 
     /**
      * Fetch root DSE as part of connection liveliness test.
-     * This provides a reliable connection liveliness test, handling many strange cases.
-     * However, it adds another round-trip for every connector operation.
+     * OBSOLETE. This option no longer works. It is ignored.
+     * Since 3.4, the connector pretends that the liveness check always passes,
+     * handling connection failures during operations as needed.
      */
     private boolean checkAliveRootDse = false;
 
@@ -210,15 +213,9 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
     private String[] servers;
 
     /**
-     * The referral handling strategy.
-     * Possible values: "follow", "ignore" or "throw".
-     * Default value: "follow"
+     * The referral handling strategy. OBSOLETE. THIS OPTION IS NO LONGER SUPPORTED. It will be ignored.
      */
-    private String referralStrategy = REFERRAL_STRATEGY_FOLLOW;
-
-    public static final String REFERRAL_STRATEGY_FOLLOW = "follow";
-    public static final String REFERRAL_STRATEGY_IGNORE = "ignore";
-    public static final String REFERRAL_STRATEGY_THROW = "throw";
+    private String referralStrategy;
 
     /**
      * The name of the attribute which contains the password.
@@ -390,6 +387,20 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
     private boolean useUnsafeNameHint = false;
 
     /**
+     * Mode of connection tests.
+     * "full" test mode will test all configured connections (all servers).
+     * "primary" mode will test only the connection to primary server (one specific server).
+     * "any" test mode will succeed as long as the connector can connect to any server specified for the root base context (any one server).
+     * Possible values: "full", "primary", "any"
+     * Default value: full
+     */
+    private String testMode = TEST_MODE_FULL;
+
+    public static final String TEST_MODE_FULL = "full";
+    public static final String TEST_MODE_PRIMARY = "primary";
+    public static final String TEST_MODE_ANY = "any";
+
+    /**
      * Enable extra tests during the test connection operations.
      * Those tests may take longer and they may make more LDAP requests.
      * These tests try to test some tricky situations and border conditions
@@ -450,7 +461,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
      */
     private String additionalSearchFilter;
 
-    // TODO: failover, accountSynchronizationFilter
+    // TODO: accountSynchronizationFilter
     // MAYBE TODO: respectResourcePasswordPolicyChangeAfterReset? filterWithOrInsteadOfAnd?
     //               removeLogEntryObjectClassFromFilter? synchronizePasswords? passwordAttributeToSynchronize?
 
@@ -469,6 +480,13 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
      * Default value: false
      */
     private boolean useUnbind = false;
+
+    /**
+     * Interval (in milliseconds) for which the connector fails over to secondary server, in case the primary fails.
+     * The connector will use the secondary server during this interval.
+     * When the interval is over, the connector will try to use the primary server again.
+     */
+    private long switchBackInterval = DEFAULT_SWITCH_BACK_INTERVAL;
 
     @ConfigurationProperty(required = true, order = 1)
     public String getHost() {
@@ -905,6 +923,16 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
     }
 
     @ConfigurationProperty(order = 45)
+    public String getTestMode() {
+        return testMode;
+    }
+
+    @SuppressWarnings("unused")
+    public void setTestMode(String testMode) {
+        this.testMode = testMode;
+    }
+
+    @ConfigurationProperty(order = 46)
     public boolean isEnableExtraTests() {
         return enableExtraTests;
     }
@@ -914,7 +942,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.enableExtraTests = enableExtraTests;
     }
 
-    @ConfigurationProperty(order = 46)
+    @ConfigurationProperty(order = 47)
     public String getTimestampPresentation() {
         return timestampPresentation;
     }
@@ -924,7 +952,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.timestampPresentation = timestampPresentation;
     }
 
-    @ConfigurationProperty(order = 47)
+    @ConfigurationProperty(order = 48)
     public boolean isIncludeObjectClassFilter() {
         return includeObjectClassFilter;
     }
@@ -934,7 +962,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.includeObjectClassFilter = includeObjectClassFilter;
     }
 
-    @ConfigurationProperty(order = 48)
+    @ConfigurationProperty(order = 49)
     public boolean isAlternativeObjectClassDetection() {
         return alternativeObjectClassDetection;
     }
@@ -944,7 +972,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.alternativeObjectClassDetection = alternativeObjectClassDetection;
     }
 
-    @ConfigurationProperty(order = 49)
+    @ConfigurationProperty(order = 50)
     public boolean isStructuralObjectClassesToAuxiliary() {
         return structuralObjectClassesToAuxiliary;
     }
@@ -954,7 +982,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.structuralObjectClassesToAuxiliary = structuralObjectClassesToAuxiliary;
     }
 
-    @ConfigurationProperty(order = 50)
+    @ConfigurationProperty(order = 51)
     public String getRunAsStrategy() {
         return runAsStrategy;
     }
@@ -964,7 +992,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.runAsStrategy = runAsStrategy;
     }
 
-    @ConfigurationProperty(order = 51)
+    @ConfigurationProperty(order = 52)
     public String getAdditionalSearchFilter() {
         return additionalSearchFilter;
     }
@@ -974,7 +1002,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.additionalSearchFilter = additionalSearchFilter;
     }
 
-    @ConfigurationProperty(order = 52)
+    @ConfigurationProperty(order = 53)
     public String getDefaultSearchScope() {
         return defaultSearchScope;
     }
@@ -984,7 +1012,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.defaultSearchScope = searchScope;
     }
 
-    @ConfigurationProperty(order = 53)
+    @ConfigurationProperty(order = 54)
     public boolean isAllowUntrustedSsl() {
         return allowUntrustedSsl;
     }
@@ -994,7 +1022,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.allowUntrustedSsl = allowUntrustedSsl;
     }
 
-    @ConfigurationProperty(order = 54)
+    @ConfigurationProperty(order = 55)
     public boolean isUseUnbind() {
         return useUnbind;
     }
@@ -1002,6 +1030,16 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
     @SuppressWarnings("unused")
     public void setUseUnbind(boolean useUnbind) {
         this.useUnbind = useUnbind;
+    }
+
+    @ConfigurationProperty(order = 56)
+    public long getSwitchBackInterval() {
+        return switchBackInterval;
+    }
+
+    @SuppressWarnings("unused")
+    public void setSwitchBackInterval(long switchBackInterval) {
+        this.switchBackInterval = switchBackInterval;
     }
 
     @Override
@@ -1060,18 +1098,6 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         if (checkAliveTimeout == null) {
             checkAliveTimeout = timeout;
         }
-    }
-
-    public boolean isReferralStrategyFollow() {
-        return referralStrategy == null || REFERRAL_STRATEGY_FOLLOW.equals(referralStrategy);
-    }
-
-    public boolean isReferralStrategyIgnore() {
-        return REFERRAL_STRATEGY_IGNORE.equals(referralStrategy);
-    }
-
-    public boolean isReferralStrategyThrow() {
-        return REFERRAL_STRATEGY_THROW.equals(referralStrategy);
     }
 
     // TODO: equals, hashCode

@@ -41,6 +41,13 @@ public class LdapConstants {
     public static final String ATTRIBUTE_389DS_FIRSTCHANGENUMBER = "firstchangenumber";
     public static final String ATTRIBUTE_389DS_LASTCHANGENUMBER = "lastchangenumber";
 
+    // Account disable attribute for OpenDS/OpenDJ servers. Used in tests.
+    public static final String ATTRIBUTE_OPENDJ_DS_PWP_ACCOUNT_DISABLED_NAME = "ds-pwp-account-disabled";
+
+    // Group memebership virtual attribure used by some servers (e.g. OpenDJ). Used in tests.
+    public static final String ATTRIBUTE_IS_MEMBER_OF_NAME = "isMemberOf";
+
+
     public static final String ATTRIBUTE_OPENLDAP_PWD_ACCOUNT_LOCKED_TIME_NAME = "pwdAccountLockedTime";
 
     public static final String MATCHING_RULE_CASE_IGNORE_MATCH_NAME = "caseIgnoreMatch";
