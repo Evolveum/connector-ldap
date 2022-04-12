@@ -301,7 +301,10 @@ public class AdUserParametersHandler {
                     int valueLengthPosition = buffer.position();
                     int valueLength = (int) buffer.getChar();
                     int type = (int) buffer.getChar();
-                    
+                    if (buffer.remaining() < valueLength + nameLength) {
+                        throw new AdUserParametersHandlerException(
+                                "Remaining buffer length is too small for provided name and value length. UserParameters are probably corrupt.");
+                    }
                     byte[] attrNameTab = new byte[nameLength];
                     buffer.get(attrNameTab);
                     String attrName = new String(attrNameTab, CHARSET);
@@ -316,6 +319,11 @@ public class AdUserParametersHandler {
                         break;
                     }
                 }
+                if (!foundExisting && buffer.hasRemaining()) {
+                    throw new AdUserParametersHandlerException(
+                            "Although all parameters were parsed there is still content left in the buffer. UserParameters are probably corrupt.");
+                }
+                
             } else {
                 throw new AdUserParametersHandlerException("Signature of userParameters was violated!");
             }
