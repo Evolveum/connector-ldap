@@ -232,7 +232,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
                 try {
                     handler.toLdap(attrName, createAttr.getValue().get(0));
                 } catch (AdUserParametersHandlerException e) {
-                    throw new ConnectorException(
+                    throw new InvalidAttributeValueException(
                             "There was an error while preparing Userparameters create attribute " + attrName, e);
                 }
             } else {
@@ -413,8 +413,8 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
                         handler.toLdap(deltaName, null);
                     }
                 } catch (AdUserParametersHandlerException e) {
-                    throw new ConnectorException("There was an error while preparing Userparameters delta " + deltaName,
-                            e);
+                    throw new InvalidAttributeValueException("There was an error while preparing Userparameters delta " + deltaName
+                            + " of user with UID " + uid, e);
                 }
             }
             //all others remain unchanged
