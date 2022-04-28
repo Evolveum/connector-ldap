@@ -17,6 +17,7 @@
 package com.evolveum.polygon.connector.ldap.ad;
 
 import java.math.BigInteger;
+import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.Charset;
@@ -273,6 +274,26 @@ public class AdUserParametersHandler {
     public void toLdap(String paramName, Object paramValue) throws AdUserParametersHandlerException {
         LOG.ok("AdUserParametersHandler toLdap is called with attrName {0} and attrVal {1}", paramName, paramValue);
         boolean delete = paramValue == null;
+        
+        if (paramName.equals(UserParametersAttributes.CTX_CFG_PRESENT.name)) {
+            boolean valid = false;
+            try {
+                long cfgValue = Long.parseLong((String) paramValue);
+                valid =  (cfgValue == CNF_PRESENT_DEFAULT);
+            }catch (NumberFormatException e) {
+                valid = false;
+            }
+            if (!valid) {
+                LOG.warn("Setting attribute " + UserParametersAttributes.CTX_CFG_PRESENT.name + " on default value "
+                        + CNF_PRESENT_DEFAULT + " since it is the only accepted value for this attribute");
+                try {
+                    LOG.ok("Invalid inputvalue: " + paramValue);
+                }catch (Exception e) {
+                    LOG.ok("Unable to log invalid inputvalue");
+                }
+                paramValue = Long.toString(CNF_PRESENT_DEFAULT);
+            }
+        }
 
         // build new value
         byte[] arrayValue = delete ? new byte[0] : getValueByteArray(paramName, paramValue);
@@ -330,7 +351,7 @@ public class AdUserParametersHandler {
 
         }
         if (!foundExisting && !delete) {
-            if (userParameters == null) {
+            if (userParameters == null && !paramName.equals(UserParametersAttributes.CTX_CFG_PRESENT.name)) {
                 appendAttribute(intToHexaByteArray(CNF_PRESENT_DEFAULT, 8), UserParametersAttributes.CTX_CFG_PRESENT.name.getBytes(CHARSET));
             }
             appendAttribute(arrayValue, paramNameArray);
@@ -641,13 +662,18 @@ public class AdUserParametersHandler {
             String attrName = new String(attrNameTab, CHARSET);
             LOG.ok("Next attribute: " + attrName + " with value length " + valueLength);
             byte[] attrValue = new byte[valueLength];
-            buffer.get(attrValue);
+            try {
+                buffer.get(attrValue);
+            } catch (BufferUnderflowException e) {
+                throw new AdUserParametersHandlerException("Buffer has not enough space for value of attribute number "
+                        + i + ", of a total of " + nbAttrs + " attributes", e);
+            }
             UserParametersAttributes userParametersAttribute = UserParametersAttributes.getByName(attrName);
             if (userParametersAttribute == null) {
                 throw new AdUserParametersHandlerException("Unknown userParameter attribute " + attrName);
             }
             nextAttrBuilder.setName(userParametersAttribute.getName());
-
+            
             boolean alreadyAdded = false;
             long valueLong;
             switch (userParametersAttribute.getType()) {
@@ -665,6 +691,12 @@ public class AdUserParametersHandler {
             case TIME_VALUE:
             case INTEGER_VALUE:
                 valueLong = getIntValue(attrValue, userParametersAttribute.isSignedInt());
+                if (userParametersAttribute.name.equals(UserParametersAttributes.CTX_CFG_PRESENT.name) &&
+                        valueLong != CNF_PRESENT_DEFAULT) {
+                    LOG.warn(UserParametersAttributes.CTX_CFG_PRESENT.name
+                            + " attrvalue does not match the default. Setting it to default.");
+                    valueLong = CNF_PRESENT_DEFAULT;
+                }
                 nextAttrBuilder.addValue(valueLong);
                 LOG.ok("attrValue : " + valueLong);
                 break;
@@ -701,9 +733,32 @@ public class AdUserParametersHandler {
                 result.add(nextAttrBuilder.build());
             }
         }
+        // check if there is corrupted data after attributes. If so remove it.
+        LOG.ok("Buffer position: " + buffer.position() + ", userParameter length: " + userParameters.length);
+        if (buffer.position() < userParameters.length && buffer.position() > 0) {
+            cutExcessData(buffer.position());
+        }
+        
         LOG.ok("Returning {0} userParameters attributes", result.size());
         return result;
+    }
 
+    /**
+     * If after parsing all attributes (amount of attributes is contained in
+     * userParameters itself) excess data is still left in the buffer, this data
+     * will be removed since it is invalid and can not be parsed.
+     * 
+     * @param bufferPosition position of the buffer after parsing all attributes.
+     *                       All data after this index will be removed from the byte
+     *                       array.
+     */
+    private void cutExcessData(int bufferPosition) {
+        int cleanDataIndex = bufferPosition;
+        LOG.warn("Buffer position is " + bufferPosition + " and is not at the end of userParameters with length "
+                + userParameters.length + ". Excess data will be dropped!");
+        byte[] cleanUserParameters = new byte[cleanDataIndex];
+        System.arraycopy(userParameters, 0, cleanUserParameters, 0, cleanDataIndex);
+        userParameters = cleanUserParameters;
     }
     
     /**
@@ -782,11 +837,15 @@ public class AdUserParametersHandler {
             LOG.ok("Next byte value: {0}", nextChar);
             valueStr += nextChar;
         }
-
-        if (signed) {
-            valueLong =  Long.parseLong(valueStr, 16);
-        } else {
-            valueLong =  Long.parseUnsignedLong(valueStr, 16);
+        try {
+            if (signed) {
+                valueLong = Long.parseLong(valueStr, 16);
+            } else {
+                valueLong = Long.parseUnsignedLong(valueStr, 16);
+            }
+        } catch (NumberFormatException e) {
+            LOG.warn("String " + valueStr + " can not be parsed into a long. Setting it to 0.");
+            valueLong = 0L;
         }
         return valueLong;
     }
