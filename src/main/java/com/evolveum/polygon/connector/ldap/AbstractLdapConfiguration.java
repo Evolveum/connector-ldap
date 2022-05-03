@@ -191,6 +191,8 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
      */
     private String baseContext;
 
+    public static final String CONF_PROP_NAME_BASE_CONTEXT = "baseContext";
+
     /**
      * Structured definition of a server in the directory topology.
      * It contains attribute-value pairs that define each individual server.
@@ -227,7 +229,10 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
      */
     private String passwordHashAlgorithm;
 
+    public static final String CONF_PROP_NAME_PASSWORD_HASH_ALGORITHM = "passwordHashAlgorithm";
+
     public static final String PASSWORD_HASH_ALGORITHM_NONE = "none";
+    public static final String PASSWORD_HASH_ALGORITHM_SSHA = "SSHA";
 
     /**
      * Strategy for reading the password. LDAP schema itself cannot reliably indicate whether
@@ -271,10 +276,14 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
      */
     private String vlvSortAttribute = null;
 
+    public static final String CONF_PROP_NAME_VLV_SORT_ATTRIBUTE = "vlvSortAttribute";
+
     /**
      * The ordering rule for VLV searches if no other ordering was specified.
      */
     private String vlvSortOrderingRule = null;
+
+    public static final String CONF_PROP_NAME_VLV_SORT_ORDERING_RULE = "vlvSortOrderingRule";
 
     /**
      * Name of the attribute which will be used as ICF UID.
@@ -285,6 +294,8 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
      * Operational attributes that apply to all object classes.
      */
     private String[] operationalAttributes = { };
+
+    public static final String CONF_PROP_NAME_OPERATIONAL_ATTRIBUTES = "operationalAttributes";
 
     /**
      * If set to false then the schema will not be retrieved from the server.
@@ -310,6 +321,8 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
      * Default value: auto
      */
     private String usePermissiveModify = USE_PERMISSIVE_MODIFY_AUTO;
+
+    public static final String CONF_PROP_NAME_USE_PERMISSIVE_MODIFY = "usePermissiveModify";
 
     public static final String USE_PERMISSIVE_MODIFY_NEVER = "never";
     public static final String USE_PERMISSIVE_MODIFY_AUTO = "auto";
@@ -1048,9 +1061,15 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         if (port < 0 || port > 65535) {
             throwConfigurationError("port.illegalValue");
         }
-        validateDn(baseContext, "baseContext.invalidDn");
+        if (baseContext != null) {
+            validateBaseContext();
+        }
 
         // TODO
+    }
+
+    public void validateBaseContext() {
+        validateDn(baseContext, "baseContext.invalidDn");
     }
 
     private void validateNotBlank(String value, String errorKey) {

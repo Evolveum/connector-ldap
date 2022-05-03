@@ -44,8 +44,11 @@ public class LdapConstants {
     // Account disable attribute for OpenDS/OpenDJ servers. Used in tests.
     public static final String ATTRIBUTE_OPENDJ_DS_PWP_ACCOUNT_DISABLED_NAME = "ds-pwp-account-disabled";
 
-    // Group memebership virtual attribure used by some servers (e.g. OpenDJ). Used in tests.
+    // Group memebership virtual attribure used by some servers (e.g. OpenDJ).
     public static final String ATTRIBUTE_IS_MEMBER_OF_NAME = "isMemberOf";
+
+    // Group memebership virtual attribure used by other servers (e.g. OpenLDAP).
+    public static final String ATTRIBUTE_MEMBER_OF_NAME = "memberOf";
 
 
     public static final String ATTRIBUTE_OPENLDAP_PWD_ACCOUNT_LOCKED_TIME_NAME = "pwdAccountLockedTime";

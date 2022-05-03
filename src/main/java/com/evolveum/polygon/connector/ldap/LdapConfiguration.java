@@ -38,6 +38,8 @@ public class LdapConfiguration extends AbstractLdapConfiguration {
      */
     private String lockoutStrategy = LOCKOUT_STRATEGY_NONE;
 
+    public static final String CONF_PROP_NAME_LOCKOUT_STRATEGY = "lockoutStrategy";
+
     public static final String LOCKOUT_STRATEGY_NONE = "none";
     public static final String LOCKOUT_STRATEGY_OPENLDAP = "openldap";
 

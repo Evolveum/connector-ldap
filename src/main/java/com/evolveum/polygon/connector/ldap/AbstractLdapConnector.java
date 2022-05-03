@@ -19,6 +19,7 @@ package com.evolveum.polygon.connector.ldap;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -26,7 +27,11 @@ import java.util.Map;
 import java.util.Set;
 
 import com.evolveum.polygon.connector.ldap.connection.ConnectionManager;
-import com.evolveum.polygon.connector.ldap.schema.*;
+import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
+import com.evolveum.polygon.connector.ldap.schema.GuardedStringValue;
+import com.evolveum.polygon.connector.ldap.schema.LdapFilterTranslator;
+import com.evolveum.polygon.connector.ldap.schema.ScopedFilter;
+import com.evolveum.polygon.connector.ldap.schema.SystemSchemaLoader;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.directory.api.ldap.extras.controls.ad.TreeDeleteImpl;
 import org.apache.directory.api.ldap.extras.controls.permissiveModify.PermissiveModify;
@@ -64,21 +69,8 @@ import org.identityconnectors.framework.common.exceptions.ConnectorException;
 import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
 import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException;
 import org.identityconnectors.framework.common.exceptions.UnknownUidException;
-import org.identityconnectors.framework.common.objects.Attribute;
-import org.identityconnectors.framework.common.objects.AttributeDelta;
-import org.identityconnectors.framework.common.objects.AttributeDeltaBuilder;
-import org.identityconnectors.framework.common.objects.ConnectorObject;
-import org.identityconnectors.framework.common.objects.Name;
+import org.identityconnectors.framework.common.objects.*;
 import org.identityconnectors.framework.common.objects.ObjectClass;
-import org.identityconnectors.framework.common.objects.OperationOptions;
-import org.identityconnectors.framework.common.objects.PredefinedAttributes;
-import org.identityconnectors.framework.common.objects.QualifiedUid;
-import org.identityconnectors.framework.common.objects.ResultsHandler;
-import org.identityconnectors.framework.common.objects.Schema;
-import org.identityconnectors.framework.common.objects.SearchResult;
-import org.identityconnectors.framework.common.objects.SyncResultsHandler;
-import org.identityconnectors.framework.common.objects.SyncToken;
-import org.identityconnectors.framework.common.objects.Uid;
 import org.identityconnectors.framework.common.objects.filter.ContainsAllValuesFilter;
 import org.identityconnectors.framework.common.objects.filter.EqualsFilter;
 import org.identityconnectors.framework.common.objects.filter.Filter;
@@ -87,13 +79,6 @@ import org.identityconnectors.framework.common.objects.filter.OrFilter;
 import org.identityconnectors.framework.spi.Configuration;
 import org.identityconnectors.framework.spi.PoolableConnector;
 import org.identityconnectors.framework.spi.SearchResultsHandler;
-import org.identityconnectors.framework.spi.operations.CreateOp;
-import org.identityconnectors.framework.spi.operations.DeleteOp;
-import org.identityconnectors.framework.spi.operations.SchemaOp;
-import org.identityconnectors.framework.spi.operations.SearchOp;
-import org.identityconnectors.framework.spi.operations.SyncOp;
-import org.identityconnectors.framework.spi.operations.TestOp;
-import org.identityconnectors.framework.spi.operations.UpdateDeltaOp;
 
 import com.evolveum.polygon.common.SchemaUtil;
 import com.evolveum.polygon.connector.ldap.search.DefaultSearchStrategy;
@@ -105,9 +90,18 @@ import com.evolveum.polygon.connector.ldap.sync.AdDirSyncStrategy;
 import com.evolveum.polygon.connector.ldap.sync.ModifyTimestampSyncStrategy;
 import com.evolveum.polygon.connector.ldap.sync.SunChangelogSyncStrategy;
 import com.evolveum.polygon.connector.ldap.sync.SyncStrategy;
+import org.identityconnectors.framework.spi.operations.CreateOp;
+import org.identityconnectors.framework.spi.operations.DeleteOp;
+import org.identityconnectors.framework.spi.operations.DiscoverConfigurationOp;
+import org.identityconnectors.framework.spi.operations.SchemaOp;
+import org.identityconnectors.framework.spi.operations.SearchOp;
+import org.identityconnectors.framework.spi.operations.SyncOp;
+import org.identityconnectors.framework.spi.operations.TestOp;
+import org.identityconnectors.framework.spi.operations.UpdateDeltaOp;
 
-public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration> implements PoolableConnector, TestOp, SchemaOp, SearchOp<Filter>, CreateOp, DeleteOp,
-        UpdateDeltaOp, SyncOp {
+public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
+        implements PoolableConnector, TestOp, SchemaOp, SearchOp<Filter>, CreateOp, DeleteOp, UpdateDeltaOp,
+        SyncOp, DiscoverConfigurationOp {
 
     private static final Log LOG = Log.getLog(AbstractLdapConnector.class);
 
@@ -163,6 +157,42 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 
     public ConnectionLog getConnectionLog() { return connectionLog; }
 
+    @Override
+    public void testPartialConfiguration() {
+        LOG.info("Test partial configuration, {0} connector instance {1}", this.getClass().getSimpleName(), this);
+        cleanupBeforeTest();
+        connectionManager.test();
+    }
+
+    @Override
+    public Map<String, SuggestedValues> discoverConfiguration() {
+        Map<String, SuggestedValues> suggestions = new HashMap<>();
+
+        LOG.info("Configuration discovery, working with root DSE:\n{0}", connectionManager.getRootDse());
+
+        // Generic suggestions
+        if (configuration.getBaseContext() == null) {
+            org.apache.directory.api.ldap.model.entry.Attribute namingContexts = connectionManager.getRootDseAttribute(SchemaConstants.NAMING_CONTEXTS_AT);
+            if (namingContexts != null) {
+                SuggestedValuesBuilder svbldr = new SuggestedValuesBuilder();
+                for (Value namingContextValue : namingContexts) {
+                    svbldr.addValues(namingContextValue.getString());
+                }
+                suggestions.put(AbstractLdapConfiguration.CONF_PROP_NAME_BASE_CONTEXT, svbldr.build());
+            }
+        }
+
+        // Server-specific suggestions
+        addServerSpecificConfigurationSuggestions(suggestions);
+
+        return suggestions;
+    }
+
+    protected void addServerSpecificConfigurationSuggestions(Map<String, SuggestedValues> suggestions) {
+        // TODO: server-speicifc suggestions, especially for OpenLDAP
+        // Used in subclasses
+    }
+
     // Note: test() is NOT dealing with schema, therefore it is NOT supposed to initialize schema manager yet.
     // Call to schema() method is supposed to do that.
     // This is done by purpose. Initialization of schema manager involves fetch of (probably large) LDAP schema,
@@ -175,9 +205,16 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
         LOG.info("Test {0} connector instance {1}", this.getClass().getSimpleName(), this);
         cleanupBeforeTest();
         connectionManager.test();
+
+        checkConfigurationCompleteness();
+
         if (configuration.isEnableExtraTests()) {
             extraTests();
         }
+    }
+
+    protected void checkConfigurationCompleteness() {
+        configuration.validateBaseContext();
     }
 
     protected void cleanupBeforeTest() {
