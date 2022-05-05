@@ -192,7 +192,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
         this.globalCatalogServers = globalCatalogServers;
     }
 
-    @ConfigurationProperty(order = 104)
+    @ConfigurationProperty(order = 104, allowedValues = { GLOBAL_CATALOG_STRATEGY_NONE, GLOBAL_CATALOG_STRATEGY_READ, GLOBAL_CATALOG_STRATEGY_RESOLVE })
     public String getGlobalCatalogStrategy() {
         return globalCatalogStrategy;
     }

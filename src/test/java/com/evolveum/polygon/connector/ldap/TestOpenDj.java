@@ -19,6 +19,7 @@ package com.evolveum.polygon.connector.ldap;
 import org.apache.directory.api.ldap.model.constants.SchemaConstants;
 import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.api.APIConfiguration;
+import org.identityconnectors.framework.api.ConfigurationProperty;
 import org.identityconnectors.framework.api.ConnectorFacade;
 import org.identityconnectors.framework.api.ConnectorFacadeFactory;
 import org.identityconnectors.framework.common.exceptions.ConfigurationException;
@@ -31,11 +32,48 @@ import org.testng.AssertJUnit;
 import org.testng.annotations.Test;
 
 import static org.testng.AssertJUnit.assertEquals;
+import static org.testng.AssertJUnit.assertNotNull;
+import static org.testng.AssertJUnit.assertNull;
+import static org.testng.internal.junit.ArrayAsserts.assertArrayEquals;
 
 import java.util.List;
 import java.util.Map;
 
 public class TestOpenDj extends AbstractOpenDjTest {
+
+    @Test
+    public void testConfiguration() throws Exception {
+        ConnectorFacadeFactory factory = ConnectorFacadeFactory.getInstance();
+
+        LdapConfiguration connectorConfiguration = createConnectorConfiguration();
+        APIConfiguration apiConfiguration = TestHelpers.createTestConfiguration(LdapConnector.class, connectorConfiguration);
+
+        ConfigurationProperty propHost = apiConfiguration.getConfigurationProperties().getProperty(AbstractLdapConfiguration.CONF_PROP_NAME_HOST);
+        assertNoAllowedValues(propHost);
+
+        ConfigurationProperty propPort = apiConfiguration.getConfigurationProperties().getProperty(AbstractLdapConfiguration.CONF_PROP_NAME_PORT);
+        assertAllowedValues(propPort, ValueListOpenness.OPEN, 389, 636);
+
+        ConfigurationProperty propConnectionSecurity = apiConfiguration.getConfigurationProperties().getProperty(AbstractLdapConfiguration.CONF_PROP_NAME_CONNECTION_SECURITY);
+        assertAllowedValues(propConnectionSecurity, ValueListOpenness.CLOSED,
+                AbstractLdapConfiguration.CONNECTION_SECURITY_NONE, AbstractLdapConfiguration.CONNECTION_SECURITY_SSL, AbstractLdapConfiguration.CONNECTION_SECURITY_STARTTLS);
+    }
+
+    private void assertNoAllowedValues(ConfigurationProperty prop) {
+        assertNotNull(prop);
+        SuggestedValues allowedValues = prop.getAllowedValues();
+        System.out.println("PROP "+prop.getName()+" allowed values: "+allowedValues);
+        assertNull("Unexpected allowed values in "+prop, allowedValues);
+    }
+
+    private void assertAllowedValues(ConfigurationProperty prop, ValueListOpenness openness, Object... expectedValues) {
+        assertNotNull(prop);
+        SuggestedValues allowedValues = prop.getAllowedValues();
+        System.out.println("PROP "+prop.getName()+" allowed values: "+allowedValues);
+        assertNotNull("No allowed values in "+prop, allowedValues);
+        assertArrayEquals("Wrong list of allowed values in "+prop, expectedValues, allowedValues.getValues().toArray(new Object[0]));
+        assertEquals("Wrong openness in allowed values in "+prop, openness, allowedValues.getOpenness());
+    }
 
     @Test
     public void testOpTest() throws Exception {
