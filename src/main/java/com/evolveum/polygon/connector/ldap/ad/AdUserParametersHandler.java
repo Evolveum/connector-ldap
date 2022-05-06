@@ -296,16 +296,23 @@ public class AdUserParametersHandler {
         }
 
         // build new value
-        byte[] arrayValue = delete ? new byte[0] : getValueByteArray(paramName, paramValue);
+        byte[] arrayValue;
         // all flag values are written in the same userParameters attribute
         if (CtxCfgFlagsBitValues.contains(paramName)) {
-            paramName = UserParametersAttributes.CTX_CFG_FLAGS1.name;
             if (delete) {
                 // you can't delete flags, therefore set it to false
                 paramValue = false;
                 delete = false;
             }
+            arrayValue = delete ? new byte[0] : getValueByteArray(paramName, paramValue);
+            paramName = UserParametersAttributes.CTX_CFG_FLAGS1.name;
+            
         }
+        else {
+            arrayValue = delete ? new byte[0] : getValueByteArray(paramName, paramValue);
+        }
+
+        
         byte[] paramNameArray = paramName.getBytes(CHARSET);
 
         // check if attribute already contained in existing userParameters
@@ -317,27 +324,32 @@ public class AdUserParametersHandler {
             if (signature == 'P') {
                 int nbAttrs = (int) buffer.getChar();
                 for (int i = 0; i < nbAttrs; i++) {
-                    AttributeBuilder nextAttrBuilder = new AttributeBuilder();
-                    int nameLength = (int) buffer.getChar();
-                    int valueLengthPosition = buffer.position();
-                    int valueLength = (int) buffer.getChar();
-                    int type = (int) buffer.getChar();
-                    if (buffer.remaining() < valueLength + nameLength) {
-                        throw new AdUserParametersHandlerException(
-                                "Remaining buffer length is too small for provided name and value length. UserParameters are probably corrupt.");
+                    if (buffer.hasRemaining()) {
+                        AttributeBuilder nextAttrBuilder = new AttributeBuilder();
+                        int nameLength = (int) buffer.getChar();
+                        int valueLengthPosition = buffer.position();
+                        int valueLength = (int) buffer.getChar();
+                        int type = (int) buffer.getChar();
+                        if (buffer.remaining() < valueLength + nameLength) {
+                            throw new AdUserParametersHandlerException(
+                                    "Remaining buffer length is too small for provided name and value length. UserParameters are probably corrupt.");
+                        }
+                        byte[] attrNameTab = new byte[nameLength];
+                        buffer.get(attrNameTab);
+                        String attrName = new String(attrNameTab, CHARSET);
+                        nextAttrBuilder.setName(attrName);
+                        LOG.ok("Valuelength of attr {0} is {1}", attrName, valueLength);
+                        byte[] attrValue = new byte[valueLength];
+                        buffer.get(attrValue);
+                        if (attrName.equalsIgnoreCase(paramName)) {
+                            updateExistingAttribute(delete, arrayValue, buffer.position(), nbAttrs, nameLength,
+                                    valueLengthPosition, valueLength, attrName, attrValue);
+                            foundExisting = true;
+                            break;
+                        }
                     }
-                    byte[] attrNameTab = new byte[nameLength];
-                    buffer.get(attrNameTab);
-                    String attrName = new String(attrNameTab, CHARSET);
-                    nextAttrBuilder.setName(attrName);
-                    LOG.ok("Valuelength of attr {0} is {1}", attrName, valueLength);
-                    byte[] attrValue = new byte[valueLength];
-                    buffer.get(attrValue);
-                    if (attrName.equalsIgnoreCase(paramName)) {
-                        updateExistingAttribute(delete, arrayValue, buffer.position(), nbAttrs, nameLength,
-                                valueLengthPosition, valueLength, attrName, attrValue);
-                        foundExisting = true;
-                        break;
+                    else {
+                        LOG.warn("Buffer contains no more date although not all attributes have been read.");
                     }
                 }
                 if (!foundExisting && buffer.hasRemaining()) {
@@ -636,6 +648,7 @@ public class AdUserParametersHandler {
         if (userParameters == null) {
             throw new AdUserParametersHandlerException("userParameters must be set before parsing");
         }
+        
         List<Attribute> result = new ArrayList<Attribute>();
         ByteBuffer buffer = ByteBuffer.wrap(userParameters);
         buffer.order(ByteOrder.LITTLE_ENDIAN);
@@ -651,86 +664,93 @@ public class AdUserParametersHandler {
         LOG.ok("Number of userParameters attributes: " + nbAttrs);
 
         for (int i = 0; i < nbAttrs; i++) {
-            AttributeBuilder nextAttrBuilder = new AttributeBuilder();
-            int nameLength = (int) buffer.getChar();
-
-            int valueLength = (int) buffer.getChar();
-            int type = (int) buffer.getChar();
-
-            byte[] attrNameTab = new byte[nameLength];
-            buffer.get(attrNameTab);
-            String attrName = new String(attrNameTab, CHARSET);
-            LOG.ok("Next attribute: " + attrName + " with value length " + valueLength);
-            byte[] attrValue = new byte[valueLength];
             try {
-                buffer.get(attrValue);
-            } catch (BufferUnderflowException e) {
-                throw new AdUserParametersHandlerException("Buffer has not enough space for value of attribute number "
-                        + i + ", of a total of " + nbAttrs + " attributes", e);
-            }
-            UserParametersAttributes userParametersAttribute = UserParametersAttributes.getByName(attrName);
-            if (userParametersAttribute == null) {
-                throw new AdUserParametersHandlerException("Unknown userParameter attribute " + attrName);
-            }
-            nextAttrBuilder.setName(userParametersAttribute.getName());
-            
-            boolean alreadyAdded = false;
-            long valueLong;
-            switch (userParametersAttribute.getType()) {
-            case FLAG_VALUE:
-                // this field is represented as a bitmask
-                valueLong = getFlagValue(attrValue);
-                alreadyAdded = true;
-                for (CtxCfgFlagsBitValues en : CtxCfgFlagsBitValues.values()) {
-                    boolean value = en.isBit(valueLong);
-                    result.add(AttributeBuilder.build(en.name(), value));
-                    LOG.ok("Setting flag " + en.name() + " to " + value);
+                AttributeBuilder nextAttrBuilder = new AttributeBuilder();
+                int nameLength = (int) buffer.getChar();
+        
+                int valueLength = (int) buffer.getChar();
+                int type = (int) buffer.getChar();
+        
+                byte[] attrNameTab = new byte[nameLength];
+                buffer.get(attrNameTab);
+                String attrName = new String(attrNameTab, CHARSET);
+                LOG.ok("Next attribute: " + attrName + " with value length " + valueLength);
+                byte[] attrValue = new byte[valueLength];
+                try {
+                    buffer.get(attrValue);
+                } catch (BufferUnderflowException e) {
+                    throw new AdUserParametersHandlerException("Buffer has not enough space for value of attribute number "
+                            + i + ", of a total of " + nbAttrs + " attributes", e);
                 }
-                LOG.ok("FLAGS long value: " + valueLong);
-                break;
-            case TIME_VALUE:
-            case INTEGER_VALUE:
-                valueLong = getIntValue(attrValue, userParametersAttribute.isSignedInt());
-                if (userParametersAttribute.name.equals(UserParametersAttributes.CTX_CFG_PRESENT.name) &&
-                        valueLong != CNF_PRESENT_DEFAULT) {
-                    LOG.warn(UserParametersAttributes.CTX_CFG_PRESENT.name
-                            + " attrvalue does not match the default. Setting it to default.");
-                    valueLong = CNF_PRESENT_DEFAULT;
+                UserParametersAttributes userParametersAttribute = UserParametersAttributes.getByName(attrName);
+                if (userParametersAttribute == null) {
+                    throw new AdUserParametersHandlerException("Unknown userParameter attribute " + attrName);
                 }
-                nextAttrBuilder.addValue(valueLong);
-                LOG.ok("attrValue : " + valueLong);
-                break;
-            case SHADOW_VALUE:
-                valueLong = getIntValue(attrValue, false);
-                CtxShadowValues value = CtxShadowValues.getByValue((int) valueLong);
-                if (value == null) {
-                    LOG.warn("Did not find CtxShadow value for integer value {0}", valueLong);
-                } else {
-                    nextAttrBuilder.addValue(value.getDescription());
-                }
-                LOG.ok("attrValue : " + valueLong);
-                break;
-            case STRING_VALUE:
-                String str = new String(attrValue, ASCII_CHARSET);
-                String valueStr = convertHexToString(str);
-                valueStr = valueStr.substring(0, valueStr.length() - 1);
-
-                if (isWideStringAttr(attrName)) {
-                    // handle wide strings
-                    valueStr = new String(
-                            new String(valueStr.getBytes(ASCII_CHARSET), ASCII_CHARSET).getBytes(ASCII_CHARSET),
-                            CHARSET);
+                nextAttrBuilder.setName(userParametersAttribute.getName());
+                
+                boolean alreadyAdded = false;
+                long valueLong;
+                switch (userParametersAttribute.getType()) {
+                case FLAG_VALUE:
+                    // this field is represented as a bitmask
+                    valueLong = getFlagValue(attrValue);
+                    alreadyAdded = true;
+                    for (CtxCfgFlagsBitValues en : CtxCfgFlagsBitValues.values()) {
+                        boolean value = en.isBit(valueLong);
+                        result.add(AttributeBuilder.build(en.name(), value));
+                        LOG.ok("Setting flag " + en.name() + " to " + value);
+                    }
+                    LOG.ok("FLAGS long value: " + valueLong);
+                    break;
+                case TIME_VALUE:
+                case INTEGER_VALUE:
+                    valueLong = getIntValue(attrValue, userParametersAttribute.isSignedInt());
+                    if (userParametersAttribute.name.equals(UserParametersAttributes.CTX_CFG_PRESENT.name) &&
+                            valueLong != CNF_PRESENT_DEFAULT) {
+                        LOG.warn(UserParametersAttributes.CTX_CFG_PRESENT.name
+                                + " attrvalue does not match the default. Setting it to default.");
+                        valueLong = CNF_PRESENT_DEFAULT;
+                    }
+                    nextAttrBuilder.addValue(valueLong);
+                    LOG.ok("attrValue : " + valueLong);
+                    break;
+                case SHADOW_VALUE:
+                    valueLong = getIntValue(attrValue, false);
+                    CtxShadowValues value = CtxShadowValues.getByValue((int) valueLong);
+                    if (value == null) {
+                        LOG.warn("Did not find CtxShadow value for integer value {0}", valueLong);
+                    } else {
+                        nextAttrBuilder.addValue(value.getDescription());
+                    }
+                    LOG.ok("attrValue : " + valueLong);
+                    break;
+                case STRING_VALUE:
+                    String str = new String(attrValue, ASCII_CHARSET);
+                    String valueStr = convertHexToString(str);
                     valueStr = valueStr.substring(0, valueStr.length() - 1);
+        
+                    if (isWideStringAttr(attrName)) {
+                        // handle wide strings
+                        valueStr = new String(
+                                new String(valueStr.getBytes(ASCII_CHARSET), ASCII_CHARSET).getBytes(ASCII_CHARSET),
+                                CHARSET);
+                        valueStr = valueStr.substring(0, valueStr.length() - 1);
+                    }
+                    LOG.ok("attrValue : " + valueStr);
+                    nextAttrBuilder.addValue(valueStr);
+                    break;
+                default:
+                    throw new AdUserParametersHandlerException(
+                            "Unkown userParameter attr type " + userParametersAttribute.getType().toString());
                 }
-                LOG.ok("attrValue : " + valueStr);
-                nextAttrBuilder.addValue(valueStr);
-                break;
-            default:
-                throw new AdUserParametersHandlerException(
-                        "Unkown userParameter attr type " + userParametersAttribute.getType().toString());
-            }
-            if (!alreadyAdded) {
-                result.add(nextAttrBuilder.build());
+                if (!alreadyAdded) {
+                    result.add(nextAttrBuilder.build());
+                }
+            } catch (BufferUnderflowException e) {
+               LOG.warn("Buffer does not have more space to read more data. Structure of userParameters is not valid. Aborting now and returning read attributes."
+                                + " Current index: "+ i + ", of a total of " + nbAttrs + " attributes",
+                        e);
+               break;
             }
         }
         // check if there is corrupted data after attributes. If so remove it.
@@ -855,8 +875,14 @@ public class AdUserParametersHandler {
      * 
      */
     private long getFlagValue(byte[] attrValue) throws AdUserParametersHandlerException {
+        long result = 0;
         byte[] attrValueReal = getRealValue(attrValue);
-        return new BigInteger(attrValueReal).longValueExact();
+        try {
+            result =  new BigInteger(attrValueReal).longValueExact();
+        }catch (NumberFormatException e) {
+            LOG.warn("Numberformat exception occured while parsing byte array to long. Returning 0");
+        }
+        return result;
     }
 
     /**

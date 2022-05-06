@@ -26,7 +26,7 @@
     </parent>
 
     <artifactId>connector-ldap</artifactId>
-    <version>3.4.2</version>
+    <version>3.4.3</version>
     <packaging>jar</packaging>
 
     <name>LDAP Connector</name>
@@ -166,4 +166,16 @@
 
 
     </dependencies>
+        <distributionManagement>
+        <repository>
+            <id>daasi</id>
+            <name>DAASI-Test-repo</name>
+            <url>https://nexus.daasi.de/repository/maven-releases/</url>
+        </repository>
+        <snapshotRepository>
+            <id>daasi</id>
+            <name>DAASI-Test-repo</name>
+            <url>https://nexus.daasi.de/repository/maven-snapshots/</url>
+        </snapshotRepository>
+    </distributionManagement>
 </project>
