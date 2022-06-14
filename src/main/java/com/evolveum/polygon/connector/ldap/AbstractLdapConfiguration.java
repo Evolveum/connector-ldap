@@ -509,6 +509,19 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
      */
     private long switchBackInterval = DEFAULT_SWITCH_BACK_INTERVAL;
 
+    /**
+     * If set to true, connector will return only values of memberOf attribute that contains specified sequence.
+     * If set to false, no filtering will occur and all values will be returned.
+     * Default value: false
+     */
+    private boolean filterOutMemberOfValues = false;
+
+    /**
+     * List of allowed value for memberOf attribute to be returned. If no value defined, all will be returned.
+     * This will be processed only when 'Filter memberOf' set to true
+     */
+    private String[] memberOfAllowedValues = { };
+
     @ConfigurationProperty(required = true, order = 1)
     public String getHost() {
         return host;
@@ -1061,6 +1074,26 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
     @SuppressWarnings("unused")
     public void setSwitchBackInterval(long switchBackInterval) {
         this.switchBackInterval = switchBackInterval;
+    }
+
+    @ConfigurationProperty(order = 57)
+    public boolean isFilterOutMemberOfValues() {
+        return filterOutMemberOfValues;
+    }
+
+    @SuppressWarnings("unused")
+    public void setFilterOutMemberOfValues(boolean filterOutMemberOfValues) {
+        this.filterOutMemberOfValues = filterOutMemberOfValues;
+    }
+
+    @ConfigurationProperty(order = 58)
+    public String[] getMemberOfAllowedValues() {
+        return memberOfAllowedValues;
+    }
+
+    @SuppressWarnings("unused")
+    public void setMemberOfAllowedValues(String[] memberOfAllowedValues) {
+        this.memberOfAllowedValues = memberOfAllowedValues;
     }
 
     @Override
