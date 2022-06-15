@@ -22,6 +22,7 @@ import java.security.NoSuchAlgorithmException;
 import java.text.ParseException;
 import java.time.ZonedDateTime;
 import java.util.*;
+import java.util.function.Predicate;
 
 import com.evolveum.polygon.connector.ldap.*;
 import com.evolveum.polygon.connector.ldap.connection.ConnectionManager;
@@ -1303,7 +1304,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 
     /**
      * Decide if value should be included in case filtering for memberOf attribute is set.
-     * All other attribtues and their value will not be checked for condition.
+     * All other attributes and their value will not be checked for condition matching.
      *
      * @param connIdValue {@link Object} value of attribute to be checked
      * @param ldapAttributeNameFromSchema {@link String} ldap attribute name to determine, if value should be checked
@@ -1315,11 +1316,16 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
             String[] allowedValues = configuration.getMemberOfAllowedValues();
             if (configuration.isFilterOutMemberOfValues() && allowedValues != null && allowedValues.length > 0) {
                 if (connIdValue instanceof String) {
-                    LOG.ok("Processing memberOf attribute value {0}", connIdValue);
+                    //LOG.ok("Processing memberOf attribute value {0}", connIdValue);
                     String connIdValueString = (String) connIdValue;
-                    return Arrays.stream(allowedValues).anyMatch(allowedValue -> connIdValueString.regionMatches(true, connIdValueString.length() - allowedValue.length(), allowedValue, 0, allowedValue.length()));
-                } else {
-                    throw new InvalidAttributeValueException("Wrong value type for attribute "+ldapAttributeNameFromSchema+": "+connIdValue);
+                    return Arrays.stream(allowedValues)
+                                 .filter(Predicate.not(String::isEmpty))
+                                 .anyMatch(allowedValue -> connIdValueString.regionMatches(
+                                         true,
+                                         connIdValueString.length() - allowedValue.length(),
+                                         allowedValue,
+                                         0,
+                                         allowedValue.length()));
                 }
             }
         }
