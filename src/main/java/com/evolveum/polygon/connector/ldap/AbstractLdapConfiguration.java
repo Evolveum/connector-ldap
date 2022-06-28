@@ -517,7 +517,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
     private boolean filterOutMemberOfValues = false;
 
     /**
-     * List of allowed value for memberOf attribute to be returned, only values ending with specified will be returned. If no value defined, all will be returned.
+     * List of allowed value for memberOf attribute to be returned, only values ending with specified will be returned. If no value defined, baseContext will be used.
      * This will be processed only when 'Filter memberOf' set to true
      */
     private String[] memberOfAllowedValues = { };

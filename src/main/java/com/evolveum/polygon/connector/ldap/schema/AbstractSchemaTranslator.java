@@ -21,7 +21,15 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.text.ParseException;
 import java.time.ZonedDateTime;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.Arrays;
 import java.util.function.Predicate;
 
 import com.evolveum.polygon.connector.ldap.*;
@@ -1312,21 +1320,25 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
      * @return Boolean true if value should be included, false in case value should be removed. Default: true
      */
     private boolean shouldValueBeIncluded(Object connIdValue, String ldapAttributeNameFromSchema) {
-        if (LdapConstants.ATTRIBUTE_MEMBER_OF_NAME.equalsIgnoreCase(ldapAttributeNameFromSchema)) {
+        if (configuration.isFilterOutMemberOfValues() && LdapConstants.ATTRIBUTE_MEMBER_OF_NAME.equalsIgnoreCase(ldapAttributeNameFromSchema)) {
             String[] allowedValues = configuration.getMemberOfAllowedValues();
-            if (configuration.isFilterOutMemberOfValues() && allowedValues != null && allowedValues.length > 0) {
-                if (connIdValue instanceof String) {
-                    //LOG.ok("Processing memberOf attribute value {0}", connIdValue);
-                    String connIdValueString = (String) connIdValue;
-                    return Arrays.stream(allowedValues)
-                                 .filter(Predicate.not(String::isEmpty))
-                                 .anyMatch(allowedValue -> connIdValueString.regionMatches(
-                                         true,
-                                         connIdValueString.length() - allowedValue.length(),
-                                         allowedValue,
-                                         0,
-                                         allowedValue.length()));
-                }
+            if (allowedValues.length == 0) {
+                LOG.ok("MemberOfAllowedValues is empty, using baseContext for filtering");
+                allowedValues = new String[]{ configuration.getBaseContext() };
+                configuration.setMemberOfAllowedValues(allowedValues);
+            }
+
+            if (connIdValue instanceof String) {
+                LOG.ok("Filtering memberOf attribute value: {0}", connIdValue);
+                String connIdValueString = (String) connIdValue;
+                return Arrays.stream(allowedValues)
+                             .filter(Predicate.not(String::isEmpty))
+                             .anyMatch(allowedValue -> connIdValueString.regionMatches(
+                                     true,
+                                     connIdValueString.length() - allowedValue.length(),
+                                     allowedValue,
+                                     0,
+                                     allowedValue.length()));
             }
         }
         return true;
