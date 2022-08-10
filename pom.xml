@@ -6,7 +6,7 @@
   ~ you may not use this file except in compliance with the License.
   ~ You may obtain a copy of the License at
   ~
-  ~     http://www.apache.org/licenses/LICENSE-2.0
+  ~     https://www.apache.org/licenses/LICENSE-2.0
   ~
   ~ Unless required by applicable law or agreed to in writing, software
   ~ distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,9 +14,8 @@
   ~ See the License for the specific language governing permissions and
   ~ limitations under the License.
   -->
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
@@ -38,12 +37,12 @@
 
     <repositories>
         <repository>
-            <id>evolveum</id>
+            <id>evolveum-releases</id>
             <name>Evolveum Public Releases</name>
             <url>https://nexus.evolveum.com/nexus/content/groups/public/</url>
         </repository>
         <repository>
-            <id>evolveum-nexus-snapshots</id>
+            <id>evolveum-snapshots</id>
             <name>Internal Releases</name>
             <url>https://nexus.evolveum.com/nexus/content/repositories/snapshots/</url>
         </repository>
@@ -94,11 +93,12 @@
         <dependency>
             <groupId>org.apache.directory.api</groupId>
             <artifactId>api-all</artifactId>
-            <version>2.1.0e3</version>
+            <version>2.1.1</version>
+            <!--<version>2.1.0e3</version> this was probably temporary release rushed with some our fixes -->
             <exclusions>
                 <!-- Exclude SLF4J API from the lib to avoid bundling it with the
                      connector. The SLF4J is already part of midPoint.
-                     If it would be also bundled with the connector then we will
+                     If it was also bundled with the connector then we will
                      have the same classes/interfaces loaded by two classloaders
                      and that will cause problems. -->
                 <exclusion>
@@ -126,10 +126,10 @@
         </dependency>
 
         <dependency>
-          <groupId>org.slf4j</groupId>
-          <artifactId>slf4j-api</artifactId>
-          <version>1.7.25</version>
-          <scope>provided</scope>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>1.7.25</version>
+            <scope>provided</scope>
         </dependency>
 
         <!-- TEST DEPENDENCIES -->
@@ -163,7 +163,6 @@
             <!-- upgrade to 18.x is not possible with currently used OpenDJ -->
             <scope>test</scope>
         </dependency>
-
 
     </dependencies>
 </project>
