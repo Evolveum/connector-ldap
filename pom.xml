@@ -33,6 +33,7 @@
     <properties>
         <connectorPackage>com.evolveum.polygon.connector.ldap</connectorPackage>
         <connectorClass>LdapConnector</connectorClass>
+        <surefire.args>-Xms1024m -Xmx4096m --add-exports java.management/sun.management=ALL-UNNAMED</surefire.args>
     </properties>
 
     <repositories>
@@ -84,6 +85,9 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <argLine>${surefire.args}</argLine>
+                </configuration>
             </plugin>
         </plugins>
     </build>
