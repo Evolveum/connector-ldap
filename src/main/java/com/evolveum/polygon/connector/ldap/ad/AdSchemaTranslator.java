@@ -301,8 +301,8 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
                     try {
                         cob.addAttributes(handler.toIcf());
                     } catch (AdUserParametersHandlerException e) {
-                        LOG.error(e, "Could not parse userParameters to icf Attributes");
-                        throw new InvalidAttributeValueException("Could not parse userParameters to icf Attributes", e);
+                        LOG.error(e, "Could not parse userParameters to icf Attributes of entry with DN " + entry.getDn());
+                        throw new InvalidAttributeValueException("Could not parse userParameters to icf Attributes for entry with dn " + entry.getDn(), e);
                     }
                 } catch (LdapInvalidAttributeValueException e) {
                     throw new InvalidAttributeValueException(e);

@@ -820,8 +820,12 @@ public class AdUserParametersHandler {
         if ('A' <= value && value <= 'F') {
             return value - 'A' + 10;
         }
-
-        throw new AdUserParametersHandlerException("Invalid character.");
+        try {
+            LOG.warn("Invalid character '" + value + "' for hex to int transformation.");
+        } catch (Exception e) {
+            LOG.warn("Invalid character for hex to int transformation.");
+        }
+        return 0;
     }
 
     /**
@@ -876,11 +880,17 @@ public class AdUserParametersHandler {
      */
     private long getFlagValue(byte[] attrValue) throws AdUserParametersHandlerException {
         long result = 0;
-        byte[] attrValueReal = getRealValue(attrValue);
         try {
-            result =  new BigInteger(attrValueReal).longValueExact();
-        }catch (NumberFormatException e) {
-            LOG.warn("Numberformat exception occured while parsing byte array to long. Returning 0");
+            byte[] attrValueReal = getRealValue(attrValue);
+            try {
+                result =  new BigInteger(attrValueReal).longValueExact();
+            }catch (NumberFormatException e) {
+                LOG.warn("Numberformat exception occured while parsing byte array to long. Returning 0");
+            }
+        } catch (Exception e) {
+            LOG.warn(
+                    "Unexpected Exception occured while reading flag value. The reason for this is most likely a invalid flag value. Returning 0");
+            LOG.ok(e, "Exception that was thrown");
         }
         return result;
     }
