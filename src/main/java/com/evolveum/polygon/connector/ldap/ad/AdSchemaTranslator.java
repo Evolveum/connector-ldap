@@ -17,6 +17,10 @@ package com.evolveum.polygon.connector.ldap.ad;
 
 import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.directory.api.ldap.model.constants.SchemaConstants;
@@ -33,6 +37,7 @@ import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueE
 import org.identityconnectors.framework.common.objects.AttributeInfoBuilder;
 import org.identityconnectors.framework.common.objects.ConnectorObject;
 import org.identityconnectors.framework.common.objects.ConnectorObjectBuilder;
+import org.identityconnectors.framework.common.objects.ObjectClass;
 import org.identityconnectors.framework.common.objects.ObjectClassInfoBuilder;
 import org.identityconnectors.framework.common.objects.OperationalAttributes;
 
@@ -53,13 +58,18 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
 
     private static final Log LOG = Log.getLog(AdSchemaTranslator.class);
 
+    // Note: List the attributes here as all lowercase.
+    // AD varies the letter case in attribute names quite a lot, therefore the connector looks for
+    // attribute names using their lower-case versions.
     private static final String[] OPERATIONAL_ATTRIBUTE_NAMES = {
         "distinguishedname", "dscorepropagationdata",
         "allowedattributes", "allowedattributeseffective",
         "allowedchildclasses", "allowedchildclasseseffective",
         "replpropertymetadata",
         "usnchanged", "usncreated",
-        "whenchanged", "whencreated"};
+        "whenchanged", "whencreated",
+
+    };
 
     /**
      * List of attributes in the top object class that are specified as
@@ -68,6 +78,9 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
     private static final String[] OPTIONAL_TOP_ATTRIBUTES = {
             "ntsecuritydescriptor", "instancetype", "objectcategory"
     };
+
+    private static final ObjectClass FSP_OBJECT_CLASS = new ObjectClass("foreignSecurityPrincipal");
+    private static final Pattern FSP_DN_PATTERN = Pattern.compile("^CN=(.*),CN=ForeignSecurityPrincipals,DC=.*", Pattern.CASE_INSENSITIVE);
 
     private AttributeType guidAttributeType = null;
 
@@ -214,6 +227,26 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
         sb.append("-").append(value);
     }
 
+    public boolean isFSPObjectClass(ObjectClass objectClass) {
+        return FSP_OBJECT_CLASS.equals(objectClass);
+    }
+
+    public boolean isFSPDn(String dnString) {
+        return FSP_DN_PATTERN.matcher(dnString).matches();
+    }
+
+    public String resolveMemberDn(String dnString) {
+        Matcher matcher = FSP_DN_PATTERN.matcher(dnString);
+        if (matcher.matches()) {
+            return getSidDn(matcher.group(1));
+        }
+        return dnString;
+    }
+
+    public String getSidDn(String sid) {
+        return "<SID=" + sid + ">";
+    }
+
     @Override
     public Value toLdapIdentifierValue(AttributeType ldapAttributeType, String connIdAttributeValue) {
         if (isGuid(ldapAttributeType)) {
@@ -268,12 +301,15 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
                     try {
                         cob.addAttributes(handler.toIcf());
                     } catch (AdUserParametersHandlerException e) {
-                        LOG.error(e, "Could not parse userParameters to icf Attributes");
-                        throw new InvalidAttributeValueException(e);
+                        LOG.error(e, "Could not parse userParameters to icf Attributes of entry with DN " + entry.getDn());
+                        throw new InvalidAttributeValueException("Could not parse userParameters to icf Attributes for entry with dn " + entry.getDn(), e);
                     }
                 } catch (LdapInvalidAttributeValueException e) {
                     throw new InvalidAttributeValueException(e);
                 }
+                // reset userParameters to avoid excess data at the end of the byte array and
+                // eventually fix it with next write operation
+                cob.addAttribute(AdUserParametersHandler.USER_PARAMETERS_LDAP_ATTR_NAME, handler.getUserParameters());
             }
         }
     }
@@ -448,15 +484,45 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
     }
 
     @Override
-    protected boolean isOperational(AttributeType ldapAttribute) {
-        if (super.isOperational(ldapAttribute)) {
+    protected boolean isConfiguredAsOperational(String ldapAttributeName) {
+        // AD is using attribute letter case quite wildly, therefore use case-ignore search
+        if (ldapAttributeName.toLowerCase().startsWith("msds-")) {
             return true;
         }
-        String attrName = ldapAttribute.getName().toLowerCase();
-        if (attrName.startsWith("msds-")) {
+        for (String confOpAttr : OPERATIONAL_ATTRIBUTE_NAMES) {
+            if (confOpAttr.equalsIgnoreCase(ldapAttributeName)) {
+                return true;
+            }
+        }
+        for (String confOpAttr : getConfiguration().getOperationalAttributes()) {
+            if (confOpAttr.equalsIgnoreCase(ldapAttributeName)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    protected boolean isVirtualAttribute(String connIdAttributeName) {
+        if (AdConstants.UAC.forName(connIdAttributeName) != null) {
             return true;
         }
-        return ArrayUtils.contains(OPERATIONAL_ATTRIBUTE_NAMES, attrName);
+        return false;
+    }
+
+    @Override
+    protected boolean isValidAttributeToGet(String connidAttr, AttributeType ldapAttributeType) {
+        if (isVirtualAttribute(connidAttr)) {
+            return false;
+        }
+        if (ldapAttributeType == null) {
+            // Strange, but not too strange for AD. Let's allow it.
+            return true;
+        }
+        List<String> searchFlags = ldapAttributeType.getExtension("X-SEARCH-FLAGS");
+        if (searchFlags != null) {
+            LOG.info("X-SEARCH-FLAGS on {0}: {1}", connidAttr, searchFlags);
+        }
+        return true;
     }
 
 }

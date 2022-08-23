@@ -24,10 +24,8 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.directory.api.i18n.I18n;
-import org.apache.directory.api.ldap.model.constants.MetaSchemaConstants;
 import org.apache.directory.api.ldap.model.constants.SchemaConstants;
 import org.apache.directory.api.ldap.model.cursor.CursorException;
-import org.apache.directory.api.ldap.model.cursor.EntryCursor;
 import org.apache.directory.api.ldap.model.cursor.SearchCursor;
 import org.apache.directory.api.ldap.model.entry.Attribute;
 import org.apache.directory.api.ldap.model.entry.Entry;
@@ -216,7 +214,7 @@ public class AdSchemaLoader extends DefaultSchemaLoader {
                     LOG.warn("No paged results control in schema search response");
                 }
             }
-            LdapUtil.closeCursor(schemaCursor);
+            LdapUtil.closeDoneCursor(schemaCursor);
         } while (cookie != null);
 
         LOG.ok("Loaded AD schema, {0} classes, {1} attributes", classEntryMap.size(), attributeEntryMap.size());

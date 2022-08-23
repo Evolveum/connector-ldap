@@ -1,5 +1,5 @@
-/**
- * Copyright (c) 2015-2020 Evolveum
+/*
+ * Copyright (c) 2015-2021 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,7 +15,8 @@
  */
 package com.evolveum.polygon.connector.ldap.search;
 
-import com.evolveum.polygon.connector.ldap.ErrorHandler;
+import com.evolveum.polygon.connector.ldap.*;
+import com.evolveum.polygon.connector.ldap.connection.ConnectionManager;
 import org.apache.directory.api.ldap.model.cursor.CursorException;
 import org.apache.directory.api.ldap.model.cursor.SearchCursor;
 import org.apache.directory.api.ldap.model.entry.Entry;
@@ -31,7 +32,6 @@ import org.apache.directory.api.ldap.model.message.SearchResultDone;
 import org.apache.directory.api.ldap.model.message.SearchResultEntry;
 import org.apache.directory.api.ldap.model.message.SearchScope;
 import org.apache.directory.api.ldap.model.name.Dn;
-import org.apache.directory.ldap.client.api.LdapNetworkConnection;
 import org.apache.directory.ldap.client.api.exception.InvalidConnectionException;
 import org.apache.directory.ldap.client.api.exception.LdapConnectionTimeOutException;
 import org.identityconnectors.common.logging.Log;
@@ -40,9 +40,6 @@ import org.identityconnectors.framework.common.objects.ObjectClass;
 import org.identityconnectors.framework.common.objects.OperationOptions;
 import org.identityconnectors.framework.common.objects.ResultsHandler;
 
-import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
-import com.evolveum.polygon.connector.ldap.ConnectionManager;
-import com.evolveum.polygon.connector.ldap.LdapUtil;
 import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
 
 /**
@@ -55,11 +52,11 @@ public class DefaultSearchStrategy<C extends AbstractLdapConfiguration> extends 
     private static final Log LOG = Log.getLog(DefaultSearchStrategy.class);
 
     public DefaultSearchStrategy(ConnectionManager<C> connectionManager, AbstractLdapConfiguration configuration,
-            AbstractSchemaTranslator<C> schemaTranslator, ObjectClass objectClass,
-            org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
-            ResultsHandler handler, ErrorHandler errorHandler,
-            OperationOptions options) {
-        super(connectionManager, configuration, schemaTranslator, objectClass, ldapObjectClass, handler, errorHandler, options);
+                                 AbstractSchemaTranslator<C> schemaTranslator, ObjectClass objectClass,
+                                 org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
+                                 ResultsHandler handler, ErrorHandler errorHandler, ConnectionLog connectionLog,
+                                 OperationOptions options) {
+        super(connectionManager, configuration, schemaTranslator, objectClass, ldapObjectClass, handler, errorHandler, connectionLog, options);
     }
 
     /* (non-Javadoc)
@@ -76,41 +73,52 @@ public class DefaultSearchStrategy<C extends AbstractLdapConfiguration> extends 
             req.addAttributes(attributes);
         }
 
-        LdapNetworkConnection connection = getConnection(baseDn);
+        connect(baseDn);
         Referral referral = null; // remember this in case we need a reconnect
 
-        int numAttempts = 0;
         OUTER: while (true) {
-            numAttempts++;
-            if (numAttempts > getConfiguration().getMaximumNumberOfAttempts()) {
-                returnConnection(connection);
-                // TODO: better exception. Maybe re-throw exception from the last error?
-                throw new ConnectorIOException("Maximum number of attemps exceeded");
-            }
+            incrementRetryAttempts();
 
-            SearchCursor searchCursor = executeSearch(connection, req);
-            boolean proceed = true;
+            int responseResultCount = 0;
+            SearchCursor searchCursor = executeSearch(req);
             try {
-                while (proceed) {
+                while (true) {
                     try {
-                        boolean hasNext = searchCursor.next();
-                        if (!hasNext) {
+                        if (!searchCursor.next()) {
                             break;
                         }
                     } catch (LdapConnectionTimeOutException | InvalidConnectionException e) {
-                        logSearchError(connection, e);
+                        logSearchError(req, responseResultCount, e);
                         // Server disconnected. And by some miracle this was not caught by
                         // checkAlive or connection manager.
                         LOG.ok("Connection error ({0}), reconnecting", e.getMessage(), e);
-                        LdapUtil.closeCursor(searchCursor);
-                        connection = getConnectionReconnect(baseDn, referral, connection);
+                        // No need to close the cursor here. It is already closed as part of error handling in next() method.
+                        connectionReconnect(baseDn, e);
                         continue OUTER;
                     }
                     Response response = searchCursor.get();
                     if (response instanceof SearchResultEntry) {
+                        responseResultCount++;
                         Entry entry = ((SearchResultEntry)response).getEntry();
-                        logSearchResult(connection, entry);
-                        proceed = handleResult(connection, entry);
+                        logSearchResult(entry);
+                        boolean handlerProceed = handleResult(entry);
+                        if (!handlerProceed) {
+                            LOG.ok("Ending search because handler returned false");
+                            // Try to get next entry before going for abandon.
+                            // Chances are that the search will end in a natural way anyway.
+                            // In fact, this happens quite a lot for searches that expect just a single entry as result.
+                            // E.g. search using primary identifier (entryUUID).
+                            // The handler returns false, as it is satisfied with a single result.
+                            // The LDAP server is done with the search as well, with "done" message waiting in the queue (cursor).
+                            // We want to give the Directory API a change to read and process the "done" message.
+                            // In that case the cursor will be closed quietly, and we do not have to do explicit abandon.
+                            searchCursor.next();
+                            // We do not really care what entry the cursor points at this point.
+                            // If it is "done" entry, the cursor is closed already and the next command will NOT issue an abandon.
+                            // It it is a regular entry, then the abandon is in order and the following attempt to close the cursor will do it.
+                            LdapUtil.closeAbandonCursor(searchCursor);
+                            break;
+                        }
 
                     } else {
                         LOG.warn("Got unexpected response: {0}", response);
@@ -118,25 +126,25 @@ public class DefaultSearchStrategy<C extends AbstractLdapConfiguration> extends 
                 }
 
                 SearchResultDone searchResultDone = searchCursor.getSearchResultDone();
-                LdapUtil.closeCursor(searchCursor);
+                // We really want to call searchCursor.next() here, even though we do not care about the result.
+                // The implementation of cursor.next() sets the "done" status of the cursor.
+                // If we do not do that, the subsequent close() operation on the cursor will send an
+                // ABANDON command, even though the operation is already finished. (MID-7091)
+                searchCursor.next();
+                // We want to do close with ABANDON here, in case that the operation is not finished.
+                // However, make sure we call searchCursor.next() before closing, we do not want to send abandons when not needed.
+                LdapUtil.closeAbandonCursor(searchCursor);
 
+                logSearchOperationDone(req, responseResultCount, searchResultDone);
                 if (searchResultDone == null) {
                     break;
                 } else {
                     LdapResult ldapResult = searchResultDone.getLdapResult();
-                    logSearchResult(connection, "Done", ldapResult);
+                    logSearchResult("Done", searchResultDone.getLdapResult());
 
-                    if (ldapResult.getResultCode() == ResultCodeEnum.REFERRAL && !getConfiguration().isReferralStrategyThrow()) {
+                    if (ldapResult.getResultCode() == ResultCodeEnum.REFERRAL) {
                         referral = ldapResult.getReferral();
-                        if (getConfiguration().isReferralStrategyIgnore()) {
-                            LOG.ok("Ignoring referral {0}", referral);
-                        } else {
-                            LOG.ok("Following referral {0}", referral);
-                            connection = getConnection(baseDn, referral);
-                            if (connection == null) {
-                                throw new ConnectorIOException("Cannot get connection based on referral "+referral);
-                            }
-                        }
+                        LOG.ok("Ignoring referral {0}", referral);
 
                     } else if (ldapResult.getResultCode() == ResultCodeEnum.SUCCESS) {
                         break;
@@ -148,22 +156,35 @@ public class DefaultSearchStrategy<C extends AbstractLdapConfiguration> extends 
                             setCompleteResultSet(false);
                             break;
                         } else {
-                            LOG.error("{0}", msg);
-                            returnConnection(connection);
-                            throw processLdapResult("LDAP error during search in "+baseDn, ldapResult);
+                            RuntimeException connidException = processLdapResult("LDAP error during search in " + baseDn, ldapResult);
+                            if (connidException instanceof ReconnectException) {
+                                reconnectSameServer(connidException);
+                                // Next iteration of the loop will re-try the operation with the same parameter, but different connection
+                                continue OUTER;
+                            } else {
+                                LOG.error("{0}", msg);
+                                returnConnection();
+                                throw connidException;
+                            }
                         }
                     }
 
                 }
 
             } catch (CursorException e) {
-                returnConnection(connection);
-                // TODO: better error handling
+                returnConnection();
+                // TODO: better error handling ?
                 throw new ConnectorIOException(e.getMessage(), e);
             }
         }
 
-        returnConnection(connection);
+        returnConnection();
+    }
+
+    @Override
+    protected String getStrategyTag() {
+        // null means default, absolutely normal LDAP search
+        return null;
     }
 
 }

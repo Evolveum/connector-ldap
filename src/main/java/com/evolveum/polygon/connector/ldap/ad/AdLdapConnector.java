@@ -21,6 +21,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.apache.directory.api.ldap.model.constants.SchemaConstants;
 import org.apache.directory.api.ldap.model.entry.Entry;
@@ -54,6 +55,7 @@ import org.apache.directory.api.ldap.model.schema.registries.SchemaObjectRegistr
 import org.apache.directory.api.ldap.model.schema.syntaxCheckers.DirectoryStringSyntaxChecker;
 import org.apache.directory.api.ldap.model.schema.syntaxCheckers.OctetStringSyntaxChecker;
 import org.apache.directory.api.ldap.schema.manager.impl.DefaultSchemaManager;
+import org.apache.directory.ldap.client.api.LdapConnection;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
@@ -63,6 +65,7 @@ import org.identityconnectors.framework.common.objects.Attribute;
 import org.identityconnectors.framework.common.objects.AttributeBuilder;
 import org.identityconnectors.framework.common.objects.AttributeDelta;
 import org.identityconnectors.framework.common.objects.AttributeDeltaBuilder;
+import org.identityconnectors.framework.common.objects.AttributeUtil;
 import org.identityconnectors.framework.common.objects.OperationOptions;
 import org.identityconnectors.framework.common.objects.OperationalAttributeInfos;
 import org.identityconnectors.framework.common.objects.OperationalAttributes;
@@ -92,7 +95,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
     @Override
     public void init(Configuration configuration) {
         super.init(configuration);
-        globalCatalogConnectionManager = new GlobalCatalogConnectionManager(getConfiguration());
+        globalCatalogConnectionManager = new GlobalCatalogConnectionManager(getConfiguration(), getErrorHandler(), getConnectionLog());
     }
 
     @Override
@@ -107,10 +110,6 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
     }
 
     @Override
-    protected void reconnectAfterTest() {
-    }
-
-    @Override
     protected AbstractSchemaTranslator<AdLdapConfiguration> createSchemaTranslator() {
         return new AdSchemaTranslator(getSchemaManager(), getConfiguration());
     }
@@ -121,10 +120,10 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
     }
 
     @Override
-    protected DefaultSchemaManager createSchemaManager(boolean schemaQuirksMode) throws LdapException {
+    protected DefaultSchemaManager createBlankSchemaManager(LdapNetworkConnection connection, boolean schemaQuirksMode) throws LdapException {
         if (getConfiguration().isNativeAdSchema()) {
             // Construction of SchemaLoader actually loads all the schemas from server.
-            AdSchemaLoader schemaLoader = new AdSchemaLoader(getConnectionManager().getDefaultConnection());
+            AdSchemaLoader schemaLoader = new AdSchemaLoader(connection);
 
             if (LOG.isOk()) {
                 LOG.ok("AD Schema loader: {0} schemas ({1} enabled)", schemaLoader.getAllSchemas().size(), schemaLoader.getAllEnabled().size());
@@ -135,7 +134,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 
             return new AdSchemaManager(schemaLoader);
         } else {
-            return super.createSchemaManager(schemaQuirksMode);
+            return super.createBlankSchemaManager(connection, schemaQuirksMode);
         }
     }
 
@@ -162,67 +161,164 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
     }
 
     @Override
+    public Uid create(org.identityconnectors.framework.common.objects.ObjectClass connIdObjectClass, Set<Attribute> createAttributes, OperationOptions options) {
+
+        if (getConfiguration().isAllowFSPProcessing()) {
+            createAttributes = prepareFSPAttributes(createAttributes);
+
+            if (getSchemaTranslator().isFSPObjectClass(connIdObjectClass)) {
+                // Return DN as UID instead of GUID here because AD doesn't allow creating FSP directly
+                return new Uid(AttributeUtil.getNameFromAttributes(createAttributes).getNameValue());
+            }
+        }
+
+        return super.create(connIdObjectClass, createAttributes, options);
+    }
+
+    private Set<Attribute> prepareFSPAttributes(Set<Attribute> createAttributes) {
+        Set<Attribute> newCreateAttributes = new HashSet<>();
+        for (Attribute icfAttr: createAttributes) {
+            if (icfAttr.is(getConfiguration().getGroupObjectMemberAttribute())) {
+                // Convert to <SID=...> format if it contains DN for FSP object
+                List<Object> values = icfAttr.getValue().stream()
+                        .map(v -> getSchemaTranslator().resolveMemberDn(v.toString()))
+                        .collect(Collectors.toList());
+                Attribute attr = new AttributeBuilder()
+                        .setName(getConfiguration().getGroupObjectMemberAttribute())
+                        .addValue(values)
+                        .build();
+                newCreateAttributes.add(attr);
+            } else {
+                // all others remain unchanged
+                newCreateAttributes.add(icfAttr);
+            }
+        }
+        return newCreateAttributes;
+    }
+
+    @Override
     protected Set<Attribute> prepareCreateConnIdAttributes(org.identityconnectors.framework.common.objects.ObjectClass connIdObjectClass,
             org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass,
             Set<Attribute> createAttributes) {
-        if (getConfiguration().isRawUserAccountControlAttribute() || !getSchemaTranslator().isUserObjectClass(ldapStructuralObjectClass.getName())) {
+        if ((getConfiguration().isRawUserParametersAttribute() && getConfiguration().isRawUserAccountControlAttribute())
+                || !getSchemaTranslator().isUserObjectClass(ldapStructuralObjectClass.getName())) {
             return super.prepareCreateConnIdAttributes(connIdObjectClass, ldapStructuralObjectClass, createAttributes);
         }
 
+        Set<Attribute> newCreateAttributes = new HashSet<>();
+
+        if (!getConfiguration().isRawUserAccountControlAttribute()) {
+            newCreateAttributes = prepareCreateUserAccountControllAttributes(createAttributes, newCreateAttributes);
+        }
+        if (!getConfiguration().isRawUserParametersAttribute()) {
+            newCreateAttributes = prepareCreateUserParametersAttributes(createAttributes, newCreateAttributes);
+        }
+        
+        LOG.ok("New Create attributes after preparing ConnIdAttributes: {0}" , newCreateAttributes);
+        return newCreateAttributes;
+    }
+
+    private Set<Attribute> prepareCreateUserParametersAttributes(Set<Attribute> createAttributes,
+            Set<Attribute> newCreateAttributes) {
+        AdUserParametersHandler handler = new AdUserParametersHandler();
+        boolean foundUpAttr = false;
+        // collect deltas affecting userParameters
+        for (Attribute createAttr : createAttributes) {
+            String attrName = createAttr.getName();
+            if (AdUserParametersHandler.isUserParametersAttribute(attrName) && !createAttr.getValue().isEmpty()) {
+                foundUpAttr = true;
+                // its possible that another prepare function already added the attribute
+                newCreateAttributes.remove(createAttr);
+                try {
+                    handler.toLdap(attrName, createAttr.getValue().get(0));
+                } catch (AdUserParametersHandlerException e) {
+                    throw new InvalidAttributeValueException(
+                            "There was an error while preparing Userparameters create attribute " + attrName, e);
+                }
+            } else {
+                // its possible that another prepare function already ran before so attributes
+                // could already be added
+                if (!newCreateAttributes.contains(createAttr)) {
+                    newCreateAttributes.add(createAttr);
+                }
+            }
+        }
+        // finally add userParameters raw attribute
+        if (foundUpAttr) {
+            Attribute userParameters = AttributeBuilder.build(AdUserParametersHandler.USER_PARAMETERS_LDAP_ATTR_NAME,
+                    handler.getUserParameters());
+            newCreateAttributes.add(userParameters);
+        }
+        return newCreateAttributes;
+    }
+
+    private Set<Attribute> prepareCreateUserAccountControllAttributes(Set<Attribute> createAttributes,
+            Set<Attribute> newCreateAttributes) {
         Set<AdConstants.UAC> uacAddSet = new HashSet<>();
         Set<AdConstants.UAC> uacDelSet = new HashSet<>();
 
-        Set<Attribute> newCreateAttributes = new HashSet<>();
-
         for (Attribute createAttr : createAttributes) {
-            //collect deltas affecting uac. Will be processed below
+            // collect deltas affecting uac. Will be processed below
             String createAttrName = createAttr.getName();
-            if (createAttrName.equals(OperationalAttributes.ENABLE_NAME) || AdConstants.UAC.forName(createAttrName) != null) {
-                //OperationalAttributes.ENABLE_NAME is replaced by dConstants.UAC.ADS_UF_ACCOUNTDISABLE.name()
-                AdConstants.UAC uacVal = Enum.valueOf(AdConstants.UAC.class, createAttrName.equals(OperationalAttributes.ENABLE_NAME)? AdConstants.UAC.ADS_UF_ACCOUNTDISABLE.name() : createAttrName);
+            if (createAttrName.equals(OperationalAttributes.ENABLE_NAME)
+                    || AdConstants.UAC.forName(createAttrName) != null) {
+                // it's possible that another prepare function already added the attribute
+                newCreateAttributes.remove(createAttr);
+                
+                // OperationalAttributes.ENABLE_NAME is replaced by
+                // dConstants.UAC.ADS_UF_ACCOUNTDISABLE.name()
+                AdConstants.UAC uacVal = Enum.valueOf(AdConstants.UAC.class,
+                        createAttrName.equals(OperationalAttributes.ENABLE_NAME)
+                                ? AdConstants.UAC.ADS_UF_ACCOUNTDISABLE.name()
+                                : createAttrName);
                 List<Object> values = createAttr.getValue();
-                if (values != null && values.size() >0) {
+                if (values != null && values.size() > 0) {
                     Object val = values.get(0);
 
                     if (val instanceof Boolean) {
-                        //OperationalAttributes.ENABLE_NAME = true means AdConstants.UAC.ADS_UF_ACCOUNTDISABLE = false
+                        // OperationalAttributes.ENABLE_NAME = true means
+                        // AdConstants.UAC.ADS_UF_ACCOUNTDISABLE = false
                         if (createAttrName.equals(OperationalAttributes.ENABLE_NAME)) {
-                            if ((Boolean)val) {
-                                val = Boolean.FALSE;
-                            }
-                            else val = Boolean.TRUE;
+                            val = !((Boolean) val);
                         }
 
-                        //value was changed to true
-                        if ((Boolean)val) {
+                        // value was changed to true
+                        if ((Boolean) val) {
                             uacAddSet.add(uacVal);
                         }
-                        //value was changed to false
-                        else uacDelSet.add(uacVal);
+                        // value was changed to false
+                        else
+                            uacDelSet.add(uacVal);
                     }
                 }
             }
-            //all others remain unchanged
-            else newCreateAttributes.add(createAttr);
+            // all others remain unchanged
+            else {
+                // avoid double create entries added by another prepare function before
+                if (!newCreateAttributes.contains(createAttr)) {
+                    newCreateAttributes.add(createAttr);
+                }
+            }
         }
-        //no uac attributes affected? we cannot return, we have to set at least  AdConstants.UAC.ADS_UF_NORMAL_ACCOUNT
+        // no uac attributes affected? we cannot return, we have to set at least
+        // AdConstants.UAC.ADS_UF_NORMAL_ACCOUNT
 
         Integer userAccountControl = AdConstants.UAC.ADS_UF_NORMAL_ACCOUNT.getBit();
 
-        //if bit is not set: add it
+        // if bit is not set: add it
         for (AdConstants.UAC uac : uacAddSet) {
             if ((userAccountControl & uac.getBit()) == 0) {
                 userAccountControl = userAccountControl + uac.getBit();
             }
         }
-        //if bit is set: remove it
+        // if bit is set: remove it
         for (AdConstants.UAC uac : uacDelSet) {
             if ((userAccountControl & uac.getBit()) != 0) {
                 userAccountControl = userAccountControl - uac.getBit();
             }
         }
 
-        //create new attribute for useraccountcontrol, having new value
+        // create new attribute for useraccountcontrol, having new value
         Attribute uacAttr = AttributeBuilder.build(AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME, userAccountControl);
         newCreateAttributes.add(uacAttr);
 
@@ -273,13 +369,17 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
             }
         }
 
+        if (getConfiguration().isAllowFSPProcessing()) {
+            deltas = prepareFSPDeltas(deltas);
+        }
+
         return super.updateDelta(connIdObjectClass, uid, deltas, options);
     }
 
 
     private Set<AttributeDelta> prepareUpDeltas(Uid uid, Set<AttributeDelta> deltas, Entry existingEntry) {
         AdUserParametersHandler handler = new AdUserParametersHandler();
-
+        boolean foundUpAttr = false;
         Set<AttributeDelta> newDeltas = new HashSet<AttributeDelta>();
        
         org.apache.directory.api.ldap.model.entry.Attribute upAttribute = existingEntry.get(AdUserParametersHandler.USER_PARAMETERS_LDAP_ATTR_NAME);
@@ -294,6 +394,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
         for (AttributeDelta delta : deltas) {
             String deltaName = delta.getName();
             if (AdUserParametersHandler.isUserParametersAttribute(deltaName)) {
+                foundUpAttr = true;
                 LOG.ok("Applying deltas for userParameters attribute {0}", delta);
                 try {
                     if (delta.getValuesToAdd() != null && !delta.getValuesToAdd().isEmpty()) {
@@ -312,8 +413,8 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
                         handler.toLdap(deltaName, null);
                     }
                 } catch (AdUserParametersHandlerException e) {
-                    throw new ConnectorException("There was an error while preparing Userparameters delta " + deltaName,
-                            e);
+                    throw new InvalidAttributeValueException("There was an error while preparing Userparameters delta " + deltaName
+                            + " of user with UID " + uid, e);
                 }
             }
             //all others remain unchanged
@@ -324,7 +425,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 
         //create new delta for userParameters, having new value
         String userParametersUpdated = handler.getUserParameters();
-        if (userParametersUpdated != null) {
+        if (userParametersUpdated != null && foundUpAttr) {
             AttributeDelta uacAttrDelta = AttributeDeltaBuilder.build(AdUserParametersHandler.USER_PARAMETERS_LDAP_ATTR_NAME, userParametersUpdated);
             newDeltas.add(uacAttrDelta);
         }
@@ -426,6 +527,26 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
         return newDeltas;
     }
 
+    private Set<AttributeDelta> prepareFSPDeltas(Set<AttributeDelta> deltas) {
+        Set<AttributeDelta> newDeltas = new HashSet<>();
+        for (AttributeDelta delta : deltas) {
+            if (delta.is(getConfiguration().getGroupObjectMemberAttribute()) && delta.getValuesToAdd() != null) {
+                // Convert to <SID=...> format if it contains DN for FSP object
+                List<Object> values = delta.getValuesToAdd().stream()
+                        .map(v -> getSchemaTranslator().resolveMemberDn(v.toString()))
+                        .collect(Collectors.toList());
+                AttributeDelta newDelta = new AttributeDeltaBuilder()
+                        .setName(getConfiguration().getGroupObjectMemberAttribute())
+                        .addValueToAdd(values)
+                        .build();
+                newDeltas.add(newDelta);
+            } else {
+                // all others remain unchanged
+                newDeltas.add(delta);
+            }
+        }
+        return newDeltas;
+    }
 
     @Override
     protected void addAttributeModification(Dn dn, List<Modification> modifications, ObjectClass ldapStructuralObjectClass,
@@ -466,8 +587,8 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 
 
         // Trivial (but not really realistic) case: UID is DN
-
-        if (LdapUtil.isDnAttribute(getConfiguration().getUidAttribute())) {
+        // Also, when the FSP object is first created, the UID is a DN, so it needs to be handled specially
+        if (LdapUtil.isDnAttribute(getConfiguration().getUidAttribute()) || getSchemaTranslator().isFSPDn(uid.getUidValue())) {
 
             return searchByDn(getSchemaTranslator().toDn(uidValue), objectClass, ldapObjectClass, handler, options);
 
@@ -488,7 +609,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
             searchStrategy.setExplicitConnection(connection);
 
             Dn guidDn = getSchemaTranslator().getGuidDn(uidValue);
-            String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
+            String[] attributesToGet = determineAttributesToGet(ldapObjectClass, options);
             try {
                 searchStrategy.search(guidDn, applyAdditionalSearchFilterNode(null), SearchScope.OBJECT, attributesToGet);
             } catch (LdapException e) {
@@ -507,7 +628,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
             // the correct domain controller in multi-domain environment.
             // We know that this can return at most one object. Therefore always use simple search.
             SearchStrategy<AdLdapConfiguration> searchStrategy = getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
-            String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
+            String[] attributesToGet = determineAttributesToGet(ldapObjectClass, options);
             Dn guidDn = getSchemaTranslator().getGuidDn(uidValue);
             try {
                 searchStrategy.search(guidDn, applyAdditionalSearchFilterNode(LdapUtil.createAllSearchFilter()), SearchScope.OBJECT, attributesToGet);
@@ -523,8 +644,8 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
             // Make a search directly to the global catalog server. Present that as final result.
             // We know that this can return at most one object. Therefore always use simple search.
             SearchStrategy<AdLdapConfiguration> searchStrategy = new DefaultSearchStrategy<>(globalCatalogConnectionManager,
-                    getConfiguration(), getSchemaTranslator(), objectClass, ldapObjectClass, handler, getErrorHandler(), options);
-            String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
+                    getConfiguration(), getSchemaTranslator(), objectClass, ldapObjectClass, handler, getErrorHandler(), getConnectionLog(), options);
+            String[] attributesToGet = determineAttributesToGet(ldapObjectClass, options);
             Dn guidDn = getSchemaTranslator().getGuidDn(uidValue);
             try {
                 searchStrategy.search(guidDn, applyAdditionalSearchFilterNode(LdapUtil.createAllSearchFilter()), SearchScope.OBJECT, attributesToGet);
@@ -556,7 +677,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
             LdapNetworkConnection connection = getConnectionManager().getConnection(dn, options);
             searchStrategy.setExplicitConnection(connection);
 
-            String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
+            String[] attributesToGet = determineAttributesToGet(ldapObjectClass, options);
             try {
                 searchStrategy.search(guidDn, applyAdditionalSearchFilterNode(null), SearchScope.OBJECT, attributesToGet);
             } catch (LdapException e) {
@@ -577,8 +698,8 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
             LOG.ok("Cannot find object with GUID {0} by using name hint or global catalog. Resorting to brute-force search",
                     uidValue);
             Dn guidDn = getSchemaTranslator().getGuidDn(uidValue);
-            String[] attributesToGet = getAttributesToGet(ldapObjectClass, options);
-            for (LdapNetworkConnection connection: getConnectionManager().getAllConnections()) {
+            String[] attributesToGet = determineAttributesToGet(ldapObjectClass, options);
+            return getConnectionManager().brutalSearch(connection -> {
                 SearchStrategy<AdLdapConfiguration> searchStrategy = getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
                 searchStrategy.setExplicitConnection(connection);
 
@@ -590,8 +711,11 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 
                 if (searchStrategy.getNumberOfEntriesFound() > 0) {
                     return searchStrategy;
+                } else {
+                    return null;
                 }
-            }
+            });
+
 
         } else {
             LOG.ok("Cannot find object with GUID {0} by using name hint or global catalog. Brute-force search is disabled. Found nothing.",
@@ -622,7 +746,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
             Dn guidDn = getSchemaTranslator().getGuidDn(guid);
 
             LOG.ok("Resolvig DN by search for {0} (no global catalog)", guidDn);
-            Entry entry = searchSingleEntry(getConnectionManager(), guidDn, LdapUtil.createAllSearchFilter(), SearchScope.OBJECT,
+            Entry entry = searchSingleEntry(getConnectionManager(), null, guidDn, LdapUtil.createAllSearchFilter(), SearchScope.OBJECT,
                     new String[]{AbstractLdapConfiguration.PSEUDO_ATTRIBUTE_DN_NAME}, "LDAP entry for GUID "+guid, dnHint, options);
 
             if (entry != null) {

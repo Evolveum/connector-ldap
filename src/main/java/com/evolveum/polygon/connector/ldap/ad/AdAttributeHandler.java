@@ -68,7 +68,7 @@ public class AdAttributeHandler implements AttributeHandler {
                     while (true) {
                         Range range = parseRange(attrOption);
                         if (range.top) {
-                            LOG.ok("reached the top ({0}), breaking", attrOption);
+                            LOG.ok("reached the top of the range ({0}), breaking", attrOption);
                             break;
                         }
                         Attribute rangeAttribute = rangeSearch(connection, entry, attrName, range.high);
@@ -76,6 +76,7 @@ public class AdAttributeHandler implements AttributeHandler {
                             LOG.ok("no range attribute returned in response, breaking", attrOption);
                             break;
                         }
+                        LOG.ok("Range attribute: {0}", rangeAttribute.getId());
                         for (Value rangeValue: rangeAttribute) {
                             try {
                                 ldapAttribute.add(rangeValue);
@@ -83,13 +84,13 @@ public class AdAttributeHandler implements AttributeHandler {
                                 throw new IllegalStateException("Error adding value "+rangeValue+" to attribute "+ldapAttribute+": "+e.getMessage(), e);
                             }
                         }
-                        semicolonIndex = ldapAttribute.getId().indexOf(';');
+                        semicolonIndex = rangeAttribute.getId().indexOf(';');
                         if (semicolonIndex < 0) {
                             // Strange. but it looks like we have all the values now
-                            LOG.ok("reached no option, breaking", attrOption);
+                            LOG.ok("found no range option, breaking", attrOption);
                             break;
                         } else {
-                            attrOption = ldapAttribute.getId().substring(semicolonIndex+1);
+                            attrOption = rangeAttribute.getId().substring(semicolonIndex+1);
                         }
                     }
                 }
@@ -108,19 +109,29 @@ public class AdAttributeHandler implements AttributeHandler {
         try {
             entry = connection.lookup( dn, attributesToGet );
 
-            if ( entry==null ) {
+            if ( entry == null ) {
                 OperationLog.logOperationErr(connection, "Entry not found for {0}", dn);
                 throw searchStrategy.getErrorHandler().processLdapException( "Range search for "+dn+" with "+attributesToGet+" failed",
                     new LdapNoSuchObjectException("No entry found for " + dn));
             }
         } catch (LdapException e) {
             OperationLog.logOperationErr(connection, "Search ERR {0}: {1}", e.getClass().getName(), e.getMessage(), e);
+            searchStrategy.getConnectionLog().error(connection, "search", e, dn + " OBJECT (objectclass=*)");
             throw searchStrategy.getErrorHandler().processLdapException("Range search for "+dn+" with "+attributesToGet+" failed", e);
         }
 
         OperationLog.logOperationRes(connection, "Search RES {0}", entry);
+        if (searchStrategy.getConnectionLog().isSuccess()) {
+            searchStrategy.getConnectionLog().success(connection, "search", dn + " OBJECT (objectclass=*)");
+        }
 
-        return entry.get(attrName);
+        String attrPrefix = attrName + ";range=";
+        for(Attribute attr : entry) {
+            if (attr.getId().startsWith(attrPrefix)) {
+                return attr;
+            }
+        }
+        return null;
     }
 
     private Range parseRange(String opt) {

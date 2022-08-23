@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2020 Evolveum
+ * Copyright (c) 2015-2022 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ import java.util.Arrays;
 import java.util.Base64;
 
 import com.evolveum.polygon.connector.ldap.*;
+import com.evolveum.polygon.connector.ldap.connection.ConnectionManager;
 import org.apache.directory.api.ldap.extras.controls.ad.AdDirSyncRequestImpl;
 import org.apache.directory.api.ldap.extras.controls.ad.AdDirSyncResponse;
 import org.apache.directory.api.ldap.extras.controls.ad.AdShowDeleted;
@@ -28,8 +29,6 @@ import org.apache.directory.api.ldap.model.cursor.CursorException;
 import org.apache.directory.api.ldap.model.cursor.SearchCursor;
 import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.exception.LdapException;
-import org.apache.directory.api.ldap.model.filter.AndNode;
-import org.apache.directory.api.ldap.model.filter.ExprNode;
 import org.apache.directory.api.ldap.model.message.*;
 import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.ldap.model.schema.SchemaManager;
@@ -142,7 +141,7 @@ public class AdDirSyncStrategy<C extends AbstractLdapConfiguration> extends Sync
 
                     } else {
                         deltaBuilder.setDeltaType(SyncDeltaType.CREATE_OR_UPDATE);
-                        Entry targetEntry = LdapUtil.fetchEntryByUid(connection, targetUid, ldapObjectClass, options, getConfiguration(), getSchemaTranslator(), getErrorHandler());
+                        Entry targetEntry = fetchEntryByUid(connection, targetUid, ldapObjectClass, options);
                         LOG.ok("Got target entry based on dirSync, targetUid={0}:\n{1}", targetUid, targetEntry);
                         if (targetEntry == null) {
                             // The entry may not exist any more. Maybe it was already deleted.
@@ -190,7 +189,7 @@ public class AdDirSyncStrategy<C extends AbstractLdapConfiguration> extends Sync
                 }
             }
 
-            LdapUtil.closeCursor(searchCursor);
+            LdapUtil.closeDoneCursor(searchCursor);
             LOG.ok("Search(DirSync) DN {0} with {1}: {2} entries, {3} processed", req.getBase(), req.getFilter(), numFoundEntries, numProcessedEntries);
         } catch (LdapException | CursorException e) {
             OperationLog.logOperationErr(connection, "Search ERR {0}: {1}", e.getClass().getName(), e.getMessage(), e);
@@ -252,7 +251,7 @@ public class AdDirSyncStrategy<C extends AbstractLdapConfiguration> extends Sync
                     throw getErrorHandler().processLdapResult("LDAP error during DirSync search", ldapResult);
                 }
             }
-            LdapUtil.closeCursor(searchCursor);
+            LdapUtil.closeDoneCursor(searchCursor);
         } catch (LdapException | CursorException e) {
             returnConnection(connection);
             throw new ConnectorIOException("Error searching for changes ("+req.getFilter()+"): "+e.getMessage(), e);
