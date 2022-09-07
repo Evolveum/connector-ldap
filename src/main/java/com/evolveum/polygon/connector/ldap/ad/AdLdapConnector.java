@@ -200,64 +200,125 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
     protected Set<Attribute> prepareCreateConnIdAttributes(org.identityconnectors.framework.common.objects.ObjectClass connIdObjectClass,
             org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass,
             Set<Attribute> createAttributes) {
-        if (getConfiguration().isRawUserAccountControlAttribute() || !getSchemaTranslator().isUserObjectClass(ldapStructuralObjectClass.getName())) {
+        if ((getConfiguration().isRawUserParametersAttribute() && getConfiguration().isRawUserAccountControlAttribute())
+                || !getSchemaTranslator().isUserObjectClass(ldapStructuralObjectClass.getName())) {
             return super.prepareCreateConnIdAttributes(connIdObjectClass, ldapStructuralObjectClass, createAttributes);
         }
 
+        Set<Attribute> newCreateAttributes = new HashSet<>();
+
+        if (!getConfiguration().isRawUserAccountControlAttribute()) {
+            newCreateAttributes = prepareCreateUserAccountControllAttributes(createAttributes, newCreateAttributes);
+        }
+        if (!getConfiguration().isRawUserParametersAttribute()) {
+            newCreateAttributes = prepareCreateUserParametersAttributes(createAttributes, newCreateAttributes);
+        }
+        
+        LOG.ok("New Create attributes after preparing ConnIdAttributes: {0}" , newCreateAttributes);
+        return newCreateAttributes;
+    }
+
+    private Set<Attribute> prepareCreateUserParametersAttributes(Set<Attribute> createAttributes,
+            Set<Attribute> newCreateAttributes) {
+        AdUserParametersHandler handler = new AdUserParametersHandler();
+        boolean foundUpAttr = false;
+        // collect deltas affecting userParameters
+        for (Attribute createAttr : createAttributes) {
+            String attrName = createAttr.getName();
+            if (AdUserParametersHandler.isUserParametersAttribute(attrName) && !createAttr.getValue().isEmpty()) {
+                foundUpAttr = true;
+                // its possible that another prepare function already added the attribute
+                newCreateAttributes.remove(createAttr);
+                try {
+                    handler.toLdap(attrName, createAttr.getValue().get(0));
+                } catch (AdUserParametersHandlerException e) {
+                    throw new InvalidAttributeValueException(
+                            "There was an error while preparing Userparameters create attribute " + attrName, e);
+                }
+            } else {
+                // its possible that another prepare function already ran before so attributes
+                // could already be added
+                if (!newCreateAttributes.contains(createAttr)) {
+                    newCreateAttributes.add(createAttr);
+                }
+            }
+        }
+        // finally add userParameters raw attribute
+        if (foundUpAttr) {
+            Attribute userParameters = AttributeBuilder.build(AdUserParametersHandler.USER_PARAMETERS_LDAP_ATTR_NAME,
+                    handler.getUserParameters());
+            newCreateAttributes.add(userParameters);
+        }
+        return newCreateAttributes;
+    }
+
+    private Set<Attribute> prepareCreateUserAccountControllAttributes(Set<Attribute> createAttributes,
+            Set<Attribute> newCreateAttributes) {
         Set<AdConstants.UAC> uacAddSet = new HashSet<>();
         Set<AdConstants.UAC> uacDelSet = new HashSet<>();
 
-        Set<Attribute> newCreateAttributes = new HashSet<>();
-
         for (Attribute createAttr : createAttributes) {
-            //collect deltas affecting uac. Will be processed below
+            // collect deltas affecting uac. Will be processed below
             String createAttrName = createAttr.getName();
-            if (createAttrName.equals(OperationalAttributes.ENABLE_NAME) || AdConstants.UAC.forName(createAttrName) != null) {
-                //OperationalAttributes.ENABLE_NAME is replaced by dConstants.UAC.ADS_UF_ACCOUNTDISABLE.name()
-                AdConstants.UAC uacVal = Enum.valueOf(AdConstants.UAC.class, createAttrName.equals(OperationalAttributes.ENABLE_NAME)? AdConstants.UAC.ADS_UF_ACCOUNTDISABLE.name() : createAttrName);
+            if (createAttrName.equals(OperationalAttributes.ENABLE_NAME)
+                    || AdConstants.UAC.forName(createAttrName) != null) {
+                // it's possible that another prepare function already added the attribute
+                newCreateAttributes.remove(createAttr);
+                
+                // OperationalAttributes.ENABLE_NAME is replaced by
+                // dConstants.UAC.ADS_UF_ACCOUNTDISABLE.name()
+                AdConstants.UAC uacVal = Enum.valueOf(AdConstants.UAC.class,
+                        createAttrName.equals(OperationalAttributes.ENABLE_NAME)
+                                ? AdConstants.UAC.ADS_UF_ACCOUNTDISABLE.name()
+                                : createAttrName);
                 List<Object> values = createAttr.getValue();
-                if (values != null && values.size() >0) {
+                if (values != null && values.size() > 0) {
                     Object val = values.get(0);
 
                     if (val instanceof Boolean) {
-                        //OperationalAttributes.ENABLE_NAME = true means AdConstants.UAC.ADS_UF_ACCOUNTDISABLE = false
+                        // OperationalAttributes.ENABLE_NAME = true means
+                        // AdConstants.UAC.ADS_UF_ACCOUNTDISABLE = false
                         if (createAttrName.equals(OperationalAttributes.ENABLE_NAME)) {
-                            if ((Boolean)val) {
-                                val = Boolean.FALSE;
-                            }
-                            else val = Boolean.TRUE;
+                            val = !((Boolean) val);
                         }
 
-                        //value was changed to true
-                        if ((Boolean)val) {
+                        // value was changed to true
+                        if ((Boolean) val) {
                             uacAddSet.add(uacVal);
                         }
-                        //value was changed to false
-                        else uacDelSet.add(uacVal);
+                        // value was changed to false
+                        else
+                            uacDelSet.add(uacVal);
                     }
                 }
             }
-            //all others remain unchanged
-            else newCreateAttributes.add(createAttr);
+            // all others remain unchanged
+            else {
+                // avoid double create entries added by another prepare function before
+                if (!newCreateAttributes.contains(createAttr)) {
+                    newCreateAttributes.add(createAttr);
+                }
+            }
         }
-        //no uac attributes affected? we cannot return, we have to set at least  AdConstants.UAC.ADS_UF_NORMAL_ACCOUNT
+        // no uac attributes affected? we cannot return, we have to set at least
+        // AdConstants.UAC.ADS_UF_NORMAL_ACCOUNT
 
         Integer userAccountControl = AdConstants.UAC.ADS_UF_NORMAL_ACCOUNT.getBit();
 
-        //if bit is not set: add it
+        // if bit is not set: add it
         for (AdConstants.UAC uac : uacAddSet) {
             if ((userAccountControl & uac.getBit()) == 0) {
                 userAccountControl = userAccountControl + uac.getBit();
             }
         }
-        //if bit is set: remove it
+        // if bit is set: remove it
         for (AdConstants.UAC uac : uacDelSet) {
             if ((userAccountControl & uac.getBit()) != 0) {
                 userAccountControl = userAccountControl - uac.getBit();
             }
         }
 
-        //create new attribute for useraccountcontrol, having new value
+        // create new attribute for useraccountcontrol, having new value
         Attribute uacAttr = AttributeBuilder.build(AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME, userAccountControl);
         newCreateAttributes.add(uacAttr);
 
@@ -318,7 +379,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 
     private Set<AttributeDelta> prepareUpDeltas(Uid uid, Set<AttributeDelta> deltas, Entry existingEntry) {
         AdUserParametersHandler handler = new AdUserParametersHandler();
-
+        boolean foundUpAttr = false;
         Set<AttributeDelta> newDeltas = new HashSet<AttributeDelta>();
        
         org.apache.directory.api.ldap.model.entry.Attribute upAttribute = existingEntry.get(AdUserParametersHandler.USER_PARAMETERS_LDAP_ATTR_NAME);
@@ -333,6 +394,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
         for (AttributeDelta delta : deltas) {
             String deltaName = delta.getName();
             if (AdUserParametersHandler.isUserParametersAttribute(deltaName)) {
+                foundUpAttr = true;
                 LOG.ok("Applying deltas for userParameters attribute {0}", delta);
                 try {
                     if (delta.getValuesToAdd() != null && !delta.getValuesToAdd().isEmpty()) {
@@ -351,8 +413,8 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
                         handler.toLdap(deltaName, null);
                     }
                 } catch (AdUserParametersHandlerException e) {
-                    throw new ConnectorException("There was an error while preparing Userparameters delta " + deltaName,
-                            e);
+                    throw new InvalidAttributeValueException("There was an error while preparing Userparameters delta " + deltaName
+                            + " of user with UID " + uid, e);
                 }
             }
             //all others remain unchanged
@@ -363,7 +425,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 
         //create new delta for userParameters, having new value
         String userParametersUpdated = handler.getUserParameters();
-        if (userParametersUpdated != null) {
+        if (userParametersUpdated != null && foundUpAttr) {
             AttributeDelta uacAttrDelta = AttributeDeltaBuilder.build(AdUserParametersHandler.USER_PARAMETERS_LDAP_ATTR_NAME, userParametersUpdated);
             newDeltas.add(uacAttrDelta);
         }
