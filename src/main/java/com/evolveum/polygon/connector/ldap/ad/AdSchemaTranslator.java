@@ -301,12 +301,15 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
                     try {
                         cob.addAttributes(handler.toIcf());
                     } catch (AdUserParametersHandlerException e) {
-                        LOG.error(e, "Could not parse userParameters to icf Attributes");
-                        throw new InvalidAttributeValueException(e);
+                        LOG.error(e, "Could not parse userParameters to icf Attributes of entry with DN " + entry.getDn());
+                        throw new InvalidAttributeValueException("Could not parse userParameters to icf Attributes for entry with dn " + entry.getDn(), e);
                     }
                 } catch (LdapInvalidAttributeValueException e) {
                     throw new InvalidAttributeValueException(e);
                 }
+                // reset userParameters to avoid excess data at the end of the byte array and
+                // eventually fix it with next write operation
+                cob.addAttribute(AdUserParametersHandler.USER_PARAMETERS_LDAP_ATTR_NAME, handler.getUserParameters());
             }
         }
     }

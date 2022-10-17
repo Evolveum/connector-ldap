@@ -639,6 +639,9 @@ public class LdapUtil {
     }
 
     public static boolean anyValueContainsSubstring(Attribute attribute, String expectedSubstring) {
+        if (attribute == null) {
+            return false;
+        }
         for (Value value : attribute) {
             if (value.getString().contains(expectedSubstring)) {
                 return true;
