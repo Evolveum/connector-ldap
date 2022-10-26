@@ -53,6 +53,8 @@ public class LdapConstants {
 
     public static final String ATTRIBUTE_OPENLDAP_PWD_ACCOUNT_LOCKED_TIME_NAME = "pwdAccountLockedTime";
 
+    public static final String ATTRIBUTE_OPENLDAP_PWD_ACCOUNT_LOCKED_TIME_VALUE = "000001010000Z";
+
     public static final String MATCHING_RULE_CASE_IGNORE_MATCH_NAME = "caseIgnoreMatch";
     public static final String MATCHING_RULE_CASE_IGNORE_MATCH_OID = "2.5.13.2";
 
