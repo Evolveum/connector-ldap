@@ -71,6 +71,10 @@ public class LdapSchemaTranslator extends AbstractSchemaTranslator<LdapConfigura
             lockoutAb.setType(boolean.class);
 //            lockoutAb.setReturnedByDefault(false);
             ocib.addAttributeInfo(lockoutAb.build());
+            AttributeInfoBuilder statusAb = new AttributeInfoBuilder(OperationalAttributes.ENABLE_NAME);
+            statusAb.setType(boolean.class);
+//            lockoutAb.setReturnedByDefault(false);
+            ocib.addAttributeInfo(statusAb.build());
         }
     }
 
@@ -263,9 +267,12 @@ public class LdapSchemaTranslator extends AbstractSchemaTranslator<LdapConfigura
             LOG.ok("Atribute pwdAccountLockedTime = {0}", pwdAccountLockedTime);
             GregorianCalendar cal = new GregorianCalendar();
             if (pwdAccountLockedTime != null && !StringUtils.isEmpty(pwdAccountLockedTime) && (pwdAccountLockedTime.contains(LdapConstants.ATTRIBUTE_OPENLDAP_PWD_ACCOUNT_LOCKED_TIME_VALUE) || LdapUtil.getTimestampAttribute(entry, SchemaConstants.PWD_ACCOUNT_LOCKED_TIME_AT) > cal.getTimeInMillis())) {
+                if (pwdAccountLockedTime.contains(LdapConstants.ATTRIBUTE_OPENLDAP_PWD_ACCOUNT_LOCKED_TIME_VALUE)) cob.addAttribute(OperationalAttributes.ENABLE_NAME, Boolean.FALSE);
+                else cob.addAttribute(OperationalAttributes.ENABLE_NAME, Boolean.TRUE);
                 cob.addAttribute(OperationalAttributes.LOCK_OUT_NAME, Boolean.TRUE);
             } else {
                 cob.addAttribute(OperationalAttributes.LOCK_OUT_NAME, Boolean.FALSE);
+                cob.addAttribute(OperationalAttributes.ENABLE_NAME, Boolean.TRUE);
             }
         }
     }
