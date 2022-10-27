@@ -25,6 +25,8 @@ import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.spi.ConfigurationProperty;
 
+import java.util.Objects;
+
 /**
  * LDAP Connector configuration.
  *
@@ -1095,9 +1097,22 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
             timeout = DEFAULT_TIMEOUT;
         }
 
+        connectTimeout = recomputeLongValue(connectTimeout);
+        writeOperationTimeout = recomputeLongValue(writeOperationTimeout);
+        readOperationTimeout = recomputeLongValue(readOperationTimeout);
+        closeTimeout = recomputeLongValue(closeTimeout);
+        sendTimeout = recomputeLongValue(sendTimeout);
+
         if (checkAliveTimeout == null) {
             checkAliveTimeout = timeout;
         }
+    }
+
+    private Long recomputeLongValue(Long longValue) {
+        if (Objects.isNull(longValue)) {
+            return -1L;
+        }
+        return longValue;
     }
 
     // TODO: equals, hashCode
