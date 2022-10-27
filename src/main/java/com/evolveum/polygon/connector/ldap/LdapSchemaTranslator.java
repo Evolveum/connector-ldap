@@ -1,12 +1,12 @@
 /**
  * Copyright (c) 2016-2019 Evolveum
- *
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -17,10 +17,12 @@ package com.evolveum.polygon.connector.ldap;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.GregorianCalendar;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.directory.api.ldap.model.constants.SchemaConstants;
 import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.entry.Value;
@@ -62,7 +64,7 @@ public class LdapSchemaTranslator extends AbstractSchemaTranslator<LdapConfigura
 
     @Override
     protected void extendObjectClassDefinition(ObjectClassInfoBuilder ocib,
-            org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
+                                               org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
         super.extendObjectClassDefinition(ocib, ldapObjectClass);
 
         if (!LdapConfiguration.LOCKOUT_STRATEGY_NONE.equals(getConfiguration().getLockoutStrategy())) {
@@ -70,6 +72,10 @@ public class LdapSchemaTranslator extends AbstractSchemaTranslator<LdapConfigura
             lockoutAb.setType(boolean.class);
 //            lockoutAb.setReturnedByDefault(false);
             ocib.addAttributeInfo(lockoutAb.build());
+            AttributeInfoBuilder statusAb = new AttributeInfoBuilder(OperationalAttributes.ENABLE_NAME);
+            statusAb.setType(boolean.class);
+//            lockoutAb.setReturnedByDefault(false);
+            ocib.addAttributeInfo(statusAb.build());
         }
     }
 
@@ -142,7 +148,7 @@ public class LdapSchemaTranslator extends AbstractSchemaTranslator<LdapConfigura
     public Map<String, List<Value>> toLdapPolyValues(AttributeType ldapAttributeType, List<Object> connIdValues) {
         Map<String, List<Value>> ldapValueMap = new HashMap<>();
         if (connIdValues.size() > 1) {
-            throw new InvalidAttributeValueException("Only single-valued poly attributes are supported (attribute '"+ldapAttributeType.getName()+"')");
+            throw new InvalidAttributeValueException("Only single-valued poly attributes are supported (attribute '" + ldapAttributeType.getName() + "')");
         } else if (connIdValues.isEmpty()) {
             return ldapValueMap;
         } else {
@@ -172,15 +178,15 @@ public class LdapSchemaTranslator extends AbstractSchemaTranslator<LdapConfigura
 
     @Override
     public AttributeType toLdapAttribute(org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
-            String icfAttributeName) {
+                                         String icfAttributeName) {
 
-        if (OperationalAttributes.LOCK_OUT_NAME.equals(icfAttributeName)) {
+        if (OperationalAttributes.LOCK_OUT_NAME.equals(icfAttributeName) || OperationalAttributes.ENABLE_NAME.equals(icfAttributeName)) {
             if (getConfiguration().getLockoutStrategy() == null || LdapConfiguration.LOCKOUT_STRATEGY_NONE.equals(getConfiguration().getLockoutStrategy())) {
                 return null;
             } else if (LdapConfiguration.LOCKOUT_STRATEGY_OPENLDAP.equals(getConfiguration().getLockoutStrategy())) {
                 return super.toLdapAttribute(ldapObjectClass, SchemaConstants.PWD_ACCOUNT_LOCKED_TIME_AT);
             } else {
-                throw new IllegalStateException("Unknown lockout strategy "+ getConfiguration().getLockoutStrategy());
+                throw new IllegalStateException("Unknown lockout strategy " + getConfiguration().getLockoutStrategy());
             }
         }
 
@@ -189,13 +195,13 @@ public class LdapSchemaTranslator extends AbstractSchemaTranslator<LdapConfigura
 
     @Override
     protected Attribute toConnIdAttributePoly(String connIdAttributeName, String ldapAttributeNameFromSchema, AttributeType ldapAttributeType,
-            List<org.apache.directory.api.ldap.model.entry.Attribute> ldapAttributes,
-            LdapNetworkConnection connection, Entry entry, AttributeHandler attributeHandler) {
+                                              List<org.apache.directory.api.ldap.model.entry.Attribute> ldapAttributes,
+                                              LdapNetworkConnection connection, Entry entry, AttributeHandler attributeHandler) {
 
         AttributeBuilder ab = new AttributeBuilder();
         ab.setName(connIdAttributeName);
 
-        Map<String,Object> connIdValueMap = new HashMap<>();
+        Map<String, Object> connIdValueMap = new HashMap<>();
         for (org.apache.directory.api.ldap.model.entry.Attribute ldapAttribute : ldapAttributes) {
 
             String connIdMapKey = determinePolyKey(ldapAttribute);
@@ -214,7 +220,7 @@ public class LdapSchemaTranslator extends AbstractSchemaTranslator<LdapConfigura
 
             if (ldapAttribute.size() > 1) {
                 if (!getConfiguration().isTolerateMultivalueReduction()) {
-                    throw new InvalidAttributeValueException("Multi-valued multi-attributes are not supported, attribute "+ldapAttribute.getUpId()+ " on "+entry.getDn());
+                    throw new InvalidAttributeValueException("Multi-valued multi-attributes are not supported, attribute " + ldapAttribute.getUpId() + " on " + entry.getDn());
                 } else {
                     LOG.warn("Reducing multiple values of attribute {0} on {1} to a single value", ldapAttribute.getUpId(), entry.getDn());
                     ab.setAttributeValueCompleteness(AttributeValueCompleteness.INCOMPLETE);
@@ -234,7 +240,7 @@ public class LdapSchemaTranslator extends AbstractSchemaTranslator<LdapConfigura
         try {
             return ab.build();
         } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException(e.getMessage() + ", attribute "+connIdAttributeName+" (ldap: "+ldapAttributeNameFromSchema+")", e);
+            throw new IllegalArgumentException(e.getMessage() + ", attribute " + connIdAttributeName + " (ldap: " + ldapAttributeNameFromSchema + ")", e);
         }
     }
 
@@ -258,13 +264,16 @@ public class LdapSchemaTranslator extends AbstractSchemaTranslator<LdapConfigura
         super.extendConnectorObject(cob, entry, objectClassName);
 
         if (LdapConfiguration.LOCKOUT_STRATEGY_OPENLDAP.equals(getConfiguration().getLockoutStrategy())) {
-            Long pwdAccountLockedTime = LdapUtil.getTimestampAttribute(entry, SchemaConstants.PWD_ACCOUNT_LOCKED_TIME_AT);
-            if (pwdAccountLockedTime != null) {
-                // WARNING: this is not exact. The lock might have already expired. But we do not have
-                // any good way to check that without access to cn=config
+            String pwdAccountLockedTime = LdapUtil.getStringAttribute(entry, SchemaConstants.PWD_ACCOUNT_LOCKED_TIME_AT);
+            LOG.ok("Atribute pwdAccountLockedTime = {0}", pwdAccountLockedTime);
+            GregorianCalendar cal = new GregorianCalendar();
+            if (pwdAccountLockedTime != null && !StringUtils.isEmpty(pwdAccountLockedTime) && (pwdAccountLockedTime.contains(LdapConstants.ATTRIBUTE_OPENLDAP_PWD_ACCOUNT_LOCKED_TIME_VALUE) || LdapUtil.getTimestampAttribute(entry, SchemaConstants.PWD_ACCOUNT_LOCKED_TIME_AT) > cal.getTimeInMillis())) {
+                if (pwdAccountLockedTime.contains(LdapConstants.ATTRIBUTE_OPENLDAP_PWD_ACCOUNT_LOCKED_TIME_VALUE)) cob.addAttribute(OperationalAttributes.ENABLE_NAME, Boolean.FALSE);
+                else cob.addAttribute(OperationalAttributes.ENABLE_NAME, Boolean.TRUE);
                 cob.addAttribute(OperationalAttributes.LOCK_OUT_NAME, Boolean.TRUE);
             } else {
                 cob.addAttribute(OperationalAttributes.LOCK_OUT_NAME, Boolean.FALSE);
+                cob.addAttribute(OperationalAttributes.ENABLE_NAME, Boolean.TRUE);
             }
         }
     }

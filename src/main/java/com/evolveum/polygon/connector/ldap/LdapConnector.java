@@ -63,6 +63,16 @@ public class LdapConnector extends AbstractLdapConnector<LdapConfiguration> {
             }
             modifications.add(
                     new DefaultModification(ModificationOperation.REPLACE_ATTRIBUTE, SchemaConstants.PWD_ACCOUNT_LOCKED_TIME_AT)); // no value
+        } else if (delta.is(OperationalAttributes.ENABLE_NAME)
+                && LdapConfiguration.LOCKOUT_STRATEGY_OPENLDAP.equals(getConfiguration().getLockoutStrategy())) {
+            Boolean value = SchemaUtil.getSingleReplaceValue(delta, Boolean.class);
+            if (value != null && !value) {
+                modifications.add(
+                        new DefaultModification(ModificationOperation.REPLACE_ATTRIBUTE, SchemaConstants.PWD_ACCOUNT_LOCKED_TIME_AT, LdapConstants.ATTRIBUTE_OPENLDAP_PWD_ACCOUNT_LOCKED_TIME_VALUE)); // 000001010000Z
+            } else {
+                modifications.add(
+                        new DefaultModification(ModificationOperation.REPLACE_ATTRIBUTE, SchemaConstants.PWD_ACCOUNT_LOCKED_TIME_AT)); // no value
+            }
 
         } else {
             super.addAttributeModification(dn, modifications, ldapStructuralObjectClass, icfObjectClass, delta);
