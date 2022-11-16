@@ -602,11 +602,11 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
                 }
             } else if (connIdAttributeValue instanceof String) {
                 try {
-                        return new Value(ldapAttributeType, connIdAttributeValue.toString());
-                    } catch (LdapInvalidAttributeValueException e) {
-                        throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
-                                +"; attributeType="+ldapAttributeType, e);
-                    }
+                    return new Value(ldapAttributeType, connIdAttributeValue.toString());
+                } catch (LdapInvalidAttributeValueException e) {
+                    throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
+                            +"; attributeType="+ldapAttributeType, e);
+                }
             } else {
                 throw new InvalidAttributeValueException("Wrong type for attribute "+ldapAttributeType+": "+connIdAttributeValue.getClass());
             }

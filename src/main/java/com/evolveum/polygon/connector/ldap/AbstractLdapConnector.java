@@ -71,6 +71,7 @@ import org.identityconnectors.framework.common.objects.ConnectorObject;
 import org.identityconnectors.framework.common.objects.Name;
 import org.identityconnectors.framework.common.objects.ObjectClass;
 import org.identityconnectors.framework.common.objects.OperationOptions;
+import org.identityconnectors.framework.common.objects.OperationalAttributes;
 import org.identityconnectors.framework.common.objects.PredefinedAttributes;
 import org.identityconnectors.framework.common.objects.QualifiedUid;
 import org.identityconnectors.framework.common.objects.ResultsHandler;
@@ -868,6 +869,24 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
                     entry.put(valueMapEntry.getKey(), valueMapEntry.getValue().toArray(new Value[valueMapEntry.getValue().size()]));
                 }
             } else {
+                if (ldapAttributeType.getName().equals(LdapConstants.ATTRIBUTE_OPENLDAP_PWD_ACCOUNT_LOCKED_TIME_NAME) && connIdAttrValues.size() > 0) {
+                    if (connIdAttr.is(OperationalAttributes.ENABLE_NAME)) {
+                        if (Boolean.TRUE.equals(Boolean.parseBoolean(connIdAttrValues.get(0).toString()))) {
+                            continue;
+                        } else if (Boolean.FALSE.equals(Boolean.parseBoolean(connIdAttrValues.get(0).toString()))) {
+                            connIdAttrValues = new ArrayList<>();
+                            connIdAttrValues.add(LdapConstants.ATTRIBUTE_OPENLDAP_PWD_ACCOUNT_LOCKED_TIME_VALUE);
+                        }
+                    }
+                    if (connIdAttr.is(OperationalAttributes.LOCK_OUT_NAME)) {
+                        if (Boolean.FALSE.equals(Boolean.parseBoolean(connIdAttrValues.get(0).toString()))) {
+                            continue;
+                        } else if (Boolean.TRUE.equals(Boolean.parseBoolean(connIdAttrValues.get(0).toString()))) {
+                            connIdAttrValues = new ArrayList<>();
+                            connIdAttrValues.add(LdapConstants.ATTRIBUTE_OPENLDAP_PWD_ACCOUNT_LOCKED_TIME_VALUE);
+                        }
+                    }
+                }
                 List<Value> ldapValues = schemaTranslator.toLdapValues(ldapAttributeType, connIdAttrValues);
                 // Do NOT set attributeType here. The attributeType may not match the type of the value.
                 entry.put(ldapAttributeType.getName(), ldapValues.toArray(new Value[ldapValues.size()]));
