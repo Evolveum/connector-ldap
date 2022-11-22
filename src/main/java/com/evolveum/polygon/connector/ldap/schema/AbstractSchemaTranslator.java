@@ -29,6 +29,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Arrays;
+import java.util.function.Predicate;
 
 import com.evolveum.polygon.connector.ldap.*;
 import com.evolveum.polygon.connector.ldap.connection.ConnectionManager;
@@ -1288,7 +1290,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
             Value ldapValue = iterator.next();
             Object connIdValue = toConnIdValue(connIdAttributeName, ldapValue, ldapAttributeNameFromSchema, ldapAttributeType);
             if (connIdValue != null) {
-                if (!incompleteRead) {
+                if (!incompleteRead && shouldValueBeIncluded(connIdValue, ldapAttributeNameFromSchema)) {
                     ab.addValue(connIdValue);
                 }
                 hasValidValue = true;
@@ -1306,6 +1308,40 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException(e.getMessage() + ", attribute "+connIdAttributeName+" (ldap: "+ldapAttributeNameFromSchema+")", e);
         }
+    }
+
+    /**
+     * Decide if value should be included in case filtering for memberOf attribute is set.
+     * All other attributes and their value will not be checked for condition matching.
+     *
+     * @param connIdValue {@link Object} value of attribute to be checked
+     * @param ldapAttributeNameFromSchema {@link String} ldap attribute name to determine, if value should be checked
+     *
+     * @return Boolean true if value should be included, false in case value should be removed. Default: true
+     */
+    private boolean shouldValueBeIncluded(Object connIdValue, String ldapAttributeNameFromSchema) {
+        if (configuration.isFilterOutMemberOfValues() && LdapConstants.ATTRIBUTE_MEMBER_OF_NAME.equalsIgnoreCase(ldapAttributeNameFromSchema)) {
+            String[] allowedValues = configuration.getMemberOfAllowedValues();
+            if (allowedValues.length == 0) {
+                LOG.ok("MemberOfAllowedValues is empty, using baseContext for filtering");
+                allowedValues = new String[]{ configuration.getBaseContext() };
+                configuration.setMemberOfAllowedValues(allowedValues);
+            }
+
+            if (connIdValue instanceof String) {
+                LOG.ok("Filtering memberOf attribute value: {0}", connIdValue);
+                String connIdValueString = (String) connIdValue;
+                return Arrays.stream(allowedValues)
+                             .filter(Predicate.not(String::isEmpty))
+                             .anyMatch(allowedValue -> connIdValueString.regionMatches(
+                                     true,
+                                     connIdValueString.length() - allowedValue.length(),
+                                     allowedValue,
+                                     0,
+                                     allowedValue.length()));
+            }
+        }
+        return true;
     }
 
     protected Attribute toConnIdAttributePoly(String connIdAttributeName, String ldapAttributeNameFromSchema, AttributeType ldapAttributeType,
