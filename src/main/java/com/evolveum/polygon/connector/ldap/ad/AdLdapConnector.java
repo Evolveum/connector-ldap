@@ -232,8 +232,14 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
                 try {
                     handler.toLdap(attrName, createAttr.getValue().get(0));
                 } catch (AdUserParametersHandlerException e) {
-                    throw new InvalidAttributeValueException(
-                            "There was an error while preparing Userparameters create attribute " + attrName, e);
+                    if (getConfiguration().isUserParametersThrowException()) {
+                        throw new InvalidAttributeValueException(
+                                "There was an error while preparing Userparameters create attribute " + attrName, e);
+                    } else {
+                        LOG.warn(
+                                "There was an error while parsing Userparameters create attribute. Will not throw an Exception due to configuration.");
+                        LOG.ok(e, "The following Exception was thrown while parsing Userparameters:");
+                    }
                 }
             } else {
                 // its possible that another prepare function already ran before so attributes
@@ -413,8 +419,15 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
                         handler.toLdap(deltaName, null);
                     }
                 } catch (AdUserParametersHandlerException e) {
-                    throw new InvalidAttributeValueException("There was an error while preparing Userparameters delta " + deltaName
-                            + " of user with UID " + uid, e);
+                    if (getConfiguration().isUserParametersThrowException()) {
+                        throw new InvalidAttributeValueException("There was an error while preparing Userparameters delta " + deltaName
+                                + " of user with UID " + uid, e);
+                    }
+                    else {
+                        LOG.warn(
+                                "There was an error while preparing Userparameters delta. Will not throw an Exception due to configuration.");
+                        LOG.ok(e, "The following Exception was thrown while preparing Userparameters delta:");
+                    }
                 }
             }
             //all others remain unchanged
