@@ -174,15 +174,15 @@
 
     </dependencies>
         <distributionManagement>
-        <repository>
-            <id>daasi</id>
-            <name>DAASI-Test-repo</name>
-            <url>https://nexus.daasi.de/repository/maven-releases/</url>
-        </repository>
-        <snapshotRepository>
-            <id>daasi</id>
-            <name>DAASI-Test-repo</name>
-            <url>https://nexus.daasi.de/repository/maven-snapshots/</url>
-        </snapshotRepository>
+            <repository>
+                <id>daasi</id>
+                <name>DAASI-Release-Repo</name>
+                <url>https://nexus.daasi.de/repository/maven-releases/</url>
+            </repository>
+            <snapshotRepository>
+                <id>daasisnapshot</id>
+                <name>DAASI-Snapshots-repo</name>
+                <url>https://nexus.daasi.de/repository/maven-snapshots/</url>
+            </snapshotRepository>
     </distributionManagement>
 </project>
