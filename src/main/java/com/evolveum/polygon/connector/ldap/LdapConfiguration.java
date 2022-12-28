@@ -38,6 +38,8 @@ public class LdapConfiguration extends AbstractLdapConfiguration {
      */
     private String lockoutStrategy = LOCKOUT_STRATEGY_NONE;
 
+    public static final String CONF_PROP_NAME_LOCKOUT_STRATEGY = "lockoutStrategy";
+
     public static final String LOCKOUT_STRATEGY_NONE = "none";
     public static final String LOCKOUT_STRATEGY_OPENLDAP = "openldap";
 
@@ -73,21 +75,13 @@ public class LdapConfiguration extends AbstractLdapConfiguration {
      */
     private boolean tolerateMultivalueReduction;
 
-    @ConfigurationProperty(order = 100)
+    @ConfigurationProperty(order = 100, allowedValues = { LOCKOUT_STRATEGY_NONE , LOCKOUT_STRATEGY_OPENLDAP })
     public String getLockoutStrategy() {
         return lockoutStrategy;
     }
 
     public void setLockoutStrategy(String lockoutStrategy) {
         this.lockoutStrategy = lockoutStrategy;
-    }
-
-    @Override
-    public void recompute() {
-        if (getUidAttribute() == null) {
-            setUidAttribute(SchemaConstants.ENTRY_UUID_AT);
-        }
-        super.recompute();
     }
 
     @ConfigurationProperty(order = 101)
@@ -126,5 +120,12 @@ public class LdapConfiguration extends AbstractLdapConfiguration {
         this.tolerateMultivalueReduction = tolerateMultivalueReduction;
     }
 
+    @Override
+    public void recompute() {
+        if (getUidAttribute() == null) {
+            setUidAttribute(SchemaConstants.ENTRY_UUID_AT);
+        }
+        super.recompute();
+    }
 
 }

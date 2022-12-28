@@ -20,10 +20,13 @@ import static org.identityconnectors.common.StringUtil.isBlank;
 
 import org.apache.directory.api.ldap.model.constants.SchemaConstants;
 import org.identityconnectors.framework.common.exceptions.ConfigurationException;
+import org.identityconnectors.framework.common.objects.ValueListOpenness;
 import org.identityconnectors.framework.spi.AbstractConfiguration;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.spi.ConfigurationProperty;
+
+import java.util.Objects;
 
 /**
  * LDAP Connector configuration.
@@ -55,10 +58,14 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
      */
     private String host;
 
+    public static final String CONF_PROP_NAME_HOST = "host";
+
     /**
      * The LDAP server port.
      */
     private int port = DEFAULT_PORT;
+
+    public static final String CONF_PROP_NAME_PORT = "port";
 
     /**
      * What connection security to use.
@@ -71,6 +78,8 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
     public static final String CONNECTION_SECURITY_SSL = "ssl";
     public static final String CONNECTION_SECURITY_STARTTLS = "starttls";
 
+    public static final String CONF_PROP_NAME_CONNECTION_SECURITY = "connectionSecurity";
+
     /**
      * The standard name of the SSL protocol.
      * This name is used to instantiate javax.net.ssl.SSLContext.
@@ -78,6 +87,8 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
      * E.g. SSL, SSLv2, SSLv3, TLS, TLSv1, TLSv1.1, TLSv1.2
      */
     private String sslProtocol = null;
+
+    public static final String CONF_PROP_NAME_SSL_PROTOCOL = "sslProtocol";
 
     /**
      * Whether connector skips certificate validity check against its default truststore (e.g. Java cacerts)
@@ -191,6 +202,8 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
      */
     private String baseContext;
 
+    public static final String CONF_PROP_NAME_BASE_CONTEXT = "baseContext";
+
     /**
      * Structured definition of a server in the directory topology.
      * It contains attribute-value pairs that define each individual server.
@@ -227,7 +240,10 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
      */
     private String passwordHashAlgorithm;
 
+    public static final String CONF_PROP_NAME_PASSWORD_HASH_ALGORITHM = "passwordHashAlgorithm";
+
     public static final String PASSWORD_HASH_ALGORITHM_NONE = "none";
+    public static final String PASSWORD_HASH_ALGORITHM_SSHA = "SSHA";
 
     /**
      * Strategy for reading the password. LDAP schema itself cannot reliably indicate whether
@@ -271,10 +287,14 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
      */
     private String vlvSortAttribute = null;
 
+    public static final String CONF_PROP_NAME_VLV_SORT_ATTRIBUTE = "vlvSortAttribute";
+
     /**
      * The ordering rule for VLV searches if no other ordering was specified.
      */
     private String vlvSortOrderingRule = null;
+
+    public static final String CONF_PROP_NAME_VLV_SORT_ORDERING_RULE = "vlvSortOrderingRule";
 
     /**
      * Name of the attribute which will be used as ICF UID.
@@ -285,6 +305,8 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
      * Operational attributes that apply to all object classes.
      */
     private String[] operationalAttributes = { };
+
+    public static final String CONF_PROP_NAME_OPERATIONAL_ATTRIBUTES = "operationalAttributes";
 
     /**
      * If set to false then the schema will not be retrieved from the server.
@@ -310,6 +332,8 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
      * Default value: auto
      */
     private String usePermissiveModify = USE_PERMISSIVE_MODIFY_AUTO;
+
+    public static final String CONF_PROP_NAME_USE_PERMISSIVE_MODIFY = "usePermissiveModify";
 
     public static final String USE_PERMISSIVE_MODIFY_NEVER = "never";
     public static final String USE_PERMISSIVE_MODIFY_AUTO = "auto";
@@ -443,10 +467,6 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
      */
     private boolean structuralObjectClassesToAuxiliary = false;
 
-
-    public static final String RUN_AS_STRATEGY_NONE = "none";
-    public static final String RUN_AS_STRATEGY_BIND = "bind";
-
     /**
      * Controls "run as" feature. This feature allows execution of operations under different identity
      * that is configured in the connector. This feature is disabled by default because it is very
@@ -455,6 +475,9 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
      * Default value: none
      */
     private String runAsStrategy = RUN_AS_STRATEGY_NONE;
+
+    public static final String RUN_AS_STRATEGY_NONE = "none";
+    public static final String RUN_AS_STRATEGY_BIND = "bind";
 
     /**
      * Search filter that will be added to all searche operations that the connector does.
@@ -488,6 +511,19 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
      */
     private long switchBackInterval = DEFAULT_SWITCH_BACK_INTERVAL;
 
+    /**
+     * If set to true, connector will return only values of memberOf attribute that contains specified sequence.
+     * If set to false, no filtering will occur and all values will be returned.
+     * Default value: false
+     */
+    private boolean filterOutMemberOfValues = false;
+
+    /**
+     * List of allowed value for memberOf attribute to be returned, only values ending with specified will be returned. If no value defined, baseContext will be used.
+     * This will be processed only when 'Filter memberOf' set to true
+     */
+    private String[] memberOfAllowedValues = { };
+
     @ConfigurationProperty(required = true, order = 1)
     public String getHost() {
         return host;
@@ -498,7 +534,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.host = host;
     }
 
-    @ConfigurationProperty(order = 2)
+    @ConfigurationProperty(order = 2, allowedValues = { "389", "636" }, allowedValuesOpenness = ValueListOpenness.OPEN)
     public int getPort() {
         return port;
     }
@@ -508,7 +544,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.port = port;
     }
 
-    @ConfigurationProperty(order = 3)
+    @ConfigurationProperty(order = 3, allowedValues = { CONNECTION_SECURITY_NONE, CONNECTION_SECURITY_SSL, CONNECTION_SECURITY_STARTTLS })
     public String getConnectionSecurity() {
         return connectionSecurity;
     }
@@ -518,7 +554,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.connectionSecurity = connectionSecurity;
     }
 
-    @ConfigurationProperty(order = 4)
+    @ConfigurationProperty(order = 4, allowedValues = { "TLS", "TLSv1", "TLSv1.1", "TLSv1.2", "TLSv1.3" }, allowedValuesOpenness = ValueListOpenness.OPEN)
     public String getSslProtocol() {
         return sslProtocol;
     }
@@ -528,7 +564,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.sslProtocol = sslProtocol;
     }
 
-    @ConfigurationProperty(order = 5)
+    @ConfigurationProperty(order = 5, allowedValues = { "TLS", "TLSv1", "TLSv1.1", "TLSv1.2", "TLSv1.3" }, allowedValuesOpenness = ValueListOpenness.OPEN)
     public String[] getEnabledSecurityProtocols() {
         return enabledSecurityProtocols;
     }
@@ -715,7 +751,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.passwordAttribute = passwordAttribute;
     }
 
-    @ConfigurationProperty(order = 24)
+    @ConfigurationProperty(order = 24, allowedValues = { PASSWORD_HASH_ALGORITHM_NONE, PASSWORD_HASH_ALGORITHM_SSHA }, allowedValuesOpenness = ValueListOpenness.OPEN)
     public String getPasswordHashAlgorithm() {
         return passwordHashAlgorithm;
     }
@@ -725,7 +761,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.passwordHashAlgorithm = passwordHashAlgorithm;
     }
 
-    @ConfigurationProperty(order = 25)
+    @ConfigurationProperty(order = 25, allowedValues = { PASSWORD_READ_STRATEGY_UNREADABLE, PASSWORD_READ_STRATEGY_READABLE, PASSWORD_READ_STRATEGY_INCOMPLETE_READ })
     public String getPasswordReadStrategy() {
         return passwordReadStrategy;
     }
@@ -735,7 +771,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.passwordReadStrategy = passwordReadStrategy;
     }
 
-    @ConfigurationProperty(order = 26)
+    @ConfigurationProperty(order = 26, allowedValues = { PAGING_STRATEGY_NONE, PAGING_STRATEGY_AUTO, PAGING_STRATEGY_SPR, PAGING_STRATEGY_VLV })
     public String getPagingStrategy() {
         return pagingStrategy;
     }
@@ -843,7 +879,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.useTreeDelete = useTreeDelete;
     }
 
-    @ConfigurationProperty(order = 37)
+    @ConfigurationProperty(order = 37, allowedValues = { SYNCHRONIZATION_STRATEGY_NONE, SYNCHRONIZATION_STRATEGY_AUTO, SYNCHRONIZATION_STRATEGY_SUN_CHANGE_LOG, SYNCHRONIZATION_STRATEGY_OPEN_LDAP_ACCESSLOG, SYNCHRONIZATION_STRATEGY_MODIFY_TIMESTAMP, SYNCHRONIZATION_STRATEGY_AD_DIR_SYNC })
     public String getSynchronizationStrategy() {
         return synchronizationStrategy;
     }
@@ -922,7 +958,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.useUnsafeNameHint = useUnsafeNameHint;
     }
 
-    @ConfigurationProperty(order = 45)
+    @ConfigurationProperty(order = 45, allowedValues = { TEST_MODE_FULL, TEST_MODE_ANY, TEST_MODE_PRIMARY })
     public String getTestMode() {
         return testMode;
     }
@@ -942,7 +978,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.enableExtraTests = enableExtraTests;
     }
 
-    @ConfigurationProperty(order = 47)
+    @ConfigurationProperty(order = 47, allowedValues = { TIMESTAMP_PRESENTATION_NATIVE, TIMESTAMP_PRESENTATION_STRING, TIMESTAMP_PRESENTATION_UNIX_EPOCH })
     public String getTimestampPresentation() {
         return timestampPresentation;
     }
@@ -982,7 +1018,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.structuralObjectClassesToAuxiliary = structuralObjectClassesToAuxiliary;
     }
 
-    @ConfigurationProperty(order = 51)
+    @ConfigurationProperty(order = 51, allowedValues = { RUN_AS_STRATEGY_NONE, RUN_AS_STRATEGY_BIND })
     public String getRunAsStrategy() {
         return runAsStrategy;
     }
@@ -1002,7 +1038,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.additionalSearchFilter = additionalSearchFilter;
     }
 
-    @ConfigurationProperty(order = 53)
+    @ConfigurationProperty(order = 53, allowedValues = { SEARCH_SCOPE_SUB, SEARCH_SCOPE_ONE })
     public String getDefaultSearchScope() {
         return defaultSearchScope;
     }
@@ -1042,15 +1078,41 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.switchBackInterval = switchBackInterval;
     }
 
+    @ConfigurationProperty(order = 57)
+    public boolean isFilterOutMemberOfValues() {
+        return filterOutMemberOfValues;
+    }
+
+    @SuppressWarnings("unused")
+    public void setFilterOutMemberOfValues(boolean filterOutMemberOfValues) {
+        this.filterOutMemberOfValues = filterOutMemberOfValues;
+    }
+
+    @ConfigurationProperty(order = 58)
+    public String[] getMemberOfAllowedValues() {
+        return memberOfAllowedValues;
+    }
+
+    @SuppressWarnings("unused")
+    public void setMemberOfAllowedValues(String[] memberOfAllowedValues) {
+        this.memberOfAllowedValues = memberOfAllowedValues;
+    }
+
     @Override
     public void validate() {
         validateNotBlank(host, "host.blank");
         if (port < 0 || port > 65535) {
             throwConfigurationError("port.illegalValue");
         }
-        validateDn(baseContext, "baseContext.invalidDn");
+        if (baseContext != null) {
+            validateBaseContext();
+        }
 
         // TODO
+    }
+
+    public void validateBaseContext() {
+        validateDn(baseContext, "baseContext.invalidDn");
     }
 
     private void validateNotBlank(String value, String errorKey) {
@@ -1095,9 +1157,22 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
             timeout = DEFAULT_TIMEOUT;
         }
 
+        connectTimeout = recomputeLongValue(connectTimeout);
+        writeOperationTimeout = recomputeLongValue(writeOperationTimeout);
+        readOperationTimeout = recomputeLongValue(readOperationTimeout);
+        closeTimeout = recomputeLongValue(closeTimeout);
+        sendTimeout = recomputeLongValue(sendTimeout);
+
         if (checkAliveTimeout == null) {
             checkAliveTimeout = timeout;
         }
+    }
+
+    private Long recomputeLongValue(Long longValue) {
+        if (Objects.isNull(longValue)) {
+            return -1L;
+        }
+        return longValue;
     }
 
     // TODO: equals, hashCode

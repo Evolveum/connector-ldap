@@ -111,18 +111,28 @@ public class AbstractOpenDjTest {
         return factory.newInstance(apiConfiguration);
     }
 
-    private LdapConfiguration createConnectorConfiguration() {
-        LdapConfiguration config = new LdapConfiguration();
-        config.setHost("localhost");
-        config.setPort(PORT_NUMBER);
+    protected ConnectorFacade createMinimalConnectorInstance() {
+        ConnectorFacadeFactory factory = ConnectorFacadeFactory.getInstance();
+        APIConfiguration apiConfiguration = TestHelpers.createTestConfiguration(LdapConnector.class, createMinimalConnectorConfiguration());
+        return factory.newInstance(apiConfiguration);
+    }
+
+    protected LdapConfiguration createConnectorConfiguration() {
+        LdapConfiguration config = createMinimalConnectorConfiguration();
         config.setBaseContext(BASE_CONTEXT);
-        config.setBindDn(BIND_DN);
-        config.setBindPassword(new GuardedString(BIND_PASSWORD.toCharArray()));
         config.setPagingStrategy(LdapConfiguration.PAGING_STRATEGY_AUTO);
         config.setVlvSortAttribute(LdapConstants.ATTRIBUTE_ENTRYUUID_NAME);
         config.setOperationalAttributes(OPERATIONAL_ATTRIBUTES);
         config.setEnableExtraTests(true);
+        return config;
+    }
 
+    protected LdapConfiguration createMinimalConnectorConfiguration() {
+        LdapConfiguration config = new LdapConfiguration();
+        config.setHost("localhost");
+        config.setPort(PORT_NUMBER);
+        config.setBindDn(BIND_DN);
+        config.setBindPassword(new GuardedString(BIND_PASSWORD.toCharArray()));
         return config;
     }
 

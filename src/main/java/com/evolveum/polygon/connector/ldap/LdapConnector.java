@@ -17,18 +17,21 @@
 package com.evolveum.polygon.connector.ldap;
 
 import java.util.List;
+import java.util.Map;
 
 import org.apache.directory.api.ldap.model.constants.SchemaConstants;
+import org.apache.directory.api.ldap.model.entry.Attribute;
 import org.apache.directory.api.ldap.model.entry.DefaultModification;
 import org.apache.directory.api.ldap.model.entry.Modification;
 import org.apache.directory.api.ldap.model.entry.ModificationOperation;
 import org.apache.directory.api.ldap.model.name.Dn;
 import org.identityconnectors.common.logging.Log;
-import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException;
-import org.identityconnectors.framework.common.objects.Attribute;
 import org.identityconnectors.framework.common.objects.AttributeDelta;
 import org.identityconnectors.framework.common.objects.ObjectClass;
 import org.identityconnectors.framework.common.objects.OperationalAttributes;
+import org.identityconnectors.framework.common.objects.SuggestedValues;
+import org.identityconnectors.framework.common.objects.SuggestedValuesBuilder;
+import org.identityconnectors.framework.common.objects.ValueListOpenness;
 import org.identityconnectors.framework.spi.ConnectorClass;
 
 import com.evolveum.polygon.common.SchemaUtil;
@@ -50,6 +53,56 @@ public class LdapConnector extends AbstractLdapConnector<LdapConfiguration> {
     }
 
     @Override
+    protected void addServerSpecificConfigurationSuggestions(Map<String, SuggestedValues> suggestions) {
+        if (isServerOpenLdap()) {
+            addOpenLdapConfigurationSuggestions(suggestions);
+        }
+        if (isServerOpenDj()) {
+            addOpenDjConfigurationSuggestions(suggestions);
+        }
+    }
+
+    private boolean isServerOpenLdap() {
+        Attribute rootDseObjectClass = getConnectionManager().getRootDseAttribute(SchemaConstants.OBJECT_CLASS_AT);
+        return LdapUtil.anyValueContainsSubstring(rootDseObjectClass,"OpenLDAP");
+    }
+
+    private void addOpenLdapConfigurationSuggestions(Map<String, SuggestedValues> suggestions) {
+        suggestions.put(AbstractLdapConfiguration.CONF_PROP_NAME_USE_PERMISSIVE_MODIFY,
+                SuggestedValuesBuilder.build(AbstractLdapConfiguration.USE_PERMISSIVE_MODIFY_ALWAYS));
+
+        suggestions.put(AbstractLdapConfiguration.PASSWORD_HASH_ALGORITHM_SSHA,
+                SuggestedValuesBuilder.buildOpen(AbstractLdapConfiguration.PASSWORD_HASH_ALGORITHM_SSHA));
+
+        suggestions.put(AbstractLdapConfiguration.CONF_PROP_NAME_VLV_SORT_ATTRIBUTE,
+                SuggestedValuesBuilder.buildOpen(SchemaConstants.UID_AT));
+        suggestions.put(AbstractLdapConfiguration.CONF_PROP_NAME_VLV_SORT_ORDERING_RULE,
+                SuggestedValuesBuilder.buildOpen(SchemaConstants.CASE_IGNORE_ORDERING_MATCH_MR_OID));
+
+        suggestions.put(AbstractLdapConfiguration.CONF_PROP_NAME_OPERATIONAL_ATTRIBUTES,
+                SuggestedValuesBuilder.buildOpen(LdapConstants.ATTRIBUTE_MEMBER_OF_NAME,
+                        SchemaConstants.CREATE_TIMESTAMP_AT, SchemaConstants.MODIFY_TIMESTAMP_AT));
+
+        suggestions.put(LdapConfiguration.CONF_PROP_NAME_LOCKOUT_STRATEGY,
+                SuggestedValuesBuilder.build(LdapConfiguration.LOCKOUT_STRATEGY_OPENLDAP));
+    }
+
+    private boolean isServerOpenDj() {
+        Attribute rootDseVendor = getConnectionManager().getRootDseAttribute(SchemaConstants.VENDOR_VERSION_AT);
+        return LdapUtil.anyValueContainsSubstring(rootDseVendor,"OpenDJ");
+    }
+
+    private void addOpenDjConfigurationSuggestions(Map<String, SuggestedValues> suggestions) {
+        suggestions.put(AbstractLdapConfiguration.CONF_PROP_NAME_VLV_SORT_ATTRIBUTE,
+                SuggestedValuesBuilder.buildOpen(SchemaConstants.UID_AT));
+
+        suggestions.put(AbstractLdapConfiguration.CONF_PROP_NAME_OPERATIONAL_ATTRIBUTES,
+                SuggestedValuesBuilder.buildOpen(LdapConstants.ATTRIBUTE_IS_MEMBER_OF_NAME,
+                        LdapConstants.ATTRIBUTE_OPENDJ_DS_PWP_ACCOUNT_DISABLED_NAME,
+                        SchemaConstants.CREATE_TIMESTAMP_AT, SchemaConstants.MODIFY_TIMESTAMP_AT));
+    }
+
+    @Override
     protected void addAttributeModification(Dn dn, List<Modification> modifications,
             org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass,
             ObjectClass icfObjectClass, AttributeDelta delta) {
@@ -63,6 +116,16 @@ public class LdapConnector extends AbstractLdapConnector<LdapConfiguration> {
             }
             modifications.add(
                     new DefaultModification(ModificationOperation.REPLACE_ATTRIBUTE, SchemaConstants.PWD_ACCOUNT_LOCKED_TIME_AT)); // no value
+        } else if (delta.is(OperationalAttributes.ENABLE_NAME)
+                && LdapConfiguration.LOCKOUT_STRATEGY_OPENLDAP.equals(getConfiguration().getLockoutStrategy())) {
+            Boolean value = SchemaUtil.getSingleReplaceValue(delta, Boolean.class);
+            if (value != null && !value) {
+                modifications.add(
+                        new DefaultModification(ModificationOperation.REPLACE_ATTRIBUTE, SchemaConstants.PWD_ACCOUNT_LOCKED_TIME_AT, LdapConstants.ATTRIBUTE_OPENLDAP_PWD_ACCOUNT_LOCKED_TIME_VALUE)); // 000001010000Z
+            } else {
+                modifications.add(
+                        new DefaultModification(ModificationOperation.REPLACE_ATTRIBUTE, SchemaConstants.PWD_ACCOUNT_LOCKED_TIME_AT)); // no value
+            }
 
         } else {
             super.addAttributeModification(dn, modifications, ldapStructuralObjectClass, icfObjectClass, delta);

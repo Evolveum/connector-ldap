@@ -385,6 +385,13 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> {
         return rootDse;
     }
 
+    public Attribute getRootDseAttribute(String attributeName) {
+        Entry rootDse = getRootDse();
+        if (rootDse == null) {
+            return null;
+        }
+        return rootDse.get(attributeName);
+    }
 
     public boolean isControlSupported(String oid) {
         return getSupportedControls().contains(oid);
