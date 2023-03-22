@@ -340,7 +340,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
     protected boolean isConfiguredAsOperational(String ldapAttributeName) {
         // Note: attributeName is raw name from resource, it may have wild letter case.
         // However, we stick to case-sensitive comparison by default. This may be overridden in subclasses (e.g. AD).
-        return ArrayUtils.contains(configuration.getOperationalAttributes(), ldapAttributeName);
+        return ArrayUtils.contains(getOperationalAttributes(), ldapAttributeName);
     }
 
     protected void setAttributeMultiplicityAndPermissions(AttributeType ldapAttributeType, String icfAttributeName, AttributeInfoBuilder aib) {

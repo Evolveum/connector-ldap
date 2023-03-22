@@ -84,6 +84,16 @@ public class LdapConfiguration extends AbstractLdapConfiguration {
         this.lockoutStrategy = lockoutStrategy;
     }
 
+    public boolean isOpenLdapLockoutStrategy() {
+        if (lockoutStrategy == null || LdapConfiguration.LOCKOUT_STRATEGY_NONE.equals(lockoutStrategy)) {
+            return false;
+        } else if (LdapConfiguration.LOCKOUT_STRATEGY_OPENLDAP.equals(lockoutStrategy)) {
+            return true;
+        } else {
+            throw new IllegalStateException("Unknown lockout strategy " + lockoutStrategy);
+        }
+    }
+
     @ConfigurationProperty(order = 101)
     public String getOpenLdapAccessLogDn() {
         return this.openLdapAccessLogDn;
