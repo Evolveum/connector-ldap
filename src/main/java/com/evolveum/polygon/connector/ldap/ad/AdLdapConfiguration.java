@@ -107,6 +107,14 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
     
 
     /**
+     * Only parsed if rawUserParametersAttribute is true. If this is set to true any
+     * error with reading or writing the userParameters attribute of a user will
+     * lead to an Exception. If set to false only a warning message is logged but no
+     * Exception is thrown.
+     */
+    private boolean userParametersThrowException = true;
+
+    /**
      * If set to true, then the connector will use native AD schema definition.
      * If set to false, connector will use LDAP-like schema definition exposed by the AD server.
      * Default value: false
@@ -229,6 +237,15 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
     }
 
     @ConfigurationProperty(order = 108)
+    public boolean isUserParametersThrowException() {
+        return userParametersThrowException;
+    }
+
+    public void setUserParametersThrowException(boolean userParametersThrowException) {
+        this.userParametersThrowException = userParametersThrowException;
+    }
+
+    @ConfigurationProperty(order = 109)
     public boolean isNativeAdSchema() {
         return nativeAdSchema;
     }
@@ -237,7 +254,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
         this.nativeAdSchema = nativeAdSchema;
     }
 
-    @ConfigurationProperty(order = 109)
+    @ConfigurationProperty(order = 110)
     public boolean isTweakSchema() {
         return tweakSchema;
     }
@@ -246,7 +263,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
         this.tweakSchema = tweakSchema;
     }
 
-    @ConfigurationProperty(order = 110)
+    @ConfigurationProperty(order = 111)
     public boolean isIncludeObjectCategoryFilter() {
         return includeObjectCategoryFilter;
     }
@@ -255,7 +272,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
         this.includeObjectCategoryFilter = includeObjectCategoryFilter;
     }
 
-    @ConfigurationProperty(order = 111)
+    @ConfigurationProperty(order = 112)
     public boolean isAddDefaultObjectCategory() {
         return addDefaultObjectCategory;
     }
@@ -264,7 +281,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
         this.addDefaultObjectCategory = addDefaultObjectCategory;
     }
 
-    @ConfigurationProperty(order = 112)
+    @ConfigurationProperty(order = 113)
     public boolean isForcePasswordChangeAtNextLogon() {
         return forcePasswordChangeAtNextLogon;
     }
@@ -273,7 +290,7 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
         this.forcePasswordChangeAtNextLogon = forcePasswordChangeAtNextLogon;
     }
 
-    @ConfigurationProperty(order = 113)
+    @ConfigurationProperty(order = 114)
     public boolean isAllowFSPProcessing() {
         return allowFSPProcessing;
     }

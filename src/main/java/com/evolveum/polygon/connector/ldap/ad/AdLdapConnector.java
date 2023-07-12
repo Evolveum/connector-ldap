@@ -205,23 +205,23 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
             return super.prepareCreateConnIdAttributes(connIdObjectClass, ldapStructuralObjectClass, createAttributes);
         }
 
-        Set<Attribute> newCreateAttributes = new HashSet<>();
+        Set<Attribute> newCreateAttributes = new HashSet<Attribute>(createAttributes);
 
         if (!getConfiguration().isRawUserAccountControlAttribute()) {
-            newCreateAttributes = prepareCreateUserAccountControllAttributes(createAttributes, newCreateAttributes);
+            newCreateAttributes = prepareCreateUserAccountControllAttributes(newCreateAttributes);
         }
         if (!getConfiguration().isRawUserParametersAttribute()) {
-            newCreateAttributes = prepareCreateUserParametersAttributes(createAttributes, newCreateAttributes);
+            newCreateAttributes = prepareCreateUserParametersAttributes(newCreateAttributes);
         }
-        
+
         LOG.ok("New Create attributes after preparing ConnIdAttributes: {0}" , newCreateAttributes);
         return newCreateAttributes;
     }
 
-    private Set<Attribute> prepareCreateUserParametersAttributes(Set<Attribute> createAttributes,
-            Set<Attribute> newCreateAttributes) {
+    private Set<Attribute> prepareCreateUserParametersAttributes(Set<Attribute> createAttributes) {
         AdUserParametersHandler handler = new AdUserParametersHandler();
         boolean foundUpAttr = false;
+        Set<Attribute> newCreateAttributes = new HashSet<Attribute>(createAttributes);
         // collect deltas affecting userParameters
         for (Attribute createAttr : createAttributes) {
             String attrName = createAttr.getName();
@@ -232,8 +232,14 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
                 try {
                     handler.toLdap(attrName, createAttr.getValue().get(0));
                 } catch (AdUserParametersHandlerException e) {
-                    throw new InvalidAttributeValueException(
-                            "There was an error while preparing Userparameters create attribute " + attrName, e);
+                    if (getConfiguration().isUserParametersThrowException()) {
+                        throw new InvalidAttributeValueException(
+                                "There was an error while preparing Userparameters create attribute " + attrName, e);
+                    } else {
+                        LOG.warn(
+                                "There was an error while parsing Userparameters create attribute. Will not throw an Exception due to configuration.");
+                        LOG.ok(e, "The following Exception was thrown while parsing Userparameters:");
+                    }
                 }
             } else {
                 // its possible that another prepare function already ran before so attributes
@@ -252,10 +258,11 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
         return newCreateAttributes;
     }
 
-    private Set<Attribute> prepareCreateUserAccountControllAttributes(Set<Attribute> createAttributes,
-            Set<Attribute> newCreateAttributes) {
+    private Set<Attribute> prepareCreateUserAccountControllAttributes(Set<Attribute> createAttributes) {
         Set<AdConstants.UAC> uacAddSet = new HashSet<>();
         Set<AdConstants.UAC> uacDelSet = new HashSet<>();
+
+        Set<Attribute> newCreateAttributes = new HashSet<Attribute>(createAttributes);
 
         for (Attribute createAttr : createAttributes) {
             // collect deltas affecting uac. Will be processed below
@@ -264,7 +271,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
                     || AdConstants.UAC.forName(createAttrName) != null) {
                 // it's possible that another prepare function already added the attribute
                 newCreateAttributes.remove(createAttr);
-                
+
                 // OperationalAttributes.ENABLE_NAME is replaced by
                 // dConstants.UAC.ADS_UF_ACCOUNTDISABLE.name()
                 AdConstants.UAC uacVal = Enum.valueOf(AdConstants.UAC.class,
@@ -381,7 +388,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
         AdUserParametersHandler handler = new AdUserParametersHandler();
         boolean foundUpAttr = false;
         Set<AttributeDelta> newDeltas = new HashSet<AttributeDelta>();
-       
+
         org.apache.directory.api.ldap.model.entry.Attribute upAttribute = existingEntry.get(AdUserParametersHandler.USER_PARAMETERS_LDAP_ATTR_NAME);
         if (upAttribute != null) {
             try {
@@ -405,7 +412,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
                             handler.toLdap(deltaName, delta.getValuesToReplace().get(0));
                         }
                         else {
-                            // empty replace here... we interpret it as remove 
+                            // empty replace here... we interpret it as remove
                             handler.toLdap(deltaName, null);
                         }
                     }
@@ -413,8 +420,15 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
                         handler.toLdap(deltaName, null);
                     }
                 } catch (AdUserParametersHandlerException e) {
-                    throw new InvalidAttributeValueException("There was an error while preparing Userparameters delta " + deltaName
-                            + " of user with UID " + uid, e);
+                    if (getConfiguration().isUserParametersThrowException()) {
+                        throw new InvalidAttributeValueException("There was an error while preparing Userparameters delta " + deltaName
+                                + " of user with UID " + uid, e);
+                    }
+                    else {
+                        LOG.warn(
+                                "There was an error while preparing Userparameters delta. Will not throw an Exception due to configuration.");
+                        LOG.ok(e, "The following Exception was thrown while preparing Userparameters delta:");
+                    }
                 }
             }
             //all others remain unchanged
