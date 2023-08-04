@@ -361,17 +361,28 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
     @Override
     public Set<AttributeDelta> updateDelta(org.identityconnectors.framework.common.objects.ObjectClass connIdObjectClass, Uid uid, Set<AttributeDelta> deltas,
             OperationOptions options) {
-        boolean isRawUac = !getConfiguration().isRawUserAccountControlAttribute();
-        boolean isRawUp = !getConfiguration().isRawUserParametersAttribute();
+        org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass = getSchemaTranslator().toLdapObjectClass(connIdObjectClass);
+        boolean isUserObjectClass = getSchemaTranslator().isUserObjectClass(ldapObjectClass.getName());
 
-        if (isRawUac || isRawUp) {
+        boolean hasUacPatch = !getConfiguration().isRawUserAccountControlAttribute() && isUserObjectClass && hasUacDelta(deltas);
+        boolean hasUpPatch = !getConfiguration().isRawUserParametersAttribute() && isUserObjectClass && hasUpDelta(deltas);
+
+        if (hasUacPatch || hasUpPatch) {
             // we need existing entry since we need to update binary attribute if present
-            Entry existingEntry = getExistingEntry(uid);
+            List<String> attributesToGet = new ArrayList(2);
+            if (hasUacPatch) {
+                attributesToGet.add(AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME);
+            }
+            if (hasUpPatch) {
+                attributesToGet.add(AdUserParametersHandler.USER_PARAMETERS_LDAP_ATTR_NAME);
+            }
 
-            if (isRawUac) {
+            Entry existingEntry = getExistingEntry(uid, attributesToGet.toArray(new String[0]));
+
+            if (hasUacPatch) {
                 deltas = prepareUacDeltas(uid, deltas, existingEntry);
             }
-            if (isRawUp) {
+            if (hasUpPatch) {
                 deltas = prepareUpDeltas(uid, deltas, existingEntry);
             }
         }
@@ -383,6 +394,19 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
         return super.updateDelta(connIdObjectClass, uid, deltas, options);
     }
 
+    private boolean hasUacDelta(Set<AttributeDelta> deltas) {
+        return deltas.stream().anyMatch(delta -> {
+            String deltaName = delta.getName();
+            return delta.is(OperationalAttributes.ENABLE_NAME) || AdConstants.UAC.forName(deltaName) != null;
+        });
+    }
+
+    private boolean hasUpDelta(Set<AttributeDelta> deltas) {
+        return deltas.stream().anyMatch(delta -> {
+            String deltaName = delta.getName();
+            return AdUserParametersHandler.isUserParametersAttribute(deltaName);
+        });
+    }
 
     private Set<AttributeDelta> prepareUpDeltas(Uid uid, Set<AttributeDelta> deltas, Entry existingEntry) {
         AdUserParametersHandler handler = new AdUserParametersHandler();
@@ -448,19 +472,12 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 
     }
 
-    private Entry getExistingEntry(Uid uid) {
-        if (uid.getNameHintValue() == null) {
-            throw new ConnectorException("Can not search for existing entry with null name-hint-value");
-        }
-        Entry existingEntry;
-        try {
-            // TODO: (String)uid.getValue().get(0) uid: invaliddn
-            existingEntry = searchSingleEntry(getConnectionManager(), new Dn((String) uid.getNameHintValue()), null,
-                    SearchScope.OBJECT, null, "pre-read of entry values for binary attributes", null);
-        } catch (LdapInvalidDnException e) {
-            throw new InvalidAttributeValueException(
-                    "Cannot pre-read of entry for attribute binary attributes: " + uid);
-        }
+    private Entry getExistingEntry(Uid uid, String[] attributesToGet) {
+        final String uidValue = SchemaUtil.getSingleStringNonBlankValue(uid);
+        Dn guidDn = getSchemaTranslator().getGuidDn(uidValue);
+
+        Entry existingEntry = searchSingleEntry(getConnectionManager(), guidDn, null,
+                SearchScope.OBJECT, attributesToGet, "pre-read of entry values for binary attributes", null);
         LOG.ok("Pre-read entry for binary attributes:\n{0}", existingEntry);
 
         if (existingEntry == null) {
