@@ -475,9 +475,32 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
     private Entry getExistingEntry(Uid uid, String[] attributesToGet) {
         final String uidValue = SchemaUtil.getSingleStringNonBlankValue(uid);
         Dn guidDn = getSchemaTranslator().getGuidDn(uidValue);
+        Dn hintDn = guidDn;
 
-        Entry existingEntry = searchSingleEntry(getConnectionManager(), guidDn, null,
-                SearchScope.OBJECT, attributesToGet, "pre-read of entry values for binary attributes", null);
+        if (getConfiguration().useMultiDomain()) {
+            if (uid.getNameHintValue() == null) {
+                throw new ConnectorException(
+                        "Can not search for existing entry with null name-hint-value, because you use multi-domain");
+            }
+            try {
+                hintDn = new Dn(uid.getNameHintValue());
+            } catch (LdapInvalidDnException e) {
+                throw new InvalidAttributeValueException(
+                        "Cannot create DN from nameHint: " + uid.getNameHintValue() + ", of uid: " + uid);
+            }
+        }
+
+
+        Entry existingEntry = searchSingleEntry(
+                getConnectionManager(),
+                null,
+                guidDn,
+                null,
+                SearchScope.OBJECT,
+                attributesToGet,
+                "pre-read of entry values for binary attributes",
+                hintDn,
+                null);
         LOG.ok("Pre-read entry for binary attributes:\n{0}", existingEntry);
 
         if (existingEntry == null) {

@@ -1176,4 +1176,8 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
     }
 
     // TODO: equals, hashCode
+
+    public boolean useMultiDomain() {
+        return servers != null && servers.length > 0;
+    }
 }
