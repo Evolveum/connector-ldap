@@ -474,7 +474,13 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
         return usePermissiveModify;
     }
 
-    protected boolean isUseTreeDelete() throws LdapException {
+    protected boolean isUseTreeDelete(ObjectClass objectClass) throws LdapException {
+        String[] forceObjClasses = configuration.getForceTreeDeleteObjectClasses();
+        for (String forceClass : forceObjClasses) {
+            if (objectClass.is(forceClass)) {
+                return true;
+            }
+        }
         if (useTreeDelete == null) {
             switch (configuration.getUseTreeDelete()) {
                 case AbstractLdapConfiguration.USE_TREE_DELETE_ALWAYS:
@@ -1492,7 +1498,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
             LOG.ok("Using (unsafe) DN from the name hint: {0}", dn);
             try {
 
-                deleteAttempt(dn, uid, options);
+                deleteAttempt(objectClass, dn, uid, options);
 
                 return;
 
@@ -1505,16 +1511,16 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
         dn = resolveDn(objectClass, uid, options);
         LOG.ok("Resolved DN: {0}", dn);
 
-        deleteAttempt(dn, uid, options);
+        deleteAttempt(objectClass, dn, uid, options);
     }
 
-    private void deleteAttempt(Dn dn, Uid uid, OperationOptions options) {
+    private void deleteAttempt(ObjectClass objectClass, Dn dn, Uid uid, OperationOptions options) {
 
         LdapNetworkConnection connection = connectionManager.getConnection(dn, options);
 
         try {
             Control treeDeleteControl = null;
-            if (isUseTreeDelete()) {
+            if (isUseTreeDelete(objectClass)) {
                 treeDeleteControl = new TreeDeleteImpl( );
             }
 
