@@ -352,6 +352,12 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
     public static final String USE_TREE_DELETE_ALWAYS = "always";
 
     /**
+     * Enforces tree deletion for specified object classes.
+     * This overrides the useTreeDelete for the specified object classes.
+     */
+    private String[] forceTreeDeleteObjectClasses = { };
+
+    /**
      * Synchronization strategy to detect changes in real time.
      * Possible values: "none", "auto", ... TODO
      * Default value: auto
@@ -1096,6 +1102,16 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
     @SuppressWarnings("unused")
     public void setMemberOfAllowedValues(String[] memberOfAllowedValues) {
         this.memberOfAllowedValues = memberOfAllowedValues;
+    }
+
+    @ConfigurationProperty(order = 59)
+    public String[] getForceTreeDeleteObjectClasses() {
+        return forceTreeDeleteObjectClasses;
+    }
+
+    @SuppressWarnings("unused")
+    public void setForceTreeDeleteObjectClasses(String[] forceTreeDeleteObjectClasses) {
+        this.forceTreeDeleteObjectClasses = forceTreeDeleteObjectClasses;
     }
 
     @Override
