@@ -521,8 +521,8 @@ public class AdUserParametersHandler {
                     throw new AdUserParametersHandlerException("Invalid userParameters attribute value type "
                             + paramValue.getClass().getName() + " for integer (but string represented) type parameter");
                 }
-                int intValue = Integer.parseInt((String) paramValue);
-                result = intToHexaByteArray(intValue, attr.getLength());
+                long longValue = Long.parseLong((String) paramValue);
+                result = intToHexaByteArray(longValue, attr.getLength());
                 break;
             case SHADOW_VALUE:
                 if (!(paramValue instanceof String)) {
@@ -648,8 +648,11 @@ public class AdUserParametersHandler {
         if (userParameters == null) {
             throw new AdUserParametersHandlerException("userParameters must be set before parsing");
         }
-        
+
         List<Attribute> result = new ArrayList<Attribute>();
+        if (userParameters.length < SIGNATURE_POSITION + 4) {
+            throw new AdUserParametersHandlerException("The userParameters header is not complete");
+        }
         ByteBuffer buffer = ByteBuffer.wrap(userParameters);
         buffer.order(ByteOrder.LITTLE_ENDIAN);
         buffer.position(SIGNATURE_POSITION);
@@ -711,7 +714,7 @@ public class AdUserParametersHandler {
                                 + " attrvalue does not match the default. Setting it to default.");
                         valueLong = CNF_PRESENT_DEFAULT;
                     }
-                    nextAttrBuilder.addValue(valueLong);
+                    nextAttrBuilder.addValue(Long.toString(valueLong));
                     LOG.ok("attrValue : " + valueLong);
                     break;
                 case SHADOW_VALUE:
@@ -833,7 +836,7 @@ public class AdUserParametersHandler {
      * @return
      */
     public String getDefaultUserParameters() {
-        byte[] defaultUserParameters = new byte[NUMBER_OF_ATTRIBUTES_POSITION+4];
+        byte[] defaultUserParameters = new byte[SIGNATURE_POSITION+4];
         ByteBuffer buffer = getByteBuffer(defaultUserParameters);
         for (int i = 0; i<SIGNATURE_POSITION; i+=2) {
             buffer.position(i).putChar((char)32);
@@ -959,7 +962,36 @@ public class AdUserParametersHandler {
     }
 
     public void setUserParameters(String userParameters) {
-        this.userParameters = userParameters.getBytes(CHARSET);
+        byte[] rawOriginalData = userParameters.getBytes(CHARSET);
+        boolean repair = false;
+        if (rawOriginalData.length < SIGNATURE_POSITION + 4) {
+            repair = true;
+        } else {
+            ByteBuffer buffer = ByteBuffer.wrap(rawOriginalData);
+            buffer.order(ByteOrder.LITTLE_ENDIAN);
+            buffer.position(SIGNATURE_POSITION);
+            if (buffer.getChar() != 'P') {
+                repair = true;
+            }
+        }
+
+        if (repair) {
+            LOG.warn("The existing UserParameters header is corrupt and will be repaired. All attributes will be cleared");
+            // The signature is considered as corrupt.
+            // To prevent data loss in the first bytes, the existing data will be appended by the remains of the default header.
+            // The last 4 bytes should be replaced by the default header ('P' + number of attributes).
+            // All data beyond the signature will be removed.
+            int preserveBytes = Math.min(rawOriginalData.length, SIGNATURE_POSITION);
+
+            String defaultHeader = getDefaultUserParameters();
+            byte[] rawDefaultHeader = defaultHeader.getBytes(CHARSET);
+            ByteBuffer buf = ByteBuffer.allocate(SIGNATURE_POSITION + 4);
+            buf.put(rawOriginalData, 0, preserveBytes);
+            buf.put(rawDefaultHeader, preserveBytes, SIGNATURE_POSITION + 4 - preserveBytes);
+            this.userParameters = buf.array();
+        } else {
+            this.userParameters = rawOriginalData;
+        }
     }
 
     public static boolean isUserParametersAttribute(String attrName) {
