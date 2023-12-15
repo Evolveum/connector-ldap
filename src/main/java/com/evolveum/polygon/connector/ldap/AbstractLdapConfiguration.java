@@ -1173,22 +1173,22 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
             timeout = DEFAULT_TIMEOUT;
         }
 
-        connectTimeout = recomputeLongValue(connectTimeout);
-        writeOperationTimeout = recomputeLongValue(writeOperationTimeout);
-        readOperationTimeout = recomputeLongValue(readOperationTimeout);
-        closeTimeout = recomputeLongValue(closeTimeout);
-        sendTimeout = recomputeLongValue(sendTimeout);
+        connectTimeout = recomputeTimeoutValue(connectTimeout, timeout);
+        writeOperationTimeout = recomputeTimeoutValue(writeOperationTimeout, timeout);
+        readOperationTimeout = recomputeTimeoutValue(readOperationTimeout, timeout);
+        closeTimeout = recomputeTimeoutValue(closeTimeout, timeout);
+        sendTimeout = recomputeTimeoutValue(sendTimeout, timeout);
 
         if (checkAliveTimeout == null) {
             checkAliveTimeout = timeout;
         }
     }
 
-    private Long recomputeLongValue(Long longValue) {
-        if (Objects.isNull(longValue)) {
-            return -1L;
+    private Long recomputeTimeoutValue(Long timeout, Long globalTimeout) {
+        if (Objects.isNull(timeout)) {
+            return globalTimeout;
         }
-        return longValue;
+        return timeout;
     }
 
     // TODO: equals, hashCode
