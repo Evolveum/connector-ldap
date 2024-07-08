@@ -100,6 +100,8 @@ import org.identityconnectors.framework.spi.operations.SyncOp;
 import org.identityconnectors.framework.spi.operations.TestOp;
 import org.identityconnectors.framework.spi.operations.UpdateDeltaOp;
 
+import static com.evolveum.polygon.connector.ldap.LdapConstants.OBJECT_CLASS_GROUP_OF_NAMES;
+
 public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
         implements PoolableConnector, TestOp, SchemaOp, SearchOp<Filter>, CreateOp, DeleteOp, UpdateDeltaOp,
         SyncOp, DiscoverConfigurationOp {
@@ -183,10 +185,28 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
             }
         }
 
+        analyzeReferenceSuggestions(getSchemaManager());
+
         // Server-specific suggestions
         addServerSpecificConfigurationSuggestions(suggestions);
 
         return suggestions;
+    }
+
+    private void analyzeReferenceSuggestions(SchemaManager schemaManager) {
+        // TODO port to Server Specific
+
+
+        Map<String, Set<String>> referenceSuggestions = new HashMap<>();
+
+        if (schemaManager.getObjectClassRegistry().contains(OBJECT_CLASS_GROUP_OF_NAMES)) {
+            for (org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass : schemaManager.getObjectClassRegistry()) {
+                String oClassName = ldapObjectClass.getName();
+
+                //TODO expand based on supported group objects
+                referenceSuggestions.put(oClassName, new HashSet<>(Arrays.asList(OBJECT_CLASS_GROUP_OF_NAMES)));
+            }
+        }
     }
 
     protected void addServerSpecificConfigurationSuggestions(Map<String, SuggestedValues> suggestions) {

@@ -15,6 +15,8 @@
  */
 package com.evolveum.polygon.connector.ldap;
 
+import java.util.Map;
+
 /**
  * @author semancik
  *
@@ -92,4 +94,12 @@ public class LdapConstants {
     public static final String SYNTAX_AD_STRING_SID = "2.5.5.17";
 
     public static final String CONTROL_TREE_DELETE_OID = "1.2.840.113556.1.4.805";
+
+    public static final String OBJECT_CLASS_GROUP_OF_NAMES = "groupOfNames";
+    public static final String OBJECT_CLASS_GROUP_OF_UNIQ_NAMES = "groupOfUniqueNames";
+    public static final String OBJECT_CLASS_POSIX_GROUP = "posixGroup";
+
+    public static final Map<String, String> MEMBERSHIP_ATTRIBUTES = Map.of(OBJECT_CLASS_GROUP_OF_NAMES,"member",
+            OBJECT_CLASS_GROUP_OF_UNIQ_NAMES,"uniqueMember",
+            OBJECT_CLASS_POSIX_GROUP,"memberUid");
 }

@@ -66,6 +66,8 @@ import org.identityconnectors.framework.spi.operations.SyncOp;
 
 import com.evolveum.polygon.common.SchemaUtil;
 
+import static com.evolveum.polygon.connector.ldap.LdapConstants.*;
+
 /**
  * @author semancik
  *
@@ -229,8 +231,86 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
         // AUXILIARY_OBJECT_CLASS
         attrInfoList.put(PredefinedAttributeInfos.AUXILIARY_OBJECT_CLASS.getName(), PredefinedAttributeInfos.AUXILIARY_OBJECT_CLASS);
 
+        addReferences(attrInfoList, ldapObjectClass);
         addAttributeTypesFromLdapSchema(attrInfoList, ldapObjectClass);
         addExtraOperationalAttributes(attrInfoList);
+
+    }
+
+    private void addReferences(Map<String, AttributeInfo> attrInfoList, org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
+        String[] associationPairs = configuration.getManagedAssociationPairs();
+        String currentOcName =ldapObjectClass.getName();
+
+        for(String associationPair : associationPairs){
+
+            String[] pairArray =   associationPair.split("->");
+            if(pairArray.length > 2){
+
+                String memberObjectClass = pairArray[0];
+                String targetObjectClass = pairArray[1];
+                String attributeName = null;
+                AttributeInfoBuilder attributeInfoBuilder = null;
+
+                if(ldapObjectClass.equals(memberObjectClass)){
+                    // TODO #A
+                    //  memberOf handling Also implement isMemberOf for AD (should this be ported to ldap schema translator?)
+                    // AttributeInfo attributeInfo = new AttributeInfoBuilder();
+                    attributeName = ATTRIBUTE_MEMBER_OF_NAME;
+                    AttributeInfoBuilder attributeInfo = new AttributeInfoBuilder(attributeName, ConnectorObjectReference.class);
+
+                    attributeInfo.setSubtype(targetObjectClass);
+
+
+                } else if (ldapObjectClass.equals(targetObjectClass)) {
+                    if (MEMBERSHIP_ATTRIBUTES.containsKey(targetObjectClass)){
+
+                    // TODO #A should we override the original membership attribute? How do we know the resulting type in updates?
+                    // Seems that we sould at lease copy it's limitations
+
+                        attributeName = MEMBERSHIP_ATTRIBUTES.get(memberObjectClass);;
+                        AttributeInfoBuilder attributeInfo = new AttributeInfoBuilder(attributeName, ConnectorObjectReference.class);
+                        attributeInfoBuilder.setSubtype(memberObjectClass);
+
+                    }
+
+                } else {
+                    // TODO #A
+                    //  no association pair
+
+                    return;
+                }
+
+
+                //                        attributeInfoBuilder.setMultiValued(true);
+
+                List mustAttributeTypes= ldapObjectClass.getMustAttributeTypes();
+
+                if(mustAttributeTypes.contains(attributeName)) {
+                    attributeInfoBuilder.setRequired(true);
+
+                }
+
+                AttributeType attributeType = null;
+                try {
+                    attributeType = schemaManager.lookupAttributeTypeRegistry(attributeName);
+                } catch (LdapException e) {
+                    // Ignore. We want this attribute even if it is not in the LDAP schema
+                }
+
+                setAttributeMultiplicityAndPermissions(attributeType, attributeName, attributeInfoBuilder);
+
+                AttributeInfo ai = attributeInfoBuilder.build();
+                attrInfoList.put(ai.getName(), ai);
+
+            } else {
+
+                //TODO #A
+                LOG.warn("Association pair syntax missing peer, skipping schema construction for the reference " +
+                        "to this pair .The problematic association pair: {0}", associationPair);
+                return;
+            }
+        }
+
     }
 
     private void addExtraOperationalAttributes(Map<String, AttributeInfo> attrInfoList) {
@@ -1143,13 +1223,16 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
         while (iterator.hasNext()) {
             org.apache.directory.api.ldap.model.entry.Attribute ldapAttribute = iterator.next();
             String ldapAttrName = getLdapAttributeName(ldapAttribute);
-//            LOG.ok("Processing attribute {0} (UP: {1})", ldapAttrName, ldapAttribute.getUpId());
+// TODO   #A comment next line
+            LOG.ok("Processing attribute {0} (UP: {1})", ldapAttrName, ldapAttribute.getUpId());
             if (!shouldTranslateAttribute(ldapAttrName)) {
-//                LOG.ok("Should not translate attribute {0}, skipping", ldapAttrName);
+                // TODO   #A comment next line
+                LOG.ok("Should not translate attribute {0}, skipping", ldapAttrName);
                 continue;
             }
             AttributeType ldapAttributeType = schemaManager.getAttributeType(ldapAttrName);
-//            LOG.ok("Type for attribute {0}: {1}", ldapAttrName, attributeType);
+            // TODO   #A comment next line
+            LOG.ok("Type for attribute {0}: {1}", ldapAttrName, ldapAttributeType);
             String ldapAttributeNameFromSchema = ldapAttrName;
             if (ldapAttributeType == null) {
                 if (!configuration.isAllowUnknownAttributes()) {
@@ -1178,14 +1261,17 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
                 for (ObjectClassInfo icfAuxiliaryObjectClassInfo: connIdAuxiliaryObjectClassInfos) {
                     // TODO: use version of findAttributeInfo from SchemaUtil
                     connIdAttributeInfo = findAttributeInfo(icfAuxiliaryObjectClassInfo, connIdAttributeName);
-//                    LOG.ok("Looking for ConnId attribute {0} info in auxiliary class {1}: {2}", icfAttribute, icfAuxiliaryObjectClassInfo==null?null:icfAuxiliaryObjectClassInfo.getType(), attributeInfo);
+                    // TODO   #A comment next line
+                  //  LOG.ok("Looking for ConnId attribute {0} info in auxiliary class {1}: {2}", icfAttribute, icfAuxiliaryObjectClassInfo==null?null:icfAuxiliaryObjectClassInfo.getType(), attributeInfo);
                     if (connIdAttributeInfo != null) {
                         break;
                     }
-//                    LOG.ok("Failed to find attribute in: {0}", icfAuxiliaryObjectClassInfo);
+                    // TODO   #A comment next line
+                    LOG.ok("Failed to find attribute in: {0}", icfAuxiliaryObjectClassInfo);
                 }
             }
-//            LOG.ok("ConnId attribute info for {0} ({1}): {2}", icfAttribute.getName(), ldapAttrName, attributeInfo);
+            // TODO   #A comment next line
+          //  LOG.ok("ConnId attribute info for {0} ({1}): {2}", icfAttribute.getName(), ldapAttrName, attributeInfo);
 
             if (connIdAttributeInfo == null) {
                 LOG.ok("ConnId attribute {0} is not part of ConnId schema, skipping", connIdAttributeName);
@@ -1203,7 +1289,8 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 
                 Attribute connIdAttribute = toConnIdAttribute(connIdAttributeName, ldapAttributeNameFromSchema, ldapAttributeType, ldapAttribute,
                         connection, entry, attributeHandler);
-    //            LOG.ok("ConnId attribute for {0}: {1}", ldapAttrName, icfAttribute);
+                // TODO   #A comment next line
+                LOG.ok("ConnId attribute for {0}: {1}", ldapAttrName, connIdAttribute);
                 if (connIdAttribute != null) {
                     cob.addAttribute(connIdAttribute);
                 }
@@ -1320,7 +1407,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
      * @return Boolean true if value should be included, false in case value should be removed. Default: true
      */
     private boolean shouldValueBeIncluded(Object connIdValue, String ldapAttributeNameFromSchema) {
-        if (configuration.isFilterOutMemberOfValues() && LdapConstants.ATTRIBUTE_MEMBER_OF_NAME.equalsIgnoreCase(ldapAttributeNameFromSchema)) {
+        if (configuration.isFilterOutMemberOfValues() && ATTRIBUTE_MEMBER_OF_NAME.equalsIgnoreCase(ldapAttributeNameFromSchema)) {
             String[] allowedValues = configuration.getMemberOfAllowedValues();
             if (allowedValues.length == 0) {
                 LOG.ok("MemberOfAllowedValues is empty, using baseContext for filtering");
@@ -1907,36 +1994,36 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
         addToSyntaxMap(SchemaConstants.SYNTAX_CHECKER_SYNTAX, String.class);
         addToSyntaxMap(SchemaConstants.SEARCH_SCOPE_SYNTAX, String.class);
         addToSyntaxMap(SchemaConstants.DEREF_ALIAS_SYNTAX, String.class);
-        addToSyntaxMap(LdapConstants.SYNTAX_AUTH_PASSWORD, String.class);
-        addToSyntaxMap(LdapConstants.SYNTAX_COLLECTIVE_CONFLICT_BEHAVIOR, String.class);
-        addToSyntaxMap(LdapConstants.SYNTAX_SUN_DEFINED_ACCESS_CONTROL_INFORMATION, String.class);
-        addToSyntaxMap(LdapConstants.SYNTAX_NIS_NETGROUP_TRIPLE_SYNTAX, String.class);
-        addToSyntaxMap(LdapConstants.SYNTAX_NIS_BOOT_PARAMETER_SYNTAX, String.class);
-        addToSyntaxMap(LdapConstants.SYNTAX_AD_CASE_IGNORE_STRING_TELETEX_SYNTAX, String.class, AttributeInfo.Subtypes.STRING_CASE_IGNORE);
-        addToSyntaxMap(LdapConstants.SYNTAX_AD_CASE_IGNORE_STRING_SYNTAX, String.class, AttributeInfo.Subtypes.STRING_CASE_IGNORE);
-        addToSyntaxMap(LdapConstants.SYNTAX_AD_DN_WITH_STRING_SYNTAX, String.class);
-        addToSyntaxMap(LdapConstants.SYNTAX_AD_DN_WITH_BINARY_SYNTAX, String.class);
-        addToSyntaxMap(LdapConstants.SYNTAX_AD_OBJECT_DS_DN, String.class);
-        addToSyntaxMap(LdapConstants.SYNTAX_AD_STRING_OBJECT_IDENTIFIER, String.class);
-        addToSyntaxMap(LdapConstants.SYNTAX_AD_STRING_CASE, String.class);
-        addToSyntaxMap(LdapConstants.SYNTAX_AD_STRING_TELETEX, String.class);
-        addToSyntaxMap(LdapConstants.SYNTAX_AD_STRING_IA5, String.class);
-        addToSyntaxMap(LdapConstants.SYNTAX_AD_STRING_NUMERIC, String.class);
-        addToSyntaxMap(LdapConstants.SYNTAX_AD_OBJECT_DN_BINARY, String.class);
-        addToSyntaxMap(LdapConstants.SYNTAX_AD_ADSTYPE_INTEGER, int.class);
-        addToSyntaxMap(LdapConstants.SYNTAX_AD_INTEGER8_SYNTAX, long.class);
-        addToSyntaxMap(LdapConstants.SYNTAX_AD_LARGE_INTEGER, long.class);
-        addToSyntaxMap(LdapConstants.SYNTAX_AD_ADSTYPE_OCTET_STRING, byte[].class);
-        addToSyntaxMap(LdapConstants.SYNTAX_AD_SECURITY_DESCRIPTOR_SYNTAX, byte[].class);
-        addToSyntaxMap(LdapConstants.SYNTAX_AD_ADSTYPE_NT_SECURITY_DESCRIPTOR, byte[].class);
-        addToSyntaxMap(LdapConstants.SYNTAX_AD_ADSTYPE_BOOLEAN, Boolean.class);
-        addToSyntaxMap(LdapConstants.SYNTAX_AD_UTC_TIME, ZonedDateTime.class);
-        addToSyntaxMap(LdapConstants.SYNTAX_AD_STRING_UNICODE, String.class);
-        addToSyntaxMap(LdapConstants.SYNTAX_AD_OBJECT_PRESENTATION_ADDRESS, String.class);
-        addToSyntaxMap(LdapConstants.SYNTAX_AD_OBJECT_ACCESS_POINT, String.class);
+        addToSyntaxMap(SYNTAX_AUTH_PASSWORD, String.class);
+        addToSyntaxMap(SYNTAX_COLLECTIVE_CONFLICT_BEHAVIOR, String.class);
+        addToSyntaxMap(SYNTAX_SUN_DEFINED_ACCESS_CONTROL_INFORMATION, String.class);
+        addToSyntaxMap(SYNTAX_NIS_NETGROUP_TRIPLE_SYNTAX, String.class);
+        addToSyntaxMap(SYNTAX_NIS_BOOT_PARAMETER_SYNTAX, String.class);
+        addToSyntaxMap(SYNTAX_AD_CASE_IGNORE_STRING_TELETEX_SYNTAX, String.class, AttributeInfo.Subtypes.STRING_CASE_IGNORE);
+        addToSyntaxMap(SYNTAX_AD_CASE_IGNORE_STRING_SYNTAX, String.class, AttributeInfo.Subtypes.STRING_CASE_IGNORE);
+        addToSyntaxMap(SYNTAX_AD_DN_WITH_STRING_SYNTAX, String.class);
+        addToSyntaxMap(SYNTAX_AD_DN_WITH_BINARY_SYNTAX, String.class);
+        addToSyntaxMap(SYNTAX_AD_OBJECT_DS_DN, String.class);
+        addToSyntaxMap(SYNTAX_AD_STRING_OBJECT_IDENTIFIER, String.class);
+        addToSyntaxMap(SYNTAX_AD_STRING_CASE, String.class);
+        addToSyntaxMap(SYNTAX_AD_STRING_TELETEX, String.class);
+        addToSyntaxMap(SYNTAX_AD_STRING_IA5, String.class);
+        addToSyntaxMap(SYNTAX_AD_STRING_NUMERIC, String.class);
+        addToSyntaxMap(SYNTAX_AD_OBJECT_DN_BINARY, String.class);
+        addToSyntaxMap(SYNTAX_AD_ADSTYPE_INTEGER, int.class);
+        addToSyntaxMap(SYNTAX_AD_INTEGER8_SYNTAX, long.class);
+        addToSyntaxMap(SYNTAX_AD_LARGE_INTEGER, long.class);
+        addToSyntaxMap(SYNTAX_AD_ADSTYPE_OCTET_STRING, byte[].class);
+        addToSyntaxMap(SYNTAX_AD_SECURITY_DESCRIPTOR_SYNTAX, byte[].class);
+        addToSyntaxMap(SYNTAX_AD_ADSTYPE_NT_SECURITY_DESCRIPTOR, byte[].class);
+        addToSyntaxMap(SYNTAX_AD_ADSTYPE_BOOLEAN, Boolean.class);
+        addToSyntaxMap(SYNTAX_AD_UTC_TIME, ZonedDateTime.class);
+        addToSyntaxMap(SYNTAX_AD_STRING_UNICODE, String.class);
+        addToSyntaxMap(SYNTAX_AD_OBJECT_PRESENTATION_ADDRESS, String.class);
+        addToSyntaxMap(SYNTAX_AD_OBJECT_ACCESS_POINT, String.class);
         // Even though this is "String(Sid)", it is not really string. It is binary as long as LDAP is concerned.
         // But we convert that in the connector to a string form. Therefore the ConnId it really can see as String.
-        addToSyntaxMap(LdapConstants.SYNTAX_AD_STRING_SID, String.class);
+        addToSyntaxMap(SYNTAX_AD_STRING_SID, String.class);
 
         // AD strangeness
         addToSyntaxMap("OctetString", byte[].class);
@@ -1963,8 +2050,8 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
         STRING_ATTRIBUTE_NAMES.add("domaincontrollerfunctionality");
         STRING_ATTRIBUTE_NAMES.add("currenttime");
         STRING_ATTRIBUTE_NAMES.add("dsservicename");
-        STRING_ATTRIBUTE_NAMES.add(LdapConstants.ATTRIBUTE_389DS_FIRSTCHANGENUMBER.toLowerCase());
-        STRING_ATTRIBUTE_NAMES.add(LdapConstants.ATTRIBUTE_389DS_LASTCHANGENUMBER.toLowerCase());
+        STRING_ATTRIBUTE_NAMES.add(ATTRIBUTE_389DS_FIRSTCHANGENUMBER.toLowerCase());
+        STRING_ATTRIBUTE_NAMES.add(ATTRIBUTE_389DS_LASTCHANGENUMBER.toLowerCase());
 
     }
 

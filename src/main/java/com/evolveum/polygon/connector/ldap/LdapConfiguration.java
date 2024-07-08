@@ -20,6 +20,8 @@ import org.apache.directory.api.ldap.model.constants.SchemaConstants;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.framework.spi.ConfigurationProperty;
 
+import static com.evolveum.polygon.connector.ldap.LdapConstants.OBJECT_CLASS_GROUP_OF_NAMES;
+
 /**
  * LDAP Connector configuration.
  *
@@ -74,6 +76,13 @@ public class LdapConfiguration extends AbstractLdapConfiguration {
      * EXPERIMENTAL. Not officially supported. Use at your own risk only.
      */
     private boolean tolerateMultivalueReduction;
+
+
+
+    public LdapConfiguration(){
+        // TODO port to Server Specific
+        groupObjectClasses = new String[]{OBJECT_CLASS_GROUP_OF_NAMES};
+    }
 
     @ConfigurationProperty(order = 100, allowedValues = { LOCKOUT_STRATEGY_NONE , LOCKOUT_STRATEGY_OPENLDAP })
     public String getLockoutStrategy() {

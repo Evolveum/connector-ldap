@@ -16,8 +16,7 @@
 
 package com.evolveum.polygon.connector.ldap;
 
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import org.apache.directory.api.ldap.model.constants.SchemaConstants;
 import org.apache.directory.api.ldap.model.entry.Attribute;
@@ -25,6 +24,7 @@ import org.apache.directory.api.ldap.model.entry.DefaultModification;
 import org.apache.directory.api.ldap.model.entry.Modification;
 import org.apache.directory.api.ldap.model.entry.ModificationOperation;
 import org.apache.directory.api.ldap.model.name.Dn;
+import org.apache.directory.api.ldap.model.schema.SchemaManager;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.framework.common.objects.AttributeDelta;
 import org.identityconnectors.framework.common.objects.ObjectClass;
@@ -32,10 +32,13 @@ import org.identityconnectors.framework.common.objects.OperationalAttributes;
 import org.identityconnectors.framework.common.objects.SuggestedValues;
 import org.identityconnectors.framework.common.objects.SuggestedValuesBuilder;
 import org.identityconnectors.framework.common.objects.ValueListOpenness;
+import org.identityconnectors.framework.spi.Configuration;
 import org.identityconnectors.framework.spi.ConnectorClass;
 
 import com.evolveum.polygon.common.SchemaUtil;
 import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
+
+import static com.evolveum.polygon.connector.ldap.LdapConstants.OBJECT_CLASS_GROUP_OF_NAMES;
 
 @ConnectorClass(displayNameKey = "connector.ldap.display", configurationClass = LdapConfiguration.class)
 public class LdapConnector extends AbstractLdapConnector<LdapConfiguration> {
@@ -85,6 +88,36 @@ public class LdapConnector extends AbstractLdapConnector<LdapConfiguration> {
 
         suggestions.put(LdapConfiguration.CONF_PROP_NAME_LOCKOUT_STRATEGY,
                 SuggestedValuesBuilder.build(LdapConfiguration.LOCKOUT_STRATEGY_OPENLDAP));
+
+        analyzeReferenceSuggestions(getSchemaManager(), getConfiguration(), suggestions);
+    }
+
+    private void analyzeReferenceSuggestions(SchemaManager schemaManager, LdapConfiguration configuration,
+                                             Map<String, SuggestedValues> suggestions) {
+        // TODO port to Server Specific
+
+        String[] groupObjectClasses = configuration.getGroupObjectClasses();
+
+        List<String> referenceSuggestions = new ArrayList<String>();
+
+        for (String groupObjectClassName : groupObjectClasses) {
+
+            if (schemaManager.getObjectClassRegistry().contains(groupObjectClassName)) {
+                for (org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass : schemaManager.getObjectClassRegistry()) {
+                    String oClassName = ldapObjectClass.getName();
+
+                    referenceSuggestions.add(oClassName + " -> " + groupObjectClassName);
+                    //TODO expand based on supported group objects
+                    //TODO remove log
+
+                    LOG.ok("Reference Suggestion constructed: {0}", oClassName + " -> " + groupObjectClassName);
+                }
+            }
+
+        }
+        referenceSuggestions.size();
+        suggestions.put(AbstractLdapConfiguration.CONF_PROP_MNGD_ASSOC_PAIRS,
+                SuggestedValuesBuilder.buildOpen(referenceSuggestions.toArray(new String[referenceSuggestions.size()])));
     }
 
     private boolean isServerOpenDj() {
