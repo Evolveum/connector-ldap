@@ -52,7 +52,7 @@ public class LdapConstants {
     // Group memebership virtual attribure used by other servers (e.g. OpenLDAP).
     public static final String ATTRIBUTE_MEMBER_OF_NAME = "memberOf";
 
-
+    // TODO isn't this the same as SchemaConstants.PWD_ACCOUNT_LOCKED_TIME_AT?
     public static final String ATTRIBUTE_OPENLDAP_PWD_ACCOUNT_LOCKED_TIME_NAME = "pwdAccountLockedTime";
 
     public static final String ATTRIBUTE_OPENLDAP_PWD_ACCOUNT_LOCKED_TIME_VALUE = "000001010000Z";

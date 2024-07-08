@@ -81,9 +81,8 @@ public class LdapSchemaTranslator extends AbstractSchemaTranslator<LdapConfigura
     @Override
     public String[] getOperationalAttributes() {
         if (computedOperationalAttributes == null) {
-            if (LdapConfiguration.LOCKOUT_STRATEGY_OPENLDAP.equals(getConfiguration().getLockoutStrategy())) {
+            if (getConfiguration().isOpenLdapLockoutStrategy()) {
                 String[] schemaOperationalAttributes = super.getOperationalAttributes();
-                computedOperationalAttributes = new String[schemaOperationalAttributes.length + 1];
                 computedOperationalAttributes = Arrays.copyOf(schemaOperationalAttributes, schemaOperationalAttributes.length + 1);
                 computedOperationalAttributes[schemaOperationalAttributes.length] = SchemaConstants.PWD_ACCOUNT_LOCKED_TIME_AT;
             } else {
@@ -179,13 +178,12 @@ public class LdapSchemaTranslator extends AbstractSchemaTranslator<LdapConfigura
     public AttributeType toLdapAttribute(org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass,
                                          String icfAttributeName) {
 
-        if (OperationalAttributes.LOCK_OUT_NAME.equals(icfAttributeName)) {
-            if (getConfiguration().getLockoutStrategy() == null || LdapConfiguration.LOCKOUT_STRATEGY_NONE.equals(getConfiguration().getLockoutStrategy())) {
-                return null;
-            } else if (LdapConfiguration.LOCKOUT_STRATEGY_OPENLDAP.equals(getConfiguration().getLockoutStrategy())) {
+        if (OperationalAttributes.LOCK_OUT_NAME.equals(icfAttributeName)
+                || OperationalAttributes.ENABLE_NAME.equals(icfAttributeName)) {
+            if (getConfiguration().isOpenLdapLockoutStrategy()) {
                 return super.toLdapAttribute(ldapObjectClass, SchemaConstants.PWD_ACCOUNT_LOCKED_TIME_AT);
             } else {
-                throw new IllegalStateException("Unknown lockout strategy " + getConfiguration().getLockoutStrategy());
+                return null;
             }
         }
 
@@ -262,7 +260,7 @@ public class LdapSchemaTranslator extends AbstractSchemaTranslator<LdapConfigura
     protected void extendConnectorObject(ConnectorObjectBuilder cob, Entry entry, String objectClassName) {
         super.extendConnectorObject(cob, entry, objectClassName);
 
-        if (LdapConfiguration.LOCKOUT_STRATEGY_OPENLDAP.equals(getConfiguration().getLockoutStrategy())) {
+        if (getConfiguration().isOpenLdapLockoutStrategy()) {
             String pwdAccountLockedTime = LdapUtil.getStringAttribute(entry, SchemaConstants.PWD_ACCOUNT_LOCKED_TIME_AT);
             LOG.ok("Atribute pwdAccountLockedTime = {0}", pwdAccountLockedTime);
             GregorianCalendar cal = new GregorianCalendar();

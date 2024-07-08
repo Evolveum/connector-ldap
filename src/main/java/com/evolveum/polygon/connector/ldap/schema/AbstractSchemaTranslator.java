@@ -16,6 +16,7 @@
 package com.evolveum.polygon.connector.ldap.schema;
 
 import java.io.UnsupportedEncodingException;
+import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -53,7 +54,6 @@ import org.apache.directory.api.ldap.model.schema.LdapSyntax;
 import org.apache.directory.api.ldap.model.schema.SchemaManager;
 import org.apache.directory.api.util.GeneralizedTime;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
-import org.apache.directory.ldap.client.api.exception.InvalidConnectionException;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.common.exceptions.ConfigurationException;
@@ -420,7 +420,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
     protected boolean isConfiguredAsOperational(String ldapAttributeName) {
         // Note: attributeName is raw name from resource, it may have wild letter case.
         // However, we stick to case-sensitive comparison by default. This may be overridden in subclasses (e.g. AD).
-        return ArrayUtils.contains(configuration.getOperationalAttributes(), ldapAttributeName);
+        return ArrayUtils.contains(getOperationalAttributes(), ldapAttributeName);
     }
 
     protected void setAttributeMultiplicityAndPermissions(AttributeType ldapAttributeType, String icfAttributeName, AttributeInfoBuilder aib) {
@@ -847,8 +847,10 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
             } else if (isBooleanSyntax(syntaxOid)) {
                 return Boolean.parseBoolean(ldapValue.getString());
             } else if (isIntegerSyntax(syntaxOid)) {
+                return new BigInteger(ldapValue.getString());
+            } else if (isJavaIntSyntax(syntaxOid)) {
                 return Integer.parseInt(ldapValue.getString());
-            } else if (isLongSyntax(syntaxOid)) {
+            } else if (isJavaLongSyntax(syntaxOid)) {
                 return Long.parseLong(ldapValue.getString());
             } else if (isBinarySyntax(syntaxOid)) {
                 LOG.ok("Converting to ICF: {0} (syntax {1}, value {2}): explicit binary", ldapAttributeName, syntaxOid, ldapValue.getClass());
@@ -869,10 +871,14 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
     }
 
     protected boolean isIntegerSyntax(String syntaxOid) {
+        return isSyntaxOfClass(syntaxOid, BigInteger.class);
+    }
+
+    protected boolean isJavaIntSyntax(String syntaxOid) {
         return isSyntaxOfClass(syntaxOid, int.class);
     }
 
-    protected boolean isLongSyntax(String syntaxOid) {
+    protected boolean isJavaLongSyntax(String syntaxOid) {
         return isSyntaxOfClass(syntaxOid, long.class);
     }
 
@@ -1948,7 +1954,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
         addToSyntaxMap(SchemaConstants.GENERALIZED_TIME_SYNTAX, ZonedDateTime.class); // but this may be changed by the configuration
         addToSyntaxMap(SchemaConstants.GUIDE_SYNTAX, String.class);
         addToSyntaxMap(SchemaConstants.IA5_STRING_SYNTAX, String.class);
-        addToSyntaxMap(SchemaConstants.INTEGER_SYNTAX, int.class);
+        addToSyntaxMap(SchemaConstants.INTEGER_SYNTAX, BigInteger.class);
         addToSyntaxMap(SchemaConstants.JPEG_SYNTAX, byte[].class);
         addToSyntaxMap(SchemaConstants.MASTER_AND_SHADOW_ACCESS_POINTS_SYNTAX, String.class);
         addToSyntaxMap(SchemaConstants.MATCHING_RULE_DESCRIPTION_SYNTAX, String.class);

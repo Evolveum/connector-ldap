@@ -205,23 +205,23 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
             return super.prepareCreateConnIdAttributes(connIdObjectClass, ldapStructuralObjectClass, createAttributes);
         }
 
-        Set<Attribute> newCreateAttributes = new HashSet<>();
+        Set<Attribute> newCreateAttributes = new HashSet<Attribute>(createAttributes);
 
         if (!getConfiguration().isRawUserAccountControlAttribute()) {
-            newCreateAttributes = prepareCreateUserAccountControllAttributes(createAttributes, newCreateAttributes);
+            newCreateAttributes = prepareCreateUserAccountControllAttributes(newCreateAttributes);
         }
         if (!getConfiguration().isRawUserParametersAttribute()) {
-            newCreateAttributes = prepareCreateUserParametersAttributes(createAttributes, newCreateAttributes);
+            newCreateAttributes = prepareCreateUserParametersAttributes(newCreateAttributes);
         }
-        
+
         LOG.ok("New Create attributes after preparing ConnIdAttributes: {0}" , newCreateAttributes);
         return newCreateAttributes;
     }
 
-    private Set<Attribute> prepareCreateUserParametersAttributes(Set<Attribute> createAttributes,
-            Set<Attribute> newCreateAttributes) {
+    private Set<Attribute> prepareCreateUserParametersAttributes(Set<Attribute> createAttributes) {
         AdUserParametersHandler handler = new AdUserParametersHandler();
         boolean foundUpAttr = false;
+        Set<Attribute> newCreateAttributes = new HashSet<Attribute>(createAttributes);
         // collect deltas affecting userParameters
         for (Attribute createAttr : createAttributes) {
             String attrName = createAttr.getName();
@@ -232,8 +232,14 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
                 try {
                     handler.toLdap(attrName, createAttr.getValue().get(0));
                 } catch (AdUserParametersHandlerException e) {
-                    throw new InvalidAttributeValueException(
-                            "There was an error while preparing Userparameters create attribute " + attrName, e);
+                    if (getConfiguration().isUserParametersThrowException()) {
+                        throw new InvalidAttributeValueException(
+                                "There was an error while preparing Userparameters create attribute " + attrName, e);
+                    } else {
+                        LOG.warn(
+                                "There was an error while parsing Userparameters create attribute. Will not throw an Exception due to configuration.");
+                        LOG.ok(e, "The following Exception was thrown while parsing Userparameters:");
+                    }
                 }
             } else {
                 // its possible that another prepare function already ran before so attributes
@@ -252,10 +258,11 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
         return newCreateAttributes;
     }
 
-    private Set<Attribute> prepareCreateUserAccountControllAttributes(Set<Attribute> createAttributes,
-            Set<Attribute> newCreateAttributes) {
+    private Set<Attribute> prepareCreateUserAccountControllAttributes(Set<Attribute> createAttributes) {
         Set<AdConstants.UAC> uacAddSet = new HashSet<>();
         Set<AdConstants.UAC> uacDelSet = new HashSet<>();
+
+        Set<Attribute> newCreateAttributes = new HashSet<Attribute>(createAttributes);
 
         for (Attribute createAttr : createAttributes) {
             // collect deltas affecting uac. Will be processed below
@@ -264,7 +271,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
                     || AdConstants.UAC.forName(createAttrName) != null) {
                 // it's possible that another prepare function already added the attribute
                 newCreateAttributes.remove(createAttr);
-                
+
                 // OperationalAttributes.ENABLE_NAME is replaced by
                 // dConstants.UAC.ADS_UF_ACCOUNTDISABLE.name()
                 AdConstants.UAC uacVal = Enum.valueOf(AdConstants.UAC.class,
@@ -354,17 +361,28 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
     @Override
     public Set<AttributeDelta> updateDelta(org.identityconnectors.framework.common.objects.ObjectClass connIdObjectClass, Uid uid, Set<AttributeDelta> deltas,
             OperationOptions options) {
-        boolean isRawUac = !getConfiguration().isRawUserAccountControlAttribute();
-        boolean isRawUp = !getConfiguration().isRawUserParametersAttribute();
+        org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass = getSchemaTranslator().toLdapObjectClass(connIdObjectClass);
+        boolean isUserObjectClass = getSchemaTranslator().isUserObjectClass(ldapObjectClass.getName());
 
-        if (isRawUac || isRawUp) {
+        boolean hasUacPatch = !getConfiguration().isRawUserAccountControlAttribute() && isUserObjectClass && hasUacDelta(deltas);
+        boolean hasUpPatch = !getConfiguration().isRawUserParametersAttribute() && isUserObjectClass && hasUpDelta(deltas);
+
+        if (hasUacPatch || hasUpPatch) {
             // we need existing entry since we need to update binary attribute if present
-            Entry existingEntry = getExistingEntry(uid);
+            List<String> attributesToGet = new ArrayList(2);
+            if (hasUacPatch) {
+                attributesToGet.add(AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME);
+            }
+            if (hasUpPatch) {
+                attributesToGet.add(AdUserParametersHandler.USER_PARAMETERS_LDAP_ATTR_NAME);
+            }
 
-            if (isRawUac) {
+            Entry existingEntry = getExistingEntry(uid, attributesToGet.toArray(new String[0]));
+
+            if (hasUacPatch) {
                 deltas = prepareUacDeltas(uid, deltas, existingEntry);
             }
-            if (isRawUp) {
+            if (hasUpPatch) {
                 deltas = prepareUpDeltas(uid, deltas, existingEntry);
             }
         }
@@ -376,12 +394,25 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
         return super.updateDelta(connIdObjectClass, uid, deltas, options);
     }
 
+    private boolean hasUacDelta(Set<AttributeDelta> deltas) {
+        return deltas.stream().anyMatch(delta -> {
+            String deltaName = delta.getName();
+            return delta.is(OperationalAttributes.ENABLE_NAME) || AdConstants.UAC.forName(deltaName) != null;
+        });
+    }
+
+    private boolean hasUpDelta(Set<AttributeDelta> deltas) {
+        return deltas.stream().anyMatch(delta -> {
+            String deltaName = delta.getName();
+            return AdUserParametersHandler.isUserParametersAttribute(deltaName);
+        });
+    }
 
     private Set<AttributeDelta> prepareUpDeltas(Uid uid, Set<AttributeDelta> deltas, Entry existingEntry) {
         AdUserParametersHandler handler = new AdUserParametersHandler();
         boolean foundUpAttr = false;
         Set<AttributeDelta> newDeltas = new HashSet<AttributeDelta>();
-       
+
         org.apache.directory.api.ldap.model.entry.Attribute upAttribute = existingEntry.get(AdUserParametersHandler.USER_PARAMETERS_LDAP_ATTR_NAME);
         if (upAttribute != null) {
             try {
@@ -405,7 +436,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
                             handler.toLdap(deltaName, delta.getValuesToReplace().get(0));
                         }
                         else {
-                            // empty replace here... we interpret it as remove 
+                            // empty replace here... we interpret it as remove
                             handler.toLdap(deltaName, null);
                         }
                     }
@@ -413,8 +444,15 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
                         handler.toLdap(deltaName, null);
                     }
                 } catch (AdUserParametersHandlerException e) {
-                    throw new InvalidAttributeValueException("There was an error while preparing Userparameters delta " + deltaName
-                            + " of user with UID " + uid, e);
+                    if (getConfiguration().isUserParametersThrowException()) {
+                        throw new InvalidAttributeValueException("There was an error while preparing Userparameters delta " + deltaName
+                                + " of user with UID " + uid, e);
+                    }
+                    else {
+                        LOG.warn(
+                                "There was an error while preparing Userparameters delta. Will not throw an Exception due to configuration.");
+                        LOG.ok(e, "The following Exception was thrown while preparing Userparameters delta:");
+                    }
                 }
             }
             //all others remain unchanged
@@ -434,19 +472,35 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 
     }
 
-    private Entry getExistingEntry(Uid uid) {
-        if (uid.getNameHintValue() == null) {
-            throw new ConnectorException("Can not search for existing entry with null name-hint-value");
+    private Entry getExistingEntry(Uid uid, String[] attributesToGet) {
+        final String uidValue = SchemaUtil.getSingleStringNonBlankValue(uid);
+        Dn guidDn = getSchemaTranslator().getGuidDn(uidValue);
+        Dn hintDn = guidDn;
+
+        if (getConfiguration().useMultiDomain()) {
+            if (uid.getNameHintValue() == null) {
+                throw new ConnectorException(
+                        "Can not search for existing entry with null name-hint-value, because you use multi-domain");
+            }
+            try {
+                hintDn = new Dn(uid.getNameHintValue());
+            } catch (LdapInvalidDnException e) {
+                throw new InvalidAttributeValueException(
+                        "Cannot create DN from nameHint: " + uid.getNameHintValue() + ", of uid: " + uid);
+            }
         }
-        Entry existingEntry;
-        try {
-            // TODO: (String)uid.getValue().get(0) uid: invaliddn
-            existingEntry = searchSingleEntry(getConnectionManager(), new Dn((String) uid.getNameHintValue()), null,
-                    SearchScope.OBJECT, null, "pre-read of entry values for binary attributes", null);
-        } catch (LdapInvalidDnException e) {
-            throw new InvalidAttributeValueException(
-                    "Cannot pre-read of entry for attribute binary attributes: " + uid);
-        }
+
+
+        Entry existingEntry = searchSingleEntry(
+                getConnectionManager(),
+                null,
+                guidDn,
+                null,
+                SearchScope.OBJECT,
+                attributesToGet,
+                "pre-read of entry values for binary attributes",
+                hintDn,
+                null);
         LOG.ok("Pre-read entry for binary attributes:\n{0}", existingEntry);
 
         if (existingEntry == null) {

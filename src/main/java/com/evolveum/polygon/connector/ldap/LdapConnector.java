@@ -141,7 +141,7 @@ public class LdapConnector extends AbstractLdapConnector<LdapConfiguration> {
             ObjectClass icfObjectClass, AttributeDelta delta) {
 
         if (delta.is(OperationalAttributes.LOCK_OUT_NAME)
-                && LdapConfiguration.LOCKOUT_STRATEGY_OPENLDAP.equals(getConfiguration().getLockoutStrategy())) {
+                && getConfiguration().isOpenLdapLockoutStrategy()) {
             Boolean value = SchemaUtil.getSingleReplaceValue(delta, Boolean.class);
             // null value is OK, no valued means default which is "unlocked"
             if (value != null && value) {
@@ -150,7 +150,7 @@ public class LdapConnector extends AbstractLdapConnector<LdapConfiguration> {
             modifications.add(
                     new DefaultModification(ModificationOperation.REPLACE_ATTRIBUTE, SchemaConstants.PWD_ACCOUNT_LOCKED_TIME_AT)); // no value
         } else if (delta.is(OperationalAttributes.ENABLE_NAME)
-                && LdapConfiguration.LOCKOUT_STRATEGY_OPENLDAP.equals(getConfiguration().getLockoutStrategy())) {
+                && getConfiguration().isOpenLdapLockoutStrategy()) {
             Boolean value = SchemaUtil.getSingleReplaceValue(delta, Boolean.class);
             if (value != null && !value) {
                 modifications.add(

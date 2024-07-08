@@ -25,7 +25,7 @@
     </parent>
 
     <artifactId>connector-ldap</artifactId>
-    <version>3.6-SNAPSHOT</version>
+    <version>3.8-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>LDAP Connector</name>
@@ -74,8 +74,8 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <configuration>
-                    <source>11</source>
-                    <target>11</target>
+                    <source>17</source>
+                    <target>17</target>
                 </configuration>
             </plugin>
             <plugin>
@@ -101,8 +101,7 @@
         <dependency>
             <groupId>org.apache.directory.api</groupId>
             <artifactId>api-all</artifactId>
-            <version>2.1.1</version>
-            <!--<version>2.1.0e3</version> this was probably temporary release rushed with some our fixes -->
+            <version>2.1.6</version>
             <exclusions>
                 <!-- Exclude SLF4J API from the lib to avoid bundling it with the
                      connector. The SLF4J is already part of midPoint.
@@ -130,13 +129,13 @@
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-lang3</artifactId>
-            <version>3.9</version>
+            <version>3.14.0</version>
         </dependency>
 
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
-            <version>1.7.25</version>
+            <version>2.0.12</version>
             <scope>provided</scope>
         </dependency>
 
@@ -145,7 +144,7 @@
         <dependency>
             <groupId>commons-io</groupId>
             <artifactId>commons-io</artifactId>
-            <version>2.11.0</version>
+            <version>2.15.1</version>
             <scope>test</scope>
         </dependency>
 

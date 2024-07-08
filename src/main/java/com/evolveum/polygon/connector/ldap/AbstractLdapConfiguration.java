@@ -352,6 +352,12 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
     public static final String USE_TREE_DELETE_ALWAYS = "always";
 
     /**
+     * Enforces tree deletion for specified object classes.
+     * This overrides the useTreeDelete for the specified object classes.
+     */
+    private String[] forceTreeDeleteObjectClasses = { };
+
+    /**
      * Synchronization strategy to detect changes in real time.
      * Possible values: "none", "auto", ... TODO
      * Default value: auto
@@ -1107,6 +1113,18 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
     }
 
     @ConfigurationProperty(order = 59)
+    public String[] getForceTreeDeleteObjectClasses() {
+        return forceTreeDeleteObjectClasses;
+    }
+
+    @SuppressWarnings("unused")
+    public void setForceTreeDeleteObjectClasses(String[] forceTreeDeleteObjectClasses) {
+        this.forceTreeDeleteObjectClasses = forceTreeDeleteObjectClasses;
+
+    }
+
+    @ConfigurationProperty(order = 60)
+
     public String[] getGroupObjectClasses() {
         return groupObjectClasses;
     }
@@ -1115,7 +1133,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.groupObjectClasses = groupObjectClasses;
     }
 
-    @ConfigurationProperty(order = 60)
+    @ConfigurationProperty(order = 61)
     public String[] getManagedAssociationPairs() {
         return managedAssociationPairs;
     }
@@ -1183,23 +1201,27 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
             timeout = DEFAULT_TIMEOUT;
         }
 
-        connectTimeout = recomputeLongValue(connectTimeout);
-        writeOperationTimeout = recomputeLongValue(writeOperationTimeout);
-        readOperationTimeout = recomputeLongValue(readOperationTimeout);
-        closeTimeout = recomputeLongValue(closeTimeout);
-        sendTimeout = recomputeLongValue(sendTimeout);
+        connectTimeout = recomputeTimeoutValue(connectTimeout, timeout);
+        writeOperationTimeout = recomputeTimeoutValue(writeOperationTimeout, timeout);
+        readOperationTimeout = recomputeTimeoutValue(readOperationTimeout, timeout);
+        closeTimeout = recomputeTimeoutValue(closeTimeout, timeout);
+        sendTimeout = recomputeTimeoutValue(sendTimeout, timeout);
 
         if (checkAliveTimeout == null) {
             checkAliveTimeout = timeout;
         }
     }
 
-    private Long recomputeLongValue(Long longValue) {
-        if (Objects.isNull(longValue)) {
-            return -1L;
+    private Long recomputeTimeoutValue(Long timeout, Long globalTimeout) {
+        if (Objects.isNull(timeout)) {
+            return globalTimeout;
         }
-        return longValue;
+        return timeout;
     }
 
     // TODO: equals, hashCode
+
+    public boolean useMultiDomain() {
+        return servers != null && servers.length > 0;
+    }
 }
