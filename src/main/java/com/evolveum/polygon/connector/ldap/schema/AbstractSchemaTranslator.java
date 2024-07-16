@@ -22,15 +22,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.text.ParseException;
 import java.time.ZonedDateTime;
-import java.util.ArrayList;
-import java.util.Base64;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
-import java.util.Arrays;
+import java.util.*;
 import java.util.function.Predicate;
 
 import com.evolveum.polygon.connector.ldap.*;
@@ -66,6 +58,7 @@ import org.identityconnectors.framework.spi.operations.SyncOp;
 
 import com.evolveum.polygon.common.SchemaUtil;
 
+import static com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration.CONF_ASSOC_DELIMITER;
 import static com.evolveum.polygon.connector.ldap.LdapConstants.*;
 
 /**
@@ -79,13 +72,23 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
     private static final Map<String, TypeSubType> SYNTAX_MAP = new HashMap<>();
 
     private SchemaManager schemaManager;
+    private ConnectionManager connectionManager;
     private C configuration;
     private Schema connIdSchema = null;
+    private Map<String, Set<String>> targetAssociationSets = new HashMap<>();
+    private Map<String, Set<String>> memberAssociationSets = new HashMap<>();
 
     public AbstractSchemaTranslator(SchemaManager schemaManager, C configuration) {
+
+        this(schemaManager, configuration, null);
+    }
+
+    ////            // TODO #A check if needed
+    public AbstractSchemaTranslator(SchemaManager schemaManager, C configuration, ConnectionManager connectionManager) {
         super();
         this.schemaManager = schemaManager;
         this.configuration = configuration;
+        this.connectionManager = connectionManager;
     }
 
     public Schema getConnIdSchema() {
@@ -238,79 +241,144 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
     }
 
     private void addReferences(Map<String, AttributeInfo> attrInfoList, org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
-        String[] associationPairs = configuration.getManagedAssociationPairs();
-        String currentOcName =ldapObjectClass.getName();
+        Set<AssociationHolder> associationHolders = generateAssociationHolders(ldapObjectClass);
 
-        for(String associationPair : associationPairs){
-
-            String[] pairArray =   associationPair.split("->");
-            if(pairArray.length > 2){
-
-                String memberObjectClass = pairArray[0];
-                String targetObjectClass = pairArray[1];
-                String attributeName = null;
-                AttributeInfoBuilder attributeInfoBuilder = null;
-
-                if(ldapObjectClass.equals(memberObjectClass)){
-                    // TODO #A
-                    //  memberOf handling Also implement isMemberOf for AD (should this be ported to ldap schema translator?)
-                    // AttributeInfo attributeInfo = new AttributeInfoBuilder();
-                    attributeName = ATTRIBUTE_MEMBER_OF_NAME;
-                    AttributeInfoBuilder attributeInfo = new AttributeInfoBuilder(attributeName, ConnectorObjectReference.class);
-
-                    attributeInfo.setSubtype(targetObjectClass);
+        // TODO #A remove log
+        LOG.ok("Evaluation of connId reference OC's");
 
 
-                } else if (ldapObjectClass.equals(targetObjectClass)) {
-                    if (MEMBERSHIP_ATTRIBUTES.containsKey(targetObjectClass)){
-
-                    // TODO #A should we override the original membership attribute? How do we know the resulting type in updates?
-                    // Seems that we sould at lease copy it's limitations
-
-                        attributeName = MEMBERSHIP_ATTRIBUTES.get(memberObjectClass);;
-                        AttributeInfoBuilder attributeInfo = new AttributeInfoBuilder(attributeName, ConnectorObjectReference.class);
-                        attributeInfoBuilder.setSubtype(memberObjectClass);
-
-                    }
-
-                } else {
-                    // TODO #A
-                    //  no association pair
-
-                    return;
-                }
-
-
-                //                        attributeInfoBuilder.setMultiValued(true);
-
-                List mustAttributeTypes= ldapObjectClass.getMustAttributeTypes();
-
-                if(mustAttributeTypes.contains(attributeName)) {
-                    attributeInfoBuilder.setRequired(true);
-
-                }
-
-                AttributeType attributeType = null;
-                try {
-                    attributeType = schemaManager.lookupAttributeTypeRegistry(attributeName);
-                } catch (LdapException e) {
-                    // Ignore. We want this attribute even if it is not in the LDAP schema
-                }
-
-                setAttributeMultiplicityAndPermissions(attributeType, attributeName, attributeInfoBuilder);
-
-                AttributeInfo ai = attributeInfoBuilder.build();
-                attrInfoList.put(ai.getName(), ai);
-
-            } else {
-
-                //TODO #A
-                LOG.warn("Association pair syntax missing peer, skipping schema construction for the reference " +
-                        "to this pair .The problematic association pair: {0}", associationPair);
-                return;
-            }
+        if (associationHolders != null && !associationHolders.isEmpty()){
+        } else {
+            return;
         }
 
+        for(AssociationHolder associationHolder : associationHolders){
+
+            // TODO #A remove log
+            LOG.ok("Evaluation of association holder and building Attribute info with it's data: {0} ", associationHolder);
+
+            AttributeInfoBuilder attributeInfoBuilder = new AttributeInfoBuilder(associationHolder.getName(),
+                    ConnectorObjectReference.class);
+            attributeInfoBuilder.setSubtype(associationHolder.getSubtype());
+            attributeInfoBuilder.setRequired(associationHolder.getRequired());
+
+            AttributeType attributeType = null;
+
+            try {
+                attributeType = schemaManager.lookupAttributeTypeRegistry(associationHolder.
+                        getAssociationAttributeName());
+            } catch (LdapException e) {
+                // Ignore. We want this attribute even if it is not in the LDAP schema
+            }
+            setAttributeMultiplicityAndPermissions(attributeType, associationHolder.getAssociationAttributeName(),
+                    attributeInfoBuilder);
+
+            AttributeInfo ai = attributeInfoBuilder.build();
+            attrInfoList.put(ai.getName(), ai);
+        }
+    }
+
+    private Set<AssociationHolder> generateAssociationHolders(org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
+
+        // TODO #A remove log
+        LOG.ok(" About to generate association holders ");
+
+
+        Set<AssociationHolder> associationHolders = new HashSet<>();
+        Map<String, Set<String>> evaluatedSet = new HashMap<>();
+        String currentOcName = ldapObjectClass.getName();
+        List<AttributeType> mustAttributeTypes = ldapObjectClass.getMustAttributeTypes();
+        List<AttributeType> mayAttributeTypes = ldapObjectClass.getMayAttributeTypes();
+        String associationAttributeName;
+
+        boolean isMust = false;
+        boolean isMay = false;
+        boolean isIsSubject = false;
+
+        if (getMemberAssociationSets()!=null && getMemberAssociationSets()
+                .containsKey(currentOcName)) {
+
+            evaluatedSet.putAll(memberAssociationSets);
+            associationAttributeName = ATTRIBUTE_MEMBER_OF_NAME;
+            // TODO #A remove log
+            LOG.ok("OC part of the MEMBER association set, using the attribute {0} for reference parameter data",
+                    ATTRIBUTE_MEMBER_OF_NAME);
+            isIsSubject = true;
+        } else if (getTargetAssociationSets()!=null && getTargetAssociationSets()
+                .containsKey(currentOcName)) {
+
+            // TODO #A remove log
+            LOG.ok("OC part of the TARGET association set, using the attribute {0} for reference parameter data ");
+
+            evaluatedSet.putAll(targetAssociationSets);
+            associationAttributeName = MEMBERSHIP_ATTRIBUTES.get(currentOcName);
+            isIsSubject = false;
+        } else {
+
+            // TODO #A remove log
+            LOG.ok("OC Is not part of any association set: {0} ", currentOcName);
+
+            return null;
+        }
+        // TODO #A
+        // Currently only memberOf for member Object classes
+
+        if (mustAttributeTypes.stream().anyMatch(x -> Objects.equals(x.getName(), associationAttributeName))) {
+
+            // TODO #A remove log
+            LOG.ok("# Parameter {0} must", associationAttributeName);
+
+            isMust = true;
+        }
+
+        if (mayAttributeTypes.stream().anyMatch(x -> Objects.equals(x.getName(), associationAttributeName))) {
+
+            // TODO #A remove log
+            LOG.ok("# Parameter {0} must", associationAttributeName);
+
+            isMay = true;
+        }
+// TODO #A a better check for this
+        if (isMust || isMay || ATTRIBUTE_MEMBER_OF_NAME.equals(associationAttributeName) ) {
+            // ie the parameter exists
+            // TODO #A remove log
+            LOG.ok("# Parameter {0} exists", associationAttributeName);
+
+            Set<String> valueOCs = evaluatedSet.get(currentOcName);
+
+            for (String valueObjectClass : valueOCs) {
+
+                String toBeUc =isIsSubject? valueObjectClass:currentOcName ;
+                String toBeLc =isIsSubject? currentOcName:valueObjectClass ;
+
+                String nameFirstCapital = toBeUc.substring(0, 1).toUpperCase()
+                        + toBeUc.substring(1);
+
+                String nameFirstLc = toBeLc.substring(0, 1).toLowerCase()
+                        + toBeLc.substring(1);
+
+                // TODO #A remove log
+                LOG.ok("Association attr name is {0}", nameFirstLc + nameFirstCapital + (isIsSubject? "#1":"#2"));
+
+
+                associationHolders.add(new AssociationHolder(valueObjectClass
+                        , associationAttributeName, nameFirstLc + nameFirstCapital + (isIsSubject? "#1":"#2"),
+                        isMust));
+
+//                                associationHolders.add(new AssociationHolder(valueObjectClass
+//                        , associationAttributeName, valueObjectClass, isMust));
+
+            }
+        } else {
+
+            // TODO #A remove log
+            LOG.ok(" # Parameter does not exist: {0}", associationAttributeName);
+        }
+        // TODO #A remove log
+        LOG.ok("Association holders constructed ");
+
+
+        return associationHolders;
     }
 
     private void addExtraOperationalAttributes(Map<String, AttributeInfo> attrInfoList) {
@@ -1172,11 +1240,12 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
             connIdStructuralObjectClassInfo = connIdSchema.findObjectClassInfo(ldapObjectClasses.getLdapLowestStructuralObjectClass().getName());
         }
         ConnectorObjectBuilder cob = new ConnectorObjectBuilder();
+        String connIdStructuralObjectClassType = connIdStructuralObjectClassInfo.getType();
         if (dn == null) {
             dn = getDn(entry);
         }
         cob.setName(dn);
-        cob.setObjectClass(new ObjectClass(connIdStructuralObjectClassInfo.getType()));
+        cob.setObjectClass(new ObjectClass(connIdStructuralObjectClassType));
 
         List<ObjectClassInfo> connIdAuxiliaryObjectClassInfos = new ArrayList<>(ldapObjectClasses.getLdapAuxiliaryObjectClasses().size());
 
@@ -1290,7 +1359,21 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
                 polyAttributes.put(ldapAttributeNameFromSchema, new PolyAttributeStruct(ldapAttributeType, connIdAttributeName, ldapAttribute));
 
             } else {
+            // TODO   #A remove comment next
 
+                if(isAssociationAttribute(connIdStructuralObjectClassType, connIdAttributeName)){
+
+                    if(attributeHandler instanceof ReferenceAttributeHandler){
+
+                        ((ReferenceAttributeHandler) attributeHandler).setConnectorObjectBuilder(cob);
+                        saturateConnIdReferences(connIdStructuralObjectClassType, connIdAttributeName, ldapAttrName,
+                                ldapAttributeType, ldapAttribute, connection, attributeHandler);
+                    } else {
+
+                        // TODO   #A remove comment next
+                        LOG.warn("Attribute handler not instance of {0}", ReferenceAttributeHandler.class.getName());
+                    }
+                }
                 // Process simple (non-poly) attributes right here. We are not waiting for anything else.
 
                 Attribute connIdAttribute = toConnIdAttribute(connIdAttributeName, ldapAttributeNameFromSchema, ldapAttributeType, ldapAttribute,
@@ -1355,11 +1438,18 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
     }
 
     private Attribute toConnIdAttribute(String connIdAttributeName, String ldapAttributeNameFromSchema, AttributeType ldapAttributeType,
-            org.apache.directory.api.ldap.model.entry.Attribute ldapAttribute,
-            LdapNetworkConnection connection, Entry entry, AttributeHandler attributeHandler) {
+                                        org.apache.directory.api.ldap.model.entry.Attribute ldapAttribute,
+                                        LdapNetworkConnection connection, Entry entry, AttributeHandler attributeHandler) {
+        return toConnIdAttribute(null, connIdAttributeName, ldapAttributeNameFromSchema, ldapAttributeType,
+                ldapAttribute, connection, entry, attributeHandler);
+    }
+
+    private Attribute toConnIdAttribute(ObjectClass oc, String connIdAttributeName, String ldapAttributeNameFromSchema, AttributeType ldapAttributeType,
+                                        org.apache.directory.api.ldap.model.entry.Attribute ldapAttribute,
+                                        LdapNetworkConnection connection, Entry entry, AttributeHandler attributeHandler) {
         AttributeBuilder ab = new AttributeBuilder();
         ab.setName(connIdAttributeName);
-        if (attributeHandler != null) {
+        if (attributeHandler != null && !(attributeHandler instanceof ReferenceAttributeHandler)) {
             attributeHandler.handle(connection, entry, ldapAttribute, ab);
         }
         boolean incompleteRead = false;
@@ -1377,6 +1467,9 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
                     throw new ConfigurationException("Unknown passoword read strategy "+configuration.getPasswordReadStrategy());
             }
         }
+
+
+
         Iterator<Value> iterator = ldapAttribute.iterator();
         boolean hasValidValue = false;
         while (iterator.hasNext()) {
@@ -1401,6 +1494,163 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException(e.getMessage() + ", attribute "+connIdAttributeName+" (ldap: "+ldapAttributeNameFromSchema+")", e);
         }
+    }
+
+    private List<Attribute> saturateConnIdReferences(String oc, String connIdAttributeName,
+                                                     String ldapAttributeNameFromSchema , AttributeType ldapAttributeType,
+                                                     org.apache.directory.api.ldap.model.entry.Attribute ldapAttribute,
+                                                     LdapNetworkConnection connection, AttributeHandler handler) {
+
+        List<Attribute> referenceAttributes = new ArrayList<>();
+        List<Object> validValues =  new ArrayList<>();
+
+        boolean incompleteRead = false;
+        Iterator<Value> iterator = ldapAttribute.iterator();
+        boolean hasValidValue = false;
+
+        while (iterator.hasNext()) {
+            Value ldapValue = iterator.next();
+            // TODO #A Assuming this is a identificator (dn, I guess a conditional confirming this could be used )
+            Object connIdValue = toConnIdValue(connIdAttributeName, ldapValue, ldapAttributeNameFromSchema, ldapAttributeType);
+//            // TODO #A (Assuming DN being the attribute (might differ based on used group))
+//            // TODO #A
+
+            handler.handle(connection,null, ldapAttribute, null);
+
+//            // TODO #A
+
+            if (connIdValue != null) {
+                if (shouldValueBeIncluded(connIdValue, ldapAttributeNameFromSchema)) {
+                    validValues.add(connIdValue);
+                }
+                hasValidValue = true;
+            }
+        }
+        if (!hasValidValue) {
+            // Do not even try to build. The build will fail.
+            return null;
+        }
+        if (incompleteRead) {
+            // TODO #A Add incomplete read mark ??
+        }
+        try {
+
+            // TODO #A build list of refs
+
+            return referenceAttributes;
+
+        } catch (IllegalArgumentException e) {
+
+            throw new IllegalArgumentException(e.getMessage() + ", attribute "+connIdAttributeName+" (ldap: "+ldapAttributeNameFromSchema+")", e);
+        }
+    }
+
+    private void constructAssociationSets(){
+
+        // TODO #A remove log
+        LOG.ok("About to construct association sets");
+        String[] associationPairs = configuration.getManagedAssociationPairs();
+        // TODO #A remove log
+        LOG.ok("association sets length: {0} ", associationPairs.length);
+
+        for (String associationPair : associationPairs) {
+            // TODO #A remove log
+            LOG.ok("About to construct association sets, loop for : {0}", associationPair);
+
+            String[] pairArray = associationPair.split(CONF_ASSOC_DELIMITER);
+
+            if (pairArray.length == 2) {
+
+                String memberObjectClass = pairArray[0].trim();
+                String targetObjectClass = pairArray[1].trim();
+                // TODO #A remove log
+                LOG.ok("Construct association sets, loop for memberOC {0} and targetOC {1}", memberObjectClass,
+                        targetObjectClass);
+
+                if (!targetAssociationSets.isEmpty()) {
+                    if (targetAssociationSets.containsKey(targetObjectClass)) {
+
+                        Set<String> memberClasses = targetAssociationSets.get(targetObjectClass);
+                        memberClasses.add(memberObjectClass);
+                        targetAssociationSets.put(targetObjectClass, memberClasses);
+
+                        // TODO #A remove log
+                        LOG.ok("Construct association sets, loop for  target oc, added member {0} to target {1}",
+                                memberObjectClass, targetObjectClass);
+                    } else {
+
+                        targetAssociationSets.put(targetObjectClass, new HashSet<>(Arrays.asList(memberObjectClass)));
+
+                        LOG.ok("#Construct association sets, loop for  target oc, added member {0} to target {1}",
+                                memberObjectClass, targetObjectClass);
+                    }
+
+                } else {
+
+                    targetAssociationSets.put(targetObjectClass, new HashSet<>(Arrays.asList(memberObjectClass)));
+                    LOG.ok("## Construct association sets, loop for  target oc, added member {0} to target {1}",
+                            memberObjectClass, targetObjectClass);
+                }
+
+                if (!memberAssociationSets.isEmpty()) {
+                    if (memberAssociationSets.containsKey(memberObjectClass)) {
+
+                        Set<String> targetClasses = memberAssociationSets.get(memberObjectClass);
+                        targetClasses.add(targetObjectClass);
+                        memberAssociationSets.put(memberObjectClass, targetClasses);
+
+                        LOG.ok("Construct association sets, loop for memberOC oc, added member {0} to target {1}",
+                                memberObjectClass, targetObjectClass);
+                    } else {
+
+                        memberAssociationSets.put(memberObjectClass, new HashSet<>(Arrays.asList(targetObjectClass)));
+                        LOG.ok("#Construct association sets, loop for memberOC oc, added member {0} to target {1}",
+                                memberObjectClass, targetObjectClass);
+                    }
+
+                } else {
+
+                    memberAssociationSets.put(memberObjectClass, new HashSet<>(Arrays.asList(targetObjectClass)));
+                    LOG.ok("#Construct association sets, loop for memberOC oc, added member {0} to target {1}",
+                            memberObjectClass, targetObjectClass);
+                }
+            } else {
+
+                LOG.warn("Association pair syntax contain multiple delimiters \" "+configuration.CONF_ASSOC_DELIMITER+" \"");
+                LOG.warn("Skipping association pair: {0}", associationPair);
+            }
+        }
+
+    }
+
+    private boolean isAssociationAttribute(String objectClassName, String connIdAttributeName) {
+        // TODO #A remove log
+        LOG.ok("#Association attr evaluation for OC {0} and attr name {1}", objectClassName, connIdAttributeName);
+        //TODO #A
+        // Make this more generic, also maybe port to LDAP/AD specific handling
+
+        if (ATTRIBUTE_MEMBER_OF_NAME.equals(connIdAttributeName)) {
+
+            if (getMemberAssociationSets()!=null && getMemberAssociationSets().containsKey(objectClassName)) {
+                // TODO #A remove log
+                LOG.ok("#Association attr evaluation for OC {0} and attr name {1}, true", objectClassName, connIdAttributeName);
+                return true;
+            }
+
+                return false;
+        }
+
+        if (MEMBERSHIP_ATTRIBUTES.containsKey(objectClassName)) {
+
+            if (MEMBERSHIP_ATTRIBUTES.get(objectClassName).equals(connIdAttributeName)) {
+
+                if (getTargetAssociationSets()!=null && getTargetAssociationSets().containsKey(objectClassName)) {
+                    LOG.ok("#Association attr evaluation for OC {0} and attr name {1}, true", objectClassName, connIdAttributeName);
+                        return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**
@@ -2061,4 +2311,32 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 
     }
 
+    public Map<String, Set<String>> getTargetAssociationSets() {
+
+        if(targetAssociationSets!=null && !targetAssociationSets.isEmpty()){
+
+            // TODO #A remove log
+            LOG.ok("About to return TAS");
+            return targetAssociationSets;
+        } else {
+            // TODO #A remove log
+            LOG.ok("TAS empty, about to construct ");
+            constructAssociationSets();
+            return targetAssociationSets;
+        }
+    }
+
+    public Map<String, Set<String>> getMemberAssociationSets() {
+
+        if(memberAssociationSets!=null && !memberAssociationSets.isEmpty()){
+            // TODO #A remove log
+            LOG.ok("About to return MAS");
+            return memberAssociationSets;
+        } else {
+            // TODO #A remove log
+            LOG.ok("MAS empty, about to construct ");
+            constructAssociationSets();
+            return memberAssociationSets;
+        }
+    }
 }

@@ -100,7 +100,7 @@ import org.identityconnectors.framework.spi.operations.SyncOp;
 import org.identityconnectors.framework.spi.operations.TestOp;
 import org.identityconnectors.framework.spi.operations.UpdateDeltaOp;
 
-import static com.evolveum.polygon.connector.ldap.LdapConstants.OBJECT_CLASS_GROUP_OF_NAMES;
+import static com.evolveum.polygon.connector.ldap.LdapConstants.*;
 
 public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
         implements PoolableConnector, TestOp, SchemaOp, SearchOp<Filter>, CreateOp, DeleteOp, UpdateDeltaOp,
@@ -538,6 +538,10 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
         prepareConnIdSchema();
         org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass = getSchemaTranslator().toLdapObjectClass(objectClass);
 
+
+        // TODO #A
+        LOG.ok("The Ldap ObjectClass {0}, the options {1}", ldapObjectClass, options);
+
         SearchStrategy<C> searchStrategy;
         if (isEqualsFilter(connIdFilter, Name.NAME)) {
             // Search by __NAME__, which means DN. This translated to a base search.
@@ -914,6 +918,9 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
         }
         entry.put("objectClass", ldapObjectClassNames);
 
+        List<Object> referenceValue = new ArrayList<>();
+        String associationAttributeName = getAssociationAttributeName(connIdObjectClass);
+
         for (Attribute connIdAttr: createAttributes) {
             if (connIdAttr.is(Name.NAME)) {
                 continue;
@@ -921,6 +928,27 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
             if (connIdAttr.is(PredefinedAttributes.AUXILIARY_OBJECT_CLASS_NAME)) {
                 continue;
             }
+
+            if (associationAttributeName!=null) {
+
+                if(connIdAttr.is(associationAttributeName)){
+                    // TODO #A remove log
+                    LOG.ok("Association attr found amongst attribute list:{0} ", associationAttributeName);
+
+                    continue;
+                }
+
+                if (schemaTranslator.getMemberAssociationSets().containsKey(connIdObjectClass) ||
+                        schemaTranslator.getTargetAssociationSets().containsKey(connIdObjectClass)){
+
+                    // TODO #A remove log
+                    LOG.ok("About to partially saturate attribute list for attr: {0} ", associationAttributeName);
+                    saturateReferenceAttributeValues( connIdAttr.getValue(), referenceValue);
+
+                    continue;
+                }
+            }
+
             AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapStructuralObjectClass, connIdAttr.getName());
             List<Object> connIdAttrValues = connIdAttr.getValue();
 
@@ -956,6 +984,17 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
                 // no simple way how to check if he attribute was added. It may end up with ERR_04451. So let's just
                 // hope that it worked well. It should - unless there is a connector bug.
             }
+        }
+            //   // TODO #A put values for membership attribute
+        if(associationAttributeName!=null){
+
+            // TODO #A remove log
+            LOG.ok("About to populate values for attribute: {0}", associationAttributeName);
+
+            AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapStructuralObjectClass,
+                    associationAttributeName);
+            List<Value> ldapValues = schemaTranslator.toLdapValues(ldapAttributeType, referenceValue);
+            entry.put(ldapAttributeType.getName(), ldapValues.toArray(new Value[ldapValues.size()]));
         }
 
         prepareCreateLdapAttributes(ldapStructuralObjectClass, entry);
@@ -1035,6 +1074,29 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
         uid = new Uid(getSchemaTranslator().toConnIdIdentifierValue(uidLdapAttributeValue, uidAttributeName, uidLdapAttributeType));
 
         return uid;
+    }
+
+    private void saturateReferenceAttributeValues(List<Object> originalValues, List<Object> toSaturate) {
+
+        // TODO #A TEST , at first dont include this into the payload
+
+        for (Object value : originalValues) {
+
+            if (value instanceof ConnectorObjectReference) {
+
+                String identifier = String.valueOf(((ConnectorObjectReference) value).getReferencedValue()
+                        .getIdentification());
+
+                LOG.ok("The identifier of the COR: {0}",identifier);
+                LOG.ok("The name of the COR: {0}", ((ConnectorObjectReference) value).getReferencedObject().getName());
+                LOG.ok("The uid of the COR: {0}", ((ConnectorObjectReference) value).getReferencedObject().getUid());
+
+                if ( identifier!= null) {
+
+                    toSaturate.add(identifier);
+                }
+            }
+        }
     }
 
     protected Set<Attribute> prepareCreateConnIdAttributes(ObjectClass connIdObjectClass,
@@ -1147,11 +1209,25 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
             OperationOptions options, org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass) {
 
         List<Modification> ldapModifications = new ArrayList<Modification>();
+        String associationAttributeName = getAssociationAttributeName(connIdObjectClass);
+        Set<AttributeDelta> associationAttributeDeltas = new HashSet<>();
+
         for (AttributeDelta delta: deltas) {
             if (delta.is(Name.NAME)) {
                 // Already processed
                 continue;
             }
+            if(isPartOfAssociationAttributes(delta.getName())){
+                associationAttributeDeltas.add(delta);
+
+                continue;
+            }
+
+            if(associationAttributeName!=null && delta.is(associationAttributeName)){
+                // Processing will be done in a different place
+                continue;
+            }
+
             if (delta.is(PredefinedAttributes.AUXILIARY_OBJECT_CLASS_NAME)) {
                 List<Object> valuesToReplace = delta.getValuesToReplace();
                 if (valuesToReplace != null) {
@@ -1169,8 +1245,19 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
                     addLdapModificationString(ldapModifications, ModificationOperation.REMOVE_ATTRIBUTE, SchemaConstants.OBJECT_CLASS_AT, delta.getValuesToRemove());
                 }
             } else {
+
                 addAttributeModification(dn, ldapModifications, ldapStructuralObjectClass, connIdObjectClass, delta);
             }
+        }
+
+        if(!associationAttributeDeltas.isEmpty()){
+
+            //TODO #A remove log
+            LOG.ok("About to re-wrap delta for {0}", associationAttributeName);
+
+            AttributeDelta reWrapped = reWrapReferenceDeltas(associationAttributeName, associationAttributeDeltas);
+            addAttributeModification(dn, ldapModifications, ldapStructuralObjectClass, connIdObjectClass, reWrapped);
+
         }
 
         if (ldapModifications.isEmpty()) {
@@ -1200,6 +1287,77 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
         }
 
         return sideEffects;
+    }
+
+    private AttributeDelta reWrapReferenceDeltas(String associationAttributeName, Set<AttributeDelta> associationAttributeDeltas) {
+        AttributeDeltaBuilder attributeDeltaBuilder = new AttributeDeltaBuilder();
+
+        List<Object> valuesToAdd = new ArrayList<>();
+        List<Object> valuesToRemove = new ArrayList<>();
+        List<Object> valuesToReplace = new ArrayList<>();
+
+        for(AttributeDelta attributeDelta : associationAttributeDeltas){
+
+
+           saturateReferenceAttributeValues(attributeDelta.getValuesToAdd(), valuesToAdd);
+           saturateReferenceAttributeValues(attributeDelta.getValuesToRemove(), valuesToRemove);
+           saturateReferenceAttributeValues(attributeDelta.getValuesToReplace(), valuesToReplace);
+        }
+
+        attributeDeltaBuilder.addValueToReplace(valuesToReplace);
+        attributeDeltaBuilder.addValueToRemove(valuesToRemove);
+        attributeDeltaBuilder.addValueToAdd(valuesToAdd);
+
+        return attributeDeltaBuilder.build(associationAttributeName);
+    }
+
+    private boolean isPartOfAssociationAttributes(String name) {
+
+       boolean isAssociationAttribute =  (schemaTranslator.getMemberAssociationSets() !=null
+               && schemaTranslator.getMemberAssociationSets().containsKey(name))
+               ||(schemaTranslator.getTargetAssociationSets() !=null
+               && schemaTranslator.getTargetAssociationSets().containsKey(name));
+
+       //TODO #A remove log
+       LOG.ok("The Attribute {0} is a reference holder and a part of the constructed association attribute.");
+       return isAssociationAttribute;
+    }
+
+    private String getAssociationAttributeName(ObjectClass connIdObjectClass) {
+
+        if(configuration.getManagedAssociationPairs().length!=0){
+            // TODO #A remove log
+            LOG.ok("Association configuration found, processing trough possible association sets");
+            if (schemaTranslator.getTargetAssociationSets() !=null &&
+                    schemaTranslator.getTargetAssociationSets().containsKey(connIdObjectClass))  {
+                LOG.ok("The currently evaluated object class was evaluated as a association target, the object class" +
+                        ":  {0}", connIdObjectClass);
+
+                if(MEMBERSHIP_ATTRIBUTES.containsKey(connIdObjectClass)){
+
+                    String associationAttributeName= MEMBERSHIP_ATTRIBUTES.get(connIdObjectClass);
+                    LOG.ok("The following attribute vas selected as the reference data bearer: {0}"
+                            , associationAttributeName);
+                    return associationAttributeName;
+
+                } else {
+//                    TODO #A maybe throw some sort of exception?
+                    LOG.error("Automatic association handling not supported for target object class: {0}",
+                            connIdObjectClass);
+                }
+
+            } else if (schemaTranslator.getMemberAssociationSets() !=null &&
+                    schemaTranslator.getMemberAssociationSets().containsKey(connIdObjectClass)) {
+
+                String associationAttributeName= ATTRIBUTE_MEMBER_OF_NAME;
+                LOG.ok("The following attribute vas selected as the reference data bearer: {0}"
+                        , associationAttributeName);
+                // TODO #A  TODO port to Server Specific
+                return associationAttributeName;
+            }
+        }
+
+        return null;
     }
 
     private AttributeDelta createUidDelta(String string) {
@@ -1258,6 +1416,8 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
             ObjectClass connIdObjectClass, AttributeDelta delta) {
         AbstractSchemaTranslator<C> schemaTranslator = getSchemaTranslator();
         String connIdAttributeName = delta.getName();
+
+
         AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapStructuralObjectClass, connIdAttributeName);
         if (ldapAttributeType == null && !configuration.isAllowUnknownAttributes()
                 && !ArrayUtils.contains(configuration.getOperationalAttributes(), connIdAttributeName)) {

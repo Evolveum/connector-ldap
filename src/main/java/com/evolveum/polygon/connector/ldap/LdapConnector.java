@@ -18,6 +18,11 @@ package com.evolveum.polygon.connector.ldap;
 
 import java.util.*;
 
+import com.evolveum.polygon.connector.ldap.ad.AdAttributeHandler;
+import com.evolveum.polygon.connector.ldap.ad.AdLdapConfiguration;
+import com.evolveum.polygon.connector.ldap.schema.ReferenceAttributeHandler;
+import com.evolveum.polygon.connector.ldap.search.DefaultSearchStrategy;
+import com.evolveum.polygon.connector.ldap.search.SearchStrategy;
 import org.apache.directory.api.ldap.model.constants.SchemaConstants;
 import org.apache.directory.api.ldap.model.entry.Attribute;
 import org.apache.directory.api.ldap.model.entry.DefaultModification;
@@ -26,12 +31,7 @@ import org.apache.directory.api.ldap.model.entry.ModificationOperation;
 import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.ldap.model.schema.SchemaManager;
 import org.identityconnectors.common.logging.Log;
-import org.identityconnectors.framework.common.objects.AttributeDelta;
-import org.identityconnectors.framework.common.objects.ObjectClass;
-import org.identityconnectors.framework.common.objects.OperationalAttributes;
-import org.identityconnectors.framework.common.objects.SuggestedValues;
-import org.identityconnectors.framework.common.objects.SuggestedValuesBuilder;
-import org.identityconnectors.framework.common.objects.ValueListOpenness;
+import org.identityconnectors.framework.common.objects.*;
 import org.identityconnectors.framework.spi.Configuration;
 import org.identityconnectors.framework.spi.ConnectorClass;
 
@@ -47,6 +47,13 @@ public class LdapConnector extends AbstractLdapConnector<LdapConfiguration> {
 
     @Override
     protected AbstractSchemaTranslator<LdapConfiguration> createSchemaTranslator() {
+
+         // TODO #A change to more fitting conditional
+        if(getConfiguration().getManagedAssociationPairs().length == 0){
+
+            return new LdapSchemaTranslator(getSchemaManager(), getConfiguration(), getConnectionManager());
+        }
+
         return new LdapSchemaTranslator(getSchemaManager(), getConfiguration());
     }
 
@@ -164,7 +171,13 @@ public class LdapConnector extends AbstractLdapConnector<LdapConfiguration> {
             super.addAttributeModification(dn, modifications, ldapStructuralObjectClass, icfObjectClass, delta);
         }
     }
-
-
+    ///           // TODO   #A test, maybe make default ? Or conditional based on configuration
+    @Override
+    protected SearchStrategy<LdapConfiguration> getDefaultSearchStrategy(org.identityconnectors.framework.common.objects.ObjectClass objectClass,
+                                                                         org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass, ResultsHandler handler, OperationOptions options) {
+        SearchStrategy<LdapConfiguration> searchStrategy = super.getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
+        searchStrategy.setAttributeHandler(new ReferenceAttributeHandler(getConfiguration(), searchStrategy, getSchemaTranslator()));
+        return searchStrategy;
+    }
 
 }

@@ -22,6 +22,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.evolveum.polygon.connector.ldap.connection.ConnectionManager;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.directory.api.ldap.model.constants.SchemaConstants;
 import org.apache.directory.api.ldap.model.entry.Entry;
@@ -59,6 +60,11 @@ public class LdapSchemaTranslator extends AbstractSchemaTranslator<LdapConfigura
 
     public LdapSchemaTranslator(SchemaManager schemaManager, LdapConfiguration configuration) {
         super(schemaManager, configuration);
+    }
+
+    //            // TODO #A check if needed
+    public LdapSchemaTranslator(SchemaManager schemaManager, LdapConfiguration configuration, ConnectionManager connectionManager) {
+        super(schemaManager, configuration, connectionManager);
     }
 
     @Override
