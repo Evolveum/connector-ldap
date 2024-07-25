@@ -20,6 +20,7 @@ import java.util.Base64;
 
 import com.evolveum.polygon.connector.ldap.*;
 import com.evolveum.polygon.connector.ldap.connection.ConnectionManager;
+import com.evolveum.polygon.connector.ldap.schema.ReferenceAttributeHandler;
 import org.apache.directory.api.ldap.extras.controls.ad.AdDirSyncRequestImpl;
 import org.apache.directory.api.ldap.extras.controls.ad.AdDirSyncResponse;
 import org.apache.directory.api.ldap.extras.controls.ad.AdShowDeleted;
@@ -61,7 +62,8 @@ public class AdDirSyncStrategy<C extends AbstractLdapConfiguration> extends Sync
     private static final Log LOG = Log.getLog(AdDirSyncStrategy.class);
 
     public AdDirSyncStrategy(AbstractLdapConfiguration configuration, ConnectionManager<C> connectionManager,
-            SchemaManager schemaManager, AbstractSchemaTranslator<C> schemaTranslator, ErrorHandler errorHandler) {
+                             SchemaManager schemaManager, AbstractSchemaTranslator<C> schemaTranslator,
+                             ErrorHandler errorHandler) {
         super(configuration, connectionManager, schemaManager, schemaTranslator, errorHandler);
     }
 
@@ -155,7 +157,8 @@ public class AdDirSyncStrategy<C extends AbstractLdapConfiguration> extends Sync
                             continue;
                         }
 
-                        ConnectorObject targetObject = getSchemaTranslator().toConnIdObject(connection, icfObjectClassInfo, targetEntry);
+                        ConnectorObject targetObject = getSchemaTranslator().toConnIdObject(connection,
+                                icfObjectClassInfo, targetEntry, referenceAttributeHandler);
                         deltaBuilder.setObject(targetObject);
                     }
 

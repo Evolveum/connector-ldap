@@ -38,7 +38,7 @@ import org.identityconnectors.framework.spi.ConnectorClass;
 import com.evolveum.polygon.common.SchemaUtil;
 import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
 
-import static com.evolveum.polygon.connector.ldap.LdapConstants.OBJECT_CLASS_GROUP_OF_NAMES;
+import static com.evolveum.polygon.connector.ldap.LdapConstants.*;
 
 @ConnectorClass(displayNameKey = "connector.ldap.display", configurationClass = LdapConfiguration.class)
 public class LdapConnector extends AbstractLdapConnector<LdapConfiguration> {
@@ -47,12 +47,6 @@ public class LdapConnector extends AbstractLdapConnector<LdapConfiguration> {
 
     @Override
     protected AbstractSchemaTranslator<LdapConfiguration> createSchemaTranslator() {
-
-         // TODO #A change to more fitting conditional
-        if(getConfiguration().getManagedAssociationPairs().length == 0){
-
-            return new LdapSchemaTranslator(getSchemaManager(), getConfiguration(), getConnectionManager());
-        }
 
         return new LdapSchemaTranslator(getSchemaManager(), getConfiguration());
     }
@@ -96,6 +90,17 @@ public class LdapConnector extends AbstractLdapConnector<LdapConfiguration> {
         suggestions.put(LdapConfiguration.CONF_PROP_NAME_LOCKOUT_STRATEGY,
                 SuggestedValuesBuilder.build(LdapConfiguration.LOCKOUT_STRATEGY_OPENLDAP));
 
+        if (isServerOpenDj()) {
+
+            suggestions.put(AbstractLdapConfiguration.CONF_PROP_NAME_MEMBERSHIP_ATTR,
+                    SuggestedValuesBuilder.build(ATTRIBUTE_IS_MEMBER_OF_NAME));
+        } else {
+
+            suggestions.put(AbstractLdapConfiguration.CONF_PROP_NAME_MEMBERSHIP_ATTR,
+                    SuggestedValuesBuilder.build(ATTRIBUTE_MEMBER_OF_NAME));
+        }
+
+
         analyzeReferenceSuggestions(getSchemaManager(), getConfiguration(), suggestions);
     }
 
@@ -114,10 +119,6 @@ public class LdapConnector extends AbstractLdapConnector<LdapConfiguration> {
                     String oClassName = ldapObjectClass.getName();
 
                     referenceSuggestions.add(oClassName + " -> " + groupObjectClassName);
-                    //TODO expand based on supported group objects
-                    //TODO remove log
-
-                    LOG.ok("Reference Suggestion constructed: {0}", oClassName + " -> " + groupObjectClassName);
                 }
             }
 
@@ -176,7 +177,7 @@ public class LdapConnector extends AbstractLdapConnector<LdapConfiguration> {
     protected SearchStrategy<LdapConfiguration> getDefaultSearchStrategy(org.identityconnectors.framework.common.objects.ObjectClass objectClass,
                                                                          org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass, ResultsHandler handler, OperationOptions options) {
         SearchStrategy<LdapConfiguration> searchStrategy = super.getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
-        searchStrategy.setAttributeHandler(new ReferenceAttributeHandler(getConfiguration(), searchStrategy, getSchemaTranslator()));
+        searchStrategy.setAttributeHandler(new ReferenceAttributeHandler(getConfiguration(), getErrorHandler(), getSchemaTranslator(), objectClass));
         return searchStrategy;
     }
 
