@@ -20,6 +20,7 @@ import java.util.Iterator;
 
 import com.evolveum.polygon.connector.ldap.*;
 import com.evolveum.polygon.connector.ldap.connection.ConnectionManager;
+import com.evolveum.polygon.connector.ldap.schema.ReferenceAttributeHandler;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.directory.api.ldap.model.constants.SchemaConstants;
 import org.apache.directory.api.ldap.model.cursor.CursorException;
@@ -67,7 +68,8 @@ public class OpenLdapAccessLogSyncStrategy<C extends AbstractLdapConfiguration> 
 
     public OpenLdapAccessLogSyncStrategy(AbstractLdapConfiguration configuration,
                                          ConnectionManager<C> connectionManager, SchemaManager schemaManager,
-                                         AbstractSchemaTranslator<C> schemaTranslator, ErrorHandler errorHandler) {
+                                         AbstractSchemaTranslator<C> schemaTranslator,
+                                         ErrorHandler errorHandler) {
         super(configuration, connectionManager, schemaManager, schemaTranslator, errorHandler, false);
     }
 

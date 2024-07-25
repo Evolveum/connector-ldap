@@ -1,8 +1,6 @@
 package com.evolveum.polygon.connector.ldap.schema;
 
-import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
-import com.evolveum.polygon.connector.ldap.LdapConfiguration;
-import com.evolveum.polygon.connector.ldap.OperationLog;
+import com.evolveum.polygon.connector.ldap.*;
 import com.evolveum.polygon.connector.ldap.search.SearchStrategy;
 import org.apache.directory.api.ldap.model.constants.SchemaConstants;
 import org.apache.directory.api.ldap.model.entry.Attribute;
@@ -17,6 +15,7 @@ import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.framework.common.objects.*;
 
 
+
 import java.util.*;
 import java.util.function.Predicate;
 
@@ -25,16 +24,18 @@ import static com.evolveum.polygon.connector.ldap.LdapConstants.ATTRIBUTE_MEMBER
 public class ReferenceAttributeHandler implements AttributeHandler {
 
     private static final Log LOG = Log.getLog(ReferenceAttributeHandler.class);
-    private SearchStrategy<LdapConfiguration> searchStrategy;
+    private ErrorHandler errorHandler;
     private ConnectorObjectBuilder connectorObjectBuilder;
     private AbstractLdapConfiguration configuration;
     private AbstractSchemaTranslator translator;
+    private ObjectClass objectClass;
 
     public ReferenceAttributeHandler(AbstractLdapConfiguration configuration,
-                                     SearchStrategy<LdapConfiguration> searchStrategy, AbstractSchemaTranslator translator) {
-        this.searchStrategy = searchStrategy;
+                                     ErrorHandler errorHandler, AbstractSchemaTranslator translator, ObjectClass objectClass) {
+        this.errorHandler = errorHandler;
         this.configuration = configuration;
         this.translator = translator;
+        this.objectClass = objectClass;
     }
 
     @Override
@@ -47,31 +48,54 @@ public class ReferenceAttributeHandler implements AttributeHandler {
         String nameAttr = configuration.PSEUDO_ATTRIBUTE_DN_NAME;
         Map<String, AttributeBuilder> referenceAttributes = new HashMap<>();
 
+        Set<String> validReferenceObjectClasses = new HashSet<>();
+
+
+        if(configuration.getMembershipAttribute()!=null &&
+                configuration.getMembershipAttribute().equalsIgnoreCase(ldapAttributeName)){
+
+            validReferenceObjectClasses = (Set<String>) translator.getMemberAssociationSets().
+                    get(objectClass.getObjectClassValue());
+        } else if(LdapConstants.MEMBERSHIP_ATTRIBUTES.values().contains(ldapAttributeName)) {
+
+            validReferenceObjectClasses = (Set<String>) translator.getTargetAssociationSets().
+                    get(objectClass.getObjectClassValue());
+        } else {
+
+            LOG.error("Error, ObjectClass not found in either target nor member set.");
+        }
+
         while (iterator.hasNext()) {
             Value ldapValue = iterator.next();
             String syntaxOid = null;
             String tanslatedValue = null;
             if (ldapAttribute != null) {
-                syntaxOid = attributeType.getSyntaxOid();
+                if(attributeType!=null){
+
+                    syntaxOid = attributeType.getSyntaxOid();
+                }
             }
 
-            if (isStringSyntax(syntaxOid)) {
+            if (translator.isStringSyntax(syntaxOid)) {
+
                 LOG.ok("Converting: {0} (syntax {1}, value {2}): explicit string", ldapAttributeName, syntaxOid, ldapValue.getClass());
                 tanslatedValue = ldapValue.getString();
             } else if (ldapValue.isHumanReadable()) {
+
                 LOG.ok("Converting: {0} (syntax {1}, value {2}): detected string", ldapAttributeName, syntaxOid, ldapValue.getClass());
                 tanslatedValue = ldapValue.getString();
             } else {
 
-                ///           // TODO   #A warning or error?
+
                 LOG.error("Could not handle the value of association attribute: {0}. Syntax non interpretable as" +
                         " string is not supported.", ldapAttributeName);
+
                 return;
             }
 
             if (tanslatedValue != null && !tanslatedValue.isEmpty()) {
 
-                if(!shouldValueBeIncluded(tanslatedValue, ldapAttributeName)){
+                if(!translator.shouldValueBeIncluded(tanslatedValue, ldapAttributeName)){
 
                     continue;
                 }
@@ -81,40 +105,61 @@ public class ReferenceAttributeHandler implements AttributeHandler {
                         tanslatedValue, AbstractLdapConfiguration.SEARCH_FILTER_ALL, SearchScope.OBJECT);
 
                 try {
-                    ///TODO #A
-                    referencedEntry = connection.lookup(tanslatedValue, uidAttr, nameAttr);
+
+                    referencedEntry = connection.lookup(tanslatedValue, uidAttr, nameAttr, SchemaConstants.OBJECT_CLASS_AT);
 
                     if (referencedEntry == null) {
+
+                        ///TODO #A add to config??
+                        if("cn=dummy,o=whatever".equals(tanslatedValue)){
+
+                            continue;
+                        }
+
                         OperationLog.logOperationErr(connection, "Entry not found for {0}", tanslatedValue);
-                        throw searchStrategy.getErrorHandler().processLdapException("Reference search for " + tanslatedValue + " failed",
+                        throw errorHandler.processLdapException("Reference search for " + tanslatedValue + " failed",
                                 new LdapNoSuchObjectException("No entry found for " + tanslatedValue));
                     }
-                    ConnectorObject referencedObject = translator.toConnIdObject(connection, null, entry);
+                    ConnectorObject referencedObject = translator.toConnIdObject(connection, null, referencedEntry);
+
+                    String referencedObjectObjectClassName = referencedObject.getObjectClass().getObjectClassValue();
+
+                    if(!validReferenceObjectClasses.contains(referencedObjectObjectClassName)){
+
+                        continue;
+                    }
+
                     ConnectorObjectReference connectorObjectReference = new ConnectorObjectReference(referencedObject);
-                    String attributeName = referencedObject.getObjectClass().getDisplayNameKey();
 
                     if (!referenceAttributes.isEmpty()) {
-                        if (referenceAttributes.containsKey(attributeName)) {
 
-                            AttributeBuilder attributeBuilder = referenceAttributes.get(attributeName);
+
+                        if (referenceAttributes.containsKey(referencedObjectObjectClassName)) {
+
+                            AttributeBuilder attributeBuilder = referenceAttributes.get(referencedObjectObjectClassName);
                             attributeBuilder.addValue(connectorObjectReference);
-                            referenceAttributes.put(attributeName, attributeBuilder);
+                            referenceAttributes.put(referencedObjectObjectClassName, attributeBuilder);
+                        } else {
+
+                            AttributeBuilder attributeBuilder = new AttributeBuilder();
+                            attributeBuilder.addValue(connectorObjectReference);
+                            attributeBuilder.setName(referencedObjectObjectClassName);
+
+                            referenceAttributes.put(referencedObjectObjectClassName, attributeBuilder);
                         }
                     } else {
 
                         AttributeBuilder attributeBuilder = new AttributeBuilder();
                         attributeBuilder.addValue(connectorObjectReference);
-                        attributeBuilder.setName(attributeName);
+                        attributeBuilder.setName(referencedObjectObjectClassName);
 
-                        referenceAttributes.put(attributeName, attributeBuilder);
+                        referenceAttributes.put(referencedObjectObjectClassName, attributeBuilder);
                     }
 
                 } catch (LdapException e) {
                     OperationLog.logOperationErr(connection, "Search ERR {0}: {1}", e.getClass().getName(),
                             e.getMessage(), e);
-                    searchStrategy.getConnectionLog().error(connection, "search", e, tanslatedValue
-                            + " OBJECT " + AbstractLdapConfiguration.SEARCH_FILTER_ALL);
-                    throw searchStrategy.getErrorHandler().processLdapException("Range search for " + tanslatedValue +
+                    throw errorHandler.processLdapException("Search for " + tanslatedValue +
                             " failed", e);
                 }
             }
@@ -127,50 +172,6 @@ public class ReferenceAttributeHandler implements AttributeHandler {
                 connectorObjectBuilder.addAttribute(referenceAttribute.build());
             }
         }
-    }
-
-    ///           // TODO   #A copy, create some utility class and port there?
-    protected boolean isStringSyntax(String syntaxOid) {
-        if (syntaxOid == null) {
-            // If there is no syntax information we assume that is is string type
-            return true;
-        }
-        switch (syntaxOid) {
-            case SchemaConstants.DIRECTORY_STRING_SYNTAX:
-            case SchemaConstants.IA5_STRING_SYNTAX:
-            case SchemaConstants.OBJECT_CLASS_TYPE_SYNTAX:
-            case SchemaConstants.DN_SYNTAX:
-            case SchemaConstants.PRINTABLE_STRING_SYNTAX:
-                return true;
-            default:
-                return false;
-        }
-    }
-
-    ///           // TODO   #A copy, create some utility class and port there?
-    private boolean shouldValueBeIncluded(Object connIdValue, String ldapAttributeNameFromSchema) {
-        if (configuration.isFilterOutMemberOfValues() && ATTRIBUTE_MEMBER_OF_NAME.equalsIgnoreCase(ldapAttributeNameFromSchema)) {
-            String[] allowedValues = configuration.getMemberOfAllowedValues();
-            if (allowedValues.length == 0) {
-                LOG.ok("MemberOfAllowedValues is empty, using baseContext for filtering");
-                allowedValues = new String[]{ configuration.getBaseContext() };
-                configuration.setMemberOfAllowedValues(allowedValues);
-            }
-
-            if (connIdValue instanceof String) {
-                LOG.ok("Filtering memberOf attribute value: {0}", connIdValue);
-                String connIdValueString = (String) connIdValue;
-                return Arrays.stream(allowedValues)
-                        .filter(Predicate.not(String::isEmpty))
-                        .anyMatch(allowedValue -> connIdValueString.regionMatches(
-                                true,
-                                connIdValueString.length() - allowedValue.length(),
-                                allowedValue,
-                                0,
-                                allowedValue.length()));
-            }
-        }
-        return true;
     }
 
     public void setConnectorObjectBuilder(ConnectorObjectBuilder connectorObjectBuilder) {

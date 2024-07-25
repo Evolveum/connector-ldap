@@ -531,12 +531,18 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
      */
     private String[] memberOfAllowedValues = { };
 
-    // TODO #A
+    // TODO #A configuration discovery will use this to construct association candidates
+    //TODO #A add to property files
     protected String[] groupObjectClasses = { };
 
-    //TODO #A
+    //TODO #A add to property files
     public static final String CONF_PROP_MNGD_ASSOC_PAIRS = "managedAssociationPairs";
     protected String[] managedAssociationPairs = { };
+
+    //TODO #A add to property files
+    public static final String CONF_PROP_NAME_MEMBERSHIP_ATTR = "membershipAttribute";
+    public static final String DEFAULT_MEMBERSHIP_ATTR = "memberOf";
+    protected String membershipAttribute;
 
 
     @ConfigurationProperty(required = true, order = 1)
@@ -1143,6 +1149,15 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.managedAssociationPairs = managedAssociationPairs;
     }
 
+    @ConfigurationProperty(order = 62)
+    public String getMembershipAttribute() {
+        return membershipAttribute;
+    }
+
+    public void setMembershipAttribute(String membershipAttribute) {
+        this.membershipAttribute = membershipAttribute;
+    }
+
     @Override
     public void validate() {
         validateNotBlank(host, "host.blank");
@@ -1210,6 +1225,10 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 
         if (checkAliveTimeout == null) {
             checkAliveTimeout = timeout;
+        }
+
+        if (membershipAttribute == null) {
+            membershipAttribute = DEFAULT_MEMBERSHIP_ATTR;
         }
     }
 

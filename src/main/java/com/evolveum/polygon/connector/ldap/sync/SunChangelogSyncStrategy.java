@@ -19,6 +19,7 @@ import java.io.IOException;
 
 import com.evolveum.polygon.connector.ldap.*;
 import com.evolveum.polygon.connector.ldap.connection.ConnectionManager;
+import com.evolveum.polygon.connector.ldap.schema.ReferenceAttributeHandler;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.directory.api.ldap.model.cursor.CursorException;
 import org.apache.directory.api.ldap.model.cursor.EntryCursor;
@@ -83,7 +84,8 @@ public class SunChangelogSyncStrategy<C extends AbstractLdapConfiguration> exten
 
 
     public SunChangelogSyncStrategy(AbstractLdapConfiguration configuration, ConnectionManager<C> connection,
-            SchemaManager schemaManager, AbstractSchemaTranslator<C> schemaTranslator, ErrorHandler errorHandler) {
+                                    SchemaManager schemaManager, AbstractSchemaTranslator<C> schemaTranslator,
+                                    ErrorHandler errorHandler) {
         super(configuration, connection, schemaManager, schemaTranslator, errorHandler);
     }
 
@@ -196,7 +198,10 @@ public class SunChangelogSyncStrategy<C extends AbstractLdapConfiguration> exten
                             LOG.ok("Changelog entry {0} does not match object class, skipping", targetEntry.getDn());
                             continue;
                         }
-                        ConnectorObject targetObject = getSchemaTranslator().toConnIdObject(connection, icfObjectClassInfo, targetEntry);
+                        // TODO A# add reference attribute handler
+                        ConnectorObject targetObject = getSchemaTranslator().toConnIdObject(connection,
+                                icfObjectClassInfo, targetEntry, referenceAttributeHandler);
+
                         deltaBuilder.setObject(targetObject);
 
                     } else if (CHANGE_TYPE_ADD.equals(changeType)) {
@@ -221,7 +226,8 @@ public class SunChangelogSyncStrategy<C extends AbstractLdapConfiguration> exten
                                 continue;
                             }
                         }
-                        ConnectorObject targetObject = getSchemaTranslator().toConnIdObject(connection, icfObjectClassInfo, targetEntry, targetDn);
+                        ConnectorObject targetObject = getSchemaTranslator().toConnIdObject(connection,
+                                icfObjectClassInfo, targetEntry, targetDn, referenceAttributeHandler);
                         deltaBuilder.setObject(targetObject);
 
                     } else if (CHANGE_TYPE_DELETE.equals(changeType)) {
@@ -265,7 +271,9 @@ public class SunChangelogSyncStrategy<C extends AbstractLdapConfiguration> exten
                             LOG.ok("Sending simulated delete delta for {0}", oldDn.getName());
                             handler.handle(deleteDeltaBuilder.build());
                         }
-                        ConnectorObject targetObject = getSchemaTranslator().toConnIdObject(connection, icfObjectClassInfo, targetEntry);
+                        ConnectorObject targetObject = getSchemaTranslator().toConnIdObject(connection,
+                                icfObjectClassInfo, targetEntry, referenceAttributeHandler);
+
                         deltaBuilder.setObject(targetObject);
                         LOG.ok("ModRdn Obj UID: {0},  changelog UID: {1}", targetObject.getUid(), oldUid);
 

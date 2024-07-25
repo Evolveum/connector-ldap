@@ -20,6 +20,7 @@ import java.util.Calendar;
 
 import com.evolveum.polygon.connector.ldap.*;
 import com.evolveum.polygon.connector.ldap.connection.ConnectionManager;
+import com.evolveum.polygon.connector.ldap.schema.ReferenceAttributeHandler;
 import org.apache.directory.api.ldap.model.constants.SchemaConstants;
 import org.apache.directory.api.ldap.model.cursor.CursorException;
 import org.apache.directory.api.ldap.model.cursor.CursorLdapReferralException;
@@ -62,7 +63,8 @@ public class ModifyTimestampSyncStrategy<C extends AbstractLdapConfiguration> ex
     boolean useTimestampFraction = false;
 
     public ModifyTimestampSyncStrategy(AbstractLdapConfiguration configuration, ConnectionManager<C> connectionManager,
-                                       SchemaManager schemaManager, AbstractSchemaTranslator<C> schemaTranslator, ErrorHandler errorHandler, boolean useTimestampFraction) {
+                                       SchemaManager schemaManager, AbstractSchemaTranslator<C> schemaTranslator,
+                                       ErrorHandler errorHandler, boolean useTimestampFraction) {
         super(configuration, connectionManager, schemaManager, schemaTranslator, errorHandler);
         this.useTimestampFraction = useTimestampFraction;
     }
@@ -159,7 +161,8 @@ public class ModifyTimestampSyncStrategy<C extends AbstractLdapConfiguration> ex
                 deltaBuilder.setToken(finalToken);
 
                 deltaBuilder.setDeltaType(deltaType);
-                ConnectorObject targetObject = getSchemaTranslator().toConnIdObject(connection, icfObjectClassInfo, entry);
+                ConnectorObject targetObject = getSchemaTranslator().toConnIdObject(connection,
+                        icfObjectClassInfo, entry, referenceAttributeHandler);
                 deltaBuilder.setObject(targetObject);
 
                 handler.handle(deltaBuilder.build());

@@ -62,11 +62,6 @@ public class LdapSchemaTranslator extends AbstractSchemaTranslator<LdapConfigura
         super(schemaManager, configuration);
     }
 
-    //            // TODO #A check if needed
-    public LdapSchemaTranslator(SchemaManager schemaManager, LdapConfiguration configuration, ConnectionManager connectionManager) {
-        super(schemaManager, configuration, connectionManager);
-    }
-
     @Override
     protected void extendObjectClassDefinition(ObjectClassInfoBuilder ocib,
                                                org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {

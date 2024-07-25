@@ -77,7 +77,6 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
     public void search(Dn baseDn, ExprNode filterNode, SearchScope scope, String[] attributes)
             throws LdapException {
 
-
         boolean proceed = true;
         int index = 1;
         if (getOptions() != null && getOptions().getPagedResultsOffset() != null) {
@@ -92,16 +91,19 @@ public class VlvSearchStrategy<C extends AbstractLdapConfiguration> extends Sear
         }
 
         String vlvSortAttributeName = null;
+
         if (!hasSortOption()) {
             // Do not even try to do this if there is explicit sort option. This saves times and avoid some failures.
             String vlvSortAttributeConfig = getConfiguration().getVlvSortAttribute();
             List<String> vlvSortAttributeCandidateList = LdapUtil.splitComma(vlvSortAttributeConfig);
             vlvSortAttributeName = getSchemaTranslator().selectAttribute(getLdapObjectClass(), vlvSortAttributeCandidateList);
+
             if (vlvSortAttributeName == null) {
                 throw new ConfigurationException("Cannot find appropriate sort attribute for object class "+getLdapObjectClass().getName()
                         +", tried "+vlvSortAttributeCandidateList + " ("+vlvSortAttributeConfig+")");
             }
         }
+
         SortRequest sortReqControl = createSortControl(vlvSortAttributeName, getConfiguration().getVlvSortOrderingRule());
         sortReqControl.setCritical(true);
 
