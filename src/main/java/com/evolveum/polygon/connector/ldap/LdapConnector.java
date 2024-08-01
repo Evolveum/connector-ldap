@@ -23,12 +23,14 @@ import com.evolveum.polygon.connector.ldap.ad.AdLdapConfiguration;
 import com.evolveum.polygon.connector.ldap.schema.ReferenceAttributeHandler;
 import com.evolveum.polygon.connector.ldap.search.DefaultSearchStrategy;
 import com.evolveum.polygon.connector.ldap.search.SearchStrategy;
+import org.apache.commons.lang3.ArrayUtils;
 import org.apache.directory.api.ldap.model.constants.SchemaConstants;
 import org.apache.directory.api.ldap.model.entry.Attribute;
 import org.apache.directory.api.ldap.model.entry.DefaultModification;
 import org.apache.directory.api.ldap.model.entry.Modification;
 import org.apache.directory.api.ldap.model.entry.ModificationOperation;
 import org.apache.directory.api.ldap.model.name.Dn;
+import org.apache.directory.api.ldap.model.schema.AttributeType;
 import org.apache.directory.api.ldap.model.schema.SchemaManager;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.framework.common.objects.*;
@@ -90,17 +92,6 @@ public class LdapConnector extends AbstractLdapConnector<LdapConfiguration> {
         suggestions.put(LdapConfiguration.CONF_PROP_NAME_LOCKOUT_STRATEGY,
                 SuggestedValuesBuilder.build(LdapConfiguration.LOCKOUT_STRATEGY_OPENLDAP));
 
-        if (isServerOpenDj()) {
-
-            suggestions.put(AbstractLdapConfiguration.CONF_PROP_NAME_MEMBERSHIP_ATTR,
-                    SuggestedValuesBuilder.build(ATTRIBUTE_IS_MEMBER_OF_NAME));
-        } else {
-
-            suggestions.put(AbstractLdapConfiguration.CONF_PROP_NAME_MEMBERSHIP_ATTR,
-                    SuggestedValuesBuilder.build(ATTRIBUTE_MEMBER_OF_NAME));
-        }
-
-
         analyzeReferenceSuggestions(getSchemaManager(), getConfiguration(), suggestions);
     }
 
@@ -112,17 +103,21 @@ public class LdapConnector extends AbstractLdapConnector<LdapConfiguration> {
 
         List<String> referenceSuggestions = new ArrayList<String>();
 
-        for (String groupObjectClassName : groupObjectClasses) {
+        String sugestedMemberOfName = isServerOpenDj() ?   ATTRIBUTE_IS_MEMBER_OF_NAME : ATTRIBUTE_MEMBER_OF_NAME;
 
-            if (schemaManager.getObjectClassRegistry().contains(groupObjectClassName)) {
+        for (String objectObjectClassName : groupObjectClasses) {
+
+            if (schemaManager.getObjectClassRegistry().contains(objectObjectClassName)) {
                 for (org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass : schemaManager.getObjectClassRegistry()) {
-                    String oClassName = ldapObjectClass.getName();
 
-                    referenceSuggestions.add(oClassName + " -> " + groupObjectClassName);
+                    String SubjectClassName = ldapObjectClass.getName();
+
+                    referenceSuggestions.add("\""+sugestedMemberOfName +"\"+"+SubjectClassName +
+                            " -> " + "\""+MEMBERSHIP_ATTRIBUTES.get(objectObjectClassName) +"\"+"+ objectObjectClassName);
                 }
             }
-
         }
+
         referenceSuggestions.size();
         suggestions.put(AbstractLdapConfiguration.CONF_PROP_MNGD_ASSOC_PAIRS,
                 SuggestedValuesBuilder.buildOpen(referenceSuggestions.toArray(new String[referenceSuggestions.size()])));
@@ -172,12 +167,17 @@ public class LdapConnector extends AbstractLdapConnector<LdapConfiguration> {
             super.addAttributeModification(dn, modifications, ldapStructuralObjectClass, icfObjectClass, delta);
         }
     }
-    ///           // TODO   #A test, maybe make default ? Or conditional based on configuration
+
     @Override
     protected SearchStrategy<LdapConfiguration> getDefaultSearchStrategy(org.identityconnectors.framework.common.objects.ObjectClass objectClass,
                                                                          org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass, ResultsHandler handler, OperationOptions options) {
         SearchStrategy<LdapConfiguration> searchStrategy = super.getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
+
+        LdapConfiguration configuration = getConfiguration();
+        if (!ArrayUtils.isEmpty(configuration.getManagedAssociationPairs())){
+
         searchStrategy.setAttributeHandler(new ReferenceAttributeHandler(getConfiguration(), getErrorHandler(), getSchemaTranslator(), objectClass));
+        }
         return searchStrategy;
     }
 
