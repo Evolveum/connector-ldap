@@ -67,7 +67,48 @@ public class SyncTests extends CommonTestClass {
                     if(object instanceof ConnectorObjectReference){
 
                         LOG.ok("The reference attribute: {0}. The value: {1}",attribute.getName(),
-                                String.valueOf(((ConnectorObjectReference) object).getReferencedObject().getName()));
+                                String.valueOf(((ConnectorObjectReference) object).getValue().getAttributeByName(Name.NAME)));
+                    }
+                }
+            }
+            LOG.info("### END ###");
+        }
+
+    }
+
+    @Test()
+    public void syncInetOrgPerson() {
+
+        List<String> attrsToGet = CollectionUtil.newList(OperationalAttributeInfos.PASSWORD.getName(),
+                OperationalAttributeInfos.LOCK_OUT.getName(),
+                OperationalAttributeInfos.ENABLE.getName());
+
+        OperationOptions options = getDefaultOperationOptions(OC_NAME_INET_ORG_PERSON, attrsToGet, null,
+                1, 20, true, true);
+
+        ldapConfiguration = initializeAndFetchLDAPConfiguration();
+        ldapConnector.init(ldapConfiguration);
+        TestSyncResultsHandler handler = getSyncResultHandler();
+        SyncToken syncToken =  ldapConnector.getLatestSyncToken(new ObjectClass(OC_NAME_INET_ORG_PERSON));
+
+        LOG.ok("Latest sync token: {0}", syncToken);
+
+        ldapConnector.sync(new ObjectClass(OC_NAME_INET_ORG_PERSON),
+                new SyncToken("20240729132122Z"), handler, options);
+
+        for (SyncDelta result : handler.getResult()) {
+
+            LOG.info("### START ### Attribute set for the object {0}", result);
+
+            Set<Attribute> attrs  = result.getObject().getAttributes();
+
+            for(Attribute attribute : attrs){
+                List<Object> attrValueList = attribute.getValue();
+                for(Object object : attrValueList){
+                    if(object instanceof ConnectorObjectReference){
+
+                        LOG.ok("The reference attribute: {0}. The value: {1}",attribute.getName(),
+                                String.valueOf(((ConnectorObjectReference) object).getValue().getAttributeByName(Name.NAME)));
                     }
                 }
             }

@@ -22,6 +22,7 @@ import com.evolveum.polygon.connector.ldap.integration.util.TestSearchResultsHan
 import org.identityconnectors.common.CollectionUtil;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.framework.common.objects.*;
+import org.identityconnectors.framework.common.objects.filter.ContainsAllValuesFilter;
 import org.identityconnectors.framework.common.objects.filter.EqualsFilter;
 import org.identityconnectors.framework.common.objects.filter.FilterBuilder;
 import org.testng.Assert;
@@ -48,8 +49,6 @@ public class SearchTests extends CommonTestClass {
         ldapConnector.init(ldapConfiguration);
         TestSearchResultsHandler handler = getSearchResultHandler();
 
-//        EqualsFilter filter = (EqualsFilter) FilterBuilder.equalTo(AttributeBuilder.build(Uid.NAME,
-//                "87"));
         ldapConnector.executeQuery(new ObjectClass("groupOfNames"), null, handler, options);
 
         ArrayList<ConnectorObject> results = handler.getResult();
@@ -61,7 +60,34 @@ public class SearchTests extends CommonTestClass {
                     obj.getName(), obj.getValue()));
             LOG.info("### END ###");
 
-//            Assert.assertEquals(result.getUid().getUidValue(), "87");
+        }
+    }
+
+    @Test()
+    public void searchAllInetOrgPerson() {
+
+        List<String> attrsToGet = CollectionUtil.newList(OperationalAttributeInfos.PASSWORD.getName(),
+                OperationalAttributeInfos.LOCK_OUT.getName(),
+                OperationalAttributeInfos.ENABLE.getName());
+
+        OperationOptions options = getDefaultOperationOptions(OC_NAME_INET_ORG_PERSON, attrsToGet, null,
+                1, 20, true, true);
+
+        ldapConfiguration = initializeAndFetchLDAPConfiguration();
+        ldapConnector.init(ldapConfiguration);
+        TestSearchResultsHandler handler = getSearchResultHandler();
+
+        ldapConnector.executeQuery(new ObjectClass(OC_NAME_INET_ORG_PERSON), null, handler, options);
+
+        ArrayList<ConnectorObject> results = handler.getResult();
+
+        for (ConnectorObject result : results) {
+
+            LOG.info("### START ### Attribute set for the object {0}", result.getName());
+            result.getAttributes().forEach(obj -> LOG.info("The attribute: {0}, with value {1}",
+                    obj.getName(), obj.getValue()));
+            LOG.info("### END ###");
+
         }
     }
 
@@ -80,7 +106,7 @@ public class SearchTests extends CommonTestClass {
         TestSearchResultsHandler handler = getSearchResultHandler();
 
         EqualsFilter filter = (EqualsFilter) FilterBuilder.equalTo(AttributeBuilder.build(Uid.NAME,
-                "b4fee9d8-ccb5-103e-9bc1-3f7c99bf69c3"));
+                "1e100da2-dd33-103e-9a80-d35fa81d9727"));
         ldapConnector.executeQuery(new ObjectClass("groupOfNames"), filter, handler, options);
 
         ArrayList<ConnectorObject> results = handler.getResult();
@@ -100,14 +126,14 @@ public class SearchTests extends CommonTestClass {
                     if(object instanceof ConnectorObjectReference){
 
                         LOG.ok("The reference attribute: {0}. The value: {1}",attribute.getName(),
-                                String.valueOf(((ConnectorObjectReference) object).getReferencedObject().getName()));
+                                String.valueOf(((ConnectorObjectReference) object).getValue().getAttributeByName(Name.NAME)));
                     }
                 }
             }
 
             LOG.info("### END ###");
 
-            Assert.assertEquals(result.getUid().getUidValue(), "b4fee9d8-ccb5-103e-9bc1-3f7c99bf69c3");
+            Assert.assertEquals(result.getUid().getUidValue(), "1e100da2-dd33-103e-9a80-d35fa81d9727");
         }
     }
 
@@ -146,8 +172,11 @@ public class SearchTests extends CommonTestClass {
                 for(Object object : attrValueList){
                     if(object instanceof ConnectorObjectReference){
 
-                        LOG.ok("The reference attribute: {0}. The value: {1}",attribute.getName(),
-                                String.valueOf(((ConnectorObjectReference) object).getReferencedObject().getName()));
+                        LOG.ok("The reference attribute: {0}. The value: {1}. The OC {2}",attribute.getName(),
+                                String.valueOf(((ConnectorObjectReference) object).getValue().getAttributeByName(Name.NAME)),
+                                ((ConnectorObjectReference) object).getValue().getObjectClass()!=null ?
+                                        ((ConnectorObjectReference) object).getValue().getObjectClass().getObjectClassValue(): "NULL");
+
                     }
                 }
             }
@@ -157,4 +186,53 @@ public class SearchTests extends CommonTestClass {
             Assert.assertEquals(result.getUid().getUidValue(), "1db1136a-dd33-103e-9a57-d35fa81d9727");
         }
     }
+
+
+    @Test()
+    public void searchContainsAllValuesGroupOfNames() {
+
+        List<String> attrsToGet = CollectionUtil.newList(OperationalAttributeInfos.PASSWORD.getName(),
+                OperationalAttributeInfos.LOCK_OUT.getName(),
+                OperationalAttributeInfos.ENABLE.getName());
+
+        OperationOptions options = getDefaultOperationOptions(OC_NAME_GROUP_OF_NAMES, attrsToGet, null,
+                1, 20, true, true);
+
+        ldapConfiguration = initializeAndFetchLDAPConfiguration();
+        ldapConnector.init(ldapConfiguration);
+        TestSearchResultsHandler handler = getSearchResultHandler();
+
+        ContainsAllValuesFilter filter = (ContainsAllValuesFilter) FilterBuilder.containsAllValues(AttributeBuilder.build("member",
+                "cn=Alexander Freeman,ou=users,dc=example,dc=com"));
+        ldapConnector.executeQuery(new ObjectClass(OC_NAME_GROUP_OF_NAMES), filter, handler, options);
+
+        ArrayList<ConnectorObject> results = handler.getResult();
+
+        for (ConnectorObject result : results) {
+
+            LOG.info("### START ### Attribute set for the object {0}", result.getName());
+            result.getAttributes().forEach(obj -> LOG.info("The attribute: {0}, with value {1}",
+                    obj.getName(), obj.getValue()));
+            Set<Attribute> attributeSet = result.getAttributes();
+
+            for(Attribute attribute : attributeSet){
+                List<Object> attrValueList = attribute.getValue();
+
+
+                for(Object object : attrValueList){
+                    if(object instanceof ConnectorObjectReference){
+
+                        LOG.ok("The reference attribute: {0}. The value: {1}",attribute.getName(),
+                                String.valueOf(((ConnectorObjectReference) object).getValue().getAttributeByName(Name.NAME)));
+                    }
+                }
+            }
+
+            LOG.info("### END ###");
+
+//            Assert.assertEquals(result.getUid().getUidValue(), "1db1136a-dd33-103e-9a57-d35fa81d9727");
+        }
+    }
+
+
 }

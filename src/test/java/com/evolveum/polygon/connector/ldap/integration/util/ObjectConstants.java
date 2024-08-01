@@ -22,4 +22,5 @@ public interface ObjectConstants {
     String OC_NAME_INET_ORG_PERSON = "inetOrgPerson";
     String OC_NAME_GROUP_OF_NAMES = "groupOfNames";
     String ATTR_NAME_MEMBER_OF= "memberof";
+    String ATTR_NAME_REF_SUBJECT= "grant";
 }

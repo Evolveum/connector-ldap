@@ -24,16 +24,13 @@ import org.identityconnectors.framework.common.objects.*;
 import org.testng.annotations.Test;
 
 import java.rmi.server.UID;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 
 public class UpdateTest extends CommonTestClass {
     private static final Log LOG = Log.getLog(UpdateTest.class);
 
     @Test()
-    public void updateGroupObjectReference() {
+    public void updateAddInetOrgPersonGroupOfNamesReference() {
 
         ldapConfiguration = initializeAndFetchLDAPConfiguration();
         ldapConnector.init(ldapConfiguration);
@@ -41,17 +38,72 @@ public class UpdateTest extends CommonTestClass {
         OperationOptions options = new OperationOptions(new HashMap<>());
 
         Set<AttributeDelta> attributesUpdateGroup = new HashSet<>();
-        ConnectorObjectBuilder cob = new ConnectorObjectBuilder();
 
-        ConnectorObjectReference connectorObjectReference = new ConnectorObjectReference(buildConnectorObject());
+        ConnectorObjectReference connectorObjectReference = new ConnectorObjectReference(buildConnectorObject(
+                "cn=all-users-test,ou=groups,dc=example,dc=com", "dee9735e-e299-103e-9005-ff6f76f1f206"));
 
-        attributesUpdateGroup.add(AttributeDeltaBuilder.build("inetOrgPerson", Collections.singletonList(connectorObjectReference),
+        attributesUpdateGroup.add(AttributeDeltaBuilder.build(ATTR_NAME_REF_SUBJECT, Collections.singletonList(connectorObjectReference),
                 null));
-        ObjectClass objectClassAccount = new ObjectClass("groupOfNames");
+        ObjectClass objectClassAccount = new ObjectClass(OC_NAME_INET_ORG_PERSON);
 
-        ldapConnector.updateDelta(objectClassAccount, new Uid("b4fee9d8-ccb5-103e-9bc1-3f7c99bf69c3"), attributesUpdateGroup, options);
+        ldapConnector.updateDelta(objectClassAccount, new Uid("1db3c63c-dd33-103e-9a58-d35fa81d9727"), attributesUpdateGroup, options);
     }
 
+    @Test()
+    public void updateRemoveInetOrgPersonGroupOfNamesReference() {
+
+        ldapConfiguration = initializeAndFetchLDAPConfiguration();
+        ldapConnector.init(ldapConfiguration);
+
+        OperationOptions options = new OperationOptions(new HashMap<>());
+
+        Set<AttributeDelta> attributesUpdateGroup = new HashSet<>();
+
+        ConnectorObjectReference connectorObjectReference = new ConnectorObjectReference(buildConnectorObject(
+                "cn=all-users-test,ou=groups,dc=example,dc=com", "dee9735e-e299-103e-9005-ff6f76f1f206"));
+
+        attributesUpdateGroup.add(AttributeDeltaBuilder.build(ATTR_NAME_REF_SUBJECT, null,
+                Collections.singletonList(connectorObjectReference)));
+        ObjectClass objectClassAccount = new ObjectClass(OC_NAME_INET_ORG_PERSON);
+
+        ldapConnector.updateDelta(objectClassAccount, new Uid("1db3c63c-dd33-103e-9a58-d35fa81d9727"), attributesUpdateGroup, options);
+    }
+
+    @Test()
+    public void updateReplaceInetOrgPersonGroupOfNamesReference() {
+
+        ldapConfiguration = initializeAndFetchLDAPConfiguration();
+        ldapConnector.init(ldapConfiguration);
+
+        OperationOptions options = new OperationOptions(new HashMap<>());
+
+        Set<AttributeDelta> attributesUpdateGroup = new HashSet<>();
+
+        ConnectorObjectReference connectorObjectReferenceKeep = new ConnectorObjectReference(buildConnectorObject(
+                "cn=all-users-test,ou=groups,dc=example,dc=com", "dee9735e-e299-103e-9005-ff6f76f1f206"));
+
+        ConnectorObjectReference connectorObjectReferenceAdd = new ConnectorObjectReference(buildConnectorObject(
+                "cn=administrators,ou=groups,dc=example,dc=com", "1e11fb6c-dd33-103e-9a81-d35fa81d9727"));
+
+        ArrayList<ConnectorObjectReference> references = new ArrayList<>();
+        references.add(connectorObjectReferenceAdd);
+        references.add(connectorObjectReferenceKeep);
+
+        attributesUpdateGroup.add(AttributeDeltaBuilder.build(ATTR_NAME_REF_SUBJECT, references));
+        ObjectClass objectClassAccount = new ObjectClass(OC_NAME_INET_ORG_PERSON);
+
+        ldapConnector.updateDelta(objectClassAccount, new Uid("1db3c63c-dd33-103e-9a58-d35fa81d9727"), attributesUpdateGroup, options);
+    }
+
+    ConnectorObject buildConnectorObject(String name, String uid){
+        ConnectorObjectBuilder cob = new ConnectorObjectBuilder();
+
+        cob.addAttribute((new AttributeBuilder().setName(Name.NAME).addValue(name)).build());
+        cob.addAttribute((new AttributeBuilder().setName(Uid.NAME).addValue(uid)).build());
+        cob.setObjectClass(new ObjectClass(OC_NAME_GROUP_OF_NAMES));
+
+        return cob.build();
+    }
 
     @Test()
     public void updateGroupMemberAttribute() {
@@ -70,14 +122,6 @@ public class UpdateTest extends CommonTestClass {
         ldapConnector.updateDelta(objectClassAccount, new Uid("b4fee9d8-ccb5-103e-9bc1-3f7c99bf69c3"), attributesUpdateGroup, options);
     }
 
-    ConnectorObject buildConnectorObject(){
-        ConnectorObjectBuilder cob = new ConnectorObjectBuilder();
 
-        cob.addAttribute((new AttributeBuilder().setName(Name.NAME).addValue("cn=Charles Whitehead,ou=users,dc=example,dc=com")).build());
-        cob.addAttribute((new AttributeBuilder().setName(Uid.NAME).addValue("b4cd0ddc-ccb5-103e-9b9e-3f7c99bf69c3")).build());
-        cob.setObjectClass(new ObjectClass("inetOrgPerson"));
-
-        return cob.build();
-    }
 }
 

@@ -43,18 +43,18 @@ public class CreateTests extends CommonTestClass {
 
         GuardedString pass = new GuardedString("Password99".toCharArray());
         Set<Attribute> attributesAccount = new HashSet<>();
-        attributesAccount.add(AttributeBuilder.build(Name.NAME, "cn=John Johnson,ou=users,dc=example,dc=com"));
-        attributesAccount.add(AttributeBuilder.build("initials", "jj"));
-        attributesAccount.add(AttributeBuilder.build("displayName", "Johnson"));
-        attributesAccount.add(AttributeBuilder.build("uid", "johnsonj"));
+        attributesAccount.add(AttributeBuilder.build(Name.NAME, "cn=Ania Baker,ou=users,dc=example,dc=com"));
+        attributesAccount.add(AttributeBuilder.build("initials", "aj"));
+        attributesAccount.add(AttributeBuilder.build("displayName", "Bakera"));
+        attributesAccount.add(AttributeBuilder.build("uid", "bakera"));
         attributesAccount.add(AttributeBuilder.build("userPassword", pass));
         attributesAccount.add(AttributeBuilder.build("title", "Tester"));
-        attributesAccount.add(AttributeBuilder.build("sn", "Johnson"));
-        attributesAccount.add(AttributeBuilder.build("cn", "John"));
+        attributesAccount.add(AttributeBuilder.build("sn", "Baker"));
+        attributesAccount.add(AttributeBuilder.build("cn", "Ania"));
         attributesAccount.add(AttributeBuilder.build("l", "SR"));
-        attributesAccount.add(AttributeBuilder.build("givenName", "John"));
-        attributesAccount.add(AttributeBuilder.build("employeeNumber", "123321899"));
-        ObjectClass objectClassAccount = new ObjectClass("inetOrgPerson");
+        attributesAccount.add(AttributeBuilder.build("givenName", "Ania"));
+        attributesAccount.add(AttributeBuilder.build("employeeNumber", "123322999"));
+        ObjectClass objectClassAccount = new ObjectClass(OC_NAME_INET_ORG_PERSON);
 
         Uid testUid = ldapConnector.create(objectClassAccount, attributesAccount, options);
     }
@@ -67,22 +67,14 @@ public class CreateTests extends CommonTestClass {
 
         OperationOptions options = new OperationOptions(new HashMap<>());
 
-        GuardedString pass = new GuardedString("Password99".toCharArray());
-        Set<Attribute> attributesAccount = new HashSet<>();
-        attributesAccount.add(AttributeBuilder.build(Name.NAME, "cn=John Johnson,ou=users,dc=example,dc=com"));
-        attributesAccount.add(AttributeBuilder.build("initials", "jj"));
-        attributesAccount.add(AttributeBuilder.build("displayName", "Johnson"));
-        attributesAccount.add(AttributeBuilder.build("uid", "johnsonj"));
-        attributesAccount.add(AttributeBuilder.build("userPassword", pass));
-        attributesAccount.add(AttributeBuilder.build("title", "Tester"));
-        attributesAccount.add(AttributeBuilder.build("sn", "Johnson"));
-        attributesAccount.add(AttributeBuilder.build("cn", "John"));
-        attributesAccount.add(AttributeBuilder.build("l", "SR"));
-        attributesAccount.add(AttributeBuilder.build("givenName", "John"));
-        attributesAccount.add(AttributeBuilder.build("employeeNumber", "123321899"));
-        ObjectClass objectClassAccount = new ObjectClass("inetOrgPerson");
+        Set<Attribute> attributesGroup = new HashSet<>();
+        attributesGroup.add(AttributeBuilder.build(Name.NAME, "cn=some-users-test-2,ou=groups,dc=example,dc=com"));
+        attributesGroup.add(AttributeBuilder.build("cn", "some-users-test-1"));
+        attributesGroup.add(AttributeBuilder.build("member", Collections.singletonList("cn=dummy,o=whatever")));
 
-        Uid testUid = ldapConnector.create(objectClassAccount, attributesAccount, options);
+        ObjectClass objectClassAccount = new ObjectClass(OC_NAME_GROUP_OF_NAMES);
+
+        Uid testUid = ldapConnector.create(objectClassAccount, attributesGroup, options);
     }
 }
 

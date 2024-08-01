@@ -59,7 +59,6 @@ public class CommonTestClass implements ObjectConstants {
         ldapConfiguration.setManagedAssociationPairs(parser.getManagedAssociationPairs());
         ldapConfiguration.setOperationalAttributes(parser.getOperationalAttributes());
         ldapConfiguration.setLockoutStrategy(parser.getLockoutStrategy());
-        ldapConfiguration.setMembershipAttribute(parser.getMemberAttr());
 
         ldapConfiguration.validate();
         return ldapConfiguration;

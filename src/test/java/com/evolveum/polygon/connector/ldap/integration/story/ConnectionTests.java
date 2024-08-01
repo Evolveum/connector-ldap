@@ -27,6 +27,7 @@ public class ConnectionTests extends CommonTestClass {
     @Test()
     public void initializeCorrectConfigurationAndTestConnection() {
      ldapConnector.init(ldapConfiguration);
+     ldapConnector.schema();
      ldapConnector.test();
     }
 }
