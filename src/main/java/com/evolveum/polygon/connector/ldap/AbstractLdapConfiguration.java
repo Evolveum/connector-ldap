@@ -91,6 +91,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
     public static final String CONF_PROP_NAME_SSL_PROTOCOL = "sslProtocol";
 
     public static final String CONF_ASSOC_DELIMITER = "->";
+    public static final String CONF_ASSOC_ATTR_DELIMITER = "\"\\+";
     /**
      * Whether connector skips certificate validity check against its default truststore (e.g. Java cacerts)
      * When set to false, connector checks server certificate validity in SSL/TLS mode (recommended).
@@ -540,9 +541,8 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
     protected String[] managedAssociationPairs = { };
 
     //TODO #A add to property files
-    public static final String CONF_PROP_NAME_MEMBERSHIP_ATTR = "membershipAttribute";
     public static final String DEFAULT_MEMBERSHIP_ATTR = "memberOf";
-    protected String membershipAttribute;
+
 
 
     @ConfigurationProperty(required = true, order = 1)
@@ -1149,15 +1149,6 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.managedAssociationPairs = managedAssociationPairs;
     }
 
-    @ConfigurationProperty(order = 62)
-    public String getMembershipAttribute() {
-        return membershipAttribute;
-    }
-
-    public void setMembershipAttribute(String membershipAttribute) {
-        this.membershipAttribute = membershipAttribute;
-    }
-
     @Override
     public void validate() {
         validateNotBlank(host, "host.blank");
@@ -1225,10 +1216,6 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 
         if (checkAliveTimeout == null) {
             checkAliveTimeout = timeout;
-        }
-
-        if (membershipAttribute == null) {
-            membershipAttribute = DEFAULT_MEMBERSHIP_ATTR;
         }
     }
 

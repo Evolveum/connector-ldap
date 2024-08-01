@@ -15,6 +15,8 @@
  */
 package com.evolveum.polygon.connector.ldap;
 
+import org.identityconnectors.framework.common.objects.AttributeUtil;
+
 import java.util.Map;
 
 /**
@@ -102,4 +104,7 @@ public class LdapConstants {
     public static final Map<String, String> MEMBERSHIP_ATTRIBUTES = Map.of(OBJECT_CLASS_GROUP_OF_NAMES,"member",
             OBJECT_CLASS_GROUP_OF_UNIQ_NAMES,"uniqueMember",
             OBJECT_CLASS_POSIX_GROUP,"memberUid");
+
+    public static final String R_I_R_OBJECT = AttributeUtil.createSpecialName("OBJECT");
+    public static final String R_I_R_SUBJECT = AttributeUtil.createSpecialName("SUBJECT");
 }

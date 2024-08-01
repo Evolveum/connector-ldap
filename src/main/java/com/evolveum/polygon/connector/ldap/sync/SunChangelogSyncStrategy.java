@@ -226,6 +226,7 @@ public class SunChangelogSyncStrategy<C extends AbstractLdapConfiguration> exten
                                 continue;
                             }
                         }
+                        // TODO A# add reference attribute handler
                         ConnectorObject targetObject = getSchemaTranslator().toConnIdObject(connection,
                                 icfObjectClassInfo, targetEntry, targetDn, referenceAttributeHandler);
                         deltaBuilder.setObject(targetObject);
