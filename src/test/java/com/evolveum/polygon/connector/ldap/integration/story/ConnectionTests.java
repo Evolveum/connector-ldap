@@ -23,6 +23,7 @@ import org.identityconnectors.common.logging.Log;
 import org.testng.annotations.Test;
 
 public class ConnectionTests extends CommonTestClass {
+
     private static final Log LOG = Log.getLog(ConnectionTests.class);
     @Test()
     public void initializeCorrectConfigurationAndTestConnection() {

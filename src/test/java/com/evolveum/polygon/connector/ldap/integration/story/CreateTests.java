@@ -76,5 +76,26 @@ public class CreateTests extends CommonTestClass {
 
         Uid testUid = ldapConnector.create(objectClassAccount, attributesGroup, options);
     }
+
+    @Test()
+    public void createGroupWithReference() {
+
+        ldapConfiguration = initializeAndFetchLDAPConfiguration();
+        ldapConnector.init(ldapConfiguration);
+
+        OperationOptions options = new OperationOptions(new HashMap<>());
+
+        ConnectorObjectReference connectorObjectReference = new ConnectorObjectReference(buildConnectorObject(
+                "cn=dummy,o=whatever", "1e11fb6c-dd33-103e-9a81-d35fa81d9727"));
+
+        Set<Attribute> attributesGroup = new HashSet<>();
+        attributesGroup.add(AttributeBuilder.build(Name.NAME, "cn=some-users-test-4,ou=groups,dc=example,dc=com"));
+        attributesGroup.add(AttributeBuilder.build("cn", "some-users-test-4"));
+        attributesGroup.add(AttributeBuilder.build("grantee", Collections.singletonList(connectorObjectReference)));
+
+        ObjectClass objectClassAccount = new ObjectClass(OC_NAME_GROUP_OF_NAMES);
+
+        Uid testUid = ldapConnector.create(objectClassAccount, attributesGroup, options);
+    }
 }
 

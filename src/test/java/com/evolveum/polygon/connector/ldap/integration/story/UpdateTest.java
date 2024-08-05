@@ -95,14 +95,30 @@ public class UpdateTest extends CommonTestClass {
         ldapConnector.updateDelta(objectClassAccount, new Uid("1db3c63c-dd33-103e-9a58-d35fa81d9727"), attributesUpdateGroup, options);
     }
 
-    ConnectorObject buildConnectorObject(String name, String uid){
-        ConnectorObjectBuilder cob = new ConnectorObjectBuilder();
+    @Test()
+    public void updateReplaceGroupOfNamesGroupOfNamesReference() {
 
-        cob.addAttribute((new AttributeBuilder().setName(Name.NAME).addValue(name)).build());
-        cob.addAttribute((new AttributeBuilder().setName(Uid.NAME).addValue(uid)).build());
-        cob.setObjectClass(new ObjectClass(OC_NAME_GROUP_OF_NAMES));
+        ldapConfiguration = initializeAndFetchLDAPConfiguration();
+        ldapConnector.init(ldapConfiguration);
 
-        return cob.build();
+        OperationOptions options = new OperationOptions(new HashMap<>());
+
+        Set<AttributeDelta> attributesUpdateGroup = new HashSet<>();
+
+        ConnectorObjectReference connectorObjectReferenceKeep = new ConnectorObjectReference(buildConnectorObject(
+                "cn=super-administrators,ou=groups,dc=example,dc=com", "9895879c-e6c4-103e-8a99-81358095b3c8"));
+
+        ConnectorObjectReference connectorObjectReferenceAdd = new ConnectorObjectReference(buildConnectorObject(
+                "cn=all-users,ou=groups,dc=example,dc=com", "9893955e-e6c4-103e-8a97-81358095b3c8"));
+
+        ArrayList<ConnectorObjectReference> references = new ArrayList<>();
+        references.add(connectorObjectReferenceAdd);
+        references.add(connectorObjectReferenceKeep);
+
+        attributesUpdateGroup.add(AttributeDeltaBuilder.build(ATTR_NAME_REF_SUBJECT, references));
+        ObjectClass objectClassAccount = new ObjectClass(OC_NAME_GROUP_OF_NAMES);
+
+        ldapConnector.updateDelta(objectClassAccount, new Uid("989496ac-e6c4-103e-8a98-81358095b3c8"), attributesUpdateGroup, options);
     }
 
     @Test()

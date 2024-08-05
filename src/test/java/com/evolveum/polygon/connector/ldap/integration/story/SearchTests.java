@@ -49,7 +49,7 @@ public class SearchTests extends CommonTestClass {
         ldapConnector.init(ldapConfiguration);
         TestSearchResultsHandler handler = getSearchResultHandler();
 
-        ldapConnector.executeQuery(new ObjectClass("groupOfNames"), null, handler, options);
+        ldapConnector.executeQuery(new ObjectClass(OC_NAME_GROUP_OF_NAMES), null, handler, options);
 
         ArrayList<ConnectorObject> results = handler.getResult();
 

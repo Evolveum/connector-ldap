@@ -20,9 +20,7 @@ import com.evolveum.polygon.connector.ldap.LdapConfiguration;
 import com.evolveum.polygon.connector.ldap.LdapConnector;
 import org.identityconnectors.common.CollectionUtil;
 import org.identityconnectors.common.logging.Log;
-import org.identityconnectors.framework.common.objects.OperationOptions;
-import org.identityconnectors.framework.common.objects.OperationalAttributeInfos;
-import org.identityconnectors.framework.common.objects.SortKey;
+import org.identityconnectors.framework.common.objects.*;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 
@@ -133,6 +131,16 @@ public class CommonTestClass implements ObjectConstants {
         OperationOptions options = new OperationOptions(operationOptions);
 
         return options;
+    }
+
+    protected ConnectorObject buildConnectorObject(String name, String uid){
+        ConnectorObjectBuilder cob = new ConnectorObjectBuilder();
+
+        cob.addAttribute((new AttributeBuilder().setName(Name.NAME).addValue(name)).build());
+        cob.addAttribute((new AttributeBuilder().setName(Uid.NAME).addValue(uid)).build());
+        cob.setObjectClass(new ObjectClass(OC_NAME_GROUP_OF_NAMES));
+
+        return cob.build();
     }
 
     @BeforeMethod
