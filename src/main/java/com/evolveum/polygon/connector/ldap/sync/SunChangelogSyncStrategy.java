@@ -198,7 +198,7 @@ public class SunChangelogSyncStrategy<C extends AbstractLdapConfiguration> exten
                             LOG.ok("Changelog entry {0} does not match object class, skipping", targetEntry.getDn());
                             continue;
                         }
-                        // TODO A# add reference attribute handler
+                        // Best effort reference handling in case of subject side of association
                         ConnectorObject targetObject = getSchemaTranslator().toConnIdObject(connection,
                                 icfObjectClassInfo, targetEntry, referenceAttributeHandler);
 
@@ -226,7 +226,7 @@ public class SunChangelogSyncStrategy<C extends AbstractLdapConfiguration> exten
                                 continue;
                             }
                         }
-                        // TODO A# add reference attribute handler
+                        // Best effort reference handling in case of subject side of association
                         ConnectorObject targetObject = getSchemaTranslator().toConnIdObject(connection,
                                 icfObjectClassInfo, targetEntry, targetDn, referenceAttributeHandler);
                         deltaBuilder.setObject(targetObject);
