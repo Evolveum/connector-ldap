@@ -52,8 +52,6 @@ public abstract class SyncStrategy<C extends AbstractLdapConfiguration> {
     private final SchemaManager schemaManager;
     private final AbstractSchemaTranslator<C> schemaTranslator;
     private final ErrorHandler errorHandler;
-
-    //TODO #A
     protected ReferenceAttributeHandler referenceAttributeHandler = null;
 
     public SyncStrategy(AbstractLdapConfiguration configuration, ConnectionManager<C> connectionManager,
@@ -188,10 +186,6 @@ public abstract class SyncStrategy<C extends AbstractLdapConfiguration> {
             LOG.ok("Search for single entry baseDn={0}, scope={1}, filter={2} returned no result", baseDn, scope, filter);
         }
         return entry;
-    }
-
-    public ReferenceAttributeHandler getReferenceAttributeHandler() {
-        return referenceAttributeHandler;
     }
 
     public void setReferenceAttributeHandler(ReferenceAttributeHandler referenceAttributeHandler) {

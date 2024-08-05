@@ -532,18 +532,10 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
      */
     private String[] memberOfAllowedValues = { };
 
-    // TODO #A configuration discovery will use this to construct association candidates
-    //TODO #A add to property files
     protected String[] groupObjectClasses = { };
 
-    //TODO #A add to property files
     public static final String CONF_PROP_MNGD_ASSOC_PAIRS = "managedAssociationPairs";
     protected String[] managedAssociationPairs = { };
-
-    //TODO #A add to property files
-    public static final String DEFAULT_MEMBERSHIP_ATTR = "memberOf";
-
-
 
     @ConfigurationProperty(required = true, order = 1)
     public String getHost() {

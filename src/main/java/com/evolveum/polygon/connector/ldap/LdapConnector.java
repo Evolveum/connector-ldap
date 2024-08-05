@@ -97,7 +97,6 @@ public class LdapConnector extends AbstractLdapConnector<LdapConfiguration> {
 
     private void analyzeReferenceSuggestions(SchemaManager schemaManager, LdapConfiguration configuration,
                                              Map<String, SuggestedValues> suggestions) {
-        // TODO port to Server Specific
 
         String[] groupObjectClasses = configuration.getGroupObjectClasses();
 
@@ -136,6 +135,8 @@ public class LdapConnector extends AbstractLdapConnector<LdapConfiguration> {
                 SuggestedValuesBuilder.buildOpen(LdapConstants.ATTRIBUTE_IS_MEMBER_OF_NAME,
                         LdapConstants.ATTRIBUTE_OPENDJ_DS_PWP_ACCOUNT_DISABLED_NAME,
                         SchemaConstants.CREATE_TIMESTAMP_AT, SchemaConstants.MODIFY_TIMESTAMP_AT));
+
+        analyzeReferenceSuggestions(getSchemaManager(), getConfiguration(), suggestions);
     }
 
     @Override
@@ -176,7 +177,7 @@ public class LdapConnector extends AbstractLdapConnector<LdapConfiguration> {
         LdapConfiguration configuration = getConfiguration();
         if (!ArrayUtils.isEmpty(configuration.getManagedAssociationPairs())){
 
-        searchStrategy.setAttributeHandler(new ReferenceAttributeHandler(getConfiguration(), getErrorHandler(), getSchemaTranslator(), objectClass));
+        searchStrategy.setAttributeHandler(new ReferenceAttributeHandler(getSchemaTranslator(), objectClass, options));
         }
         return searchStrategy;
     }

@@ -181,7 +181,6 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
     }
 
     private void analyzeReferenceSuggestions(SchemaManager schemaManager) {
-        // TODO #A port to Server Specific
 
         Map<String, Set<String>> referenceSuggestions = new HashMap<>();
 
@@ -818,7 +817,8 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 
                 if (!ArrayUtils.isEmpty(configuration.getManagedAssociationPairs())){
 
-                    searchStrategy.setAttributeHandler(new ReferenceAttributeHandler(getConfiguration(), getErrorHandler(), getSchemaTranslator(), objectClass));
+                    searchStrategy.setAttributeHandler(new ReferenceAttributeHandler(getSchemaTranslator(),
+                            objectClass, options));
                 }
 
                 return searchStrategy;
@@ -834,7 +834,8 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 
                 if (!ArrayUtils.isEmpty(configuration.getManagedAssociationPairs())){
 
-                    searchStrategy.setAttributeHandler(new ReferenceAttributeHandler(getConfiguration(), getErrorHandler(), getSchemaTranslator(), objectClass));
+                    searchStrategy.setAttributeHandler(new ReferenceAttributeHandler(getSchemaTranslator(),
+                            objectClass, options));
                 }
 
                 return searchStrategy;
@@ -853,7 +854,8 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 
                     if (!ArrayUtils.isEmpty(configuration.getManagedAssociationPairs())){
 
-                        searchStrategy.setAttributeHandler(new ReferenceAttributeHandler(getConfiguration(), getErrorHandler(), getSchemaTranslator(), objectClass));
+                        searchStrategy.setAttributeHandler(new ReferenceAttributeHandler(getSchemaTranslator(),
+                                objectClass, options));
                     }
 
                     return searchStrategy;
@@ -868,7 +870,8 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 
                     if (!ArrayUtils.isEmpty(configuration.getManagedAssociationPairs())){
 
-                        searchStrategy.setAttributeHandler(new ReferenceAttributeHandler(getConfiguration(), getErrorHandler(), getSchemaTranslator(), objectClass));
+                        searchStrategy.setAttributeHandler(new ReferenceAttributeHandler(getSchemaTranslator(),
+                                objectClass, options));
                     }
                     return searchStrategy;
 
@@ -877,7 +880,8 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 
                     if (!ArrayUtils.isEmpty(configuration.getManagedAssociationPairs())){
 
-                        searchStrategy.setAttributeHandler(new ReferenceAttributeHandler(getConfiguration(), getErrorHandler(), getSchemaTranslator(), objectClass));
+                        searchStrategy.setAttributeHandler(new ReferenceAttributeHandler(getSchemaTranslator(),
+                                objectClass, options));
                     }
 
                     return searchStrategy;
@@ -899,7 +903,8 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 
         if (!ArrayUtils.isEmpty(configuration.getManagedAssociationPairs())){
 
-            searchStrategy.setAttributeHandler(new ReferenceAttributeHandler(getConfiguration(), getErrorHandler(), getSchemaTranslator(), objectClass));
+            searchStrategy.setAttributeHandler(new ReferenceAttributeHandler(getSchemaTranslator(),
+                    objectClass, options));
         }
 
         return searchStrategy;
@@ -966,31 +971,24 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
                 if (associationAttributeNames.keySet().stream().anyMatch(connIdAttrName::equalsIgnoreCase)) {
                     AssociationHolder holder = associationAttributeNames.get(connIdAttrName);
 
-                    //TODO # A review
                     if (R_I_R_OBJECT.equals(holder.getRoleInReference())) {
                         Map<String, List<String>> referenceValue = new HashMap<>();
-                        // TODO #A remove log
-                        LOG.ok("About to partially saturate attribute list for attr: {0} ", connIdAttrName);
+
                         saturateReferenceAttributeValues(connIdAttr.getValue(), referenceValue);
 
-                        //   // TODO #A put values for membership attribute
                         if (!referenceValue.isEmpty()) {
                             String associationAttrName = holder.getAssociationAttributeName();
-                            // TODO #A remove log
-                            LOG.ok("About to populate values for attribute: {0}", associationAttrName);
 
                             AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapStructuralObjectClass,
                                     associationAttrName);
                             List ldapValuesList = new ArrayList();
 
-                            //TODO # A the keyset here shouldn't be larger than one
-                            if(referenceValue.keySet().size() == 1){
+
                                 Iterator rvi =  referenceValue.values().iterator();
                                 while (rvi.hasNext()){
 
                                     ldapValuesList.addAll((Collection) rvi.next());
                                 }
-                            }
 
                             List<Value> ldapValues = schemaTranslator.toLdapValues(ldapAttributeType, ldapValuesList);
 
@@ -1118,7 +1116,6 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
     }
 
     private void saturateReferenceAttributeValues(List<Object> originalValues, Map<String, List<String>> toSaturate) {
-        // TODO #A TEST , at first don't include this into the payload
 
         if (originalValues != null && !originalValues.isEmpty()) {
 
@@ -1126,7 +1123,6 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 
                 if (value instanceof ConnectorObjectReference) {
 
-                    // TODO #A using the name of the referenced object, might be something different?
                     String nameValue = (String) ((ConnectorObjectReference) value).getValue()
                             .getAttributeByName(Name.NAME).getValue().get(0);
 
@@ -1278,11 +1274,22 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
             }
 
             /// Case ignore?
-            if (associationObjectClassAndAttributes != null &&
-                    associationObjectClassAndAttributes.keySet().stream().anyMatch(delta.getName()::equalsIgnoreCase)) {
-                associationAttributeDeltas.add(delta);
-                // Processing will be done in a different place
-                continue;
+            if (associationObjectClassAndAttributes != null) {
+                String deltaName = delta.getName();
+                boolean attrFound = false;
+                for (String associationAttr : associationObjectClassAndAttributes.keySet()) {
+
+                    if (associationAttr.equalsIgnoreCase(deltaName)) {
+                        associationAttributeDeltas.add(delta);
+                        // Processing will be done in a different place
+                        attrFound = true;
+                        break;
+                    }
+                }
+                if (attrFound) {
+                    continue;
+                }
+
             }
 
             if (delta.is(PredefinedAttributes.AUXILIARY_OBJECT_CLASS_NAME)) {
@@ -1469,7 +1476,6 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 
         SearchScope scope = getScope(options);
 
-        LOG.ok("Using the following dn in search {0}", dn.getName());
         Entry entry = searchSingleEntry(getConnectionManager(), dn, applyAdditionalSearchFilterNode(null), scope,
                 new String[]{associationAttributeName}, "LDAP entry for " + dn.toString(), options);
         if (entry == null) {
@@ -1478,7 +1484,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 
         org.apache.directory.api.ldap.model.entry.Attribute attribute = entry.get(associationAttributeName);
         Iterator<Value> iterator = attribute.iterator();
-//        TODO # A review and add some sort of check if the value is valid?
+
         List<String> currentReferences = new ArrayList<>();
         while (iterator.hasNext()) {
             Value value = iterator.next();
@@ -1486,13 +1492,13 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
             currentReferences.add(value.getString());
         }
 
+
         /// This needs to be used in a remove delta
 
         for(String objectClassName : originalDeltaValues.keySet()) {
             List<String> removeDeltaIds = new ArrayList<>();
             removeDeltaIds.addAll(currentReferences);
             List<String> values = originalDeltaValues.get(objectClassName);
-
             removeDeltaIds.removeAll(values);
 
             for (String groupDn : removeDeltaIds) {
@@ -1537,10 +1543,9 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 
     }
 
-    // TODO # A Review
     private Map<String, AssociationHolder> getAssociationAttributeNames(ObjectClass connIdObjectClass) {
-        Map<String, AssociationHolder> nameObjectClassPairs = null;
-        // TODO # A limitation for object set ???
+        Map<String, AssociationHolder> nameObjectClassPairs = new HashMap<>();;
+
         Set<AssociationHolder> subjectSets = schemaTranslator.getSubjectAssociationSets()
                 .get(connIdObjectClass.getObjectClassValue());
 
@@ -1548,20 +1553,16 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
                 .get(connIdObjectClass.getObjectClassValue());
 
         if (subjectSets != null) {
-            nameObjectClassPairs = new HashMap<>();
             for (AssociationHolder holder : subjectSets) {
-                LOG.ok("## Im here 22");
+
                 nameObjectClassPairs.put(holder.getName(), holder);
-                LOG.ok("## Im here 23 {0}", holder.getName());
             }
         }
 
         if (objectSets != null) {
-            nameObjectClassPairs = new HashMap<>();
             for (AssociationHolder holder : objectSets) {
-                LOG.ok("## Im here 22");
+
                 nameObjectClassPairs.put(holder.getName(), holder);
-                LOG.ok("## Im here 23 {0}", holder.getName());
             }
         }
         return nameObjectClassPairs;
@@ -1825,9 +1826,9 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 
         if(!ArrayUtils.isEmpty(configuration.getManagedAssociationPairs())){
 
-            // TODO #A need to handle null in implementations
-            strategy.setReferenceAttributeHandler(new ReferenceAttributeHandler(configuration,getErrorHandler(),
-                    schemaTranslator,objectClass));
+
+            strategy.setReferenceAttributeHandler(new ReferenceAttributeHandler(schemaTranslator,
+                    objectClass, options));
         }
 
         strategy.sync(objectClass, token, handler, options);
