@@ -48,6 +48,7 @@ import org.identityconnectors.framework.common.objects.Uid;
 import org.identityconnectors.framework.spi.SyncTokenResultsHandler;
 
 import com.evolveum.polygon.connector.ldap.ad.AdConstants;
+import com.evolveum.polygon.connector.ldap.ad.AdLdapConfiguration;
 import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
 
 /**
@@ -272,6 +273,12 @@ public class AdDirSyncStrategy<C extends AbstractLdapConfiguration> extends Sync
 
         AdDirSyncRequestImpl dirSyncReqControl = new AdDirSyncRequestImpl();
         dirSyncReqControl.setCritical(true);
+        if (((AdLdapConfiguration)getConfiguration()).isSendDirSyncSecurityFlag()) {
+            // See https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-adts/2213a7f2-0a36-483c-b2a4-8574d53aa1e3?redirectedfrom=MSDN
+            // or https://docs.ldap.com/ldap-sdk/docs/javadoc/com/unboundid/ldap/sdk/experimental/ActiveDirectoryDirSyncControl.html
+            // Note : in the Apache LDAP DSK the definition of the first control attribute is named "parentsFirst" instead of "flags"
+            dirSyncReqControl.setParentsFirst(0x0000_0001);
+        }
         byte[] cookie = null;
         if (fromToken != null) {
             Object tokenValue = fromToken.getValue();
