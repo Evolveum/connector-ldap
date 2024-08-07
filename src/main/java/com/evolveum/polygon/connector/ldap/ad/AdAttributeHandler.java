@@ -15,6 +15,8 @@
  */
 package com.evolveum.polygon.connector.ldap.ad;
 
+import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
+import com.evolveum.polygon.connector.ldap.schema.ReferenceAttributeHandler;
 import org.apache.directory.api.ldap.model.entry.Attribute;
 import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.entry.Value;
@@ -33,6 +35,8 @@ import com.evolveum.polygon.connector.ldap.LdapUtil;
 import com.evolveum.polygon.connector.ldap.OperationLog;
 import com.evolveum.polygon.connector.ldap.schema.AttributeHandler;
 import com.evolveum.polygon.connector.ldap.search.SearchStrategy;
+import org.identityconnectors.framework.common.objects.ObjectClass;
+import org.identityconnectors.framework.common.objects.OperationOptions;
 
 /**
  * This is an additional handler that will process incomplete (range)
@@ -41,11 +45,20 @@ import com.evolveum.polygon.connector.ldap.search.SearchStrategy;
  * @author semancik
  *
  */
-public class AdAttributeHandler implements AttributeHandler {
+public class AdAttributeHandler extends ReferenceAttributeHandler implements AttributeHandler  {
 
     private static final Log LOG = Log.getLog(AdAttributeHandler.class);
 
     private SearchStrategy<AdLdapConfiguration> searchStrategy;
+
+    public AdAttributeHandler(SearchStrategy<AdLdapConfiguration> searchStrategy,
+                              AbstractSchemaTranslator translator, ObjectClass objectClass,
+                              OperationOptions options) {
+
+        super(translator, objectClass, options);
+        this.searchStrategy= searchStrategy;
+
+    }
 
     public AdAttributeHandler(SearchStrategy<AdLdapConfiguration> searchStrategy) {
         this.searchStrategy = searchStrategy;

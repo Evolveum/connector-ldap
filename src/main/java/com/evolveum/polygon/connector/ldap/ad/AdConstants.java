@@ -15,6 +15,8 @@
  */
 package com.evolveum.polygon.connector.ldap.ad;
 
+import java.util.Map;
+
 /**
  * @author semancik
  *
@@ -60,6 +62,11 @@ public class AdConstants {
     public static final String OBJECT_CLASS_ATTRIBUTE_SCHEMA = "attributeSchema";
     public static final String OBJECT_CLASS_DMD = "dMD";
     public static final String OBJECT_CLASS_SUB_SCHEMA = "subSchema";
+
+    public static final String OBJECT_CLASS_NAME_USER = "user";
+    public static final String OBJECT_CLASS_NAME_GROUP = "group";
+
+    public static final Map<String, String> AD_MEMBERSHIP_ATTRIBUTES = Map.of(OBJECT_CLASS_NAME_GROUP,"member");
 
     /*
      * https://docs.microsoft.com/en-us/windows/desktop/adschema/a-useraccountcontrol

@@ -16,13 +16,10 @@
 
 package com.evolveum.polygon.connector.ldap.ad;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
+import com.evolveum.polygon.connector.ldap.*;
 import org.apache.directory.api.ldap.model.constants.SchemaConstants;
 import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.entry.Modification;
@@ -61,29 +58,19 @@ import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
 import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException;
 import org.identityconnectors.framework.common.exceptions.UnknownUidException;
-import org.identityconnectors.framework.common.objects.Attribute;
-import org.identityconnectors.framework.common.objects.AttributeBuilder;
-import org.identityconnectors.framework.common.objects.AttributeDelta;
-import org.identityconnectors.framework.common.objects.AttributeDeltaBuilder;
-import org.identityconnectors.framework.common.objects.AttributeUtil;
-import org.identityconnectors.framework.common.objects.OperationOptions;
-import org.identityconnectors.framework.common.objects.OperationalAttributeInfos;
-import org.identityconnectors.framework.common.objects.OperationalAttributes;
-import org.identityconnectors.framework.common.objects.ResultsHandler;
-import org.identityconnectors.framework.common.objects.Uid;
+import org.identityconnectors.framework.common.objects.*;
 import org.identityconnectors.framework.spi.Configuration;
 import org.identityconnectors.framework.spi.ConnectorClass;
 
 import com.evolveum.polygon.common.SchemaUtil;
-import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
-import com.evolveum.polygon.connector.ldap.AbstractLdapConnector;
-import com.evolveum.polygon.connector.ldap.ErrorHandler;
-import com.evolveum.polygon.connector.ldap.LdapUtil;
 import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
 import com.evolveum.polygon.connector.ldap.schema.LdapFilterTranslator;
 import com.evolveum.polygon.connector.ldap.search.DefaultSearchStrategy;
 import com.evolveum.polygon.connector.ldap.search.SearchStrategy;
 import com.evolveum.polygon.connector.ldap.sync.ModifyTimestampSyncStrategy;
+
+import static com.evolveum.polygon.connector.ldap.LdapConstants.*;
+import static com.evolveum.polygon.connector.ldap.ad.AdConstants.AD_MEMBERSHIP_ATTRIBUTES;
 
 @ConnectorClass(displayNameKey = "connector.ldap.ad.display", configurationClass = AdLdapConfiguration.class)
 public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> {
@@ -1002,5 +989,37 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
     @Override
     protected ModifyTimestampSyncStrategy<AdLdapConfiguration> createModifyTimestampSyncStrategy() {
         return new ModifyTimestampSyncStrategy<>(getConfiguration(), getConnectionManager(), getSchemaManager(), getSchemaTranslator(), getErrorHandler(), true);
+    }
+
+    @Override
+    protected void addServerSpecificConfigurationSuggestions(Map<String, SuggestedValues> suggestions) {
+
+        analyzeReferenceSuggestions(getSchemaManager(), getConfiguration(), suggestions);
+    }
+
+    private void analyzeReferenceSuggestions(SchemaManager schemaManager, AdLdapConfiguration configuration,
+                                             Map<String, SuggestedValues> suggestions) {
+
+        String[] groupObjectClasses = configuration.getGroupObjectClasses();
+
+        List<String> referenceSuggestions = new ArrayList();
+
+        for (String objectObjectClassName : groupObjectClasses) {
+
+            if (schemaManager.getObjectClassRegistry().contains(objectObjectClassName)) {
+                for (org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass :
+                        schemaManager.getObjectClassRegistry()) {
+
+                    String SubjectClassName = ldapObjectClass.getName();
+
+                    referenceSuggestions.add("\""+ATTRIBUTE_MEMBER_OF_NAME +"\"+"+SubjectClassName +
+                            " -> " + "\""+AD_MEMBERSHIP_ATTRIBUTES.get(objectObjectClassName) +"\"+"+ objectObjectClassName);
+                }
+            }
+        }
+
+        referenceSuggestions.size();
+        suggestions.put(AbstractLdapConfiguration.CONF_PROP_MNGD_ASSOC_PAIRS,
+                SuggestedValuesBuilder.buildOpen(referenceSuggestions.toArray(new String[referenceSuggestions.size()])));
     }
 }

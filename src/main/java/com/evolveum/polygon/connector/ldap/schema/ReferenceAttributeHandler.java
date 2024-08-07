@@ -16,9 +16,9 @@ public class ReferenceAttributeHandler implements AttributeHandler {
 
     private static final Log LOG = Log.getLog(ReferenceAttributeHandler.class);
     private ConnectorObjectBuilder connectorObjectBuilder;
-    private AbstractSchemaTranslator translator;
+    private final AbstractSchemaTranslator translator;
     private ObjectClass objectClass;
-    private OperationOptions options;
+    private final OperationOptions options;
 
     public ReferenceAttributeHandler(AbstractSchemaTranslator translator, ObjectClass objectClass,
                                      OperationOptions options) {
@@ -28,8 +28,7 @@ public class ReferenceAttributeHandler implements AttributeHandler {
         this.options = options;
     }
 
-    @Override
-    public void handle(LdapNetworkConnection connection, Entry entry, Attribute ldapAttribute, AttributeBuilder ab) {
+    public void handle(Attribute ldapAttribute) {
         String ldapAttributeName = ldapAttribute.getId();
 
         AttributeType attributeType = ldapAttribute.getAttributeType();
@@ -165,7 +164,6 @@ public class ReferenceAttributeHandler implements AttributeHandler {
             }
         }
 
-
         if (!referenceAttributes.isEmpty()) {
 
             for (AttributeBuilder referenceAttribute : referenceAttributes.values()) {
@@ -196,5 +194,11 @@ public class ReferenceAttributeHandler implements AttributeHandler {
 
     public void setObjectClass(ObjectClass objectClass) {
         this.objectClass = objectClass;
+    }
+
+    @Override
+    public void handle(LdapNetworkConnection connection, Entry entry, Attribute ldapAttribute, AttributeBuilder ab) {
+
+        handle(ldapAttribute);
     }
 }

@@ -1340,13 +1340,15 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
                 if (isAssociationAttribute(connIdStructuralObjectClassType, connIdAttributeName)) {
 
                     if (attributeHandler !=null && (attributeHandler instanceof ReferenceAttributeHandler)) {
+
                         if(((ReferenceAttributeHandler) attributeHandler).getObjectClass().equals(ObjectClass.ALL)){
                             ((ReferenceAttributeHandler) attributeHandler).
                                     setObjectClass(new ObjectClass(connIdStructuralObjectClassType));
                         }
+
                         ((ReferenceAttributeHandler) attributeHandler).setConnectorObjectBuilder(cob);
                         saturateConnIdReferences(connIdAttributeName, ldapAttrName,
-                                ldapAttributeType, ldapAttribute, connection, attributeHandler, null);
+                                ldapAttributeType, ldapAttribute, (ReferenceAttributeHandler) attributeHandler);
 
                         continue;
                     } else {
@@ -1499,7 +1501,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
     private void saturateConnIdReferences(String connIdAttributeName,
                                                      String ldapAttributeNameFromSchema , AttributeType ldapAttributeType,
                                                      org.apache.directory.api.ldap.model.entry.Attribute ldapAttribute,
-                                                     LdapNetworkConnection connection, AttributeHandler handler, Entry entry) {
+                                                     ReferenceAttributeHandler handler) {
 
         if (ldapAttribute != null) {
             Iterator<Value> iterator = ldapAttribute.iterator();
@@ -1511,7 +1513,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
                 if (connIdValue != null) {
                     if (shouldValueBeIncluded(connIdValue, ldapAttributeNameFromSchema)) {
 
-                        handler.handle(connection, entry, ldapAttribute, null);
+                        handler.handle(ldapAttribute);
                     }
                 }
             }
