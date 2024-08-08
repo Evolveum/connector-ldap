@@ -15,7 +15,11 @@
  */
 package com.evolveum.polygon.connector.ldap.sync;
 
+import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
 import com.evolveum.polygon.connector.ldap.ErrorHandler;
+import com.evolveum.polygon.connector.ldap.LdapUtil;
+import com.evolveum.polygon.connector.ldap.connection.ConnectionManager;
+import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
 import com.evolveum.polygon.connector.ldap.schema.ReferenceAttributeHandler;
 import org.apache.directory.api.ldap.model.cursor.CursorException;
 import org.apache.directory.api.ldap.model.cursor.SearchCursor;
@@ -34,10 +38,7 @@ import org.identityconnectors.framework.common.objects.OperationOptions;
 import org.identityconnectors.framework.common.objects.SyncResultsHandler;
 import org.identityconnectors.framework.common.objects.SyncToken;
 
-import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
-import com.evolveum.polygon.connector.ldap.connection.ConnectionManager;
-import com.evolveum.polygon.connector.ldap.LdapUtil;
-import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
+
 
 /**
  * @author semancik
@@ -55,7 +56,7 @@ public abstract class SyncStrategy<C extends AbstractLdapConfiguration> {
     protected ReferenceAttributeHandler referenceAttributeHandler = null;
 
     public SyncStrategy(AbstractLdapConfiguration configuration, ConnectionManager<C> connectionManager,
-            SchemaManager schemaManager, AbstractSchemaTranslator<C> schemaTranslator, ErrorHandler errorHandler) {
+                        SchemaManager schemaManager, AbstractSchemaTranslator<C> schemaTranslator, ErrorHandler errorHandler) {
         super();
         this.configuration = configuration;
         this.connectionManager = connectionManager;

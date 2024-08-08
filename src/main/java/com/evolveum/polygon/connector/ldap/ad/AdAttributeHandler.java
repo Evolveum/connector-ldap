@@ -61,6 +61,8 @@ public class AdAttributeHandler extends ReferenceAttributeHandler implements Att
     }
 
     public AdAttributeHandler(SearchStrategy<AdLdapConfiguration> searchStrategy) {
+        // TODO # A might need to change this
+        super(null, null, null);
         this.searchStrategy = searchStrategy;
     }
 
