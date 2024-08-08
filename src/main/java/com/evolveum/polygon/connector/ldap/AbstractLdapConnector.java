@@ -1036,6 +1036,9 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
                 // hope that it worked well. It should - unless there is a connector bug.
             }
         }
+
+        injectDummyMember(connIdObjectClass, entry);
+
         prepareCreateLdapAttributes(ldapStructuralObjectClass, entry);
 
         if (LOG.isOk()) {
@@ -1113,6 +1116,11 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
         uid = new Uid(getSchemaTranslator().toConnIdIdentifierValue(uidLdapAttributeValue, uidAttributeName, uidLdapAttributeType));
 
         return uid;
+    }
+
+    protected void injectDummyMember(ObjectClass connIdObjectClass, Entry entry) {
+
+        // Nothing to do. Expected to be overridden in subclasses.
     }
 
     private void saturateReferenceAttributeValues(List<Object> originalValues, Map<String, List<String>> toSaturate) {

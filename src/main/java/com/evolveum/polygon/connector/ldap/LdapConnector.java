@@ -20,19 +20,20 @@ import java.util.*;
 
 import com.evolveum.polygon.connector.ldap.ad.AdAttributeHandler;
 import com.evolveum.polygon.connector.ldap.ad.AdLdapConfiguration;
+import com.evolveum.polygon.connector.ldap.schema.AssociationHolder;
 import com.evolveum.polygon.connector.ldap.schema.ReferenceAttributeHandler;
 import com.evolveum.polygon.connector.ldap.search.DefaultSearchStrategy;
 import com.evolveum.polygon.connector.ldap.search.SearchStrategy;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.directory.api.ldap.model.constants.SchemaConstants;
+import org.apache.directory.api.ldap.model.entry.*;
 import org.apache.directory.api.ldap.model.entry.Attribute;
-import org.apache.directory.api.ldap.model.entry.DefaultModification;
-import org.apache.directory.api.ldap.model.entry.Modification;
-import org.apache.directory.api.ldap.model.entry.ModificationOperation;
+import org.apache.directory.api.ldap.model.exception.LdapException;
 import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.ldap.model.schema.AttributeType;
 import org.apache.directory.api.ldap.model.schema.SchemaManager;
 import org.identityconnectors.common.logging.Log;
+import org.identityconnectors.framework.common.exceptions.ConnectorException;
 import org.identityconnectors.framework.common.objects.*;
 import org.identityconnectors.framework.spi.Configuration;
 import org.identityconnectors.framework.spi.ConnectorClass;
@@ -182,4 +183,62 @@ public class LdapConnector extends AbstractLdapConnector<LdapConfiguration> {
         return searchStrategy;
     }
 
+
+    protected void injectDummyMember(ObjectClass connIdObjectClass, Entry entry) {
+
+        if (ArrayUtils.isEmpty(getConfiguration().getManagedAssociationPairs())) {
+            return;
+        }
+
+        String objecClassValue = connIdObjectClass.getObjectClassValue();
+        Map<String, Set<AssociationHolder>> associationSets = getSchemaTranslator().getObjectAssociationSets();
+
+        if (associationSets.containsKey(objecClassValue)) {
+
+            String placeholderMember = getConfiguration().getPlaceholderMember();
+
+            if (placeholderMember != null && !placeholderMember.isEmpty()) {
+
+                // Should this be a valid dn?
+//                if (!Dn.isValid(placeholderMember)) {
+//
+//                    return;
+//                }
+            } else {
+                return;
+            }
+
+            String attributeName = null;
+            Set<AssociationHolder> associationHolders = associationSets.get(objecClassValue);
+            for (AssociationHolder associationHolder : associationHolders) {
+
+                if (!associationHolder.isRequired()) {
+
+                    return;
+                }
+
+                attributeName = associationHolder.getAssociationAttributeName();
+
+                if (attributeName != null) {
+
+                    break;
+                }
+            }
+
+            if (attributeName != null) {
+
+                if (entry.get(attributeName) != null) {
+                    return;
+                } else {
+
+                    try {
+                        entry.add(attributeName, placeholderMember);
+                    } catch (LdapException e) {
+                        //TODO # A add exception string
+                        throw new ConnectorException(e);
+                    }
+                }
+            }
+        }
+    }
 }
