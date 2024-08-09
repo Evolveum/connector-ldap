@@ -1122,6 +1122,11 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 
         // Nothing to do. Expected to be overridden in subclasses.
     }
+    protected boolean injectDummyMember(String attributeName,
+                                     AttributeDeltaBuilder attributeDeltaBuilder) {
+        // Always false, should be overriden in subclasses.
+        return false;
+    }
 
     private void saturateReferenceAttributeValues(List<Object> originalValues, Map<String, List<String>> toSaturate) {
 
@@ -1322,41 +1327,11 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
             }
         }
 
-        if (associationConfigurationActive && !associationAttributeDeltas.isEmpty()) {
+        if (associationConfigurationActive &&
+                !associationAttributeDeltas.isEmpty()) {
 
-            for (AttributeDelta delta : associationAttributeDeltas) {
-                AssociationHolder holder = associationObjectClassAndAttributes.get(delta.getName());
-                Map<String, Map<String, AttributeDeltaBuilder>> reWrapped = reWrapReferenceDeltas(holder.getAssociationAttributeName(),
-                        delta, dn, options);
-
-                for (String objectClassName : reWrapped.keySet()) {
-
-                    Map<String, AttributeDeltaBuilder> attributeDeltaMap = reWrapped.get(objectClassName);
-                    for (String o : attributeDeltaMap.keySet()) {
-
-                        Dn reDn = schemaTranslator.toDn(o);
-                        ObjectClass connIdObjectClassReWrapped = new ObjectClass(objectClassName);
-                        org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass =
-                                getSchemaTranslator().toLdapObjectClass(connIdObjectClassReWrapped);
-
-                        List<Modification> associationObjectModifications = new ArrayList<>();
-                        AttributeDeltaBuilder attributeDeltaBuilder = attributeDeltaMap.get(o);
-
-                        attributeDeltaBuilder.setName(getObjectReferenceAttribute(connIdObjectClass.getObjectClassValue(),
-                                connIdObjectClassReWrapped.getObjectClassValue()));
-                        addAttributeModification(reDn, associationObjectModifications, ldapObjectClass,
-                                connIdObjectClassReWrapped, attributeDeltaMap.get(o).build());
-
-                        if (associationObjectModifications.isEmpty()) {
-
-                            LOG.ok("Skipping modify operation as there are no modifications to execute");
-                        } else {
-
-                            modify(reDn, associationObjectModifications, null);
-                        }
-                    }
-                }
-            }
+            updateAssociationsAttempt(associationAttributeDeltas, dn,
+                    connIdObjectClass, associationObjectClassAndAttributes, options);
         }
 
         if (ldapModifications.isEmpty()) {
@@ -1386,6 +1361,70 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
         }
 
         return sideEffects;
+    }
+
+    void updateAssociationsAttempt(Set<AttributeDelta> associationAttributeDeltas, Dn dn, ObjectClass connIdObjectClass,
+                            Map<String, AssociationHolder> associationObjectClassAndAttributes, OperationOptions options) {
+
+        for (AttributeDelta delta : associationAttributeDeltas) {
+
+            AssociationHolder holder = associationObjectClassAndAttributes.get(delta.getName());
+            Map<String, Map<String, AttributeDeltaBuilder>> reWrapped = reWrapReferenceDeltas(holder.getAssociationAttributeName(),
+                    delta, dn, options);
+            for (String objectClassName : reWrapped.keySet()) {
+
+                Map<String, AttributeDeltaBuilder> attributeDeltaMap = reWrapped.get(objectClassName);
+                for (String o : attributeDeltaMap.keySet()) {
+
+                    Dn reDn = schemaTranslator.toDn(o);
+                    ObjectClass connIdObjectClassReWrapped = new ObjectClass(objectClassName);
+                    List<Modification> associationObjectModifications = new ArrayList<>();
+                    org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass =
+                            getSchemaTranslator().toLdapObjectClass(connIdObjectClassReWrapped);
+                    AttributeDeltaBuilder attributeDeltaBuilder = attributeDeltaMap.get(o);
+                    String objectReferenceAttribute = getObjectReferenceAttribute(connIdObjectClass.getObjectClassValue(),
+                            connIdObjectClassReWrapped.getObjectClassValue());
+
+                    attributeDeltaBuilder.setName(objectReferenceAttribute);
+                    addAttributeModification(reDn, associationObjectModifications, ldapObjectClass,
+                            connIdObjectClassReWrapped, attributeDeltaMap.get(o).build());
+
+                    if (associationObjectModifications.isEmpty()) {
+
+                        LOG.ok("Skipping modify operation as there are no modifications to execute");
+                    } else {
+
+                        try {
+
+                            modify(reDn, associationObjectModifications, null);
+                        } catch (InvalidAttributeValueException e) {
+
+                            boolean isModificationSuccess = false;
+                            String errorMessage = "object class '" + objectClassName +
+                                    "' requires attribute '" + objectReferenceAttribute + "' (65)";
+                            if (e.getMessage().contains(errorMessage)) {
+
+                                if (attributeDeltaBuilder.getValueToRemove() != null &&
+                                        !attributeDeltaBuilder.getValueToRemove().isEmpty()) {
+
+                                    AttributeDeltaBuilder memberAttributeBuilder = new AttributeDeltaBuilder();
+
+                                    if (injectDummyMember(objectReferenceAttribute, memberAttributeBuilder)) {
+                                        addAttributeModification(reDn, associationObjectModifications, ldapObjectClass,
+                                                connIdObjectClassReWrapped, memberAttributeBuilder.build());
+                                        modify(reDn, associationObjectModifications, null);
+                                        isModificationSuccess = true;
+                                    }
+                                }
+                            }
+                            if (!isModificationSuccess) {
+                                throw e;
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private String getObjectReferenceAttribute(String subjectObjectClassName, String objectObjectClassName) {

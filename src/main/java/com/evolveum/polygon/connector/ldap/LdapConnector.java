@@ -183,7 +183,7 @@ public class LdapConnector extends AbstractLdapConnector<LdapConfiguration> {
         return searchStrategy;
     }
 
-
+@Override
     protected void injectDummyMember(ObjectClass connIdObjectClass, Entry entry) {
 
         if (ArrayUtils.isEmpty(getConfiguration().getManagedAssociationPairs())) {
@@ -241,4 +241,22 @@ public class LdapConnector extends AbstractLdapConnector<LdapConfiguration> {
             }
         }
     }
+
+
+@Override
+    protected boolean injectDummyMember(String attributeName,
+                                     AttributeDeltaBuilder attributeDeltaBuilder) {
+
+        String placeholderMember = getConfiguration().getPlaceholderMember();
+
+        if (placeholderMember != null && !placeholderMember.isEmpty()) {
+
+            attributeDeltaBuilder.setName(attributeName);
+            attributeDeltaBuilder.addValueToAdd(Collections.singletonList(placeholderMember));
+            return true;
+        }
+    return false;
+}
+
+
 }
