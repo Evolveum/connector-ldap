@@ -1530,13 +1530,17 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
         }
 
         org.apache.directory.api.ldap.model.entry.Attribute attribute = entry.get(associationAttributeName);
-        Iterator<Value> iterator = attribute.iterator();
 
         List<String> currentReferences = new ArrayList<>();
-        while (iterator.hasNext()) {
-            Value value = iterator.next();
+        if (attribute !=null){
 
-            currentReferences.add(value.getString());
+            Iterator<Value> iterator = attribute.iterator();
+            while (iterator.hasNext()) {
+                Value value = iterator.next();
+
+                currentReferences.add(value.getString());
+            }
+
         }
 
 
