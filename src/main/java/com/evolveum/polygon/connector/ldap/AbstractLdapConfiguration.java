@@ -90,7 +90,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 
     public static final String CONF_PROP_NAME_SSL_PROTOCOL = "sslProtocol";
 
-    public static final String CONF_ASSOC_DELIMITER = "->";
+    public static final String CONF_ASSOC_DELIMITER = "-#";
     public static final String CONF_ASSOC_ATTR_DELIMITER = "\"\\+";
     /**
      * Whether connector skips certificate validity check against its default truststore (e.g. Java cacerts)

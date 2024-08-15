@@ -41,6 +41,7 @@ import org.identityconnectors.framework.spi.ConnectorClass;
 import com.evolveum.polygon.common.SchemaUtil;
 import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
 
+import static com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration.CONF_ASSOC_DELIMITER;
 import static com.evolveum.polygon.connector.ldap.LdapConstants.*;
 
 @ConnectorClass(displayNameKey = "connector.ldap.display", configurationClass = LdapConfiguration.class)
@@ -110,15 +111,16 @@ public class LdapConnector extends AbstractLdapConnector<LdapConfiguration> {
             if (schemaManager.getObjectClassRegistry().contains(objectObjectClassName)) {
                 for (org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass : schemaManager.getObjectClassRegistry()) {
 
-                    String SubjectClassName = ldapObjectClass.getName();
+                    String subjectClassName = ldapObjectClass.getName();
 
-                    referenceSuggestions.add("\""+sugestedMemberOfName +"\"+"+SubjectClassName +
-                            " -> " + "\""+MEMBERSHIP_ATTRIBUTES.get(objectObjectClassName) +"\"+"+ objectObjectClassName);
+                    referenceSuggestions.add("\""+subjectClassName +"\"+"+sugestedMemberOfName +
+                            " "+CONF_ASSOC_DELIMITER+" " + "\""+ objectObjectClassName +"\"+"+ MEMBERSHIP_ATTRIBUTES.get(objectObjectClassName));
+//TODO # A remove
+//                    referenceSuggestions.add("\""+sugestedMemberOfName +"\"+"+SubjectClassName +
+//                            " -> " + "\""+MEMBERSHIP_ATTRIBUTES.get(objectObjectClassName) +"\"+"+ objectObjectClassName);
                 }
             }
         }
-
-        referenceSuggestions.size();
         suggestions.put(AbstractLdapConfiguration.CONF_PROP_MNGD_ASSOC_PAIRS,
                 SuggestedValuesBuilder.buildOpen(referenceSuggestions.toArray(new String[referenceSuggestions.size()])));
     }
@@ -212,10 +214,10 @@ public class LdapConnector extends AbstractLdapConnector<LdapConfiguration> {
             Set<AssociationHolder> associationHolders = associationSets.get(objecClassValue);
             for (AssociationHolder associationHolder : associationHolders) {
 
-                if (!associationHolder.isRequired()) {
-
-                    return;
-                }
+//                if (!associationHolder.isRequired()) {
+//
+//                    return;
+//                }
 
                 attributeName = associationHolder.getAssociationAttributeName();
 

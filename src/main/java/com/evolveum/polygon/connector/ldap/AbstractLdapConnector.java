@@ -173,26 +173,13 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
             }
         }
 
-        analyzeReferenceSuggestions(getSchemaManager());
         // Server-specific suggestions
         addServerSpecificConfigurationSuggestions(suggestions);
 
         return suggestions;
     }
 
-    private void analyzeReferenceSuggestions(SchemaManager schemaManager) {
 
-        Map<String, Set<String>> referenceSuggestions = new HashMap<>();
-
-        if (schemaManager.getObjectClassRegistry().contains(OBJECT_CLASS_GROUP_OF_NAMES)) {
-            for (org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass : schemaManager.getObjectClassRegistry()) {
-                String oClassName = ldapObjectClass.getName();
-
-                //TODO expand based on supported group objects
-                referenceSuggestions.put(oClassName, new HashSet<>(Arrays.asList(OBJECT_CLASS_GROUP_OF_NAMES)));
-            }
-        }
-    }
 
     protected void addServerSpecificConfigurationSuggestions(Map<String, SuggestedValues> suggestions) {
         // TODO: server-speicifc suggestions, especially for OpenLDAP

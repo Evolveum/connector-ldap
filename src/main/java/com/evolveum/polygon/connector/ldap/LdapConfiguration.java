@@ -81,7 +81,7 @@ public class LdapConfiguration extends AbstractLdapConfiguration {
     private String placeholderMember;
 
     public LdapConfiguration(){
-        // TODO port to Server Specific
+
         groupObjectClasses = new String[]{OBJECT_CLASS_GROUP_OF_NAMES};
     }
 
