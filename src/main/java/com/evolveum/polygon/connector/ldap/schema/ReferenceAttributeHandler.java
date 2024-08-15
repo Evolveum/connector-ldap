@@ -29,6 +29,7 @@ public class ReferenceAttributeHandler implements AttributeHandler {
     }
 
     public void handle(Attribute ldapAttribute) {
+
         String ldapAttributeName = ldapAttribute.getId();
 
         AttributeType attributeType = ldapAttribute.getAttributeType();
@@ -201,4 +202,5 @@ public class ReferenceAttributeHandler implements AttributeHandler {
 
         handle(ldapAttribute);
     }
+
 }

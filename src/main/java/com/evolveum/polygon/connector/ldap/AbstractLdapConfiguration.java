@@ -87,11 +87,10 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
      * E.g. SSL, SSLv2, SSLv3, TLS, TLSv1, TLSv1.1, TLSv1.2
      */
     private String sslProtocol = null;
-
     public static final String CONF_PROP_NAME_SSL_PROTOCOL = "sslProtocol";
-
-    public static final String CONF_ASSOC_DELIMITER = "->";
+    public static final String CONF_ASSOC_DELIMITER = "-#";
     public static final String CONF_ASSOC_ATTR_DELIMITER = "\"\\+";
+
     /**
      * Whether connector skips certificate validity check against its default truststore (e.g. Java cacerts)
      * When set to false, connector checks server certificate validity in SSL/TLS mode (recommended).

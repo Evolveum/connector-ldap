@@ -1503,6 +1503,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
                                                      org.apache.directory.api.ldap.model.entry.Attribute ldapAttribute,
                                                      ReferenceAttributeHandler handler) {
 
+
         if (ldapAttribute != null) {
             Iterator<Value> iterator = ldapAttribute.iterator();
             while (iterator.hasNext()) {
@@ -1542,9 +1543,10 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 
                 if (subjectObjectClassAndAttributes.length == 2) {
 
-                    subjectObjectClass = subjectObjectClassAndAttributes[1].trim();
+                    subjectObjectClass = subjectObjectClassAndAttributes[0].trim().substring(1);;
                     // We need to remove the leading " character
-                    subjectObjectClassAssociationAttrName = subjectObjectClassAndAttributes[0].trim().substring(1);
+                    subjectObjectClassAssociationAttrName = subjectObjectClassAndAttributes[1].trim();
+
                 } else {
 
                     throw new InvalidAttributeValueException("Association pair syntax contain no or " +
@@ -1553,8 +1555,8 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 
                 if (objectObjectClassAndAttributes.length == 2) {
 
-                    objectObjectClass = objectObjectClassAndAttributes[1].trim();
-                    objectObjectClassAssociationAttrName = objectObjectClassAndAttributes[0].trim().substring(1);
+                    objectObjectClass = objectObjectClassAndAttributes[0].trim().substring(1);;
+                    objectObjectClassAssociationAttrName = objectObjectClassAndAttributes[1].trim();
                 } else {
 
                     throw new InvalidAttributeValueException("Association pair syntax contain no or " +

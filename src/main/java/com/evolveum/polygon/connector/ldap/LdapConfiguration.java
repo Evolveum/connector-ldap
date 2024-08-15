@@ -77,10 +77,11 @@ public class LdapConfiguration extends AbstractLdapConfiguration {
      */
     private boolean tolerateMultivalueReduction;
 
-
+//    TODO # A add documentation
+    private String placeholderMember;
 
     public LdapConfiguration(){
-        // TODO port to Server Specific
+
         groupObjectClasses = new String[]{OBJECT_CLASS_GROUP_OF_NAMES};
     }
 
@@ -137,6 +138,15 @@ public class LdapConfiguration extends AbstractLdapConfiguration {
 
     public void setTolerateMultivalueReduction(boolean tolerateMultivalueReduction) {
         this.tolerateMultivalueReduction = tolerateMultivalueReduction;
+    }
+
+    @ConfigurationProperty(order = 105)
+    public String getPlaceholderMember() {
+        return placeholderMember;
+    }
+
+    public void setPlaceholderMember(String placeholderMember) {
+        this.placeholderMember = placeholderMember;
     }
 
     @Override
