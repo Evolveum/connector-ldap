@@ -23,6 +23,8 @@ import org.identityconnectors.framework.spi.ConfigurationProperty;
 
 import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
 
+import static com.evolveum.polygon.connector.ldap.LdapConstants.OBJECT_CLASS_GROUP_OF_NAMES;
+
 /**
  * Active Directory LDAP Connector configuration.
  *
@@ -163,6 +165,11 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
      * If set to true then the connector will process FSP(Foreign Security Principal).
      */
     private boolean allowFSPProcessing = false;
+
+    public AdLdapConfiguration(){
+
+        groupObjectClasses = new String[]{groupObjectClass};
+    }
 
     @ConfigurationProperty(order = 100)
     public String getUserObjectClass() {

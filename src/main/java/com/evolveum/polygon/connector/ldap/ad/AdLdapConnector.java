@@ -69,6 +69,7 @@ import com.evolveum.polygon.connector.ldap.search.DefaultSearchStrategy;
 import com.evolveum.polygon.connector.ldap.search.SearchStrategy;
 import com.evolveum.polygon.connector.ldap.sync.ModifyTimestampSyncStrategy;
 
+import static com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration.CONF_ASSOC_DELIMITER;
 import static com.evolveum.polygon.connector.ldap.LdapConstants.*;
 import static com.evolveum.polygon.connector.ldap.ad.AdConstants.AD_MEMBERSHIP_ATTRIBUTES;
 
@@ -518,10 +519,10 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
                         //OperationalAttributes.ENABLE_NAME = true means AdConstants.UAC.ADS_UF_ACCOUNTDISABLE = false
                         if (deltaName.equals(OperationalAttributes.ENABLE_NAME)) {
                             if ((Boolean)val) {
-                                val = new Boolean(false);
+                                val = Boolean.valueOf(false);
                             }
                             else {
-                                val = new Boolean(true);
+                                val = Boolean.valueOf(true);
                             }
                         }
 
@@ -603,12 +604,14 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
             super.addAttributeModification(dn, modifications, ldapStructuralObjectClass, icfObjectClass, delta);
         }
     }
-
+// TODO # A port similar to LDAP connector ?
     @Override
     protected SearchStrategy<AdLdapConfiguration> chooseSearchStrategy(org.identityconnectors.framework.common.objects.ObjectClass objectClass,
             ObjectClass ldapObjectClass, ResultsHandler handler, OperationOptions options) {
         SearchStrategy<AdLdapConfiguration> searchStrategy = super.chooseSearchStrategy(objectClass, ldapObjectClass, handler, options);
-        searchStrategy.setAttributeHandler(new AdAttributeHandler(searchStrategy));
+        searchStrategy.setAttributeHandler(new AdAttributeHandler(searchStrategy, getSchemaTranslator(), objectClass, options));
+        // TODO # A
+        //searchStrategy.setAttributeHandler(new AdAttributeHandler(searchStrategy));
         return searchStrategy;
     }
 
@@ -616,7 +619,6 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
     protected SearchStrategy<AdLdapConfiguration> getDefaultSearchStrategy(org.identityconnectors.framework.common.objects.ObjectClass objectClass,
             ObjectClass ldapObjectClass, ResultsHandler handler, OperationOptions options) {
         SearchStrategy<AdLdapConfiguration> searchStrategy =  super.getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
-        searchStrategy.setAttributeHandler(new AdAttributeHandler(searchStrategy));
         return searchStrategy;
 
     }
@@ -994,32 +996,40 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
     @Override
     protected void addServerSpecificConfigurationSuggestions(Map<String, SuggestedValues> suggestions) {
 
-        analyzeReferenceSuggestions(getSchemaManager(), getConfiguration(), suggestions);
+        // TODO # A remove log
+        LOG.ok("Fetching ser spec suggestions");
+        analyzeReferenceSuggestions(suggestions, getConfiguration());
     }
 
-    private void analyzeReferenceSuggestions(SchemaManager schemaManager, AdLdapConfiguration configuration,
-                                             Map<String, SuggestedValues> suggestions) {
-
-        String[] groupObjectClasses = configuration.getGroupObjectClasses();
+    private void analyzeReferenceSuggestions(Map<String, SuggestedValues> suggestions,
+                                             AdLdapConfiguration configuration) {
 
         List<String> referenceSuggestions = new ArrayList();
+        String groupObjectClassName = configuration.getGroupObjectClass();
+        String userObjectClassName = configuration.getUserObjectClass();
 
-        for (String objectObjectClassName : groupObjectClasses) {
+        if ((groupObjectClassName != null && !groupObjectClassName.isEmpty()) &&
+                (userObjectClassName != null && !userObjectClassName.isEmpty())) {
 
-            if (schemaManager.getObjectClassRegistry().contains(objectObjectClassName)) {
-                for (org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass :
-                        schemaManager.getObjectClassRegistry()) {
+            //TODO # A remove
+//            referenceSuggestions.add("\"" + ATTRIBUTE_MEMBER_OF_NAME + "\"+" + groupObjectClassName +
+//                    " -> " + "\"" + AD_MEMBERSHIP_ATTRIBUTES.get(groupObjectClassName) + "\"+"
+//                    + groupObjectClassName);
+//
+//            referenceSuggestions.add("\"" + ATTRIBUTE_MEMBER_OF_NAME + "\"+" + userObjectClassName +
+//                    " -> " + "\"" + AD_MEMBERSHIP_ATTRIBUTES.get(groupObjectClassName) + "\"+"
+//                    + groupObjectClassName);
 
-                    String SubjectClassName = ldapObjectClass.getName();
+            referenceSuggestions.add("\"" + groupObjectClassName + "\"+" + ATTRIBUTE_MEMBER_OF_NAME +
+                    " "+CONF_ASSOC_DELIMITER+" " + "\"" + groupObjectClassName + "\"+"
+                    + AD_MEMBERSHIP_ATTRIBUTES.get(groupObjectClassName));
 
-                    referenceSuggestions.add("\""+ATTRIBUTE_MEMBER_OF_NAME +"\"+"+SubjectClassName +
-                            " -> " + "\""+AD_MEMBERSHIP_ATTRIBUTES.get(objectObjectClassName) +"\"+"+ objectObjectClassName);
-                }
-            }
+            referenceSuggestions.add("\"" + userObjectClassName + "\"+" + ATTRIBUTE_MEMBER_OF_NAME +
+                    " "+CONF_ASSOC_DELIMITER+" " + "\"" + groupObjectClassName + "\"+"
+                    + AD_MEMBERSHIP_ATTRIBUTES.get(groupObjectClassName));
+
+            suggestions.put(AbstractLdapConfiguration.CONF_PROP_MNGD_ASSOC_PAIRS,
+                    SuggestedValuesBuilder.buildOpen(referenceSuggestions.toArray(new String[referenceSuggestions.size()])));
         }
-
-        referenceSuggestions.size();
-        suggestions.put(AbstractLdapConfiguration.CONF_PROP_MNGD_ASSOC_PAIRS,
-                SuggestedValuesBuilder.buildOpen(referenceSuggestions.toArray(new String[referenceSuggestions.size()])));
     }
 }

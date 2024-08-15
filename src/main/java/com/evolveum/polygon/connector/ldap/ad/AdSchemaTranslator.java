@@ -49,6 +49,9 @@ import com.evolveum.polygon.connector.ldap.ad.AdUserParametersHandler.UserParame
 import com.evolveum.polygon.connector.ldap.ad.AdUserParametersHandler.UserParametersValueTypes;
 import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
 
+import static com.evolveum.polygon.connector.ldap.LdapConstants.ATTR_SCHEMA_OBJECT;
+import static com.evolveum.polygon.connector.ldap.LdapConstants.ATTR_SCHEMA_SUBJECT;
+
 
 /**
  * @author semancik
@@ -517,6 +520,20 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
         if (AdConstants.UAC.forName(connIdAttributeName) != null) {
             return true;
         }
+
+        if(!ArrayUtils.isEmpty(getConfiguration().getManagedAssociationPairs())){
+
+            if(ATTR_SCHEMA_OBJECT.equalsIgnoreCase(connIdAttributeName)){
+
+                return true;
+            }
+
+            if(ATTR_SCHEMA_SUBJECT.equalsIgnoreCase(connIdAttributeName)){
+
+                return true;
+            }
+        }
+
         return false;
     }
 
