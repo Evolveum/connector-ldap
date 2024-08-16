@@ -20,6 +20,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 import com.evolveum.polygon.connector.ldap.*;
+import org.apache.commons.lang3.ArrayUtils;
 import org.apache.directory.api.ldap.model.constants.SchemaConstants;
 import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.entry.Modification;
@@ -604,14 +605,20 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
             super.addAttributeModification(dn, modifications, ldapStructuralObjectClass, icfObjectClass, delta);
         }
     }
-// TODO # A port similar to LDAP connector ?
+
     @Override
     protected SearchStrategy<AdLdapConfiguration> chooseSearchStrategy(org.identityconnectors.framework.common.objects.ObjectClass objectClass,
             ObjectClass ldapObjectClass, ResultsHandler handler, OperationOptions options) {
         SearchStrategy<AdLdapConfiguration> searchStrategy = super.chooseSearchStrategy(objectClass, ldapObjectClass, handler, options);
-        searchStrategy.setAttributeHandler(new AdAttributeHandler(searchStrategy, getSchemaTranslator(), objectClass, options));
-        // TODO # A
-        //searchStrategy.setAttributeHandler(new AdAttributeHandler(searchStrategy));
+
+        if (!ArrayUtils.isEmpty(getConfiguration().getManagedAssociationPairs())) {
+
+            searchStrategy.setAttributeHandler(new AdAttributeHandler(searchStrategy, getSchemaTranslator(), objectClass, options));
+        } else {
+
+            searchStrategy.setAttributeHandler(new AdAttributeHandler(searchStrategy));
+        }
+
         return searchStrategy;
     }
 
@@ -996,8 +1003,6 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
     @Override
     protected void addServerSpecificConfigurationSuggestions(Map<String, SuggestedValues> suggestions) {
 
-        // TODO # A remove log
-        LOG.ok("Fetching ser spec suggestions");
         analyzeReferenceSuggestions(suggestions, getConfiguration());
     }
 
@@ -1010,15 +1015,6 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 
         if ((groupObjectClassName != null && !groupObjectClassName.isEmpty()) &&
                 (userObjectClassName != null && !userObjectClassName.isEmpty())) {
-
-            //TODO # A remove
-//            referenceSuggestions.add("\"" + ATTRIBUTE_MEMBER_OF_NAME + "\"+" + groupObjectClassName +
-//                    " -> " + "\"" + AD_MEMBERSHIP_ATTRIBUTES.get(groupObjectClassName) + "\"+"
-//                    + groupObjectClassName);
-//
-//            referenceSuggestions.add("\"" + ATTRIBUTE_MEMBER_OF_NAME + "\"+" + userObjectClassName +
-//                    " -> " + "\"" + AD_MEMBERSHIP_ATTRIBUTES.get(groupObjectClassName) + "\"+"
-//                    + groupObjectClassName);
 
             referenceSuggestions.add("\"" + groupObjectClassName + "\"+" + ATTRIBUTE_MEMBER_OF_NAME +
                     " "+CONF_ASSOC_DELIMITER+" " + "\"" + groupObjectClassName + "\"+"

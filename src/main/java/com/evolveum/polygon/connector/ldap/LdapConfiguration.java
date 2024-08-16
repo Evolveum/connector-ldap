@@ -77,7 +77,17 @@ public class LdapConfiguration extends AbstractLdapConfiguration {
      */
     private boolean tolerateMultivalueReduction;
 
-//    TODO # A add documentation
+
+    /**
+     * Used in cases when the "member" attribute of some object classes is mandatory, to avoid exceptions when creating
+     * or updating an object of such object class. When creating or updating such object with an empty "member" attribute
+     * the connector will react to the error reply from the server in retrying the operation with the value in "placeholderMember"
+     * used in the "member" attribute.
+     *
+     * Currently used together only with the "managedAssociationPairs" configuration parameter.
+     *
+     * EXPERIMENTAL.
+     */
     private String placeholderMember;
 
     public LdapConfiguration(){

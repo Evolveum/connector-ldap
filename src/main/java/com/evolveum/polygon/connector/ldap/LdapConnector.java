@@ -115,9 +115,7 @@ public class LdapConnector extends AbstractLdapConnector<LdapConfiguration> {
 
                     referenceSuggestions.add("\""+subjectClassName +"\"+"+sugestedMemberOfName +
                             " "+CONF_ASSOC_DELIMITER+" " + "\""+ objectObjectClassName +"\"+"+ MEMBERSHIP_ATTRIBUTES.get(objectObjectClassName));
-//TODO # A remove
-//                    referenceSuggestions.add("\""+sugestedMemberOfName +"\"+"+SubjectClassName +
-//                            " -> " + "\""+MEMBERSHIP_ATTRIBUTES.get(objectObjectClassName) +"\"+"+ objectObjectClassName);
+
                 }
             }
         }
@@ -185,7 +183,20 @@ public class LdapConnector extends AbstractLdapConnector<LdapConfiguration> {
         return searchStrategy;
     }
 
-@Override
+    @Override
+    protected SearchStrategy<LdapConfiguration> chooseSearchStrategy(org.identityconnectors.framework.common.objects.ObjectClass objectClass,
+                                                                       org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass, ResultsHandler handler, OperationOptions options) {
+        SearchStrategy<LdapConfiguration> searchStrategy = super.chooseSearchStrategy(objectClass, ldapObjectClass, handler, options);
+
+        if (!ArrayUtils.isEmpty(getConfiguration().getManagedAssociationPairs())) {
+
+            searchStrategy.setAttributeHandler(new ReferenceAttributeHandler(getSchemaTranslator(), objectClass, options));
+        }
+
+        return searchStrategy;
+    }
+
+    @Override
     protected void injectDummyMember(ObjectClass connIdObjectClass, Entry entry) {
 
         if (ArrayUtils.isEmpty(getConfiguration().getManagedAssociationPairs())) {
@@ -201,11 +212,6 @@ public class LdapConnector extends AbstractLdapConnector<LdapConfiguration> {
 
             if (placeholderMember != null && !placeholderMember.isEmpty()) {
 
-                // Should this be a valid dn?
-//                if (!Dn.isValid(placeholderMember)) {
-//
-//                    return;
-//                }
             } else {
                 return;
             }
@@ -213,11 +219,6 @@ public class LdapConnector extends AbstractLdapConnector<LdapConfiguration> {
             String attributeName = null;
             Set<AssociationHolder> associationHolders = associationSets.get(objecClassValue);
             for (AssociationHolder associationHolder : associationHolders) {
-
-//                if (!associationHolder.isRequired()) {
-//
-//                    return;
-//                }
 
                 attributeName = associationHolder.getAssociationAttributeName();
 
@@ -234,10 +235,12 @@ public class LdapConnector extends AbstractLdapConnector<LdapConfiguration> {
                 } else {
 
                     try {
+
                         entry.add(attributeName, placeholderMember);
                     } catch (LdapException e) {
-                        //TODO # A add exception string
-                        throw new ConnectorException(e);
+
+                        throw processLdapException("Error adding placeholder member '"+placeholderMember+"'+ to the " +
+                                "entry: "+entry+".", e);
                     }
                 }
             }
@@ -245,9 +248,9 @@ public class LdapConnector extends AbstractLdapConnector<LdapConfiguration> {
     }
 
 
-@Override
+    @Override
     protected boolean injectDummyMember(String attributeName,
-                                     AttributeDeltaBuilder attributeDeltaBuilder) {
+                                        AttributeDeltaBuilder attributeDeltaBuilder) {
 
         String placeholderMember = getConfiguration().getPlaceholderMember();
 
@@ -257,8 +260,8 @@ public class LdapConnector extends AbstractLdapConnector<LdapConfiguration> {
             attributeDeltaBuilder.addValueToAdd(Collections.singletonList(placeholderMember));
             return true;
         }
-    return false;
-}
+        return false;
+    }
 
 
 }

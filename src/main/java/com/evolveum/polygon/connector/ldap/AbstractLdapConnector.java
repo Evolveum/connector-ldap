@@ -800,12 +800,6 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
                 LOG.ok("Selecting SimplePaged search strategy because strategy setting is set to {0}", pagingStrategy);
                 SearchStrategy<C> searchStrategy = new SimplePagedResultsSearchStrategy<>(connectionManager, configuration, schemaTranslator, objectClass, ldapObjectClass, handler, getErrorHandler(), connectionLog, options);
 
-                if (!ArrayUtils.isEmpty(configuration.getManagedAssociationPairs())){
-
-                    searchStrategy.setAttributeHandler(new ReferenceAttributeHandler(getSchemaTranslator(),
-                            objectClass, options));
-                }
-
                 return searchStrategy;
             } else {
                 throw new ConfigurationException("Configured paging strategy "+pagingStrategy+", but the server does not support PagedResultsControl.");
@@ -816,12 +810,6 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
                 LOG.ok("Selecting VLV search strategy because strategy setting is set to {0}", pagingStrategy);
 
                 SearchStrategy<C> searchStrategy = new VlvSearchStrategy<>(connectionManager, configuration, getSchemaTranslator(), objectClass, ldapObjectClass, handler, getErrorHandler(), connectionLog, options);
-
-                if (!ArrayUtils.isEmpty(configuration.getManagedAssociationPairs())){
-
-                    searchStrategy.setAttributeHandler(new ReferenceAttributeHandler(getSchemaTranslator(),
-                            objectClass, options));
-                }
 
                 return searchStrategy;
             } else {
@@ -837,12 +825,6 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
                     LOG.ok("Selecting VLV search strategy because strategy setting is set to {0} and the request specifies an offset", pagingStrategy);
                     SearchStrategy<C> searchStrategy = new VlvSearchStrategy<>(connectionManager, configuration, getSchemaTranslator(), objectClass, ldapObjectClass, handler, getErrorHandler(), connectionLog, options);
 
-                    if (!ArrayUtils.isEmpty(configuration.getManagedAssociationPairs())){
-
-                        searchStrategy.setAttributeHandler(new ReferenceAttributeHandler(getSchemaTranslator(),
-                                objectClass, options));
-                    }
-
                     return searchStrategy;
                 } else {
                     throw new UnsupportedOperationException("Requested search from offset ("+options.getPagedResultsOffset()+"), but the server does not support VLV. Unable to execute the search.");
@@ -853,21 +835,10 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
                     LOG.ok("Selecting SimplePaged search strategy because strategy setting is set to {0} and the request does not specify an offset", pagingStrategy);
                     SearchStrategy<C> searchStrategy = new SimplePagedResultsSearchStrategy<>(connectionManager, configuration, schemaTranslator, objectClass, ldapObjectClass, handler, getErrorHandler(), connectionLog, options);
 
-                    if (!ArrayUtils.isEmpty(configuration.getManagedAssociationPairs())){
-
-                        searchStrategy.setAttributeHandler(new ReferenceAttributeHandler(getSchemaTranslator(),
-                                objectClass, options));
-                    }
                     return searchStrategy;
 
                 } else if (connectionManager.isControlSupported(VirtualListViewRequest.OID)) {
                     SearchStrategy<C> searchStrategy = new VlvSearchStrategy<>(connectionManager, configuration, getSchemaTranslator(), objectClass, ldapObjectClass, handler, getErrorHandler(), connectionLog, options);
-
-                    if (!ArrayUtils.isEmpty(configuration.getManagedAssociationPairs())){
-
-                        searchStrategy.setAttributeHandler(new ReferenceAttributeHandler(getSchemaTranslator(),
-                                objectClass, options));
-                    }
 
                     return searchStrategy;
 

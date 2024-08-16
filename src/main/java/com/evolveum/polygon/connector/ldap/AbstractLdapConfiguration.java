@@ -531,9 +531,24 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
      */
     private String[] memberOfAllowedValues = { };
 
+    /**
+     * Names of object classes representing objects which can be used as a grouping mechanism.
+     * Parameter is used solely in configuration discovery to compute configuration suggestions for "managedAssociationPairs" parameter.
+     * Default "groupOfNames".
+     */
+
     protected String[] groupObjectClasses = { };
 
     public static final String CONF_PROP_MNGD_ASSOC_PAIRS = "managedAssociationPairs";
+
+    /**
+     * The attribute contains the list of subject and object classes and their parameters which is used by the connector to identify associations between object classes.
+     * The convention is the list is as follows: '"subject objectClass name"+subject parameter -# "object objectClass name" + object parameter'.
+     * The convention of the imputed value is significant for the connector po parse out the association subject and object pairs and their parameters.
+     * Example "inetOrgPerson"+memberOf -# "groupOfNames"+member.
+     *
+     * EXPERIMENTAL. Not completely tested yet.
+     */
     protected String[] managedAssociationPairs = { };
 
     @ConfigurationProperty(required = true, order = 1)
