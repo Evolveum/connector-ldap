@@ -166,6 +166,11 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
      */
     private boolean allowFSPProcessing = false;
 
+    /**
+     * If set to true set the flag security in the Active Directory Dir Sync control request.
+     */
+    private boolean sendDirSyncSecurityFlag;
+
     public AdLdapConfiguration(){
 
         groupObjectClasses = new String[]{groupObjectClass};
@@ -304,6 +309,15 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 
     public void setAllowFSPProcessing(boolean allowFSPProcessing) {
         this.allowFSPProcessing = allowFSPProcessing;
+    }
+
+    @ConfigurationProperty(order = 115)
+    public boolean isSendDirSyncSecurityFlag() {
+        return sendDirSyncSecurityFlag;
+    }
+
+    public void setSendDirSyncSecurityFlag(boolean setDirSyncSecurityFlag) {
+        this.sendDirSyncSecurityFlag = setDirSyncSecurityFlag;
     }
 
     @Override
