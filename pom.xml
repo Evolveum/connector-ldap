@@ -21,11 +21,11 @@
     <parent>
         <artifactId>connector-parent</artifactId>
         <groupId>com.evolveum.polygon</groupId>
-        <version>1.5.3.0-M2</version>
+        <version>1.5.3.0-M1</version>
     </parent>
 
     <artifactId>connector-ldap</artifactId>
-    <version>3.8-SNAPSHOT</version>
+    <version>3.8-M2</version>
     <packaging>jar</packaging>
 
     <name>LDAP Connector</name>
