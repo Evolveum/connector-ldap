@@ -107,6 +107,6 @@ public class LdapConstants {
 
     public static final String R_I_R_OBJECT = AttributeUtil.createSpecialName("OBJECT");
     public static final String R_I_R_SUBJECT = AttributeUtil.createSpecialName("SUBJECT");
-    public static final String ATTR_SCHEMA_SUBJECT = "groups";
-    public static final String ATTR_SCHEMA_OBJECT = "members";
+    public static final String ATTR_SCHEMA_SUBJECT = "group";
+    public static final String ATTR_SCHEMA_OBJECT = "member";
 }

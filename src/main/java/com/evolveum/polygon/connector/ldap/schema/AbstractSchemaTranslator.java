@@ -570,9 +570,15 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
     }
 
     protected boolean isVirtualAttribute(String connIdAttributeName) {
+
         if(!ArrayUtils.isEmpty(configuration.getManagedAssociationPairs())){
 
             if(ATTR_SCHEMA_OBJECT.equalsIgnoreCase(connIdAttributeName)){
+
+                if(MEMBERSHIP_ATTRIBUTES.containsValue(connIdAttributeName)){
+
+                    return false;
+                }
 
                 return true;
             }
