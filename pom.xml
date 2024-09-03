@@ -40,12 +40,18 @@
         <repository>
             <id>evolveum-releases</id>
             <name>Evolveum Public Releases</name>
-            <url>https://nexus.evolveum.com/nexus/content/groups/public/</url>
+            <url>https://nexus.evolveum.com/nexus/repository/public/</url>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
         </repository>
         <repository>
             <id>evolveum-snapshots</id>
             <name>Internal Releases</name>
-            <url>https://nexus.evolveum.com/nexus/content/repositories/snapshots/</url>
+            <url>https://nexus.evolveum.com/nexus/repository/snapshots/</url>
+            <releases>
+                <enabled>false</enabled>
+            </releases>
         </repository>
         <repository>
             <id>apache-snapshots</id>
