@@ -870,6 +870,8 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
     public Uid create(ObjectClass connIdObjectClass, Set<Attribute> createAttributes, OperationOptions options) {
 
         String dnStringFromName = null;
+        Set<AttributeDelta> membershipAssociationAttributeDeltas = new HashSet<>();
+
         for (Attribute icfAttr: createAttributes) {
             if (icfAttr.is(Name.NAME)) {
                 dnStringFromName = SchemaUtil.getSingleStringNonBlankValue(icfAttr);
@@ -951,6 +953,17 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
                             entry.put(ldapAttributeType.getName(), ldapValues.toArray(new Value[ldapValues.size()]));
                         }
 
+                        continue;
+                    } else {
+
+                        ///As this is and update of the group reference in the attribute, we will construct a delta
+                        // for the virtual attribute bearing the reference.
+
+                        AttributeDeltaBuilder deltaBuilder = new AttributeDeltaBuilder();
+
+                        deltaBuilder.addValueToAdd(connIdAttr.getValue());
+                        deltaBuilder.setName(connIdAttr.getName());
+                        membershipAssociationAttributeDeltas.add(deltaBuilder.build());
                         continue;
                     }
                 }
@@ -1044,6 +1057,14 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
             }
         }
         if (uid != null) {
+
+            if (areAssociationsManaged &&
+                    !membershipAssociationAttributeDeltas.isEmpty()) {
+
+                Dn dn = resolveDn(connIdObjectClass, uid, options);
+                updateAssociationsAttempt(membershipAssociationAttributeDeltas, dn, connIdObjectClass, associationAttributeNames, options);
+            }
+
             connectionManager.returnConnection(connection);
             return uid;
         }
@@ -1068,6 +1089,14 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
         Value uidLdapAttributeValue = uidLdapAttribute.get();
         AttributeType uidLdapAttributeType = getSchemaManager().getAttributeType(uidAttributeName);
         uid = new Uid(getSchemaTranslator().toConnIdIdentifierValue(uidLdapAttributeValue, uidAttributeName, uidLdapAttributeType));
+
+        if (areAssociationsManaged &&
+                !membershipAssociationAttributeDeltas.isEmpty()) {
+
+            Dn dn = resolveDn(connIdObjectClass, uid, options);
+            updateAssociationsAttempt(membershipAssociationAttributeDeltas, dn, connIdObjectClass,
+                    associationAttributeNames, options);
+        }
 
         return uid;
     }
