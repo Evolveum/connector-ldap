@@ -316,6 +316,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
                 attributeInfoBuilder.setRequired(associationHolder.isRequired());
                 attributeInfoBuilder.setSubtype(associationHolder.getSubtype());
                 attributeInfoBuilder.setReturnedByDefault(false);
+                attributeInfoBuilder.setReadable(false);
             }
 
             AttributeInfo ai = attributeInfoBuilder.build();
