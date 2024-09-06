@@ -810,7 +810,6 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
             try {
                 return new Value(ldapAttributeType, connIdAttributeValue.toString());
             } catch (IllegalArgumentException  | LdapInvalidAttributeValueException e) {
-                // TODO # A base this on a configuration parameter default false
                 if (configuration.getEncodeStringOnNormalizationFailure()){
 
                     if (e.getMessage().contains(I18n.ERR_13247_INVALID_VALUE_CANT_NORMALIZE.getErrorCode())) {
