@@ -28,6 +28,7 @@ import java.util.function.Predicate;
 import com.evolveum.polygon.connector.ldap.*;
 import com.evolveum.polygon.connector.ldap.connection.ConnectionManager;
 import org.apache.commons.lang3.ArrayUtils;
+import org.apache.directory.api.i18n.I18n;
 import org.apache.directory.api.ldap.extras.controls.vlv.VirtualListViewRequest;
 import org.apache.directory.api.ldap.model.constants.SchemaConstants;
 import org.apache.directory.api.ldap.model.entry.Entry;
@@ -808,9 +809,27 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
             LOG.ok("Converting to LDAP: {0} ({1}): explicit string", ldapAttributeType.getName(), syntaxOid);
             try {
                 return new Value(ldapAttributeType, connIdAttributeValue.toString());
-            } catch (LdapInvalidAttributeValueException e) {
-                throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
-                        +"; attributeType="+ldapAttributeType, e);
+            } catch (IllegalArgumentException  | LdapInvalidAttributeValueException e) {
+                // TODO # A base this on a configuration parameter default false
+                if (configuration.getEncodeStringOnNormalizationFailure()){
+
+                    if (e.getMessage().contains(I18n.ERR_13247_INVALID_VALUE_CANT_NORMALIZE.getErrorCode())) {
+
+                        String connIdVal = connIdAttributeValue.toString();
+                        byte[] bytes = connIdVal.getBytes(StandardCharsets.UTF_8);
+
+                        try {
+                            return new Value(ldapAttributeType, bytes);
+                        } catch (LdapInvalidAttributeValueException ex) {
+
+                            throw new IllegalArgumentException("Invalid value for attribute " + ldapAttributeType.getName() + ": " + e.getMessage()
+                                    + "; attributeType=" + ldapAttributeType, e);
+                        }
+                    }
+                }
+
+                throw new IllegalArgumentException("Invalid value for attribute " + ldapAttributeType.getName() + ": " + e.getMessage()
+                        + "; attributeType=" + ldapAttributeType, e);
             }
         } else {
             if (connIdAttributeValue instanceof byte[]) {
