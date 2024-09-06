@@ -530,6 +530,15 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
      */
     private String[] memberOfAllowedValues = { };
 
+    /**
+     * The property is used in case an "I18n.ERR_13247_INVALID_VALUE_CANT_NORMALIZE" error has occurred during connId to
+     * ldap value normalization. If 'true' the operation is retried with the original string value encoded as a
+     * sequence of bytes in the "StandardCharsets.UTF_8" charset.
+     * EXPERIMENTAL.
+     */
+
+    private boolean encodeStringOnNormalizationFailure = false;
+
     @ConfigurationProperty(required = true, order = 1)
     public String getHost() {
         return host;
@@ -1114,6 +1123,15 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.forceTreeDeleteObjectClasses = forceTreeDeleteObjectClasses;
     }
 
+    @ConfigurationProperty(order = 62)
+    public boolean getEncodeStringOnNormalizationFailure() {
+        return encodeStringOnNormalizationFailure;
+    }
+    @ConfigurationProperty(order = 62)
+    public void setEncodeStringOnNormalizationFailure(boolean encodeStringOnNormalizationFailure) {
+        this.encodeStringOnNormalizationFailure = encodeStringOnNormalizationFailure;
+    }
+
     @Override
     public void validate() {
         validateNotBlank(host, "host.blank");
@@ -1196,4 +1214,6 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
     public boolean useMultiDomain() {
         return servers != null && servers.length > 0;
     }
+
+
 }
