@@ -158,7 +158,7 @@ public class AdDirSyncStrategy<C extends AbstractLdapConfiguration> extends Sync
                         }
 
                         ConnectorObject targetObject = getSchemaTranslator().toConnIdObject(connection,
-                                icfObjectClassInfo, targetEntry, referenceAttributeHandler);
+                                icfObjectClassInfo, targetEntry, options);
                         deltaBuilder.setObject(targetObject);
                     }
 

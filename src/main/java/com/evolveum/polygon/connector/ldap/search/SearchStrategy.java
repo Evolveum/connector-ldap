@@ -223,7 +223,7 @@ public abstract class SearchStrategy<C extends AbstractLdapConfiguration> {
 
     protected boolean handleResult(Entry entry) {
         numberOfEntriesFound++;
-        return handler.handle(schemaTranslator.toConnIdObject(connection, objectClass, entry, attributeHandler));
+        return handler.handle(schemaTranslator.toConnIdObject(connection, objectClass, entry, attributeHandler, options));
     }
 
     protected void logSearchResult(String type, LdapResult ldapResult) {

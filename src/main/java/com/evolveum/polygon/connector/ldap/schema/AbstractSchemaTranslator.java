@@ -1231,25 +1231,19 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
         }
     }
 
-    public ConnectorObject toConnIdObject(LdapNetworkConnection connection, ObjectClass icfObjectClass, Entry entry, AttributeHandler attributeHandler) {
+    public ConnectorObject toConnIdObject(LdapNetworkConnection connection, ObjectClass icfObjectClass, Entry entry, AttributeHandler attributeHandler, OperationOptions options) {
         ObjectClassInfo icfObjectClassInfo = findObjectClassInfo(icfObjectClass);
         if (icfObjectClassInfo == null) {
             throw new InvalidAttributeValueException("No definition for object class "+icfObjectClass);
         }
-        return toConnIdObject(connection, icfObjectClassInfo, entry, null, attributeHandler);
+        return toConnIdObject(connection, icfObjectClassInfo, entry, null, attributeHandler, options);
+    }
+    public ConnectorObject toConnIdObject(LdapNetworkConnection connection, ObjectClassInfo icfStructuralObjectClassInfo, Entry entry, OperationOptions options) {
+        return toConnIdObject(connection, icfStructuralObjectClassInfo, entry, null, null, options);
     }
 
-    public ConnectorObject toConnIdObject(LdapNetworkConnection connection, ObjectClassInfo icfObjectClass, Entry entry, AttributeHandler attributeHandler) {
-
-        return toConnIdObject(connection, icfObjectClass, entry, null, attributeHandler);
-    }
-
-    public ConnectorObject toConnIdObject(LdapNetworkConnection connection, ObjectClassInfo icfStructuralObjectClassInfo, Entry entry) {
-        return toConnIdObject(connection, icfStructuralObjectClassInfo, entry, null, null);
-    }
-
-    public ConnectorObject toConnIdObject(LdapNetworkConnection connection, ObjectClassInfo icfStructuralObjectClassInfo, Entry entry, String dn) {
-        return toConnIdObject(connection, icfStructuralObjectClassInfo, entry, dn, null);
+    public ConnectorObject toConnIdObject(LdapNetworkConnection connection, ObjectClassInfo icfStructuralObjectClassInfo, Entry entry, String dn, OperationOptions options) {
+        return toConnIdObject(connection, icfStructuralObjectClassInfo, entry, dn, null, options);
     }
 
     // TODO: use version from SchemaUtil
@@ -1262,7 +1256,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
         return null;
     }
 
-    public ConnectorObject toConnIdObject(LdapNetworkConnection connection, ObjectClassInfo connIdStructuralObjectClassInfo, Entry entry, String dn, AttributeHandler attributeHandler) {
+    public ConnectorObject toConnIdObject(LdapNetworkConnection connection, ObjectClassInfo connIdStructuralObjectClassInfo, Entry entry, String dn, AttributeHandler attributeHandler, OperationOptions options) {
         LdapObjectClasses ldapObjectClasses = processObjectClasses(entry);
         if (connIdStructuralObjectClassInfo == null) {
             connIdStructuralObjectClassInfo = connIdSchema.findObjectClassInfo(ldapObjectClasses.getLdapLowestStructuralObjectClass().getName());
@@ -1364,22 +1358,12 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
             if (!ArrayUtils.isEmpty(configuration.getManagedAssociationPairs())) {
                 if (isAssociationAttribute(connIdStructuralObjectClassType, connIdAttributeName)) {
 
-                    if (attributeHandler !=null && (attributeHandler instanceof ReferenceAttributeHandler)) {
-
-                        if(((ReferenceAttributeHandler) attributeHandler).getObjectClass().equals(ObjectClass.ALL)){
-                            ((ReferenceAttributeHandler) attributeHandler).
-                                    setObjectClass(new ObjectClass(connIdStructuralObjectClassType));
-                        }
-
-                        ((ReferenceAttributeHandler) attributeHandler).setConnectorObjectBuilder(cob);
+                    ReferenceAttributeTranslator attrHandler = new ReferenceAttributeTranslator(this, new ObjectClass(connIdStructuralObjectClassType), options);
+                    attrHandler.setConnectorObjectBuilder(cob);
                         saturateConnIdReferences(connIdAttributeName, ldapAttrName,
-                                ldapAttributeType, ldapAttribute, (ReferenceAttributeHandler) attributeHandler);
+                                ldapAttributeType, ldapAttribute, attrHandler);
 
                         continue;
-                    } else {
-
-                        LOG.warn("Reference attribute handler missing in case of association attribute handling");
-                    }
                 }
             }
             if (connIdAttributeInfo == null) {
@@ -1479,7 +1463,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
                                         LdapNetworkConnection connection, Entry entry, AttributeHandler attributeHandler) {
         AttributeBuilder ab = new AttributeBuilder();
         ab.setName(connIdAttributeName);
-        if (attributeHandler != null && !(attributeHandler instanceof ReferenceAttributeHandler)) {
+        if (attributeHandler != null && !(attributeHandler instanceof ReferenceAttributeTranslator)) {
             attributeHandler.handle(connection, entry, ldapAttribute, ab);
         }
         boolean incompleteRead = false;
@@ -1526,7 +1510,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
     private void saturateConnIdReferences(String connIdAttributeName,
                                                      String ldapAttributeNameFromSchema , AttributeType ldapAttributeType,
                                                      org.apache.directory.api.ldap.model.entry.Attribute ldapAttribute,
-                                                     ReferenceAttributeHandler handler) {
+                                                     ReferenceAttributeTranslator handler) {
 
 
         if (ldapAttribute != null) {
@@ -1539,7 +1523,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
                 if (connIdValue != null) {
                     if (shouldValueBeIncluded(connIdValue, ldapAttributeNameFromSchema)) {
 
-                        handler.handle(ldapAttribute);
+                        handler.translate(ldapAttribute);
                     }
                 }
             }

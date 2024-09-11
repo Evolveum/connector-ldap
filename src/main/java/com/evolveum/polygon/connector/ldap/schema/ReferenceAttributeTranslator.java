@@ -2,35 +2,32 @@ package com.evolveum.polygon.connector.ldap.schema;
 
 import com.evolveum.polygon.connector.ldap.*;
 import org.apache.directory.api.ldap.model.entry.Attribute;
-import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.entry.Value;
 import org.apache.directory.api.ldap.model.schema.AttributeType;
-import org.apache.directory.ldap.client.api.LdapNetworkConnection;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.framework.common.objects.*;
 
 import java.util.*;
+public class ReferenceAttributeTranslator {
 
-
-public class ReferenceAttributeHandler implements AttributeHandler {
-
-    private static final Log LOG = Log.getLog(ReferenceAttributeHandler.class);
+    private static final Log LOG = Log.getLog(ReferenceAttributeTranslator.class);
     private ConnectorObjectBuilder connectorObjectBuilder;
     private final AbstractSchemaTranslator translator;
     private ObjectClass objectClass;
     private final OperationOptions options;
 
-    public ReferenceAttributeHandler(AbstractSchemaTranslator translator, ObjectClass objectClass,
-                                     OperationOptions options) {
+
+    public ReferenceAttributeTranslator(AbstractSchemaTranslator translator, ObjectClass objectClass
+            , OperationOptions options) {
 
         this.translator = translator;
         this.objectClass = objectClass;
         this.options = options;
     }
 
-    public void handle(Attribute ldapAttribute) {
 
-        String ldapAttributeName = ldapAttribute.getId();
+    public void translate(Attribute ldapAttribute) {
+     String ldapAttributeName = ldapAttribute.getId();
 
         AttributeType attributeType = ldapAttribute.getAttributeType();
         Iterator<Value> iterator = ldapAttribute.iterator();
@@ -195,12 +192,6 @@ public class ReferenceAttributeHandler implements AttributeHandler {
 
     public void setObjectClass(ObjectClass objectClass) {
         this.objectClass = objectClass;
-    }
-
-    @Override
-    public void handle(LdapNetworkConnection connection, Entry entry, Attribute ldapAttribute, AttributeBuilder ab) {
-
-        handle(ldapAttribute);
     }
 
 }

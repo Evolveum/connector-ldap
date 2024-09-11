@@ -161,7 +161,7 @@ public class ModifyTimestampSyncStrategy<C extends AbstractLdapConfiguration> ex
 
                 deltaBuilder.setDeltaType(deltaType);
                 ConnectorObject targetObject = getSchemaTranslator().toConnIdObject(connection,
-                        icfObjectClassInfo, entry, referenceAttributeHandler);
+                        icfObjectClassInfo, entry, options);
                 deltaBuilder.setObject(targetObject);
 
                 handler.handle(deltaBuilder.build());

@@ -18,11 +18,7 @@ package com.evolveum.polygon.connector.ldap;
 
 import java.util.*;
 
-import com.evolveum.polygon.connector.ldap.ad.AdAttributeHandler;
-import com.evolveum.polygon.connector.ldap.ad.AdLdapConfiguration;
 import com.evolveum.polygon.connector.ldap.schema.AssociationHolder;
-import com.evolveum.polygon.connector.ldap.schema.ReferenceAttributeHandler;
-import com.evolveum.polygon.connector.ldap.search.DefaultSearchStrategy;
 import com.evolveum.polygon.connector.ldap.search.SearchStrategy;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.directory.api.ldap.model.constants.SchemaConstants;
@@ -30,12 +26,9 @@ import org.apache.directory.api.ldap.model.entry.*;
 import org.apache.directory.api.ldap.model.entry.Attribute;
 import org.apache.directory.api.ldap.model.exception.LdapException;
 import org.apache.directory.api.ldap.model.name.Dn;
-import org.apache.directory.api.ldap.model.schema.AttributeType;
 import org.apache.directory.api.ldap.model.schema.SchemaManager;
 import org.identityconnectors.common.logging.Log;
-import org.identityconnectors.framework.common.exceptions.ConnectorException;
 import org.identityconnectors.framework.common.objects.*;
-import org.identityconnectors.framework.spi.Configuration;
 import org.identityconnectors.framework.spi.ConnectorClass;
 
 import com.evolveum.polygon.common.SchemaUtil;
@@ -176,10 +169,10 @@ public class LdapConnector extends AbstractLdapConnector<LdapConfiguration> {
         SearchStrategy<LdapConfiguration> searchStrategy = super.getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
 
         LdapConfiguration configuration = getConfiguration();
-        if (!ArrayUtils.isEmpty(configuration.getManagedAssociationPairs())){
-
-        searchStrategy.setAttributeHandler(new ReferenceAttributeHandler(getSchemaTranslator(), objectClass, options));
-        }
+//        if (!ArrayUtils.isEmpty(configuration.getManagedAssociationPairs())){
+//
+//        searchStrategy.setAttributeHandler(new ReferenceAttributeHandler(getSchemaTranslator(), objectClass, options));
+//        }
         return searchStrategy;
     }
 
@@ -188,10 +181,10 @@ public class LdapConnector extends AbstractLdapConnector<LdapConfiguration> {
                                                                        org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass, ResultsHandler handler, OperationOptions options) {
         SearchStrategy<LdapConfiguration> searchStrategy = super.chooseSearchStrategy(objectClass, ldapObjectClass, handler, options);
 
-        if (!ArrayUtils.isEmpty(getConfiguration().getManagedAssociationPairs())) {
-
-            searchStrategy.setAttributeHandler(new ReferenceAttributeHandler(getSchemaTranslator(), objectClass, options));
-        }
+//        if (!ArrayUtils.isEmpty(getConfiguration().getManagedAssociationPairs())) {
+//
+//            searchStrategy.setAttributeHandler(new ReferenceAttributeHandler(getSchemaTranslator(), objectClass, options));
+//        }
 
         return searchStrategy;
     }

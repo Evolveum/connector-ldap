@@ -611,13 +611,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
             ObjectClass ldapObjectClass, ResultsHandler handler, OperationOptions options) {
         SearchStrategy<AdLdapConfiguration> searchStrategy = super.chooseSearchStrategy(objectClass, ldapObjectClass, handler, options);
 
-        if (!ArrayUtils.isEmpty(getConfiguration().getManagedAssociationPairs())) {
-
-            searchStrategy.setAttributeHandler(new AdAttributeHandler(searchStrategy, getSchemaTranslator(), objectClass, options));
-        } else {
-
             searchStrategy.setAttributeHandler(new AdAttributeHandler(searchStrategy));
-        }
 
         return searchStrategy;
     }

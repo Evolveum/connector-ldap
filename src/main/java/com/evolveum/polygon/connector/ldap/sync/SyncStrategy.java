@@ -20,7 +20,7 @@ import com.evolveum.polygon.connector.ldap.ErrorHandler;
 import com.evolveum.polygon.connector.ldap.LdapUtil;
 import com.evolveum.polygon.connector.ldap.connection.ConnectionManager;
 import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
-import com.evolveum.polygon.connector.ldap.schema.ReferenceAttributeHandler;
+import com.evolveum.polygon.connector.ldap.schema.ReferenceAttributeTranslator;
 import org.apache.directory.api.ldap.model.cursor.CursorException;
 import org.apache.directory.api.ldap.model.cursor.SearchCursor;
 import org.apache.directory.api.ldap.model.entry.Entry;
@@ -53,7 +53,7 @@ public abstract class SyncStrategy<C extends AbstractLdapConfiguration> {
     private final SchemaManager schemaManager;
     private final AbstractSchemaTranslator<C> schemaTranslator;
     private final ErrorHandler errorHandler;
-    protected ReferenceAttributeHandler referenceAttributeHandler = null;
+    protected ReferenceAttributeTranslator referenceAttributeHandler = null;
 
     public SyncStrategy(AbstractLdapConfiguration configuration, ConnectionManager<C> connectionManager,
                         SchemaManager schemaManager, AbstractSchemaTranslator<C> schemaTranslator, ErrorHandler errorHandler) {
@@ -187,9 +187,5 @@ public abstract class SyncStrategy<C extends AbstractLdapConfiguration> {
             LOG.ok("Search for single entry baseDn={0}, scope={1}, filter={2} returned no result", baseDn, scope, filter);
         }
         return entry;
-    }
-
-    public void setReferenceAttributeHandler(ReferenceAttributeHandler referenceAttributeHandler) {
-        this.referenceAttributeHandler = referenceAttributeHandler;
     }
 }
