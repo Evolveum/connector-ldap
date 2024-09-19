@@ -168,11 +168,6 @@ public class LdapConnector extends AbstractLdapConnector<LdapConfiguration> {
                                                                          org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass, ResultsHandler handler, OperationOptions options) {
         SearchStrategy<LdapConfiguration> searchStrategy = super.getDefaultSearchStrategy(objectClass, ldapObjectClass, handler, options);
 
-        LdapConfiguration configuration = getConfiguration();
-//        if (!ArrayUtils.isEmpty(configuration.getManagedAssociationPairs())){
-//
-//        searchStrategy.setAttributeHandler(new ReferenceAttributeHandler(getSchemaTranslator(), objectClass, options));
-//        }
         return searchStrategy;
     }
 

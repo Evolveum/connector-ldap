@@ -856,13 +856,6 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
             ResultsHandler handler, OperationOptions options) {
 
         SearchStrategy<C> searchStrategy = new DefaultSearchStrategy<>(connectionManager, configuration, getSchemaTranslator(), objectClass, ldapObjectClass, handler, getErrorHandler(), connectionLog, options);
-
-//        if (!ArrayUtils.isEmpty(configuration.getManagedAssociationPairs())){
-//
-//            searchStrategy.setAttributeHandler(new ReferenceAttributeHandler(getSchemaTranslator(),
-//                    objectClass, options));
-//        }
-
         return searchStrategy;
     }
 
@@ -1859,14 +1852,6 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
             OperationOptions options) {
         prepareConnIdSchema();
         SyncStrategy<C> strategy = chooseSyncStrategy();
-
-//        if(!ArrayUtils.isEmpty(configuration.getManagedAssociationPairs())){
-//
-//
-//            strategy.setReferenceAttributeHandler(new ReferenceAttributeHandler(schemaTranslator,
-//                    objectClass, options));
-//        }
-
         strategy.sync(objectClass, token, handler, options);
     }
 
