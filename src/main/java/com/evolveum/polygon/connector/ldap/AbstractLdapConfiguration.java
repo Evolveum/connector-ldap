@@ -557,8 +557,15 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
      * sequence of bytes in the "StandardCharsets.UTF_8" charset.
      * EXPERIMENTAL.
      */
-
     private boolean encodeStringOnNormalizationFailure = false;
+
+    /**
+     * The property represents a list of standard object schema attributes which should be set with the schema
+     * flag "NOT_RETURNED_BY_DEFAULT". Such attributes will be by default omitted from ldap search requests. They will
+     * be returned only if they are a part of the operation options "ATTRS_TO_GET" set.
+     */
+    private String[] attributesNotReturnedByDefault;
+    public static final String CONF_PROP_NAME_ATTRS_NOT_RETURNED_BY_DEFAULT = "attributesNotReturnedByDefault";
 
     @ConfigurationProperty(required = true, order = 1)
     public String getHost() {
@@ -1173,6 +1180,14 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.encodeStringOnNormalizationFailure = encodeStringOnNormalizationFailure;
     }
 
+    public void setAttributesNotReturnedByDefault(String[] attributesNotReturnedByDefault){
+        this.attributesNotReturnedByDefault = attributesNotReturnedByDefault;
+    }
+
+    public String[] getAttributesNotReturnedByDefault() {
+        return attributesNotReturnedByDefault;
+    }
+
     @Override
     public void validate() {
         validateNotBlank(host, "host.blank");
@@ -1255,6 +1270,5 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
     public boolean useMultiDomain() {
         return servers != null && servers.length > 0;
     }
-
 
 }

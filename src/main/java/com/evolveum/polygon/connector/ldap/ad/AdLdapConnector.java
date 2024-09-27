@@ -997,6 +997,10 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
     @Override
     protected void addServerSpecificConfigurationSuggestions(Map<String, SuggestedValues> suggestions) {
 
+        suggestions.put(AbstractLdapConfiguration.CONF_PROP_NAME_ATTRS_NOT_RETURNED_BY_DEFAULT,
+                SuggestedValuesBuilder.buildOpen(AD_MEMBERSHIP_ATTRIBUTES.values().
+                        toArray(new String[AD_MEMBERSHIP_ATTRIBUTES.values().size()])));
+
         analyzeReferenceSuggestions(suggestions, getConfiguration());
     }
 
