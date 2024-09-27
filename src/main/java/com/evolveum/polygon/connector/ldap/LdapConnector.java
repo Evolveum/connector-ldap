@@ -86,6 +86,10 @@ public class LdapConnector extends AbstractLdapConnector<LdapConfiguration> {
         suggestions.put(LdapConfiguration.CONF_PROP_NAME_LOCKOUT_STRATEGY,
                 SuggestedValuesBuilder.build(LdapConfiguration.LOCKOUT_STRATEGY_OPENLDAP));
 
+        suggestions.put(AbstractLdapConfiguration.CONF_PROP_NAME_ATTRS_NOT_RETURNED_BY_DEFAULT,
+                SuggestedValuesBuilder.buildOpen(MEMBERSHIP_ATTRIBUTES.values().
+                        toArray(new String[MEMBERSHIP_ATTRIBUTES.values().size()])));
+
         analyzeReferenceSuggestions(getSchemaManager(), getConfiguration(), suggestions);
     }
 
@@ -129,6 +133,9 @@ public class LdapConnector extends AbstractLdapConnector<LdapConfiguration> {
                 SuggestedValuesBuilder.buildOpen(LdapConstants.ATTRIBUTE_IS_MEMBER_OF_NAME,
                         LdapConstants.ATTRIBUTE_OPENDJ_DS_PWP_ACCOUNT_DISABLED_NAME,
                         SchemaConstants.CREATE_TIMESTAMP_AT, SchemaConstants.MODIFY_TIMESTAMP_AT));
+
+        suggestions.put(AbstractLdapConfiguration.CONF_PROP_NAME_ATTRS_NOT_RETURNED_BY_DEFAULT,
+                SuggestedValuesBuilder.buildOpen(MEMBERSHIP_ATTRIBUTES.values()));
 
         analyzeReferenceSuggestions(getSchemaManager(), getConfiguration(), suggestions);
     }

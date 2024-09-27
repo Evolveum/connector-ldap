@@ -85,16 +85,6 @@ public class ReferenceAttributeTranslator {
             }
         }
 
-        if(!isSubject) {
-            String[] attrsToGet = options.getAttributesToGet();
-            if (attrsToGet != null) {
-                String finalReferenceAttributeName = referenceAttributeName;
-                if (!Arrays.stream(attrsToGet).anyMatch(x -> x.equalsIgnoreCase(finalReferenceAttributeName))) {
-                    return;
-                }
-            }
-        }
-
         if (iterator != null) {
 
             while (iterator.hasNext()) {
