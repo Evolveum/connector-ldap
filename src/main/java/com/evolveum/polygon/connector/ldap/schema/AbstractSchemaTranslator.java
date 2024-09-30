@@ -2140,9 +2140,9 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
         }
         String[] connidAttrs = options.getAttributesToGet();
         int extraAttrs = 2;
-        if (options.getReturnDefaultAttributes() != null && options.getReturnDefaultAttributes()) {
-            extraAttrs++;
-        }
+//        if (options.getReturnDefaultAttributes() != null && options.getReturnDefaultAttributes()) {
+//            extraAttrs++;
+//        }
         List<String> ldapAttrs = new ArrayList<String>(connidAttrs.length + operationalAttributes.length + extraAttrs + standardObjectClassAttributes.length);
 
         if (options.getReturnDefaultAttributes() != null && options.getReturnDefaultAttributes()) {
@@ -2185,8 +2185,17 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
                                                       OperationOptions options) {
 
         List<String> attributeNames = new ArrayList<>();
-        ldapObjectClass.getMustAttributeTypes().forEach(a -> attributeNames.add(a.getName()));
-        ldapObjectClass.getMayAttributeTypes().forEach(a -> attributeNames.add(a.getName()));
+
+        appendToStandardObjectClassAttributeList(attributeNames, ldapObjectClass);
+
+//        List<org.apache.directory.api.ldap.model.schema.ObjectClass> superiors = ldapObjectClass.getSuperiors();
+//
+//        if ((superiors != null) && (superiors.size() > 0)) {
+//            for (org.apache.directory.api.ldap.model.schema.ObjectClass superior: superiors) {
+//
+//                appendToStandardObjectClassAttributeList(attributeNames, superior);
+//            }
+//        }
 
         String[] attrsToGet = options.getAttributesToGet();
 
@@ -2229,6 +2238,23 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
         }
 
         return attributeNames.toArray(new String[attributeNames.size()]);
+    }
+
+    private void appendToStandardObjectClassAttributeList(List<String> attributeNamesList, org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
+
+        ldapObjectClass.getMustAttributeTypes().forEach(a -> attributeNamesList.add(a.getName()));
+        ldapObjectClass.getMayAttributeTypes().forEach(a -> attributeNamesList.add(a.getName()));
+
+
+        List<org.apache.directory.api.ldap.model.schema.ObjectClass> superiors = ldapObjectClass.getSuperiors();
+
+        if ((superiors != null) && (superiors.size() > 0)) {
+            for (org.apache.directory.api.ldap.model.schema.ObjectClass superior: superiors) {
+
+                appendToStandardObjectClassAttributeList(attributeNamesList, superior);
+            }
+        }
+
     }
 
     // To be overridden in subclasses.

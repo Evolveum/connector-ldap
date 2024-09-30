@@ -1398,6 +1398,11 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
                             if (!isModificationSuccess) {
                                 throw e;
                             }
+                        } catch (UnknownUidException ei) {
+
+                            throw new InvalidAttributeValueException("Association update attempt failed," +
+                                    " the association Object '" + reDn + "' was not found. The " +
+                                    "original exception message: " + ei.getMessage());
                         }
                     }
                 }
