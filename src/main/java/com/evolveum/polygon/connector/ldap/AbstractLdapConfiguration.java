@@ -1187,17 +1187,28 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
     public boolean getEncodeStringOnNormalizationFailure() {
         return encodeStringOnNormalizationFailure;
     }
-    @ConfigurationProperty(order = 62)
+
     public void setEncodeStringOnNormalizationFailure(boolean encodeStringOnNormalizationFailure) {
         this.encodeStringOnNormalizationFailure = encodeStringOnNormalizationFailure;
+    }
+
+    @ConfigurationProperty(order = 63)
+
+    public String[] getAttributesNotReturnedByDefault() {
+        return attributesNotReturnedByDefault;
     }
 
     public void setAttributesNotReturnedByDefault(String[] attributesNotReturnedByDefault){
         this.attributesNotReturnedByDefault = attributesNotReturnedByDefault;
     }
 
-    public String[] getAttributesNotReturnedByDefault() {
-        return attributesNotReturnedByDefault;
+    @ConfigurationProperty(order = 63)
+    public String[] getAuxiliaryObjectClasses() {
+        return auxiliaryObjectClasses;
+    }
+
+    public void setAuxiliaryObjectClasses(String[] auxiliaryObjectClasses){
+        this.auxiliaryObjectClasses = auxiliaryObjectClasses;
     }
 
     @Override
