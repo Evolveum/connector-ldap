@@ -567,6 +567,18 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
     private String[] attributesNotReturnedByDefault;
     public static final String CONF_PROP_NAME_ATTRS_NOT_RETURNED_BY_DEFAULT = "attributesNotReturnedByDefault";
 
+
+    /**
+     * A list of auxiliary objectClasses which will be used in search request to fetch the proper non-structural
+     * objectClass attributes, this attribute should be used if "Attributes not returned by default" attribute is
+     * being used in the configuration. Value convention is (without the "'")
+     * 'StructuralObjectCLassName:AuxiliaryObjectClassName,AuxiliaryObjectClassName'.
+     * E.g. inetOrgPerson:posixAccount,foo.
+     */
+
+    private String[] auxiliaryObjectClasses;
+    public static final String CONF_PROP_NAME_AUX_OBJECT_CLASSES = "attributesNotReturnedByDefault";
+
     @ConfigurationProperty(required = true, order = 1)
     public String getHost() {
         return host;

@@ -537,6 +537,14 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
         }
     }
 
+    public org.apache.directory.api.ldap.model.schema.ObjectClass toLdapObjectClass(String ldapObjectClassName) {
+        try {
+            return schemaManager.lookupObjectClassRegistry(ldapObjectClassName);
+        } catch (LdapException e) {
+            throw new IllegalArgumentException("Unknown object class "+ldapObjectClassName+": "+e.getMessage(), e);
+        }
+    }
+
     /**
      * Throws exception if the attribute is illegal.
      * Return null if the attribute is legal, but we do not have any definition for it.
@@ -2115,11 +2123,18 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
         String[] operationalAttributes = getOperationalAttributes();
         String[] standardObjectClassAttributes = getStandardObjectClassAttributes(ldapObjectClass, options);
 
+        Boolean isStandardAttributeArrayEmpty = standardObjectClassAttributes.length == 0;
+
         if (options == null || options.getAttributesToGet() == null) {
             String[] ldapAttrs = new String[2 + operationalAttributes.length + additionalAttributes.length +
                     standardObjectClassAttributes.length];
 
-             ldapAttrs[0] = SchemaConstants.OBJECT_CLASS_AT;
+            if (isStandardAttributeArrayEmpty) {
+                ldapAttrs[0] = "*";
+            } else {
+                ldapAttrs[0] = SchemaConstants.OBJECT_CLASS_AT;
+            }
+
              ldapAttrs[1] = getUidAttribute();
             int i = 2;
             for (String operationalAttribute: operationalAttributes) {
@@ -2140,15 +2155,24 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
         }
         String[] connidAttrs = options.getAttributesToGet();
         int extraAttrs = 2;
-//        if (options.getReturnDefaultAttributes() != null && options.getReturnDefaultAttributes()) {
-//            extraAttrs++;
-//        }
-        List<String> ldapAttrs = new ArrayList<String>(connidAttrs.length + operationalAttributes.length + extraAttrs + standardObjectClassAttributes.length);
+
+        if (isStandardAttributeArrayEmpty) {
+            if (options.getReturnDefaultAttributes() != null && options.getReturnDefaultAttributes()) {
+                extraAttrs++;
+            }
+        }
+
+        List<String> ldapAttrs = new ArrayList<String>(connidAttrs.length + operationalAttributes.length +
+                extraAttrs + standardObjectClassAttributes.length);
 
         if (options.getReturnDefaultAttributes() != null && options.getReturnDefaultAttributes()) {
 
-            for (String standardAttr: standardObjectClassAttributes) {
-                ldapAttrs.add(standardAttr);
+            if (isStandardAttributeArrayEmpty) {
+                ldapAttrs.add("*");
+            } else {
+                for (String standardAttr : standardObjectClassAttributes) {
+                    ldapAttrs.add(standardAttr);
+                }
             }
         }
         for (String connidAttr: connidAttrs) {
@@ -2186,22 +2210,17 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 
         List<String> attributeNames = new ArrayList<>();
 
-        appendToStandardObjectClassAttributeList(attributeNames, ldapObjectClass);
-
-//        List<org.apache.directory.api.ldap.model.schema.ObjectClass> superiors = ldapObjectClass.getSuperiors();
-//
-//        if ((superiors != null) && (superiors.size() > 0)) {
-//            for (org.apache.directory.api.ldap.model.schema.ObjectClass superior: superiors) {
-//
-//                appendToStandardObjectClassAttributeList(attributeNames, superior);
-//            }
-//        }
-
         String[] attrsToGet = options.getAttributesToGet();
+        String[] attributesNotReturnedByDefault = getConfiguration().getAttributesNotReturnedByDefault();
 
-        String[] attributesNotReturnedByDefault = configuration.getAttributesNotReturnedByDefault();
+        if (!ArrayUtils.isEmpty(attributesNotReturnedByDefault)) {
 
-        if (attributesNotReturnedByDefault != null && attributesNotReturnedByDefault.length != 0) {
+            if (attributeNames.isEmpty()) {
+
+                appendToStandardObjectClassAttributeList(attributeNames, ldapObjectClass);
+                getAuxiliaryObjectClassAttributes(attributeNames, ldapObjectClass);
+            }
+
             Iterator<String> attrNameIterator = attributeNames.iterator();
 
             while (attrNameIterator.hasNext()) {
@@ -2209,35 +2228,77 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 
                 if (Arrays.stream(attributesNotReturnedByDefault).anyMatch(a -> a.equals(attrName))) {
                     if (attrsToGet == null || attrsToGet != null &&
-                            !Arrays.stream(attrsToGet).anyMatch(x -> x.equalsIgnoreCase(LdapConstants.ATTR_SCHEMA_OBJECT))) {
+                            !Arrays.stream(attrsToGet).anyMatch(x -> x.equalsIgnoreCase(attrName))) {
                         attrNameIterator.remove();
                     }
                 }
             }
         }
 
-        if (attrsToGet == null || attrsToGet != null &&
-                !Arrays.stream(attrsToGet).anyMatch(x -> x.equalsIgnoreCase(LdapConstants.ATTR_SCHEMA_OBJECT))) {
-
-            if (!ArrayUtils.isEmpty(getConfiguration().getManagedAssociationPairs())) {
-
+        if (!ArrayUtils.isEmpty(getConfiguration().getManagedAssociationPairs())) {
+            if (attrsToGet == null || attrsToGet != null &&
+                    !Arrays.stream(attrsToGet).anyMatch(x -> x.equalsIgnoreCase(LdapConstants.ATTR_SCHEMA_OBJECT))) {
                 String objectClassName = ldapObjectClass.getName();
                 if (getObjectAssociationSets().containsKey(objectClassName)) {
-
                     Set<AssociationHolder> associationHolders = getObjectAssociationSets().get(objectClassName);
                     for (AssociationHolder holder : associationHolders) {
-                        String associationAttrName = holder.getAssociationAttributeName();
 
-                        if (attributeNames.contains(associationAttrName)) {
+                        if (LdapConstants.ATTR_SCHEMA_OBJECT.equalsIgnoreCase(holder.getName())) {
 
-                            attributeNames.remove(associationAttrName);
+                            if (attributeNames.isEmpty()) {
+                                appendToStandardObjectClassAttributeList(attributeNames, ldapObjectClass);
+                                getAuxiliaryObjectClassAttributes(attributeNames, ldapObjectClass);
+                            }
+
+                            String associationAttrName = holder.getAssociationAttributeName();
+                            if (attributeNames.contains(associationAttrName)) {
+
+                                attributeNames.remove(associationAttrName);
+                            }
                         }
                     }
                 }
             }
         }
-
         return attributeNames.toArray(new String[attributeNames.size()]);
+    }
+
+    private void getAuxiliaryObjectClassAttributes(List<String> attributeNames,
+                                                   org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
+
+
+        String[] auxiliaryObjectClasses = getConfiguration().getAuxiliaryObjectClasses();
+
+        if (ArrayUtils.isEmpty(auxiliaryObjectClasses)) {
+
+            return;
+        }
+
+        for (String structuralAndAuxObjectClass : auxiliaryObjectClasses) {
+
+            String[] structuralAndAuxArray = structuralAndAuxObjectClass.split(":");
+
+            if (structuralAndAuxArray.length == 2) {
+
+                String structuralObjectClassName = structuralAndAuxArray[0].trim();
+
+                if (ldapObjectClass.getName().equalsIgnoreCase(structuralObjectClassName)) {
+
+                    String[] auxiliaryObjectClassNames = structuralAndAuxArray[1].split(";");
+
+                    for (String auxiliaryObjectClassName : auxiliaryObjectClassNames) {
+
+                        appendToStandardObjectClassAttributeList(attributeNames,
+                                toLdapObjectClass(auxiliaryObjectClassName));
+                    }
+                }
+
+            } else {
+
+                throw new ConfigurationException("Invalid value in Auxiliary object classes configuration property: " +
+                        "" + structuralAndAuxObjectClass + ". Please follow the value convention e.g. inetOrgPerson:posixAccount,foo");
+            }
+        }
     }
 
     private void appendToStandardObjectClassAttributeList(List<String> attributeNamesList, org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
