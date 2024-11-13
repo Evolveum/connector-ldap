@@ -98,6 +98,15 @@
                 <configuration>
                     <argLine>${surefire.args}</argLine>
                 </configuration>
+                <!-- surefire-testng dependency needed until common-parent is updated to 1.5.3.0-SNAPSHOT at least -->
+                <!-- reason: maven by default uses junit platform therefore all testng tests are skipped silently -->
+                <dependencies>
+                    <dependency>
+                        <groupId>org.apache.maven.surefire</groupId>
+                        <artifactId>surefire-testng</artifactId>
+                        <version>3.5.1</version>
+                    </dependency>
+                </dependencies>
             </plugin>
         </plugins>
     </build>
