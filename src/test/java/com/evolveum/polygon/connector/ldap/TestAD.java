@@ -68,7 +68,7 @@ public class TestAD {
         AssertJUnit.assertNotNull(oci);
 
         AttributeInfo lastLoginTimestamp = oci.getAttributeInfo().stream()
-                .filter(ai -> ai.getName().equalsIgnoreCase(AdConstants.ATTRIBUTE_LAST_LOGON_TIMESTAMP))
+                .filter(ai -> ai.getName().equalsIgnoreCase(AdLdapConfiguration.LAST_LOGIN_DATE_ATTRIBUTE_LAST_LOGON_TIMESTAMP))
                 .findFirst()
                 .orElse(null);
         AssertJUnit.assertNull(lastLoginTimestamp);

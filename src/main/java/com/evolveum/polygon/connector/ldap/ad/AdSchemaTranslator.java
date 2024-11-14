@@ -44,7 +44,6 @@ import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
 
 import static com.evolveum.polygon.connector.ldap.LdapConstants.*;
 import static com.evolveum.polygon.connector.ldap.ad.AdConstants.AD_MEMBERSHIP_ATTRIBUTES;
-import static com.evolveum.polygon.connector.ldap.ad.AdConstants.ATTRIBUTE_LAST_LOGON_TIMESTAMP;
 
 
 /**

@@ -50,21 +50,12 @@ public class AdConstants {
     public static final String ATTRIBUTE_SYSTEM_MUST_CONTAIN_NAME = "systemMustContain";
     public static final String ATTRIBUTE_MAY_CONTAIN_NAME = "mayContain";
     public static final String ATTRIBUTE_SYSTEM_MAY_CONTAIN_NAME = "systemMayContain";
-    /**
-     * It is important to note that the intended purpose of the lastLogonTimestamp attribute to help identify
-     * inactive computer and user accounts. The lastLogon attribute is not designed to provide real time logon
-     * information. With default settings in place the lastLogonTimestamp will be 9-14 days behind the current date.
-     *
-     * https://learn.microsoft.com/en-us/archive/blogs/askds/the-lastlogontimestamp-attribute-what-it-was-designed-for-and-how-it-works
-     */
-    public static final String ATTRIBUTE_LAST_LOGON_TIMESTAMP = "lastLogonTimestamp";
 
     public static final String ATTRIBUTE_SYSTEM_POSS_SUPERIORS_NAME = "systemPossSuperiors";
     public static final String ATTRIBUTE_SYSTEM_ONLY_NAME = "systemOnly";
     public static final String ATTRIBUTE_SUB_CLASS_OF_NAME = "subClassOf";
     public static final String ATTRIBUTE_AUXILIARY_CLASS_NAME = "auxiliaryClass";
     public static final String ATTRIBUTE_DEFAULT_OBJECT_CATEGORY_NAME = "defaultObjectCategory";
-
 
     public static final String OBJECT_CLASS_CLASS_SCHEMA = "classSchema";
     public static final String OBJECT_CLASS_ATTRIBUTE_SCHEMA = "attributeSchema";
