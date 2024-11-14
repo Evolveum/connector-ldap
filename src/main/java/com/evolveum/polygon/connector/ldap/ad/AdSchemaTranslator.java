@@ -16,14 +16,12 @@
 package com.evolveum.polygon.connector.ldap.ad;
 
 import java.io.UnsupportedEncodingException;
-import java.nio.charset.StandardCharsets;
-import java.util.Collections;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
 import org.apache.commons.lang3.ArrayUtils;
-import org.apache.directory.api.ldap.model.constants.SchemaConstants;
 import org.apache.directory.api.ldap.model.entry.Attribute;
 import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.entry.Value;
@@ -34,12 +32,7 @@ import org.apache.directory.api.ldap.model.schema.SchemaManager;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException;
-import org.identityconnectors.framework.common.objects.AttributeInfoBuilder;
-import org.identityconnectors.framework.common.objects.ConnectorObject;
-import org.identityconnectors.framework.common.objects.ConnectorObjectBuilder;
-import org.identityconnectors.framework.common.objects.ObjectClass;
-import org.identityconnectors.framework.common.objects.ObjectClassInfoBuilder;
-import org.identityconnectors.framework.common.objects.OperationalAttributes;
+import org.identityconnectors.framework.common.objects.*;
 
 import com.evolveum.polygon.connector.ldap.LdapConstants;
 import com.evolveum.polygon.connector.ldap.LdapUtil;
@@ -51,6 +44,7 @@ import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
 
 import static com.evolveum.polygon.connector.ldap.LdapConstants.*;
 import static com.evolveum.polygon.connector.ldap.ad.AdConstants.AD_MEMBERSHIP_ATTRIBUTES;
+import static com.evolveum.polygon.connector.ldap.ad.AdConstants.ATTRIBUTE_LAST_LOGON_TIMESTAMP;
 
 
 /**
@@ -173,10 +167,28 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
         }
     }
 
+    /**
+     * @param ldapValue containing AD interval value (100-nanosecond intervals since 1601-01-01)
+     * @return {@link java.time.ZonedDateTime}, long or {@link String} based on {@link AdLdapConfiguration#getTimestampPresentation()}
+     */
+    private Object toConnIdTimestampValue(Value ldapValue) {
+        String value = ldapValue.getString();
+        return switch (getConfiguration().getTimestampPresentation()) {
+            case AbstractLdapConfiguration.TIMESTAMP_PRESENTATION_NATIVE -> LdapUtil.windowsTimeToZonedDateTime(value);
+            case AbstractLdapConfiguration.TIMESTAMP_PRESENTATION_UNIX_EPOCH ->
+                    LdapUtil.windowsTimeToZonedDateTime(value).toInstant().toEpochMilli();
+            case AbstractLdapConfiguration.TIMESTAMP_PRESENTATION_STRING -> ldapValue.getString();
+            default -> throw new IllegalArgumentException(
+                    "Unknown value of timestampPresentation: " + getConfiguration().getTimestampPresentation());
+        };
+    }
+
     @Override
     protected Object toConnIdValue(String connIdAttributeName, Value ldapValue, String ldapAttributeName, AttributeType ldapAttributeType) {
         if (AdConstants.ATTRIBUTE_OBJECT_SID_NAME.equals(ldapAttributeName)) {
             return sidToString(ldapValue.getBytes());
+        } else if (PredefinedAttributeInfos.LAST_LOGIN_DATE.is(connIdAttributeName)) {
+            return toConnIdTimestampValue(ldapValue);
         } else {
             return super.toConnIdValue(connIdAttributeName, ldapValue, ldapAttributeName, ldapAttributeType);
         }
@@ -558,4 +570,8 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
         return true;
     }
 
+    @Override
+    public String getLastLoginDateAttributeName() {
+        return getConfiguration().getLastLoginDateAttribute();
+    }
 }

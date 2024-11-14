@@ -171,6 +171,12 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
      */
     private boolean sendDirSyncSecurityFlag;
 
+    private static final String LAST_LOGIN_DATE_ATTRIBUTE_LAST_LOGON = "lastLogon";
+
+    private static final String LAST_LOGIN_DATE_ATTRIBUTE_LAST_LOGON_TIMESTAMP = "lastLogonTimestamp";
+
+    private String lastLoginDateAttribute = LAST_LOGIN_DATE_ATTRIBUTE_LAST_LOGON_TIMESTAMP;
+
     public AdLdapConfiguration(){
 
         groupObjectClasses = new String[]{groupObjectClass};
@@ -320,6 +326,15 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
         this.sendDirSyncSecurityFlag = setDirSyncSecurityFlag;
     }
 
+    @ConfigurationProperty(order = 116, allowedValues = { LAST_LOGIN_DATE_ATTRIBUTE_LAST_LOGON, LAST_LOGIN_DATE_ATTRIBUTE_LAST_LOGON_TIMESTAMP })
+    public String getLastLoginDateAttribute() {
+        return lastLoginDateAttribute;
+    }
+
+    public void setLastLoginDateAttribute(String lastLoginDateAttribute) {
+        this.lastLoginDateAttribute = lastLoginDateAttribute;
+    }
+
     @Override
     public void recompute() {
         if (getPasswordAttribute() == null) {
@@ -354,6 +369,4 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
         }
         super.recompute();
     }
-
-
 }

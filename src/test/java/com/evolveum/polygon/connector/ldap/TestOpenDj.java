@@ -134,12 +134,12 @@ public class TestOpenDj extends AbstractOpenDjTest {
         APIConfiguration apiConfiguration = TestHelpers.createTestConfiguration(LdapConnector.class, createMinimalConnectorConfiguration());
         ConnectorFacade minimalConnectorFacade = factory.newInstance(apiConfiguration);
 
-        // Nothing to assert here, just make sure it does not throws an exception
+        // Nothing to assert here, just make sure it does not throw an exception
         minimalConnectorFacade.testPartialConfiguration();
 
         Map<String, SuggestedValues> suggestions = minimalConnectorFacade.discoverConfiguration();
         System.out.println("Discovered LDAP configuration: " + suggestions);
-        assertEquals("Unexpected number of suggestions", 3, suggestions.size());
+        assertEquals("Unexpected number of suggestions", 5, suggestions.size());
 
         assertEquals("Unexpected number of base context suggestions", 1, suggestions.get(AbstractLdapConfiguration.CONF_PROP_NAME_BASE_CONTEXT).getValues().size());
         assertEquals("Unexpected base context suggestion", "dc=example,dc=com", suggestions.get(AbstractLdapConfiguration.CONF_PROP_NAME_BASE_CONTEXT).getValues().get(0));

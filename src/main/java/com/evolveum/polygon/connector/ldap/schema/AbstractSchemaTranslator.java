@@ -233,15 +233,14 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
         // AUXILIARY_OBJECT_CLASS
         attrInfoList.put(PredefinedAttributeInfos.AUXILIARY_OBJECT_CLASS.getName(), PredefinedAttributeInfos.AUXILIARY_OBJECT_CLASS);
 
-        if(areAssociationsManaged){
-
+        if (areAssociationsManaged) {
             addReferences(attrInfoList, ldapObjectClass);
         }
         addAttributeTypesFromLdapSchema(attrInfoList, ldapObjectClass);
         addExtraOperationalAttributes(attrInfoList);
 
-        if(areAssociationsManaged){
-        scrapeOriginalMembershipAttrs(attrInfoList);
+        if (areAssociationsManaged) {
+            scrapeOriginalMembershipAttrs(attrInfoList);
         }
     }
 
@@ -495,7 +494,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
                     aib.setReadable(false);
                     break;
                 default:
-                    throw new ConfigurationException("Unknown passoword read strategy "+configuration.getPasswordReadStrategy());
+                    throw new ConfigurationException("Unknown password read strategy " + configuration.getPasswordReadStrategy());
             }
         } else {
             aib.setReadable(true);
@@ -525,7 +524,14 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
         if (ldapAttributeName.equalsIgnoreCase(configuration.getPasswordAttribute())) {
             return OperationalAttributeInfos.PASSWORD.getName();
         }
+        if (getLastLoginDateAttributeName() != null && ldapAttributeName.equalsIgnoreCase(getLastLoginDateAttributeName())) {
+            return PredefinedAttributes.LAST_LOGIN_DATE_NAME;
+        }
         return ldapAttributeName;
+    }
+
+    public String getLastLoginDateAttributeName() {
+        return null;
     }
 
     public org.apache.directory.api.ldap.model.schema.ObjectClass toLdapObjectClass(ObjectClass icfObjectClass) {
@@ -558,6 +564,8 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
             ldapAttributeName = configuration.getUidAttribute();
         } else if (OperationalAttributeInfos.PASSWORD.is(connIdAttributeName)) {
             ldapAttributeName = configuration.getPasswordAttribute();
+        } else if (getLastLoginDateAttributeName() != null && PredefinedAttributeInfos.LAST_LOGIN_DATE.is(connIdAttributeName)) {
+            ldapAttributeName = getLastLoginDateAttributeName();
         } else {
             ldapAttributeName = connIdAttributeName;
         }
@@ -621,9 +629,31 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
         return mutableLdapAttributeType;
     }
 
+    private Class<?> getTimestampPresentationType() {
+        Class<?> type;
+        switch (getConfiguration().getTimestampPresentation()) {
+            case AbstractLdapConfiguration.TIMESTAMP_PRESENTATION_NATIVE:
+                type = ZonedDateTime.class;
+                break;
+            case AbstractLdapConfiguration.TIMESTAMP_PRESENTATION_UNIX_EPOCH:
+                type = long.class;
+                break;
+            case AbstractLdapConfiguration.TIMESTAMP_PRESENTATION_STRING:
+                type = String.class;
+                break;
+            default:
+                throw new IllegalArgumentException("Unknown value of timestampPresentation: "+getConfiguration().getTimestampPresentation());
+        }
+
+        return type;
+    }
+
     public Class<?> toConnIdType(LdapSyntax syntax, String connIdAttributeName) {
         if (OperationalAttributeInfos.PASSWORD.is(connIdAttributeName)) {
             return GuardedString.class;
+        }
+        if (PredefinedAttributeInfos.LAST_LOGIN_DATE.is(connIdAttributeName)) {
+            return getTimestampPresentationType();
         }
         if (syntax == null) {
             // We may be in a quirks mode. Server schema may not be consistent (e.g. 389ds schema).
@@ -636,19 +666,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
         if (typeSubtype != null) {
             type = typeSubtype.type;
             if (type == ZonedDateTime.class) {
-                switch (getConfiguration().getTimestampPresentation()) {
-                    case AbstractLdapConfiguration.TIMESTAMP_PRESENTATION_NATIVE:
-                        type = ZonedDateTime.class;
-                        break;
-                    case AbstractLdapConfiguration.TIMESTAMP_PRESENTATION_UNIX_EPOCH:
-                        type = long.class;
-                        break;
-                    case AbstractLdapConfiguration.TIMESTAMP_PRESENTATION_STRING:
-                        type = String.class;
-                        break;
-                    default:
-                        throw new IllegalArgumentException("Unknown value of timestampPresentation: "+getConfiguration().getTimestampPresentation());
-                }
+                type = getTimestampPresentationType();
             }
         }
 
@@ -760,27 +778,54 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
         if (isTimeSyntax(syntaxOid)) {
             if (connIdAttributeValue instanceof Long) {
                 try {
-                    return new Value(ldapAttributeType, LdapUtil.toGeneralizedTime((Long)connIdAttributeValue, acceptsFractionalGeneralizedTime()));
+                    return new Value(ldapAttributeType, LdapUtil.toGeneralizedTime((Long) connIdAttributeValue, acceptsFractionalGeneralizedTime()));
                 } catch (LdapInvalidAttributeValueException e) {
-                    throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
-                        +"; attributeType="+ldapAttributeType, e);
+                    throw new IllegalArgumentException("Invalid value for attribute " + ldapAttributeType.getName() + ": " + e.getMessage()
+                            + "; attributeType=" + ldapAttributeType, e);
                 }
             } else if (connIdAttributeValue instanceof ZonedDateTime) {
                 try {
-                    return new Value(ldapAttributeType, LdapUtil.toGeneralizedTime((ZonedDateTime)connIdAttributeValue, acceptsFractionalGeneralizedTime()));
+                    return new Value(ldapAttributeType, LdapUtil.toGeneralizedTime((ZonedDateTime) connIdAttributeValue, acceptsFractionalGeneralizedTime()));
                 } catch (LdapInvalidAttributeValueException e) {
-                    throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
-                        +"; attributeType="+ldapAttributeType, e);
+                    throw new IllegalArgumentException("Invalid value for attribute " + ldapAttributeType.getName() + ": " + e.getMessage()
+                            + "; attributeType=" + ldapAttributeType, e);
                 }
             } else if (connIdAttributeValue instanceof String) {
                 try {
-                        return new Value(ldapAttributeType, connIdAttributeValue.toString());
-                    } catch (LdapInvalidAttributeValueException e) {
-                        throw new IllegalArgumentException("Invalid value for attribute "+ldapAttributeType.getName()+": "+e.getMessage()
-                                +"; attributeType="+ldapAttributeType, e);
-                    }
+                    return new Value(ldapAttributeType, connIdAttributeValue.toString());
+                } catch (LdapInvalidAttributeValueException e) {
+                    throw new IllegalArgumentException("Invalid value for attribute " + ldapAttributeType.getName() + ": " + e.getMessage()
+                            + "; attributeType=" + ldapAttributeType, e);
+                }
             } else {
-                throw new InvalidAttributeValueException("Wrong type for attribute "+ldapAttributeType+": "+connIdAttributeValue.getClass());
+                throw new InvalidAttributeValueException("Wrong type for attribute " + ldapAttributeType + ": " + connIdAttributeValue.getClass());
+            }
+        } else if (getLastLoginDateAttributeName() != null && ldapAttributeType.getName().equals(getLastLoginDateAttributeName())) {
+            if (connIdAttributeValue instanceof Long l) {
+                try {
+                    return new Value(ldapAttributeType, LdapUtil.toWindowsTime(l));
+                } catch (LdapInvalidAttributeValueException e) {
+                    throw new IllegalArgumentException(
+                            "Invalid value for attribute " + ldapAttributeType.getName() + ": " + e.getMessage()
+                            + "; attributeType=" + ldapAttributeType, e);
+                }
+            } else if (connIdAttributeValue instanceof ZonedDateTime zdt) {
+                try {
+                    return new Value(ldapAttributeType, LdapUtil.toWindowsTime(zdt));
+                } catch (LdapInvalidAttributeValueException e) {
+                    throw new IllegalArgumentException(
+                            "Invalid value for attribute " + ldapAttributeType.getName() + ": " + e.getMessage()
+                            + "; attributeType=" + ldapAttributeType, e);
+                }
+            } else if (connIdAttributeValue instanceof String str) {
+                try {
+                    return new Value(ldapAttributeType, str);
+                } catch (LdapInvalidAttributeValueException e) {
+                    throw new IllegalArgumentException("Invalid value for attribute " + ldapAttributeType.getName() + ": " + e.getMessage()
+                            + "; attributeType=" + ldapAttributeType, e);
+                }
+            } else {
+                throw new InvalidAttributeValueException("Wrong type for attribute " + ldapAttributeType + ": " + connIdAttributeValue.getClass());
             }
         } else if (connIdAttributeValue instanceof Boolean) {
             LOG.ok("Converting to LDAP: {0} ({1}): boolean", ldapAttributeType.getName(), syntaxOid);
@@ -1494,7 +1539,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
                 case AbstractLdapConfiguration.PASSWORD_READ_STRATEGY_UNREADABLE:
                     return null;
                 default:
-                    throw new ConfigurationException("Unknown passoword read strategy "+configuration.getPasswordReadStrategy());
+                    throw new ConfigurationException("Unknown password read strategy " + configuration.getPasswordReadStrategy());
             }
         }
         Iterator<Value> iterator = ldapAttribute.iterator();

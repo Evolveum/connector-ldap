@@ -17,12 +17,13 @@ package com.evolveum.polygon.connector.ldap;
 
 import java.io.IOException;
 import java.text.ParseException;
+import java.time.Instant;
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.*;
 
 import org.apache.directory.api.ldap.extras.controls.vlv.VirtualListViewRequest;
 import org.apache.directory.api.ldap.model.constants.SchemaConstants;
-import org.apache.directory.api.ldap.model.cursor.CursorException;
 import org.apache.directory.api.ldap.model.cursor.EntryCursor;
 import org.apache.directory.api.ldap.model.cursor.SearchCursor;
 import org.apache.directory.api.ldap.model.entry.Attribute;
@@ -38,11 +39,6 @@ import org.apache.directory.api.ldap.model.filter.FilterParser;
 import org.apache.directory.api.ldap.model.filter.PresenceNode;
 import org.apache.directory.api.ldap.model.message.Control;
 import org.apache.directory.api.ldap.model.message.LdapResult;
-import org.apache.directory.api.ldap.model.message.Response;
-import org.apache.directory.api.ldap.model.message.SearchRequest;
-import org.apache.directory.api.ldap.model.message.SearchRequestImpl;
-import org.apache.directory.api.ldap.model.message.SearchResultEntry;
-import org.apache.directory.api.ldap.model.message.SearchScope;
 import org.apache.directory.api.ldap.model.message.controls.PagedResults;
 import org.apache.directory.api.ldap.model.message.controls.SortKey;
 import org.apache.directory.api.ldap.model.message.controls.SortRequest;
@@ -55,10 +51,7 @@ import org.apache.directory.ldap.client.api.LdapConnectionConfig;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
-import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
 import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException;
-import org.identityconnectors.framework.common.objects.Name;
-import org.identityconnectors.framework.common.objects.OperationOptions;
 import org.identityconnectors.framework.common.objects.Uid;
 
 import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
@@ -70,7 +63,10 @@ import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
 public class LdapUtil {
 
     private static final Log LOG = Log.getLog(LdapUtil.class);
+
     private static final Random rnd = new Random();
+
+    private static final long WINDOWS_EPOCH_OFFSET = 116444736000000000L;
 
     public static boolean isDnAttribute(String attributeName) {
         return LdapConfiguration.PSEUDO_ATTRIBUTE_DN_NAME.equals(attributeName);
@@ -163,6 +159,33 @@ public class LdapUtil {
         return gcal.toZonedDateTime();
     }
 
+    /**
+     * @param windowsTime This value is stored as a large integer that represents the number of 100-nanosecond
+     *                    intervals since January 1, 1601 (UTC).
+     * @return zone date time in UTC
+     */
+    public static ZonedDateTime windowsTimeToZonedDateTime(String windowsTime) {
+        long windowsTimeLong = Long.parseLong(windowsTime);
+        long unixTimestamp = (windowsTimeLong - WINDOWS_EPOCH_OFFSET) / 10000;
+        return Instant.ofEpochMilli(unixTimestamp).atZone(ZoneId.of("UTC"));
+    }
+
+    /**
+     * @param millis
+     * @return large integer that represents the number of 100-nanosecond intervals since January 1, 1601 (UTC).
+     */
+    public static String toWindowsTime(long millis) {
+        long windowsTimeLong = millis * 10000 + WINDOWS_EPOCH_OFFSET;
+        return Long.toString(windowsTimeLong);
+    }
+
+    /**
+     * @see #toWindowsTime(long)
+     */
+    public static String toWindowsTime(ZonedDateTime zdt) {
+        long millis = zdt.toInstant().toEpochMilli();
+        return toWindowsTime(millis);
+    }
 
     public static Boolean toBoolean(String stringVal, Boolean defaultVal) {
         if (stringVal == null) {

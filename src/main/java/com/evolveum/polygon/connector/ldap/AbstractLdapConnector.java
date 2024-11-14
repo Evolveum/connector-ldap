@@ -901,11 +901,10 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
         }
         entry.put("objectClass", ldapObjectClassNames);
 
-        Boolean areAssociationsManaged = !ArrayUtils.isEmpty(configuration.getManagedAssociationPairs());
+        boolean areAssociationsManaged = !ArrayUtils.isEmpty(configuration.getManagedAssociationPairs());
         Map<String, AssociationHolder> associationAttributeNames = null;
 
-        if(areAssociationsManaged){
-
+        if (areAssociationsManaged) {
             associationAttributeNames = getAssociationAttributeNames(connIdObjectClass);
         }
 
@@ -917,7 +916,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
                 continue;
             }
 
-            if (areAssociationsManaged && associationAttributeNames!=null) {
+            if (areAssociationsManaged && associationAttributeNames != null) {
                 String connIdAttrName = connIdAttr.getName();
                 if (associationAttributeNames.keySet().stream().anyMatch(connIdAttrName::equalsIgnoreCase)) {
                     AssociationHolder holder = associationAttributeNames.get(connIdAttrName);
