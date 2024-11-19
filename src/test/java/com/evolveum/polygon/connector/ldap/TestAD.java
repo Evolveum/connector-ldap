@@ -1,6 +1,5 @@
 package com.evolveum.polygon.connector.ldap;
 
-import com.evolveum.polygon.connector.ldap.ad.AdConstants;
 import com.evolveum.polygon.connector.ldap.ad.AdLdapConfiguration;
 import com.evolveum.polygon.connector.ldap.ad.AdLdapConnector;
 import org.identityconnectors.common.security.GuardedString;
@@ -158,8 +157,6 @@ public class TestAD {
      */
     @Test(enabled = false)
     public void test200UpdateAccount() throws Exception {
-        ZonedDateTime lastLoginDate = ZonedDateTime.now();
-
         ConnectorObject object = createAccount(null);
 
         ZonedDateTime newLastLoginDate = ZonedDateTime.now().minusYears(10);

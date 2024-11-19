@@ -524,14 +524,10 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
         if (ldapAttributeName.equalsIgnoreCase(configuration.getPasswordAttribute())) {
             return OperationalAttributeInfos.PASSWORD.getName();
         }
-        if (getLastLoginDateAttributeName() != null && ldapAttributeName.equalsIgnoreCase(getLastLoginDateAttributeName())) {
+        if (ldapAttributeName.equalsIgnoreCase(configuration.getLastLoginDateAttribute())) {
             return PredefinedAttributes.LAST_LOGIN_DATE_NAME;
         }
         return ldapAttributeName;
-    }
-
-    public String getLastLoginDateAttributeName() {
-        return null;
     }
 
     public org.apache.directory.api.ldap.model.schema.ObjectClass toLdapObjectClass(ObjectClass icfObjectClass) {
@@ -564,8 +560,8 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
             ldapAttributeName = configuration.getUidAttribute();
         } else if (OperationalAttributeInfos.PASSWORD.is(connIdAttributeName)) {
             ldapAttributeName = configuration.getPasswordAttribute();
-        } else if (getLastLoginDateAttributeName() != null && PredefinedAttributeInfos.LAST_LOGIN_DATE.is(connIdAttributeName)) {
-            ldapAttributeName = getLastLoginDateAttributeName();
+        } else if (PredefinedAttributeInfos.LAST_LOGIN_DATE.is(connIdAttributeName)) {
+            ldapAttributeName = configuration.getLastLoginDateAttribute();
         } else {
             ldapAttributeName = connIdAttributeName;
         }
@@ -800,7 +796,8 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
             } else {
                 throw new InvalidAttributeValueException("Wrong type for attribute " + ldapAttributeType + ": " + connIdAttributeValue.getClass());
             }
-        } else if (getLastLoginDateAttributeName() != null && ldapAttributeType.getName().equals(getLastLoginDateAttributeName())) {
+        } else if (configuration.getLastLoginDateAttribute() != null
+                && ldapAttributeType.getName().equals(configuration.getLastLoginDateAttribute())) {
             if (connIdAttributeValue instanceof Long l) {
                 try {
                     return new Value(ldapAttributeType, LdapUtil.toWindowsTime(l));

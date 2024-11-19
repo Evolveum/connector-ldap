@@ -579,6 +579,12 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
     private String[] auxiliaryObjectClasses;
     public static final String CONF_PROP_NAME_AUX_OBJECT_CLASSES = "attributesNotReturnedByDefault";
 
+    /**
+     * The property is used to set the attribute which will be used to determine the last login date of the user.
+     */
+    private String lastLoginDateAttribute;
+    public static final String CONF_PROP_NAME_LAST_LOGIN_DATE_ATTRIBUTE = "lastLoginDateAttribute";
+
     @ConfigurationProperty(required = true, order = 1)
     public String getHost() {
         return host;
@@ -1193,7 +1199,6 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
     }
 
     @ConfigurationProperty(order = 63)
-
     public String[] getAttributesNotReturnedByDefault() {
         return attributesNotReturnedByDefault;
     }
@@ -1209,6 +1214,15 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 
     public void setAuxiliaryObjectClasses(String[] auxiliaryObjectClasses){
         this.auxiliaryObjectClasses = auxiliaryObjectClasses;
+    }
+
+    @ConfigurationProperty(order = 64)
+    public String getLastLoginDateAttribute() {
+        return lastLoginDateAttribute;
+    }
+
+    public void setLastLoginDateAttribute(String lastLoginDateAttribute) {
+        this.lastLoginDateAttribute = lastLoginDateAttribute;
     }
 
     @Override

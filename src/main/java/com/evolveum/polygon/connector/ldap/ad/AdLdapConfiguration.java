@@ -175,18 +175,10 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
 
     public static final String LAST_LOGIN_DATE_ATTRIBUTE_LAST_LOGON_TIMESTAMP = "lastLogonTimestamp";
 
-    /**
-     * It is important to note that the intended purpose of the lastLogonTimestamp attribute to help identify
-     * inactive computer and user accounts. The lastLogon attribute is not designed to provide real time logon
-     * information. With default settings in place the lastLogonTimestamp will be 9-14 days behind the current date.
-     *
-     * https://learn.microsoft.com/en-us/archive/blogs/askds/the-lastlogontimestamp-attribute-what-it-was-designed-for-and-how-it-works
-     */
-    private String lastLoginDateAttribute = LAST_LOGIN_DATE_ATTRIBUTE_LAST_LOGON_TIMESTAMP;
-
-    public AdLdapConfiguration(){
-
+    public AdLdapConfiguration() {
         groupObjectClasses = new String[]{groupObjectClass};
+
+        setLastLoginDateAttribute(LAST_LOGIN_DATE_ATTRIBUTE_LAST_LOGON_TIMESTAMP);
     }
 
     @ConfigurationProperty(order = 100)
@@ -333,13 +325,16 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
         this.sendDirSyncSecurityFlag = setDirSyncSecurityFlag;
     }
 
+    /**
+     * It is important to note that the intended purpose of the lastLogonTimestamp attribute to help identify
+     * inactive computer and user accounts. The lastLogon attribute is not designed to provide real time logon
+     * information. With default settings in place the lastLogonTimestamp will be 9-14 days behind the current date.
+     *
+     * <a href="https://learn.microsoft.com/en-us/archive/blogs/askds/the-lastlogontimestamp-attribute-what-it-was-designed-for-and-how-it-works">The lastLogonTimestamp attribute documentation</a>
+     */
     @ConfigurationProperty(order = 116, allowedValues = { LAST_LOGIN_DATE_ATTRIBUTE_LAST_LOGON, LAST_LOGIN_DATE_ATTRIBUTE_LAST_LOGON_TIMESTAMP })
     public String getLastLoginDateAttribute() {
-        return lastLoginDateAttribute;
-    }
-
-    public void setLastLoginDateAttribute(String lastLoginDateAttribute) {
-        this.lastLoginDateAttribute = lastLoginDateAttribute;
+        return super.getLastLoginDateAttribute();
     }
 
     @Override

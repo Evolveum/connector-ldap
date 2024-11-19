@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015-2019 Evolveum
+ * Copyright (c) 2015-2024 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -567,10 +567,5 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
             LOG.info("X-SEARCH-FLAGS on {0}: {1}", connidAttr, searchFlags);
         }
         return true;
-    }
-
-    @Override
-    public String getLastLoginDateAttributeName() {
-        return getConfiguration().getLastLoginDateAttribute();
     }
 }
