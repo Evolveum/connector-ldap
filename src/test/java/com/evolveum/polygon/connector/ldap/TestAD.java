@@ -79,7 +79,7 @@ public class TestAD {
         AssertJUnit.assertNotNull(lastLoginDate);
 
         AdLdapConfiguration config = createConfiguration();
-        AssertJUnit.assertEquals(getTimestampPresentationType(config), lastLoginDate.getType());
+        AssertJUnit.assertEquals(Long.class, lastLoginDate.getType());
 
         List<ConnectorObject> results = new ArrayList<>();
         connector.search(
@@ -100,7 +100,7 @@ public class TestAD {
         Object value = attr.getValue().get(0);
         AssertJUnit.assertNotNull(value);
 
-        AssertJUnit.assertEquals(getTimestampPresentationType(config), value.getClass());
+        AssertJUnit.assertEquals(Long.class, value.getClass());
     }
 
     /**
@@ -171,22 +171,6 @@ public class TestAD {
         assertLastLoginDate(updated, newLastLoginDate);
 
         connector.delete(OBJECT_CLASS_USER, object.getUid(), null);
-    }
-
-    private Class<?> getTimestampPresentationType(AdLdapConfiguration config) {
-        Class<?> type = null;
-        switch (config.getTimestampPresentation()) {
-            case AbstractLdapConfiguration.TIMESTAMP_PRESENTATION_NATIVE:
-                return ZonedDateTime.class;
-            case AbstractLdapConfiguration.TIMESTAMP_PRESENTATION_UNIX_EPOCH:
-                return long.class;
-            case AbstractLdapConfiguration.TIMESTAMP_PRESENTATION_STRING:
-                return String.class;
-        }
-
-        AssertJUnit.fail("Unknown timestamp presentation: " + config.getTimestampPresentation());
-
-        return type;
     }
 
     private ConnectorFacade createConnectorInstance() {

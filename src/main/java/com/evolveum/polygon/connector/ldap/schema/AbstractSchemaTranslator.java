@@ -649,7 +649,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
             return GuardedString.class;
         }
         if (PredefinedAttributeInfos.LAST_LOGIN_DATE.is(connIdAttributeName)) {
-            return getTimestampPresentationType();
+            return Long.class;
         }
         if (syntax == null) {
             // We may be in a quirks mode. Server schema may not be consistent (e.g. 389ds schema).

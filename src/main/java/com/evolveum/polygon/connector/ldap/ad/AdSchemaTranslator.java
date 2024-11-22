@@ -20,7 +20,6 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.directory.api.ldap.model.entry.Attribute;
 import org.apache.directory.api.ldap.model.entry.Entry;
@@ -168,18 +167,16 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
 
     /**
      * @param ldapValue containing AD interval value (100-nanosecond intervals since 1601-01-01)
-     * @return {@link java.time.ZonedDateTime}, long or {@link String} based on {@link AdLdapConfiguration#getTimestampPresentation()}
+     * @return Always returns {@link Long} because of {@link PredefinedAttributeInfos#LAST_LOGIN_DATE}
+     * type is statically defined.
      */
-    private Object toConnIdTimestampValue(Value ldapValue) {
+    private Object getLastLoginDateValue(Value ldapValue) {
         String value = ldapValue.getString();
-        return switch (getConfiguration().getTimestampPresentation()) {
-            case AbstractLdapConfiguration.TIMESTAMP_PRESENTATION_NATIVE -> LdapUtil.windowsTimeToZonedDateTime(value);
-            case AbstractLdapConfiguration.TIMESTAMP_PRESENTATION_UNIX_EPOCH ->
-                    LdapUtil.windowsTimeToZonedDateTime(value).toInstant().toEpochMilli();
-            case AbstractLdapConfiguration.TIMESTAMP_PRESENTATION_STRING -> ldapValue.getString();
-            default -> throw new IllegalArgumentException(
-                    "Unknown value of timestampPresentation: " + getConfiguration().getTimestampPresentation());
-        };
+
+        if (value == null) {
+            return null;
+        }
+        return LdapUtil.windowsTimeToZonedDateTime(value).toInstant().toEpochMilli();
     }
 
     @Override
@@ -187,7 +184,7 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
         if (AdConstants.ATTRIBUTE_OBJECT_SID_NAME.equals(ldapAttributeName)) {
             return sidToString(ldapValue.getBytes());
         } else if (PredefinedAttributeInfos.LAST_LOGIN_DATE.is(connIdAttributeName)) {
-            return toConnIdTimestampValue(ldapValue);
+            return getLastLoginDateValue(ldapValue);
         } else {
             return super.toConnIdValue(connIdAttributeName, ldapValue, ldapAttributeName, ldapAttributeType);
         }
