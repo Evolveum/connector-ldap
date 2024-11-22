@@ -24,20 +24,19 @@ import org.identityconnectors.framework.api.ConnectorFacade;
 import org.identityconnectors.framework.api.ConnectorFacadeFactory;
 import org.identityconnectors.framework.common.exceptions.ConfigurationException;
 import org.identityconnectors.framework.common.exceptions.ConnectionFailedException;
-import org.identityconnectors.framework.common.objects.Schema;
-import org.identityconnectors.framework.common.objects.SuggestedValues;
-import org.identityconnectors.framework.common.objects.ValueListOpenness;
+import org.identityconnectors.framework.common.objects.*;
 import org.identityconnectors.test.common.TestHelpers;
 import org.testng.AssertJUnit;
 import org.testng.annotations.Test;
 
-import static org.testng.AssertJUnit.assertEquals;
-import static org.testng.AssertJUnit.assertNotNull;
-import static org.testng.AssertJUnit.assertNull;
-import static org.testng.internal.junit.ArrayAsserts.assertArrayEquals;
-
+import java.time.ZonedDateTime;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+
+import static org.testng.AssertJUnit.*;
+import static org.testng.internal.junit.ArrayAsserts.assertArrayEquals;
 
 public class TestOpenDj extends AbstractOpenDjTest {
 
@@ -62,17 +61,17 @@ public class TestOpenDj extends AbstractOpenDjTest {
     private void assertNoAllowedValues(ConfigurationProperty prop) {
         assertNotNull(prop);
         SuggestedValues allowedValues = prop.getAllowedValues();
-        System.out.println("PROP "+prop.getName()+" allowed values: "+allowedValues);
-        assertNull("Unexpected allowed values in "+prop, allowedValues);
+        System.out.println("PROP " + prop.getName() + " allowed values: " + allowedValues);
+        assertNull("Unexpected allowed values in " + prop, allowedValues);
     }
 
     private void assertAllowedValues(ConfigurationProperty prop, ValueListOpenness openness, Object... expectedValues) {
         assertNotNull(prop);
         SuggestedValues allowedValues = prop.getAllowedValues();
-        System.out.println("PROP "+prop.getName()+" allowed values: "+allowedValues);
-        assertNotNull("No allowed values in "+prop, allowedValues);
-        assertArrayEquals("Wrong list of allowed values in "+prop, expectedValues, allowedValues.getValues().toArray(new Object[0]));
-        assertEquals("Wrong openness in allowed values in "+prop, openness, allowedValues.getOpenness());
+        System.out.println("PROP " + prop.getName() + " allowed values: " + allowedValues);
+        assertNotNull("No allowed values in " + prop, allowedValues);
+        assertArrayEquals("Wrong list of allowed values in " + prop, expectedValues, allowedValues.getValues().toArray(new Object[0]));
+        assertEquals("Wrong openness in allowed values in " + prop, openness, allowedValues.getOpenness());
     }
 
     @Test
@@ -160,7 +159,7 @@ public class TestOpenDj extends AbstractOpenDjTest {
             } else if (suggestion.getValues().size() == 1) {
                 apiConfiguration.getConfigurationProperties().setPropertyValue(suggestionEntry.getKey(), suggestion.getValues().get(0));
             } else {
-                apiConfiguration.getConfigurationProperties().setPropertyValue(suggestionEntry.getKey(), ((List)suggestion.getValues()).toArray(new String[0]));
+                apiConfiguration.getConfigurationProperties().setPropertyValue(suggestionEntry.getKey(), ((List) suggestion.getValues()).toArray(new String[0]));
             }
         }
 
@@ -169,5 +168,62 @@ public class TestOpenDj extends AbstractOpenDjTest {
         // No exception = no problem
     }
 
+    private AttributeInfo findAttributeInfo(ObjectClassInfo classInfo, String name) {
+        return classInfo.getAttributeInfo().stream()
+                .filter(ai -> name.equals(ai.getName()))
+                .findFirst()
+                .orElse(null);
+    }
 
+    @Test
+    public void testLastLoginDate() throws Exception {
+        final ObjectClass inetOrgPerson = new ObjectClass("inetOrgPerson");
+
+        ConnectorFacade connector = createConnectorInstance();
+
+        Set<Attribute> attributes = new HashSet<>();
+        attributes.add(AttributeBuilder.build(Name.NAME, "uid=test,ou=People," + BASE_CONTEXT));
+        attributes.add(AttributeBuilder.build("uid", "test"));
+        attributes.add(AttributeBuilder.build("cn", "Test User"));
+        attributes.add(AttributeBuilder.build("sn", "User"));
+        Uid uid = connector.create(inetOrgPerson, attributes, null);
+
+        ConnectorObject object = connector.getObject(inetOrgPerson, uid, null);
+        assertLastLoginDate(object, false, connector.schema().findObjectClassInfo(inetOrgPerson.getObjectClassValue()));
+
+        LdapConfiguration config = createConnectorConfiguration();
+        config.setLastLoginDateAttribute("createTimestamp");
+        connector = createConnectorInstance(config);
+
+        object = connector.getObject(inetOrgPerson, uid, null);
+        assertLastLoginDate(object, true, connector.schema().findObjectClassInfo(inetOrgPerson.getObjectClassValue()));
+    }
+
+    private void assertLastLoginDate(ConnectorObject object, Boolean exists, ObjectClassInfo ocInfo) {
+        assertNotNull(object);
+        assertNotNull(ocInfo);
+
+        AttributeInfo createTimestampInfo = findAttributeInfo(ocInfo, "createTimestamp");
+        AttributeInfo lastLoginDateInfo = findAttributeInfo(ocInfo, PredefinedAttributes.LAST_LOGIN_DATE_NAME);
+
+        Attribute createTimetamp = object.getAttributeByName("createTimestamp");
+        Attribute lastLoginDate = object.getAttributeByName(PredefinedAttributes.LAST_LOGIN_DATE_NAME);
+
+        if (!exists) {
+            assertNotNull(createTimestampInfo);
+            assertNull(lastLoginDateInfo);
+
+            assertNotNull(createTimetamp);
+            assertEquals(ZonedDateTime.class, createTimetamp.getValue().get(0).getClass());
+
+            assertNull(lastLoginDate);
+        } else {
+            assertNull(createTimestampInfo);
+            assertNotNull(lastLoginDateInfo);
+
+            assertNull(createTimetamp);
+            assertNotNull(lastLoginDate);
+            assertEquals(Long.class, lastLoginDate.getValue().get(0).getClass());
+        }
+    }
 }

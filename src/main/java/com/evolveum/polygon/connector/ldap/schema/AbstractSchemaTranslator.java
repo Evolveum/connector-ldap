@@ -372,7 +372,9 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
             if (containsAttribute(attrInfoList, operationalAttributeLdapName)) {
                 continue;
             }
-            AttributeInfoBuilder aib = new AttributeInfoBuilder(operationalAttributeLdapName);
+
+            String connIdAttributeName = toConnIdAttributeName(operationalAttributeLdapName);
+            AttributeInfoBuilder aib = new AttributeInfoBuilder(connIdAttributeName);
             aib.setRequired(false);
             aib.setNativeName(operationalAttributeLdapName);
 
@@ -385,14 +387,14 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 
             if (attributeType != null) {
                 LdapSyntax ldapSyntax = getSyntax(attributeType);
-                Class<?> icfType = toConnIdType(ldapSyntax, operationalAttributeLdapName);
+                Class<?> icfType = toConnIdType(ldapSyntax, connIdAttributeName);
                 aib.setType(icfType);
-                aib.setSubtype(toConnIdSubtype(icfType, attributeType, operationalAttributeLdapName));
-                LOG.ok("Translating {0} -> {1} ({2} -> {3}) (operational)", operationalAttributeLdapName, operationalAttributeLdapName,
+                aib.setSubtype(toConnIdSubtype(icfType, attributeType, connIdAttributeName));
+                LOG.ok("Translating {0} -> {1} ({2} -> {3}) (operational)", operationalAttributeLdapName, connIdAttributeName,
                         ldapSyntax==null?null:ldapSyntax.getOid(), icfType);
-                setAttributeMultiplicityAndPermissions(attributeType, operationalAttributeLdapName, aib);
+                setAttributeMultiplicityAndPermissions(attributeType, connIdAttributeName, aib);
             } else {
-                LOG.ok("Translating {0} -> {1} ({2} -> {3}) (operational, not defined in schema)", operationalAttributeLdapName, operationalAttributeLdapName,
+                LOG.ok("Translating {0} -> {1} ({2} -> {3}) (operational, not defined in schema)", operationalAttributeLdapName, connIdAttributeName,
                         null, String.class);
                 aib.setType(String.class);
                 aib.setMultiValued(false);
@@ -962,12 +964,47 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
         return toLdapValue(ldapAttributeType, icfAttributeValues.get(0));
     }
 
+    /**
+     * @param ldapValue
+     * @return Always returns {@link Long} because of {@link PredefinedAttributeInfos#LAST_LOGIN_DATE}
+     *          type is statically defined.
+     */
+    protected Long getLastLoginDateValue(
+            String connIdAttributeName, Value ldapValue, String ldapAttributeName, AttributeType ldapAttributeType) {
+
+        if (ldapValue == null) {
+            return null;
+        }
+
+        String syntaxOid = null;
+        if (ldapAttributeType != null) {
+            syntaxOid = ldapAttributeType.getSyntaxOid();
+        }
+
+        if (isJavaLongSyntax(syntaxOid)) {
+            return Long.parseLong(ldapValue.getString());
+        }
+
+        if (!isTimeSyntax(syntaxOid)) {
+            throw new InvalidAttributeValueException(
+                    "Wrong syntax for LDAP attribute " + ldapAttributeName + ": " + syntaxOid + ", should be time syntax");
+        }
+
+        try {
+            return LdapUtil.generalizedTimeStringToZonedDateTime(ldapValue.getString()).toInstant().toEpochMilli();
+        } catch (ParseException e) {
+            throw new InvalidAttributeValueException("Wrong generalized time format in LDAP attribute " + ldapAttributeName + ": " + e.getMessage(), e);
+        }
+    }
+
     protected Object toConnIdValue(String connIdAttributeName, Value ldapValue, String ldapAttributeName, AttributeType ldapAttributeType) {
         if (ldapValue == null) {
             return null;
         }
         if (OperationalAttributeInfos.PASSWORD.is(connIdAttributeName)) {
             return new GuardedString(ldapValue.getString().toCharArray());
+        } else if (PredefinedAttributeInfos.LAST_LOGIN_DATE.is(connIdAttributeName)){
+            return getLastLoginDateValue(connIdAttributeName, ldapValue, ldapAttributeName, ldapAttributeType);
         } else {
             String syntaxOid = null;
             if (ldapAttributeType != null) {
@@ -1538,6 +1575,8 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
                 default:
                     throw new ConfigurationException("Unknown password read strategy " + configuration.getPasswordReadStrategy());
             }
+        } else if (PredefinedAttributeInfos.LAST_LOGIN_DATE.is(connIdAttributeName)) {
+            // todo viliam
         }
         Iterator<Value> iterator = ldapAttribute.iterator();
         boolean hasValidValue = false;

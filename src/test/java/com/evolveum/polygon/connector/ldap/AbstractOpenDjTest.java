@@ -42,7 +42,7 @@ public class AbstractOpenDjTest {
     private static final File SERVER_CONFIG_FILE = new File(SERVER_ROOT_DIRECTORY, "config/config.ldif");
     protected static final File SERVER_TEMPLATE_ROOT_DIRECTORY = new File("src/test/resources/opendj-template");
 
-    private static final String[] OPERATIONAL_ATTRIBUTES = {
+    public static final String[] OPERATIONAL_ATTRIBUTES = {
             LdapConstants.ATTRIBUTE_OPENDJ_DS_PWP_ACCOUNT_DISABLED_NAME,
             LdapConstants.ATTRIBUTE_IS_MEMBER_OF_NAME,
             LdapConstants.ATTRIBUTE_CREATETIMESTAMP_NAME
@@ -106,8 +106,12 @@ public class AbstractOpenDjTest {
     }
 
     protected ConnectorFacade createConnectorInstance() {
+        return createConnectorInstance(createConnectorConfiguration());
+    }
+
+    protected ConnectorFacade createConnectorInstance(LdapConfiguration configuration) {
         ConnectorFacadeFactory factory = ConnectorFacadeFactory.getInstance();
-        APIConfiguration apiConfiguration = TestHelpers.createTestConfiguration(LdapConnector.class, createConnectorConfiguration());
+        APIConfiguration apiConfiguration = TestHelpers.createTestConfiguration(LdapConnector.class, configuration);
         return factory.newInstance(apiConfiguration);
     }
 

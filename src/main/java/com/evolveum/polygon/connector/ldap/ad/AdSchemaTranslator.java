@@ -167,10 +167,11 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
 
     /**
      * @param ldapValue containing AD interval value (100-nanosecond intervals since 1601-01-01)
-     * @return Always returns {@link Long} because of {@link PredefinedAttributeInfos#LAST_LOGIN_DATE}
-     * type is statically defined.
+     * @return long UTC millis
      */
-    private Object getLastLoginDateValue(Value ldapValue) {
+    @Override
+    protected Long getLastLoginDateValue(
+            String connIdAttributeName, Value ldapValue, String ldapAttributeName, AttributeType ldapAttributeType) {
         String value = ldapValue.getString();
 
         if (value == null) {
@@ -183,8 +184,6 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
     protected Object toConnIdValue(String connIdAttributeName, Value ldapValue, String ldapAttributeName, AttributeType ldapAttributeType) {
         if (AdConstants.ATTRIBUTE_OBJECT_SID_NAME.equals(ldapAttributeName)) {
             return sidToString(ldapValue.getBytes());
-        } else if (PredefinedAttributeInfos.LAST_LOGIN_DATE.is(connIdAttributeName)) {
-            return getLastLoginDateValue(ldapValue);
         } else {
             return super.toConnIdValue(connIdAttributeName, ldapValue, ldapAttributeName, ldapAttributeType);
         }
