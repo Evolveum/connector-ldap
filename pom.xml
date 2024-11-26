@@ -24,14 +24,34 @@
         <version>1.5.1.3</version>
     </parent>
 
+    <groupId>com.exclamationlabs.polygon.connector</groupId>
     <artifactId>connector-ldap</artifactId>
-    <version>3.7</version>
+    <!--<version>3.7</version>-->
+    <version>${revision}${changelist}</version>
     <packaging>jar</packaging>
 
     <name>LDAP Connector</name>
 
+    <description>
+        LDAP Connector.
+    </description>
+    <url>https://gitlab.com/exclamationlabs/provision/connector-ldap</url>
+
+    <distributionManagement>
+        <snapshotRepository>
+            <id>artifact-registry</id>
+            <url>https://us-east1-maven.pkg.dev/provision-general-operations/provision-connectors</url>
+        </snapshotRepository>
+        <repository>
+            <id>artifact-registry</id>
+            <url>https://us-east1-maven.pkg.dev/provision-general-operations/provision-connectors</url>
+        </repository>
+    </distributionManagement>
+
     <properties>
-        <connectorPackage>com.evolveum.polygon.connector.ldap</connectorPackage>
+        <revision>3.7</revision>
+        <changelist/>
+        <connectorPackage>com.exclamationlabs.polygon.connector.ldap</connectorPackage>
         <connectorClass>LdapConnector</connectorClass>
         <surefire.args>-Xms1024m -Xmx4096m --add-exports java.management/sun.management=ALL-UNNAMED</surefire.args>
     </properties>
@@ -61,6 +81,16 @@
             <id>oracle</id>
             <name>Oracle</name>
             <url>https://download.oracle.com/maven/</url>
+        </repository>
+        <repository>
+            <id>artifact-registry</id>
+            <url>https://us-east1-maven.pkg.dev/provision-general-operations/provision-connectors</url>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+            <snapshots>
+                <enabled>true</enabled>
+            </snapshots>
         </repository>
     </repositories>
 
