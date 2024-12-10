@@ -2344,7 +2344,10 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
             }
         }
 
-        extendAttributeList(attributeNames);
+        if(!attributeNames.isEmpty()){
+
+            extendAttributeList(attributeNames);
+        }
 
         return attributeNames.toArray(new String[attributeNames.size()]);
     }
