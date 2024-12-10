@@ -17,9 +17,11 @@ package com.evolveum.polygon.connector.ldap.ad;
 
 import java.io.UnsupportedEncodingException;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import com.evolveum.polygon.connector.ldap.AbstractLdapConfiguration;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.directory.api.ldap.model.entry.Attribute;
 import org.apache.directory.api.ldap.model.entry.Entry;
@@ -42,7 +44,7 @@ import com.evolveum.polygon.connector.ldap.ad.AdUserParametersHandler.UserParame
 import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
 
 import static com.evolveum.polygon.connector.ldap.LdapConstants.*;
-import static com.evolveum.polygon.connector.ldap.ad.AdConstants.AD_MEMBERSHIP_ATTRIBUTES;
+import static com.evolveum.polygon.connector.ldap.ad.AdConstants.*;
 
 
 /**
@@ -91,11 +93,11 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
             // Account and groups need samAccountName attribute. But it is not in the declared schema.
             if (isUserObjectClass(ldapObjectClass.getName()) || isGroupObjectClass(ldapObjectClass.getName())) {
 
-                AttributeInfoBuilder samAccountNameAttr = new AttributeInfoBuilder(AdConstants.ATTRIBUTE_SAM_ACCOUNT_NAME_NAME);
+                AttributeInfoBuilder samAccountNameAttr = new AttributeInfoBuilder(ATTRIBUTE_SAM_ACCOUNT_NAME_NAME);
                 samAccountNameAttr.setType(String.class);
                 ocib.addAttributeInfo(samAccountNameAttr.build());
 
-                AttributeInfoBuilder objectSidAttr = new AttributeInfoBuilder(AdConstants.ATTRIBUTE_OBJECT_SID_NAME);
+                AttributeInfoBuilder objectSidAttr = new AttributeInfoBuilder(ATTRIBUTE_OBJECT_SID_NAME);
                 objectSidAttr.setType(String.class);
                 objectSidAttr.setCreateable(false);
                 objectSidAttr.setUpdateable(false);
@@ -182,7 +184,7 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
 
     @Override
     protected Object toConnIdValue(String connIdAttributeName, Value ldapValue, String ldapAttributeName, AttributeType ldapAttributeType) {
-        if (AdConstants.ATTRIBUTE_OBJECT_SID_NAME.equals(ldapAttributeName)) {
+        if (ATTRIBUTE_OBJECT_SID_NAME.equals(ldapAttributeName)) {
             return sidToString(ldapValue.getBytes());
         } else {
             return super.toConnIdValue(connIdAttributeName, ldapValue, ldapAttributeName, ldapAttributeType);
@@ -562,6 +564,29 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
         if (searchFlags != null) {
             LOG.info("X-SEARCH-FLAGS on {0}: {1}", connidAttr, searchFlags);
         }
+
+        if(AdConstants.AD_BASE_SCOPE_ONLY.contains(connidAttr)){
+
+            if(AbstractLdapConfiguration.SEARCH_SCOPE_SUB.
+                    equals(getConfiguration().getDefaultSearchScope())){
+                if(LOG.isInfo()){
+                    LOG.info("The request for attribute {0} is not valid for the search scope {1}, value omitted.",
+                            connidAttr, AbstractLdapConfiguration.SEARCH_SCOPE_SUB);
+                }
+
+                return false;
+            }
+        }
+
         return true;
+    }
+
+    @Override
+    protected void extendAttributeList(List<String> attributeNames) {
+
+        if (getConfiguration().isTweakSchema()) {
+            attributeNames.add(ATTRIBUTE_SAM_ACCOUNT_NAME_NAME);
+            attributeNames.add(ATTRIBUTE_OBJECT_SID_NAME);
+        }
     }
 }

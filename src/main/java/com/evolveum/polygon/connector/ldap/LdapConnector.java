@@ -87,16 +87,6 @@ public class LdapConnector extends AbstractLdapConnector<LdapConfiguration> {
         suggestions.put(LdapConfiguration.CONF_PROP_NAME_LOCKOUT_STRATEGY,
                 SuggestedValuesBuilder.build(LdapConfiguration.LOCKOUT_STRATEGY_OPENLDAP));
 
-
-        List<String> ListofMembershipValues= MEMBERSHIP_ATTRIBUTES.values().stream()
-                .collect(Collectors.toCollection(ArrayList::new));
-
-        String[] membershipValues = ListofMembershipValues.
-                toArray(new String[ListofMembershipValues.size()]);
-
-        suggestions.put(AbstractLdapConfiguration.CONF_PROP_NAME_ATTRS_NOT_RETURNED_BY_DEFAULT,
-                SuggestedValuesBuilder.buildOpen(membershipValues));
-
         analyzeReferenceSuggestions(getSchemaManager(), getConfiguration(), suggestions);
     }
 
@@ -140,16 +130,7 @@ public class LdapConnector extends AbstractLdapConnector<LdapConfiguration> {
                 SuggestedValuesBuilder.buildOpen(LdapConstants.ATTRIBUTE_IS_MEMBER_OF_NAME,
                         LdapConstants.ATTRIBUTE_OPENDJ_DS_PWP_ACCOUNT_DISABLED_NAME,
                         SchemaConstants.CREATE_TIMESTAMP_AT, SchemaConstants.MODIFY_TIMESTAMP_AT));
-
-        List<String> ListofMembershipValues= MEMBERSHIP_ATTRIBUTES.values().stream()
-                .collect(Collectors.toCollection(ArrayList::new));
-
-        String[] membershipValues = ListofMembershipValues.
-                toArray(new String[ListofMembershipValues.size()]);
-
-        suggestions.put(AbstractLdapConfiguration.CONF_PROP_NAME_ATTRS_NOT_RETURNED_BY_DEFAULT,
-                SuggestedValuesBuilder.buildOpen(membershipValues));
-
+        
         analyzeReferenceSuggestions(getSchemaManager(), getConfiguration(), suggestions);
     }
 

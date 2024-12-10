@@ -16,6 +16,7 @@
 package com.evolveum.polygon.connector.ldap.ad;
 
 import java.util.Map;
+import java.util.Set;
 
 /**
  * @author semancik
@@ -57,6 +58,10 @@ public class AdConstants {
     public static final String ATTRIBUTE_AUXILIARY_CLASS_NAME = "auxiliaryClass";
     public static final String ATTRIBUTE_DEFAULT_OBJECT_CATEGORY_NAME = "defaultObjectCategory";
 
+
+    public static final String ATTRIBUTE_MS_DS_MEMBER_TRANSITIVE= "msds-memberTransitive";
+    public static final String ATTRIBUTE_MS_DS_MEMBER_OF_TRANSITIVE= "msds-memberOfTransitive";
+
     public static final String OBJECT_CLASS_CLASS_SCHEMA = "classSchema";
     public static final String OBJECT_CLASS_ATTRIBUTE_SCHEMA = "attributeSchema";
     public static final String OBJECT_CLASS_DMD = "dMD";
@@ -66,7 +71,8 @@ public class AdConstants {
     public static final String OBJECT_CLASS_NAME_GROUP = "group";
 
     public static final Map<String, String> AD_MEMBERSHIP_ATTRIBUTES = Map.of(OBJECT_CLASS_NAME_GROUP,"member");
-
+    public static final Set<String> AD_BASE_SCOPE_ONLY = Set.of(ATTRIBUTE_MS_DS_MEMBER_TRANSITIVE,
+            ATTRIBUTE_MS_DS_MEMBER_OF_TRANSITIVE);
     /*
      * https://docs.microsoft.com/en-us/windows/desktop/adschema/a-useraccountcontrol
      *

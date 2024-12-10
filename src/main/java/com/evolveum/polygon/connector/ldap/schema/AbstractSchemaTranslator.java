@@ -2235,6 +2235,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
             return ldapAttrs;
         }
         String[] connidAttrs = options.getAttributesToGet();
+
         int extraAttrs = 2;
 
         if (isStandardAttributeArrayEmpty) {
@@ -2255,6 +2256,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
                     ldapAttrs.add(standardAttr);
                 }
             }
+
         }
         for (String connidAttr: connidAttrs) {
             if (Name.NAME.equals(connidAttr)) {
@@ -2341,7 +2343,14 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
                 }
             }
         }
+
+        extendAttributeList(attributeNames);
+
         return attributeNames.toArray(new String[attributeNames.size()]);
+    }
+
+    protected void extendAttributeList(List<String> attributeNames) {
+        // To be overriden
     }
 
     private void getAuxiliaryObjectClassAttributes(List<String> attributeNames,
@@ -2384,19 +2393,32 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 
     private void appendToStandardObjectClassAttributeList(List<String> attributeNamesList, org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
 
-        ldapObjectClass.getMustAttributeTypes().forEach(a -> attributeNamesList.add(a.getName()));
-        ldapObjectClass.getMayAttributeTypes().forEach(a -> attributeNamesList.add(a.getName()));
+        ldapObjectClass.getMustAttributeTypes().forEach(a -> evaluateAndAppendToObjectClassAttributeList(a,
+                attributeNamesList));
+        ldapObjectClass.getMayAttributeTypes().forEach(a -> evaluateAndAppendToObjectClassAttributeList(a,
+                attributeNamesList));
 
 
         List<org.apache.directory.api.ldap.model.schema.ObjectClass> superiors = ldapObjectClass.getSuperiors();
 
         if ((superiors != null) && (superiors.size() > 0)) {
             for (org.apache.directory.api.ldap.model.schema.ObjectClass superior: superiors) {
-
                 appendToStandardObjectClassAttributeList(attributeNamesList, superior);
             }
         }
+    }
 
+    private void evaluateAndAppendToObjectClassAttributeList(AttributeType attributeType,
+                                                             List<String> attributeNamesList) {
+
+        if(isOperational(attributeType)){
+
+            return;
+        }
+        String attrName = attributeType.getName();
+        if (isValidAttributeToGet(attributeType.getName(), attributeType)) {
+            attributeNamesList.add(attrName);
+        }
     }
 
     // To be overridden in subclasses.
