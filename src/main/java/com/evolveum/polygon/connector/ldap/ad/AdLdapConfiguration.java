@@ -179,6 +179,9 @@ public class AdLdapConfiguration extends AbstractLdapConfiguration {
         groupObjectClasses = new String[]{groupObjectClass};
 
         setLastLoginDateAttribute(LAST_LOGIN_DATE_ATTRIBUTE_LAST_LOGON_TIMESTAMP);
+
+        // There are too many built-in schema errors in AD that this only pollutes the logs
+        setLogSchemaErrors(false);
     }
 
     @ConfigurationProperty(order = 100)

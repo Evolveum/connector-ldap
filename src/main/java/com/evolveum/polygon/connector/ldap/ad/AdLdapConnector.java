@@ -144,12 +144,6 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
     }
 
     @Override
-    protected boolean isLogSchemaErrors() {
-        // There are too many built-in schema errors in AD that this only pollutes the logs
-        return false;
-    }
-
-    @Override
     public Uid create(org.identityconnectors.framework.common.objects.ObjectClass connIdObjectClass, Set<Attribute> createAttributes, OperationOptions options) {
 
         if (getConfiguration().isAllowFSPProcessing()) {

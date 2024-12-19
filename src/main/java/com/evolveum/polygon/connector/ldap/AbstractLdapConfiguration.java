@@ -322,6 +322,11 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
     private boolean schemaQuirksMode = true;
 
     /**
+     * If set to true then the schema errors will be logged.
+     */
+    private boolean logSchemaErrors = true;
+
+    /**
      * Accept also attributes that are not defined in schema.
      * Single-value string is assumed as the attribute type.
      */
@@ -1223,6 +1228,16 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 
     public void setLastLoginDateAttribute(String lastLoginDateAttribute) {
         this.lastLoginDateAttribute = lastLoginDateAttribute;
+    }
+
+    @ConfigurationProperty(order = 65)
+    public boolean isLogSchemaErrors() {
+        return logSchemaErrors;
+    }
+
+    @SuppressWarnings("unused")
+    public void setLogSchemaErrors(boolean logSchemaErrors) {
+        this.logSchemaErrors = logSchemaErrors;
     }
 
     @Override

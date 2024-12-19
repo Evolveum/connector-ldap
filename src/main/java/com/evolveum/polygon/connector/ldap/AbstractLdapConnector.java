@@ -413,7 +413,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
     }
 
     protected boolean isLogSchemaErrors() {
-        return true;
+        return configuration.isLogSchemaErrors();
     }
 
     protected AbstractSchemaTranslator<C> getSchemaTranslator() {
