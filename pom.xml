@@ -116,6 +116,14 @@
                     <groupId>xml-apis</groupId>
                     <artifactId>xml-apis</artifactId>
                 </exclusion>
+
+                <!-- Excluded bundled mina-core because of CVE-2024-52046 (LDAP protocol is not affected)
+                    but automated scanning tools still reports it.
+                -->
+                <exclusion>
+                    <groupId>org.apache.mina</groupId>
+                    <artifactId>mina-core</artifactId>
+                </exclusion>
             </exclusions>
         </dependency>
 
@@ -130,6 +138,15 @@
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-lang3</artifactId>
             <version>3.14.0</version>
+        </dependency>
+
+        <!-- Bumped version because of CVE-2024-52046 (LDAP protocol is not affected)
+             but automated scanning tools still reports it.
+         -->
+        <dependency>
+            <groupId>org.apache.mina</groupId>
+            <artifactId>mina-core</artifactId>
+            <version>2.2.4</version>
         </dependency>
 
         <dependency>
