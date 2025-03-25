@@ -112,7 +112,7 @@
                 <groupId>org.cyclonedx</groupId>
                 <artifactId>cyclonedx-maven-plugin</artifactId>
                 <configuration>
-                    <projectType>application</projectType>
+                    <projectType>library</projectType>
                 </configuration>
             </plugin>
             <plugin>
