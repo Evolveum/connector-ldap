@@ -387,6 +387,7 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
         switch (syntaxOid) {
             case LdapConstants.SYNTAX_AD_ADSTYPE_OCTET_STRING:
             case LdapConstants.SYNTAX_AD_ADSTYPE_NT_SECURITY_DESCRIPTOR:
+            case LdapConstants.SYNTAX_AD_SECURITY_DESCRIPTOR_SYNTAX:
                 // Even though this is "String(Sid)", it is not really string. It is binary.
             case LdapConstants.SYNTAX_AD_STRING_SID:
                 return true;
