@@ -55,16 +55,10 @@ import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
  * @author semancik
  *
  */
-public class SunChangelogSyncStrategy<C extends AbstractLdapConfiguration> extends SyncStrategy<C> {
+public class GenericChangeLogSyncStrategy<C extends AbstractLdapConfiguration> extends SyncStrategy<C> {
 
-    public static final String ROOT_DSE_ATTRIBUTE_CHANGELOG_NAME = "changelog";
-    private static final String ROOT_DSE_ATTRIBUTE_FIRST_CHANGE_NUMBER_NAME = "firstChangeNumber";
-    private static final String ROOT_DSE_ATTRIBUTE_LAST_CHANGE_NUMBER_NAME = "lastChangeNumber";
 
-    private static final Log LOG = Log.getLog(SunChangelogSyncStrategy.class);
-    private static final String CHANGELOG_ATTRIBUTE_TARGET_UNIQUE_ID = "targetUniqueID";
-    private static final String CHANGELOG_ATTRIBUTE_TARGET_ENTRY_UUID = "targetEntryUUID";
-    private static final String CHANGELOG_ATTRIBUTE_TARGET_DN = "targetDN";
+    protected static final Log LOG = Log.getLog(GenericChangeLogSyncStrategy.class);
     private static final String CHANGELOG_ATTRIBUTE_CHANGE_TIME = "changeTime";
     private static final String CHANGELOG_ATTRIBUTE_CHANGE_TYPE = "changeType";
     private static final String CHANGELOG_ATTRIBUTE_CHANGES = "changes";
@@ -82,12 +76,37 @@ public class SunChangelogSyncStrategy<C extends AbstractLdapConfiguration> exten
     private static final Object CHANGE_TYPE_MODRDN = "modrdn";
 
 
-    public SunChangelogSyncStrategy(AbstractLdapConfiguration configuration, ConnectionManager<C> connection,
+    public GenericChangeLogSyncStrategy(AbstractLdapConfiguration configuration, ConnectionManager<C> connection,
                                     SchemaManager schemaManager, AbstractSchemaTranslator<C> schemaTranslator,
                                     ErrorHandler errorHandler) {
         super(configuration, connection, schemaManager, schemaTranslator, errorHandler);
     }
 
+    protected String getChangeLogDN() {
+    	Entry rootDse = getConnectionManager().getRootDse();
+    	String changeLogAttributeName = getConfiguration().getChangeLogRootDSEAttribute();
+    	Attribute changelogAttribute = rootDse.get(changeLogAttributeName);
+    	if (changelogAttribute == null) {
+            LOG.warn("Unable to locate changelog from the root DSE attribute "+changeLogAttributeName+".");
+            
+            String configuredChangeLogDN = getConfiguration().getChangeLogDN();
+            if (configuredChangeLogDN == AbstractLdapConfiguration.CHANGELOG_DEFAULT_CHANGE_LOG_DN) {
+            	LOG.warn("Falling back to default changelog DN: "+AbstractLdapConfiguration.CHANGELOG_DEFAULT_CHANGE_LOG_DN);
+            }
+            else {
+            	LOG.warn("Falling back to user configured changelog DN: "+configuredChangeLogDN);
+            }
+            
+            return configuredChangeLogDN;
+        }
+    	
+        try {
+            return changelogAttribute.getString();
+        } catch (LdapInvalidAttributeValueException e) {
+            throw new InvalidAttributeValueException("Invalid type of root DSE attribute "+changeLogAttributeName+": "+e.getMessage(), e);
+        }
+	}
+    
     @Override
     public void sync(ObjectClass icfObjectClass, SyncToken fromToken, SyncResultsHandler handler,
             OperationOptions options) {
@@ -104,19 +123,13 @@ public class SunChangelogSyncStrategy<C extends AbstractLdapConfiguration> exten
             ldapObjectClass = getSchemaTranslator().toLdapObjectClass(icfObjectClass);
         }
 
-        Entry rootDse = getConnectionManager().getRootDse();
-        Attribute changelogAttribute = rootDse.get(ROOT_DSE_ATTRIBUTE_CHANGELOG_NAME);
-        if (changelogAttribute == null) {
-            throw new ConnectorException("Cannot locate changelog, the root DSE attribute "+ROOT_DSE_ATTRIBUTE_CHANGELOG_NAME+" is not present");
-        }
-        String changelogDn;
-        try {
-            changelogDn = changelogAttribute.getString();
-        } catch (LdapInvalidAttributeValueException e) {
-            throw new InvalidAttributeValueException("Invalid type of  root DSE attribute "+ROOT_DSE_ATTRIBUTE_CHANGELOG_NAME+": "+e.getMessage(), e);
-        }
+        
+        String changelogDn = getChangeLogDN();
 
         String changeNumberAttributeName = getConfiguration().getChangeNumberAttribute();
+        String targetUniqueIdAttributeName = getConfiguration().getChangeLogTargetUniqueIdAttribute();
+        String targetEntryUUIDAttributeName = getConfiguration().getChangeLogTargetEntryUUIDAttribute();
+        String targetEntryDNAttributeName = getConfiguration().getChangeLogTargetDNAttribute();
         String uidAttributeName = getConfiguration().getUidAttribute();
 
         String changelogSearchFilter = LdapConfiguration.SEARCH_FILTER_ALL;
@@ -138,8 +151,8 @@ public class SunChangelogSyncStrategy<C extends AbstractLdapConfiguration> exten
         try {
             EntryCursor searchCursor = connection.search(changelogDn, changelogSearchFilter, SearchScope.ONELEVEL,
                     changeNumberAttributeName,
-                    CHANGELOG_ATTRIBUTE_TARGET_UNIQUE_ID,
-                    CHANGELOG_ATTRIBUTE_TARGET_DN,
+                    targetUniqueIdAttributeName,
+                    targetEntryDNAttributeName,
                     CHANGELOG_ATTRIBUTE_CHANGE_TIME,
                     CHANGELOG_ATTRIBUTE_CHANGE_TYPE,
                     CHANGELOG_ATTRIBUTE_CHANGES,
@@ -164,9 +177,9 @@ public class SunChangelogSyncStrategy<C extends AbstractLdapConfiguration> exten
                 SyncDeltaBuilder deltaBuilder = new SyncDeltaBuilder();
                 deltaBuilder.setToken(deltaToken);
 
-                String targetDn = LdapUtil.getStringAttribute(entry, CHANGELOG_ATTRIBUTE_TARGET_DN);
-                String targetEntryUuid = LdapUtil.getStringAttribute(entry, CHANGELOG_ATTRIBUTE_TARGET_ENTRY_UUID);
-                String targetUniqueId = LdapUtil.getStringAttribute(entry, CHANGELOG_ATTRIBUTE_TARGET_UNIQUE_ID);
+                String targetDn = LdapUtil.getStringAttribute(entry, targetEntryDNAttributeName);
+                String targetEntryUuid = LdapUtil.getStringAttribute(entry, targetEntryUUIDAttributeName);
+                String targetUniqueId = LdapUtil.getStringAttribute(entry, targetUniqueIdAttributeName);
                 String oldUid = null;
                 if (LdapUtil.isDnAttribute(uidAttributeName)) {
                     oldUid = targetDn;
@@ -320,19 +333,20 @@ public class SunChangelogSyncStrategy<C extends AbstractLdapConfiguration> exten
         // Root DSE might be caches, with outdated lastChangeNumber value.
         // We have to make sure we have recent value
         Entry rootDse = getConnectionManager().getRootDseFresh();
-        Attribute lastChangeNumberAttribute = rootDse.get(ROOT_DSE_ATTRIBUTE_LAST_CHANGE_NUMBER_NAME);
+        String lastChangeNumberAttributeName = getConfiguration().getChangeLogLastChangeNumberAttribute();
+        Attribute lastChangeNumberAttribute = rootDse.get(lastChangeNumberAttributeName);
         if (lastChangeNumberAttribute == null) {
             return null;
         }
         try {
             String stringValue = lastChangeNumberAttribute.getString();
-            LOG.ok("Fetched {0} from root DSE: {1}", ROOT_DSE_ATTRIBUTE_LAST_CHANGE_NUMBER_NAME, stringValue);
+            LOG.ok("Fetched {0} from root DSE: {1}", lastChangeNumberAttributeName, stringValue);
             if (StringUtils.isEmpty(stringValue)) {
                 return null;
             }
             return new SyncToken(Integer.parseInt(lastChangeNumberAttribute.getString()));
         } catch (LdapInvalidAttributeValueException e) {
-            throw new InvalidAttributeValueException("Invalid type of  root DSE attribute "+ROOT_DSE_ATTRIBUTE_LAST_CHANGE_NUMBER_NAME+": "+e.getMessage(), e);
+            throw new InvalidAttributeValueException("Invalid type of  root DSE attribute "+lastChangeNumberAttributeName+": "+e.getMessage(), e);
         }
     }
 
