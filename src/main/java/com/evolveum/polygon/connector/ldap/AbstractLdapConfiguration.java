@@ -441,6 +441,13 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
     private String changeLogLastChangeNumberAttribute = "lastChangeNumber";
     
     /**
+     * Whether the configured first and last change number attributes are found on the root DSE
+     * or on the changelog entry as configured by changeLogDN
+     * Default value for backwards-compatibility with SunChangelogSyncStrategy is true.
+     */
+    private Boolean changeLogChangeNumberAttributesOnRootDSE = true;
+
+    /**
      * Name of the attribute containing the unique identifier of the modified object in the changelog
      * Default value from original SunChangelogSyncStrategy for backwards-compatibility
      */
@@ -1101,8 +1108,18 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
     public void setChangeLogLastChangeNumberAttribute(String changeLogLastChangeNumberAttribute) {
     	this.changeLogLastChangeNumberAttribute = changeLogLastChangeNumberAttribute;
     }
-    
+
     @ConfigurationProperty(order = 48)
+    public Boolean getChangeLogChangeNumberAttributesOnRootDSE() {
+        return changeLogChangeNumberAttributesOnRootDSE;
+    }
+
+    @SuppressWarnings("unused")
+    public void setChangeLogChangeNumberAttributesOnRootDSE(Boolean changeLogChangeNumberAttributesOnRootDSE) {
+        this.changeLogChangeNumberAttributesOnRootDSE = changeLogChangeNumberAttributesOnRootDSE;
+    }
+    
+    @ConfigurationProperty(order = 49)
     public String getChangeLogTargetUniqueIdAttribute() {
     	return changeLogTargetUniqueIdAttribute;
     }
@@ -1112,7 +1129,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
     	this.changeLogTargetUniqueIdAttribute = changeLogTargetUniqueIdAttribute;
     }
     
-    @ConfigurationProperty(order = 49)
+    @ConfigurationProperty(order = 50)
     public String getChangeLogTargetEntryUUIDAttribute() {
     	return changeLogTargetEntryUUIDAttribute;
     }
@@ -1122,7 +1139,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
     	this.changeLogTargetEntryUUIDAttribute = changeLogTargetEntryUUIDAttribute;
     }
     
-    @ConfigurationProperty(order = 50)
+    @ConfigurationProperty(order = 51)
     public String getChangeLogTargetDNAttribute() {
     	return changeLogTargetDNAttribute;
     }
@@ -1132,7 +1149,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
     	this.changeLogTargetDNAttribute = changeLogTargetDNAttribute;
     }
     
-    @ConfigurationProperty(order = 51)
+    @ConfigurationProperty(order = 52)
     public boolean isUseUnsafeNameHint() {
         return useUnsafeNameHint;
     }
@@ -1142,7 +1159,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.useUnsafeNameHint = useUnsafeNameHint;
     }
 
-    @ConfigurationProperty(order = 52, allowedValues = { TEST_MODE_FULL, TEST_MODE_ANY, TEST_MODE_PRIMARY })
+    @ConfigurationProperty(order = 53, allowedValues = { TEST_MODE_FULL, TEST_MODE_ANY, TEST_MODE_PRIMARY })
     public String getTestMode() {
         return testMode;
     }
@@ -1152,7 +1169,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.testMode = testMode;
     }
 
-    @ConfigurationProperty(order = 53)
+    @ConfigurationProperty(order = 54)
     public boolean isEnableExtraTests() {
         return enableExtraTests;
     }
@@ -1162,7 +1179,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.enableExtraTests = enableExtraTests;
     }
 
-    @ConfigurationProperty(order = 54, allowedValues = { TIMESTAMP_PRESENTATION_NATIVE, TIMESTAMP_PRESENTATION_STRING, TIMESTAMP_PRESENTATION_UNIX_EPOCH })
+    @ConfigurationProperty(order = 55, allowedValues = { TIMESTAMP_PRESENTATION_NATIVE, TIMESTAMP_PRESENTATION_STRING, TIMESTAMP_PRESENTATION_UNIX_EPOCH })
     public String getTimestampPresentation() {
         return timestampPresentation;
     }
@@ -1172,7 +1189,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.timestampPresentation = timestampPresentation;
     }
 
-    @ConfigurationProperty(order = 55)
+    @ConfigurationProperty(order = 56)
     public boolean isIncludeObjectClassFilter() {
         return includeObjectClassFilter;
     }
@@ -1182,7 +1199,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.includeObjectClassFilter = includeObjectClassFilter;
     }
 
-    @ConfigurationProperty(order = 56)
+    @ConfigurationProperty(order = 57)
     public boolean isAlternativeObjectClassDetection() {
         return alternativeObjectClassDetection;
     }
@@ -1192,7 +1209,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.alternativeObjectClassDetection = alternativeObjectClassDetection;
     }
 
-    @ConfigurationProperty(order = 57)
+    @ConfigurationProperty(order = 58)
     public boolean isStructuralObjectClassesToAuxiliary() {
         return structuralObjectClassesToAuxiliary;
     }
@@ -1202,7 +1219,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.structuralObjectClassesToAuxiliary = structuralObjectClassesToAuxiliary;
     }
 
-    @ConfigurationProperty(order = 58, allowedValues = { RUN_AS_STRATEGY_NONE, RUN_AS_STRATEGY_BIND })
+    @ConfigurationProperty(order = 59, allowedValues = { RUN_AS_STRATEGY_NONE, RUN_AS_STRATEGY_BIND })
     public String getRunAsStrategy() {
         return runAsStrategy;
     }
@@ -1212,7 +1229,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.runAsStrategy = runAsStrategy;
     }
 
-    @ConfigurationProperty(order = 59)
+    @ConfigurationProperty(order = 60)
     public String getAdditionalSearchFilter() {
         return additionalSearchFilter;
     }
@@ -1222,7 +1239,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.additionalSearchFilter = additionalSearchFilter;
     }
 
-    @ConfigurationProperty(order = 60, allowedValues = { SEARCH_SCOPE_SUB, SEARCH_SCOPE_ONE })
+    @ConfigurationProperty(order = 61, allowedValues = { SEARCH_SCOPE_SUB, SEARCH_SCOPE_ONE })
     public String getDefaultSearchScope() {
         return defaultSearchScope;
     }
@@ -1232,7 +1249,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.defaultSearchScope = searchScope;
     }
 
-    @ConfigurationProperty(order = 61)
+    @ConfigurationProperty(order = 62)
     public boolean isAllowUntrustedSsl() {
         return allowUntrustedSsl;
     }
@@ -1242,7 +1259,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.allowUntrustedSsl = allowUntrustedSsl;
     }
 
-    @ConfigurationProperty(order = 62)
+    @ConfigurationProperty(order = 63)
     public boolean isUseUnbind() {
         return useUnbind;
     }
@@ -1252,7 +1269,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.useUnbind = useUnbind;
     }
 
-    @ConfigurationProperty(order = 63)
+    @ConfigurationProperty(order = 64)
     public long getSwitchBackInterval() {
         return switchBackInterval;
     }
@@ -1262,7 +1279,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.switchBackInterval = switchBackInterval;
     }
 
-    @ConfigurationProperty(order = 64)
+    @ConfigurationProperty(order = 65)
     public boolean isFilterOutMemberOfValues() {
         return filterOutMemberOfValues;
     }
@@ -1272,7 +1289,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.filterOutMemberOfValues = filterOutMemberOfValues;
     }
 
-    @ConfigurationProperty(order = 65)
+    @ConfigurationProperty(order = 66)
     public String[] getMemberOfAllowedValues() {
         return memberOfAllowedValues;
     }
@@ -1282,7 +1299,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.memberOfAllowedValues = memberOfAllowedValues;
     }
 
-    @ConfigurationProperty(order = 66)
+    @ConfigurationProperty(order = 67)
     public String[] getForceTreeDeleteObjectClasses() {
         return forceTreeDeleteObjectClasses;
     }
@@ -1293,7 +1310,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
 
     }
 
-    @ConfigurationProperty(order = 67)
+    @ConfigurationProperty(order = 68)
 
     public String[] getGroupObjectClasses() {
         return groupObjectClasses;
@@ -1303,7 +1320,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.groupObjectClasses = groupObjectClasses;
     }
 
-    @ConfigurationProperty(order = 68)
+    @ConfigurationProperty(order = 69)
     public String[] getManagedAssociationPairs() {
         return managedAssociationPairs;
     }
@@ -1312,7 +1329,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.managedAssociationPairs = managedAssociationPairs;
     }
 
-    @ConfigurationProperty(order = 69)
+    @ConfigurationProperty(order = 70)
     public boolean getEncodeStringOnNormalizationFailure() {
         return encodeStringOnNormalizationFailure;
     }
@@ -1321,7 +1338,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.encodeStringOnNormalizationFailure = encodeStringOnNormalizationFailure;
     }
 
-    @ConfigurationProperty(order = 70)
+    @ConfigurationProperty(order = 71)
     public String[] getAttributesNotReturnedByDefault() {
         return attributesNotReturnedByDefault;
     }
@@ -1330,7 +1347,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.attributesNotReturnedByDefault = attributesNotReturnedByDefault;
     }
 
-    @ConfigurationProperty(order = 71)
+    @ConfigurationProperty(order = 72)
     public String[] getAuxiliaryObjectClasses() {
         return auxiliaryObjectClasses;
     }
@@ -1339,7 +1356,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.auxiliaryObjectClasses = auxiliaryObjectClasses;
     }
 
-    @ConfigurationProperty(order = 72)
+    @ConfigurationProperty(order = 73)
     public String getLastLoginDateAttribute() {
         return lastLoginDateAttribute;
     }
@@ -1348,7 +1365,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.lastLoginDateAttribute = lastLoginDateAttribute;
     }
 
-    @ConfigurationProperty(order = 73)
+    @ConfigurationProperty(order = 74)
     public boolean isLogSchemaErrors() {
         return logSchemaErrors;
     }

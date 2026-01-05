@@ -329,24 +329,55 @@ public class GenericChangeLogSyncStrategy<C extends AbstractLdapConfiguration> e
 
     @Override
     public SyncToken getLatestSyncToken(ObjectClass objectClass) {
-        // We want to get a very fresh root DSE.
-        // Root DSE might be caches, with outdated lastChangeNumber value.
-        // We have to make sure we have recent value
-        Entry rootDse = getConnectionManager().getRootDseFresh();
+        Boolean getChangeNumbersFromRootDSE = getConfiguration().getChangeLogChangeNumberAttributesOnRootDSE();
         String lastChangeNumberAttributeName = getConfiguration().getChangeLogLastChangeNumberAttribute();
-        Attribute lastChangeNumberAttribute = rootDse.get(lastChangeNumberAttributeName);
-        if (lastChangeNumberAttribute == null) {
-            return null;
+
+        Entry entryToReadFrom = null;
+        String readContextString = null;
+
+        if (getChangeNumbersFromRootDSE) {
+            // We want to get a very fresh root DSE.
+            // Root DSE might be cached with outdated lastChangeNumber value.
+            // We have to make sure we have the most recent value
+            entryToReadFrom = getConnectionManager().getRootDseFresh();
+            readContextString = "root DSE";
         }
-        try {
-            String stringValue = lastChangeNumberAttribute.getString();
-            LOG.ok("Fetched {0} from root DSE: {1}", lastChangeNumberAttributeName, stringValue);
-            if (StringUtils.isEmpty(stringValue)) {
+        else {
+            String configuredChangeLogDN = getConfiguration().getChangeLogDN();
+            LdapNetworkConnection connection = getConnectionManager().getConnection(null, null);            
+
+            try {
+                entryToReadFrom = connection.lookup(configuredChangeLogDN, lastChangeNumberAttributeName);
+            }
+            catch (LdapException ex) {
+                LOG.error(ex, "Failed to read configured changelog DN '{0}': {1}", configuredChangeLogDN, ex.getMessage());
                 return null;
             }
-            return new SyncToken(Integer.parseInt(lastChangeNumberAttribute.getString()));
-        } catch (LdapInvalidAttributeValueException e) {
-            throw new InvalidAttributeValueException("Invalid type of  root DSE attribute "+lastChangeNumberAttributeName+": "+e.getMessage(), e);
+            finally {
+                returnConnection(connection);
+            }
+
+            readContextString = configuredChangeLogDN;
+        }
+
+        Attribute lastChangeNumberAttribute = entryToReadFrom.get(lastChangeNumberAttributeName);
+        if (lastChangeNumberAttribute == null) {
+            LOG.warn("Failed to retrieve the latest sync token from {0}.", readContextString);
+            return null;
+        }
+
+        try {
+            String stringValue = lastChangeNumberAttribute.getString();
+            if (StringUtils.isEmpty(stringValue)) {
+                LOG.warn("Empty sync token retrieved from {0}.", readContextString);
+                return null;
+            }
+
+            LOG.ok("Fetched sync token from {0}: {1}", readContextString, stringValue);
+            
+            return new SyncToken(Integer.parseInt(stringValue));
+        } catch (LdapInvalidAttributeValueException ex) {
+            throw new InvalidAttributeValueException("Invalid type of attribute " + lastChangeNumberAttributeName + " on " + readContextString + ": " + ex.getMessage(), ex);
         }
     }
 
