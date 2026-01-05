@@ -1861,7 +1861,16 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
     @Override
     public SyncToken getLatestSyncToken(ObjectClass objectClass) {
         SyncStrategy<C> strategy = chooseSyncStrategy();
-        return strategy.getLatestSyncToken(objectClass);
+        SyncToken syncToken = strategy.getLatestSyncToken(objectClass);
+
+        if (syncToken == null) {
+            LOG.warn("Unable to identify latest sync token using '{0}' sync strategy.", strategy.getClass().getSimpleName());
+        }
+        else {
+            LOG.info("Latest sync token identified with '{0}' sync strategy is: {1}", strategy.getClass().getSimpleName(), syncToken.toString());
+        }
+
+        return syncToken;
     }
 
     private SyncStrategy<C> chooseSyncStrategy() {
@@ -1888,6 +1897,9 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
                     throw new IllegalArgumentException("Unknown synchronization strategy '"+configuration.getSynchronizationStrategy()+"'");
             }
         }
+        
+        LOG.ok("'{0}' chose as sync strategy.", syncStrategy.getClass().getSimpleName());
+
         return syncStrategy;
     }
 
@@ -1900,7 +1912,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
         String changeLogAttributeName = getConfiguration().getChangeLogRootDSEAttribute();
         org.apache.directory.api.ldap.model.entry.Attribute changelogAttribute = rootDse.get(changeLogAttributeName);
         if (changelogAttribute != null) {
-            LOG.ok("Choosing generic change log sync strategy (found {0} attribute in root DSE)", changeLogAttributeName);
+            LOG.ok("Automatic sync strategy chose generic change log sync strategy (found {0} attribute in root DSE)", changeLogAttributeName);
             return new GenericChangeLogSyncStrategy<>(configuration, connectionManager, getSchemaManager(), getSchemaTranslator(), getErrorHandler());
         }
         
@@ -1911,7 +1923,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
         try {
         	Entry changeLogEntry = connection.lookup(changeLogDN, ATTRIBUTE_OBJECTCLASS_NAME);
         	if (changeLogEntry != null) {
-        		LOG.ok("Choosing generic change log sync strategy (top-level changelog entry found at {0})", changeLogDN);
+        		LOG.ok("Automatic sync strategy chose generic change log sync strategy (top-level changelog entry found at {0})", changeLogDN);
         		return new GenericChangeLogSyncStrategy<>(configuration, connectionManager, getSchemaManager(), getSchemaTranslator(), getErrorHandler());
         	}
         }
@@ -1919,7 +1931,7 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
         	LOG.warn("Attempt to read top-level changelog entry failed: {0}", e.getMessage(), e);
         }
         
-        LOG.ok("Choosing modifyTimestamp sync strategy (fallback)");
+        LOG.ok("Automatic sync strategy chose modifyTimestamp sync strategy (fallback)");
         return createModifyTimestampSyncStrategy();
     }
 
