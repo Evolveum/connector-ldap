@@ -16,6 +16,8 @@
 package com.evolveum.polygon.connector.ldap.sync;
 
 import java.io.IOException;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import com.evolveum.polygon.connector.ldap.*;
 import com.evolveum.polygon.connector.ldap.connection.ConnectionManager;
@@ -107,6 +109,31 @@ public class GenericChangeLogSyncStrategy<C extends AbstractLdapConfiguration> e
             throw new InvalidAttributeValueException("Invalid type of root DSE attribute "+changeLogAttributeName+": "+e.getMessage(), e);
         }
 	}
+
+    /**
+     * Filter attributes from an LDIF block.
+     * Utilised for directories such as Isode M-Vault that contains 'dn' and 'changeType' 
+     * attributes in the changes LDIF on an 'add' operation. The first of the two of these
+     * attributes causes issues with the apache directory ldap API LdifAttributesReader
+     * 
+     * @param changeLogEntry The DN of the changelog entry containing the LDIF being filtered
+     * @param ldif The LDIF to filter attributes from
+     * @return The filtered LDIF
+     */
+    private String filterLdifChanges(String changeLogEntry, String ldif, String[] changeLogFilteredAttributes) {
+        return Stream.of(ldif.split("\n"))
+                     .filter(line -> {
+                        for (String filteredAttribute : changeLogFilteredAttributes) {
+                            if (line.startsWith(filteredAttribute)) {
+                                LOG.ok("Changelog entry {0} contains filtered attribute {1}, removing.", changeLogEntry, filteredAttribute);
+                                return false;
+                            }
+                        }
+
+                        return true;
+                     })
+                     .collect(Collectors.joining("\n"));
+    }
     
     @Override
     public void sync(ObjectClass icfObjectClass, SyncToken fromToken, SyncResultsHandler handler,
@@ -207,6 +234,8 @@ public class GenericChangeLogSyncStrategy<C extends AbstractLdapConfiguration> e
                     }
                 }
 
+                String[] changeLogFilteredAttributes = getConfiguration().getChangeLogFilteredAttributes();
+
                 SyncDeltaType deltaType;
                 String changeType = LdapUtil.getStringAttribute(entry, CHANGELOG_ATTRIBUTE_CHANGE_TYPE);
                 if (changeType != null) {
@@ -234,6 +263,12 @@ public class GenericChangeLogSyncStrategy<C extends AbstractLdapConfiguration> e
                     } else if (CHANGE_TYPE_ADD.equals(changeType)) {
                         deltaType = SyncDeltaType.CREATE;
                         String changesString = LdapUtil.getStringAttribute(entry, CHANGELOG_ATTRIBUTE_CHANGES);
+
+
+                        if (changeLogFilteredAttributes.length > 0) {
+                            changesString = filterLdifChanges(entry.getDn().getName(), changesString, changeLogFilteredAttributes);
+                        }
+
                         LdifAttributesReader reader = new LdifAttributesReader();
                         Entry targetEntry = reader.parseEntry( getSchemaManager(), changesString);
                         try {
