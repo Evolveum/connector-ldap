@@ -26,6 +26,7 @@ import org.apache.directory.api.ldap.model.entry.Attribute;
 import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.exception.LdapException;
 import org.apache.directory.api.ldap.model.exception.LdapInvalidAttributeValueException;
+import org.apache.directory.api.ldap.model.exception.LdapInvalidDnException;
 import org.apache.directory.api.ldap.model.exception.LdapSchemaException;
 import org.apache.directory.api.ldap.model.filter.GreaterEqNode;
 import org.apache.directory.api.ldap.model.ldif.LdifAttributesReader;
@@ -132,6 +133,15 @@ public class GenericChangeLogSyncStrategy<C extends AbstractLdapConfiguration> e
         String targetEntryDNAttributeName = getConfiguration().getChangeLogTargetDNAttribute();
         String uidAttributeName = getConfiguration().getUidAttribute();
 
+        Dn syncBaseContext;
+
+        try {
+            syncBaseContext = new Dn(determineSyncBaseContext());
+        } catch (LdapInvalidDnException e) {
+            LOG.error(e, "Invalid base context to use for syncing: {0}", e.getMessage());
+            throw new IllegalArgumentException("Invalid base context to use for syncing.", e);
+        }
+
         String changelogSearchFilter = LdapConfiguration.SEARCH_FILTER_ALL;
         if (fromToken != null) {
             Object fromTokenValue = fromToken.getValue();
@@ -178,6 +188,11 @@ public class GenericChangeLogSyncStrategy<C extends AbstractLdapConfiguration> e
                 deltaBuilder.setToken(deltaToken);
 
                 String targetDn = LdapUtil.getStringAttribute(entry, targetEntryDNAttributeName);
+                if (!syncBaseContext.isAncestorOf(targetDn)) {
+                    LOG.ok("Changelog entry {0} refers to an entry {1} outside of the base synchronisation context {2}, ignoring", entry.getDn(), targetDn, determineSyncBaseContext());
+                    continue;
+                }
+
                 String targetEntryUuid = LdapUtil.getStringAttribute(entry, targetEntryUUIDAttributeName);
                 String targetUniqueId = LdapUtil.getStringAttribute(entry, targetUniqueIdAttributeName);
                 String oldUid = null;
