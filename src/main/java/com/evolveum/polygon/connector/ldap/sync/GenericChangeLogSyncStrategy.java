@@ -169,6 +169,12 @@ public class GenericChangeLogSyncStrategy<C extends AbstractLdapConfiguration> e
             throw new IllegalArgumentException("Invalid base context to use for syncing.", e);
         }
 
+        // Convert from string to int, then int to SearchScope
+        // Annoying we have to do this, but the apache directory LDAP API does not have a 
+        // static method for conversion in a single operation
+        SearchScope syncSearchScope = SearchScope.getSearchScope(
+                                            SearchScope.getSearchScope(getConfiguration().getDefaultSearchScope()));
+
         String changelogSearchFilter = LdapConfiguration.SEARCH_FILTER_ALL;
         if (fromToken != null) {
             Object fromTokenValue = fromToken.getValue();
@@ -212,13 +218,27 @@ public class GenericChangeLogSyncStrategy<C extends AbstractLdapConfiguration> e
                 // TODO: filter out by modifiersName
 
                 SyncDeltaBuilder deltaBuilder = new SyncDeltaBuilder();
+
                 deltaBuilder.setToken(deltaToken);
 
                 String targetDn = LdapUtil.getStringAttribute(entry, targetEntryDNAttributeName);
-                if (!syncBaseContext.isAncestorOf(targetDn)) {
-                    LOG.ok("Changelog entry {0} refers to an entry {1} outside of the base synchronisation context {2}, ignoring", entry.getDn(), targetDn, determineSyncBaseContext());
-                    continue;
+                switch (syncSearchScope) {
+                    case ONELEVEL:
+                        if (!(new Dn(targetDn)).getParent().equals(syncBaseContext)) {
+                            LOG.ok("Changelog entry {0} refers to an entry {1} that is not a direct child of the base synchronisation context {2}, ignoring", entry.getDn(), targetDn, determineSyncBaseContext());
+                        }
+                        break;
+                    case SUBTREE:
+                        if (!syncBaseContext.isAncestorOf(targetDn)) {
+                            LOG.ok("Changelog entry {0} refers to an entry {1} outside of the base synchronisation context {2}, ignoring", entry.getDn(), targetDn, determineSyncBaseContext());
+                            continue;
+                        }
+                        break;
+                    default:
+                        // We should not get to this point; AbstractLdapConfiguration only allows values of onelevel and subtree for the default search scope
+                        throw new IllegalArgumentException("Invalid base context to use for syncing.");
                 }
+
 
                 String targetEntryUuid = LdapUtil.getStringAttribute(entry, targetEntryUUIDAttributeName);
                 String targetUniqueId = LdapUtil.getStringAttribute(entry, targetUniqueIdAttributeName);
