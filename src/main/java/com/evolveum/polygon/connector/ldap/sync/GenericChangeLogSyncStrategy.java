@@ -216,16 +216,12 @@ public class GenericChangeLogSyncStrategy<C extends AbstractLdapConfiguration> e
                 }
 
                 // TODO: filter out by modifiersName
-
-                SyncDeltaBuilder deltaBuilder = new SyncDeltaBuilder();
-
-                deltaBuilder.setToken(deltaToken);
-
                 String targetDn = LdapUtil.getStringAttribute(entry, targetEntryDNAttributeName);
                 switch (syncSearchScope) {
                     case ONELEVEL:
                         if (!(new Dn(targetDn)).getParent().equals(syncBaseContext)) {
                             LOG.ok("Changelog entry {0} refers to an entry {1} that is not a direct child of the base synchronisation context {2}, ignoring", entry.getDn(), targetDn, determineSyncBaseContext());
+                            continue;
                         }
                         break;
                     case SUBTREE:
@@ -239,6 +235,9 @@ public class GenericChangeLogSyncStrategy<C extends AbstractLdapConfiguration> e
                         throw new IllegalArgumentException("Invalid base context to use for syncing.");
                 }
 
+                SyncDeltaBuilder deltaBuilder = new SyncDeltaBuilder();
+
+                deltaBuilder.setToken(deltaToken);
 
                 String targetEntryUuid = LdapUtil.getStringAttribute(entry, targetEntryUUIDAttributeName);
                 String targetUniqueId = LdapUtil.getStringAttribute(entry, targetUniqueIdAttributeName);
