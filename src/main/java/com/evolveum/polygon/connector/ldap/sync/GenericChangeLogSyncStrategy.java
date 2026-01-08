@@ -232,7 +232,7 @@ public class GenericChangeLogSyncStrategy<C extends AbstractLdapConfiguration> e
                         break;
                     default:
                         // We should not get to this point; AbstractLdapConfiguration only allows values of onelevel and subtree for the default search scope
-                        throw new IllegalArgumentException("Invalid base context to use for syncing.");
+                        throw new IllegalArgumentException("Invalid search scope to use for syncing.");
                 }
 
                 SyncDeltaBuilder deltaBuilder = new SyncDeltaBuilder();
