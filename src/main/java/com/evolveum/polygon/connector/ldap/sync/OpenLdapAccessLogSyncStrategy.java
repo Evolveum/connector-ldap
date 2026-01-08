@@ -27,12 +27,14 @@ import org.apache.directory.api.ldap.model.cursor.EntryCursor;
 import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.entry.Value;
 import org.apache.directory.api.ldap.model.exception.LdapException;
+import org.apache.directory.api.ldap.model.exception.LdapInvalidDnException;
 import org.apache.directory.api.ldap.model.exception.LdapSchemaException;
 import org.apache.directory.api.ldap.model.filter.AndNode;
 import org.apache.directory.api.ldap.model.filter.EqualityNode;
 import org.apache.directory.api.ldap.model.filter.ExprNode;
 import org.apache.directory.api.ldap.model.filter.GreaterEqNode;
 import org.apache.directory.api.ldap.model.message.SearchScope;
+import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.ldap.model.schema.SchemaManager;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
 import org.identityconnectors.common.logging.Log;
@@ -126,6 +128,21 @@ public class OpenLdapAccessLogSyncStrategy<C extends AbstractLdapConfiguration> 
                     Arrays.toString(attributesToGet));
         }
 
+         Dn syncBaseContext;
+
+        try {
+            syncBaseContext = new Dn(determineSyncBaseContext());
+        } catch (LdapInvalidDnException e) {
+            LOG.error(e, "Invalid base context to use for syncing: {0}", e.getMessage());
+            throw new IllegalArgumentException("Invalid base context to use for syncing.", e);
+        }
+
+        // Convert from string to int, then int to SearchScope
+        // Annoying we have to do this, but the apache directory LDAP API does not have a 
+        // static method for conversion in a single operation
+        SearchScope syncSearchScope = SearchScope.getSearchScope(
+                                            SearchScope.getSearchScope(getConfiguration().getDefaultSearchScope()));
+
         // Remember final token before we start searching. This will avoid missing
         // the changes that come when the search is already running and do not make
         // it into the search.
@@ -144,11 +161,30 @@ public class OpenLdapAccessLogSyncStrategy<C extends AbstractLdapConfiguration> 
                 LOG.ok("Got changelog entry: {0}", entry);
                 numAccessLogEntries++;
 
+                String targetDn = LdapUtil.getStringAttribute(entry, ACCESS_LOG_TARGET_DN_ATTRIBUTE_NAME);
+
+                switch (syncSearchScope) {
+                    case ONELEVEL:
+                        if (!(new Dn(targetDn)).getParent().equals(syncBaseContext)) {
+                            LOG.ok("Changelog entry {0} refers to an entry {1} that is not a direct child of the base synchronisation context {2}, ignoring", entry.getDn(), targetDn, determineSyncBaseContext());
+                            continue;
+                        }
+                        break;
+                    case SUBTREE:
+                        if (!syncBaseContext.isAncestorOf(targetDn)) {
+                            LOG.ok("Changelog entry {0} refers to an entry {1} outside of the base synchronisation context {2}, ignoring", entry.getDn(), targetDn, determineSyncBaseContext());
+                            continue;
+                        }
+                        break;
+                    default:
+                        // We should not get to this point; AbstractLdapConfiguration only allows values of onelevel and subtree for the default search scope
+                        throw new IllegalArgumentException("Invalid search scope to use for syncing.");
+                }
+
                 SyncDeltaBuilder deltaBuilder = new SyncDeltaBuilder();
                 deltaBuilder.setToken(finalToken);
                 SyncDeltaType deltaType = SyncDeltaType.DELETE;
 
-                String targetDn = LdapUtil.getStringAttribute(entry, ACCESS_LOG_TARGET_DN_ATTRIBUTE_NAME);
                 String targetEntryUuid = LdapUtil.getStringAttribute(entry, ACCESS_LOG_ENTRY_UUID_ATTRIBUTE_NAME);
 
                 String oldUid = null;
