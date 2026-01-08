@@ -26,6 +26,7 @@ import org.apache.directory.api.ldap.model.entry.Attribute;
 import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.exception.LdapException;
 import org.apache.directory.api.ldap.model.exception.LdapInvalidAttributeValueException;
+import org.apache.directory.api.ldap.model.exception.LdapInvalidDnException;
 import org.apache.directory.api.ldap.model.exception.LdapSchemaException;
 import org.apache.directory.api.ldap.model.filter.GreaterEqNode;
 import org.apache.directory.api.ldap.model.ldif.LdifAttributesReader;
@@ -119,6 +120,21 @@ public class SunChangelogSyncStrategy<C extends AbstractLdapConfiguration> exten
         String changeNumberAttributeName = getConfiguration().getChangeNumberAttribute();
         String uidAttributeName = getConfiguration().getUidAttribute();
 
+        Dn syncBaseContext;
+
+        try {
+            syncBaseContext = new Dn(determineSyncBaseContext());
+        } catch (LdapInvalidDnException e) {
+            LOG.error(e, "Invalid base context to use for syncing: {0}", e.getMessage());
+            throw new IllegalArgumentException("Invalid base context to use for syncing.", e);
+        }
+
+        // Convert from string to int, then int to SearchScope
+        // Annoying we have to do this, but the apache directory LDAP API does not have a 
+        // static method for conversion in a single operation
+        SearchScope syncSearchScope = SearchScope.getSearchScope(
+                                            SearchScope.getSearchScope(getConfiguration().getDefaultSearchScope()));
+
         String changelogSearchFilter = LdapConfiguration.SEARCH_FILTER_ALL;
         if (fromToken != null) {
             Object fromTokenValue = fromToken.getValue();
@@ -158,13 +174,30 @@ public class SunChangelogSyncStrategy<C extends AbstractLdapConfiguration> exten
                     deltaToken = new SyncToken(changeNumber);
                     finalToken = deltaToken;
                 }
-
+                
                 // TODO: filter out by modifiersName
+                String targetDn = LdapUtil.getStringAttribute(entry, CHANGELOG_ATTRIBUTE_TARGET_DN);
+                switch (syncSearchScope) {
+                    case ONELEVEL:
+                        if (!(new Dn(targetDn)).getParent().equals(syncBaseContext)) {
+                            LOG.ok("Changelog entry {0} refers to an entry {1} that is not a direct child of the base synchronisation context {2}, ignoring", entry.getDn(), targetDn, determineSyncBaseContext());
+                            continue;
+                        }
+                        break;
+                    case SUBTREE:
+                        if (!syncBaseContext.isAncestorOf(targetDn)) {
+                            LOG.ok("Changelog entry {0} refers to an entry {1} outside of the base synchronisation context {2}, ignoring", entry.getDn(), targetDn, determineSyncBaseContext());
+                            continue;
+                        }
+                        break;
+                    default:
+                        // We should not get to this point; AbstractLdapConfiguration only allows values of onelevel and subtree for the default search scope
+                        throw new IllegalArgumentException("Invalid search scope to use for syncing.");
+                }
 
                 SyncDeltaBuilder deltaBuilder = new SyncDeltaBuilder();
                 deltaBuilder.setToken(deltaToken);
 
-                String targetDn = LdapUtil.getStringAttribute(entry, CHANGELOG_ATTRIBUTE_TARGET_DN);
                 String targetEntryUuid = LdapUtil.getStringAttribute(entry, CHANGELOG_ATTRIBUTE_TARGET_ENTRY_UUID);
                 String targetUniqueId = LdapUtil.getStringAttribute(entry, CHANGELOG_ATTRIBUTE_TARGET_UNIQUE_ID);
                 String oldUid = null;
