@@ -105,6 +105,21 @@ public class AdDirSyncStrategy<C extends AbstractLdapConfiguration> extends Sync
                     req.getBase(), req.getFilter(), req.getScope(), req.getAttributes(), LdapUtil.toShortString(req.getControls()));
         }
 
+        Dn syncBaseContext;
+
+        try {
+            syncBaseContext = new Dn(determineSyncBaseContext());
+        } catch (LdapInvalidDnException e) {
+            LOG.error(e, "Invalid base context to use for syncing: {0}", e.getMessage());
+            throw new IllegalArgumentException("Invalid base context to use for syncing.", e);
+        }
+
+        // Convert from string to int, then int to SearchScope
+        // Annoying we have to do this, but the apache directory LDAP API does not have a 
+        // static method for conversion in a single operation
+        SearchScope syncSearchScope = SearchScope.getSearchScope(
+                                            SearchScope.getSearchScope(getConfiguration().getDefaultSearchScope()));
+
         try {
             SearchCursor searchCursor = connection.search(req);
             while (searchCursor.next()) {
@@ -123,6 +138,25 @@ public class AdDirSyncStrategy<C extends AbstractLdapConfiguration> extends Sync
                         if (entryCookie != null) {
                             lastEntryCookie = entryCookie;
                         }
+                    }
+
+                    Dn targetDn = dirSyncEntry.getDn();
+                    switch (syncSearchScope) {
+                        case ONELEVEL:
+                            if (!targetDn.getParent().equals(syncBaseContext)) {
+                                LOG.ok("Dirsync entry {0} for an object that is not a direct child of the base synchronisation context {1}, ignoring", targetDn.getName(), determineSyncBaseContext());
+                                continue;
+                            }
+                            break;
+                        case SUBTREE:
+                            if (!syncBaseContext.isAncestorOf(targetDn)) {
+                                LOG.ok("Dirsync entry {0} for an object outside of the base synchronisation context {1}, ignoring", targetDn.getName(), determineSyncBaseContext());
+                                continue;
+                            }
+                            break;
+                        default:
+                            // We should not get to this point; AbstractLdapConfiguration only allows values of onelevel and subtree for the default search scope
+                            throw new IllegalArgumentException("Invalid search scope to use for syncing.");
                     }
 
                     // Explicitly fetch each object. AD will return only changed attributes.
