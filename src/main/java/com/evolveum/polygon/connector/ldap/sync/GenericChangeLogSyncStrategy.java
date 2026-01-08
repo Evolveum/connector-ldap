@@ -214,7 +214,7 @@ public class GenericChangeLogSyncStrategy<C extends AbstractLdapConfiguration> e
                     deltaToken = new SyncToken(changeNumber);
                     finalToken = deltaToken;
                 }
-
+                
                 // TODO: filter out by modifiersName
                 String targetDn = LdapUtil.getStringAttribute(entry, targetEntryDNAttributeName);
                 switch (syncSearchScope) {
