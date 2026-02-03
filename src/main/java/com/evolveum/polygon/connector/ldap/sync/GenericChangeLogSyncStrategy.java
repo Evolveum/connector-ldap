@@ -16,6 +16,8 @@
 package com.evolveum.polygon.connector.ldap.sync;
 
 import java.io.IOException;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import com.evolveum.polygon.connector.ldap.*;
 import com.evolveum.polygon.connector.ldap.connection.ConnectionManager;
@@ -26,6 +28,7 @@ import org.apache.directory.api.ldap.model.entry.Attribute;
 import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.exception.LdapException;
 import org.apache.directory.api.ldap.model.exception.LdapInvalidAttributeValueException;
+import org.apache.directory.api.ldap.model.exception.LdapInvalidDnException;
 import org.apache.directory.api.ldap.model.exception.LdapSchemaException;
 import org.apache.directory.api.ldap.model.filter.GreaterEqNode;
 import org.apache.directory.api.ldap.model.ldif.LdifAttributesReader;
@@ -55,16 +58,10 @@ import com.evolveum.polygon.connector.ldap.schema.AbstractSchemaTranslator;
  * @author semancik
  *
  */
-public class SunChangelogSyncStrategy<C extends AbstractLdapConfiguration> extends SyncStrategy<C> {
+public class GenericChangeLogSyncStrategy<C extends AbstractLdapConfiguration> extends SyncStrategy<C> {
 
-    public static final String ROOT_DSE_ATTRIBUTE_CHANGELOG_NAME = "changelog";
-    private static final String ROOT_DSE_ATTRIBUTE_FIRST_CHANGE_NUMBER_NAME = "firstChangeNumber";
-    private static final String ROOT_DSE_ATTRIBUTE_LAST_CHANGE_NUMBER_NAME = "lastChangeNumber";
 
-    private static final Log LOG = Log.getLog(SunChangelogSyncStrategy.class);
-    private static final String CHANGELOG_ATTRIBUTE_TARGET_UNIQUE_ID = "targetUniqueID";
-    private static final String CHANGELOG_ATTRIBUTE_TARGET_ENTRY_UUID = "targetEntryUUID";
-    private static final String CHANGELOG_ATTRIBUTE_TARGET_DN = "targetDN";
+    protected static final Log LOG = Log.getLog(GenericChangeLogSyncStrategy.class);
     private static final String CHANGELOG_ATTRIBUTE_CHANGE_TIME = "changeTime";
     private static final String CHANGELOG_ATTRIBUTE_CHANGE_TYPE = "changeType";
     private static final String CHANGELOG_ATTRIBUTE_CHANGES = "changes";
@@ -82,12 +79,62 @@ public class SunChangelogSyncStrategy<C extends AbstractLdapConfiguration> exten
     private static final Object CHANGE_TYPE_MODRDN = "modrdn";
 
 
-    public SunChangelogSyncStrategy(AbstractLdapConfiguration configuration, ConnectionManager<C> connection,
+    public GenericChangeLogSyncStrategy(AbstractLdapConfiguration configuration, ConnectionManager<C> connection,
                                     SchemaManager schemaManager, AbstractSchemaTranslator<C> schemaTranslator,
                                     ErrorHandler errorHandler) {
         super(configuration, connection, schemaManager, schemaTranslator, errorHandler);
     }
 
+    protected String getChangeLogDN() {
+    	Entry rootDse = getConnectionManager().getRootDse();
+    	String changeLogAttributeName = getConfiguration().getChangeLogRootDSEAttribute();
+    	Attribute changelogAttribute = rootDse.get(changeLogAttributeName);
+    	if (changelogAttribute == null) {
+            LOG.warn("Unable to locate changelog from the root DSE attribute "+changeLogAttributeName+".");
+            
+            String configuredChangeLogDN = getConfiguration().getChangeLogDN();
+            if (configuredChangeLogDN == AbstractLdapConfiguration.CHANGELOG_DEFAULT_CHANGE_LOG_DN) {
+            	LOG.warn("Falling back to default changelog DN: "+AbstractLdapConfiguration.CHANGELOG_DEFAULT_CHANGE_LOG_DN);
+            }
+            else {
+            	LOG.warn("Falling back to user configured changelog DN: "+configuredChangeLogDN);
+            }
+            
+            return configuredChangeLogDN;
+        }
+    	
+        try {
+            return changelogAttribute.getString();
+        } catch (LdapInvalidAttributeValueException e) {
+            throw new InvalidAttributeValueException("Invalid type of root DSE attribute "+changeLogAttributeName+": "+e.getMessage(), e);
+        }
+	}
+
+    /**
+     * Filter attributes from an LDIF block.
+     * Utilised for directories such as Isode M-Vault that contains 'dn' and 'changeType' 
+     * attributes in the changes LDIF on an 'add' operation. The first of the two of these
+     * attributes causes issues with the apache directory ldap API LdifAttributesReader
+     * 
+     * @param changeLogEntry The DN of the changelog entry containing the LDIF being filtered
+     * @param ldif The LDIF to filter attributes from
+     * @return The filtered LDIF
+     */
+    private String filterLdifChanges(String changeLogEntry, String ldif, String[] changeLogFilteredAttributes) {
+        return Stream.of(ldif.split("\n"))
+                     .filter(line -> {
+                        for (String filteredAttribute : changeLogFilteredAttributes) {
+                            if (line.startsWith(filteredAttribute)) {
+                                LOG.ok("Changelog entry {0} contains filtered attribute {1}, removing.", changeLogEntry, filteredAttribute);
+                                return false;
+                            }
+                        }
+
+                        return true;
+                     })
+                     .collect(Collectors.joining("\n"));
+    }
+    
     @Override
     public void sync(ObjectClass icfObjectClass, SyncToken fromToken, SyncResultsHandler handler,
             OperationOptions options) {
@@ -104,20 +151,29 @@ public class SunChangelogSyncStrategy<C extends AbstractLdapConfiguration> exten
             ldapObjectClass = getSchemaTranslator().toLdapObjectClass(icfObjectClass);
         }
 
-        Entry rootDse = getConnectionManager().getRootDse();
-        Attribute changelogAttribute = rootDse.get(ROOT_DSE_ATTRIBUTE_CHANGELOG_NAME);
-        if (changelogAttribute == null) {
-            throw new ConnectorException("Cannot locate changelog, the root DSE attribute "+ROOT_DSE_ATTRIBUTE_CHANGELOG_NAME+" is not present");
-        }
-        String changelogDn;
-        try {
-            changelogDn = changelogAttribute.getString();
-        } catch (LdapInvalidAttributeValueException e) {
-            throw new InvalidAttributeValueException("Invalid type of  root DSE attribute "+ROOT_DSE_ATTRIBUTE_CHANGELOG_NAME+": "+e.getMessage(), e);
-        }
+        
+        String changelogDn = getChangeLogDN();
 
         String changeNumberAttributeName = getConfiguration().getChangeNumberAttribute();
+        String targetUniqueIdAttributeName = getConfiguration().getChangeLogTargetUniqueIdAttribute();
+        String targetEntryUUIDAttributeName = getConfiguration().getChangeLogTargetEntryUUIDAttribute();
+        String targetEntryDNAttributeName = getConfiguration().getChangeLogTargetDNAttribute();
         String uidAttributeName = getConfiguration().getUidAttribute();
+
+        Dn syncBaseContext;
+
+        try {
+            syncBaseContext = new Dn(determineSyncBaseContext());
+        } catch (LdapInvalidDnException e) {
+            LOG.error(e, "Invalid base context to use for syncing: {0}", e.getMessage());
+            throw new IllegalArgumentException("Invalid base context to use for syncing.", e);
+        }
+
+        // Convert from string to int, then int to SearchScope
+        // Annoying we have to do this, but the apache directory LDAP API does not have a 
+        // static method for conversion in a single operation
+        SearchScope syncSearchScope = SearchScope.getSearchScope(
+                                            SearchScope.getSearchScope(getConfiguration().getDefaultSearchScope()));
 
         String changelogSearchFilter = LdapConfiguration.SEARCH_FILTER_ALL;
         if (fromToken != null) {
@@ -138,8 +194,8 @@ public class SunChangelogSyncStrategy<C extends AbstractLdapConfiguration> exten
         try {
             EntryCursor searchCursor = connection.search(changelogDn, changelogSearchFilter, SearchScope.ONELEVEL,
                     changeNumberAttributeName,
-                    CHANGELOG_ATTRIBUTE_TARGET_UNIQUE_ID,
-                    CHANGELOG_ATTRIBUTE_TARGET_DN,
+                    targetUniqueIdAttributeName,
+                    targetEntryDNAttributeName,
                     CHANGELOG_ATTRIBUTE_CHANGE_TIME,
                     CHANGELOG_ATTRIBUTE_CHANGE_TYPE,
                     CHANGELOG_ATTRIBUTE_CHANGES,
@@ -158,15 +214,33 @@ public class SunChangelogSyncStrategy<C extends AbstractLdapConfiguration> exten
                     deltaToken = new SyncToken(changeNumber);
                     finalToken = deltaToken;
                 }
-
+                
                 // TODO: filter out by modifiersName
+                String targetDn = LdapUtil.getStringAttribute(entry, targetEntryDNAttributeName);
+                switch (syncSearchScope) {
+                    case ONELEVEL:
+                        if (!(new Dn(targetDn)).getParent().equals(syncBaseContext)) {
+                            LOG.ok("Changelog entry {0} refers to an entry {1} that is not a direct child of the base synchronisation context {2}, ignoring", entry.getDn(), targetDn, determineSyncBaseContext());
+                            continue;
+                        }
+                        break;
+                    case SUBTREE:
+                        if (!syncBaseContext.isAncestorOf(targetDn)) {
+                            LOG.ok("Changelog entry {0} refers to an entry {1} outside of the base synchronisation context {2}, ignoring", entry.getDn(), targetDn, determineSyncBaseContext());
+                            continue;
+                        }
+                        break;
+                    default:
+                        // We should not get to this point; AbstractLdapConfiguration only allows values of onelevel and subtree for the default search scope
+                        throw new IllegalArgumentException("Invalid search scope to use for syncing.");
+                }
 
                 SyncDeltaBuilder deltaBuilder = new SyncDeltaBuilder();
+
                 deltaBuilder.setToken(deltaToken);
 
-                String targetDn = LdapUtil.getStringAttribute(entry, CHANGELOG_ATTRIBUTE_TARGET_DN);
-                String targetEntryUuid = LdapUtil.getStringAttribute(entry, CHANGELOG_ATTRIBUTE_TARGET_ENTRY_UUID);
-                String targetUniqueId = LdapUtil.getStringAttribute(entry, CHANGELOG_ATTRIBUTE_TARGET_UNIQUE_ID);
+                String targetEntryUuid = LdapUtil.getStringAttribute(entry, targetEntryUUIDAttributeName);
+                String targetUniqueId = LdapUtil.getStringAttribute(entry, targetUniqueIdAttributeName);
                 String oldUid = null;
                 if (LdapUtil.isDnAttribute(uidAttributeName)) {
                     oldUid = targetDn;
@@ -178,6 +252,8 @@ public class SunChangelogSyncStrategy<C extends AbstractLdapConfiguration> exten
                         oldUid = targetUniqueId;
                     }
                 }
+
+                String[] changeLogFilteredAttributes = getConfiguration().getChangeLogFilteredAttributes();
 
                 SyncDeltaType deltaType;
                 String changeType = LdapUtil.getStringAttribute(entry, CHANGELOG_ATTRIBUTE_CHANGE_TYPE);
@@ -206,6 +282,12 @@ public class SunChangelogSyncStrategy<C extends AbstractLdapConfiguration> exten
                     } else if (CHANGE_TYPE_ADD.equals(changeType)) {
                         deltaType = SyncDeltaType.CREATE;
                         String changesString = LdapUtil.getStringAttribute(entry, CHANGELOG_ATTRIBUTE_CHANGES);
+
+
+                        if (changeLogFilteredAttributes.length > 0) {
+                            changesString = filterLdifChanges(entry.getDn().getName(), changesString, changeLogFilteredAttributes);
+                        }
+
                         LdifAttributesReader reader = new LdifAttributesReader();
                         Entry targetEntry = reader.parseEntry( getSchemaManager(), changesString);
                         try {
@@ -316,23 +398,55 @@ public class SunChangelogSyncStrategy<C extends AbstractLdapConfiguration> exten
 
     @Override
     public SyncToken getLatestSyncToken(ObjectClass objectClass) {
-        // We want to get a very fresh root DSE.
-        // Root DSE might be caches, with outdated lastChangeNumber value.
-        // We have to make sure we have recent value
-        Entry rootDse = getConnectionManager().getRootDseFresh();
-        Attribute lastChangeNumberAttribute = rootDse.get(ROOT_DSE_ATTRIBUTE_LAST_CHANGE_NUMBER_NAME);
-        if (lastChangeNumberAttribute == null) {
-            return null;
+        Boolean getChangeNumbersFromRootDSE = getConfiguration().getChangeLogChangeNumberAttributesOnRootDSE();
+        String lastChangeNumberAttributeName = getConfiguration().getChangeLogLastChangeNumberAttribute();
+
+        Entry entryToReadFrom = null;
+        String readContextString = null;
+
+        if (getChangeNumbersFromRootDSE) {
+            // We want to get a very fresh root DSE.
+            // Root DSE might be cached with outdated lastChangeNumber value.
+            // We have to make sure we have the most recent value
+            entryToReadFrom = getConnectionManager().getRootDseFresh();
+            readContextString = "root DSE";
         }
-        try {
-            String stringValue = lastChangeNumberAttribute.getString();
-            LOG.ok("Fetched {0} from root DSE: {1}", ROOT_DSE_ATTRIBUTE_LAST_CHANGE_NUMBER_NAME, stringValue);
-            if (StringUtils.isEmpty(stringValue)) {
+        else {
+            String configuredChangeLogDN = getConfiguration().getChangeLogDN();
+            LdapNetworkConnection connection = getConnectionManager().getConnection(null, null);            
+
+            try {
+                entryToReadFrom = connection.lookup(configuredChangeLogDN, lastChangeNumberAttributeName);
+            }
+            catch (LdapException ex) {
+                LOG.error(ex, "Failed to read configured changelog DN '{0}': {1}", configuredChangeLogDN, ex.getMessage());
                 return null;
             }
-            return new SyncToken(Integer.parseInt(lastChangeNumberAttribute.getString()));
-        } catch (LdapInvalidAttributeValueException e) {
-            throw new InvalidAttributeValueException("Invalid type of  root DSE attribute "+ROOT_DSE_ATTRIBUTE_LAST_CHANGE_NUMBER_NAME+": "+e.getMessage(), e);
+            finally {
+                returnConnection(connection);
+            }
+
+            readContextString = configuredChangeLogDN;
+        }
+
+        Attribute lastChangeNumberAttribute = entryToReadFrom.get(lastChangeNumberAttributeName);
+        if (lastChangeNumberAttribute == null) {
+            LOG.warn("Failed to retrieve the latest sync token from {0}.", readContextString);
+            return null;
+        }
+
+        try {
+            String stringValue = lastChangeNumberAttribute.getString();
+            if (StringUtils.isEmpty(stringValue)) {
+                LOG.warn("Empty sync token retrieved from {0}.", readContextString);
+                return null;
+            }
+
+            LOG.ok("Fetched sync token from {0}: {1}", readContextString, stringValue);
+            
+            return new SyncToken(Integer.parseInt(stringValue));
+        } catch (LdapInvalidAttributeValueException ex) {
+            throw new InvalidAttributeValueException("Invalid type of attribute " + lastChangeNumberAttributeName + " on " + readContextString + ": " + ex.getMessage(), ex);
         }
     }
 
