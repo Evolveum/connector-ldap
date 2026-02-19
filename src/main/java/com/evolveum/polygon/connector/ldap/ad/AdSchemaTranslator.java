@@ -91,7 +91,7 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
         super.extendObjectClassDefinition(ocib, ldapObjectClass);
         if (getConfiguration().isTweakSchema()) {
             // Account and groups need samAccountName attribute. But it is not in the declared schema.
-            if (isUserObjectClass(ldapObjectClass.getName()) || isGroupObjectClass(ldapObjectClass.getName())) {
+            if (isUserObjectClass(ldapObjectClass) || isGroupObjectClass(ldapObjectClass.getName())) {
 
                 AttributeInfoBuilder samAccountNameAttr = new AttributeInfoBuilder(ATTRIBUTE_SAM_ACCOUNT_NAME_NAME);
                 samAccountNameAttr.setType(String.class);
@@ -123,7 +123,7 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
         }
         
         //create userParameters attribtues
-        if (!getConfiguration().isRawUserParametersAttribute() && isUserObjectClass(ldapObjectClass.getName())) {
+        if (!getConfiguration().isRawUserParametersAttribute() && isUserObjectClass(ldapObjectClass)) {
             for (UserParametersAttributes up : UserParametersAttributes.values()) {
                 AttributeInfoBuilder upAb = new AttributeInfoBuilder(up.getName());
                 upAb.setType(String.class);
@@ -281,12 +281,14 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
     }
 
     @Override
-    protected void extendConnectorObject(ConnectorObjectBuilder cob, Entry entry, String objectClassName) {
-        super.extendConnectorObject(cob, entry, objectClassName);
+    protected void extendConnectorObject(ConnectorObjectBuilder cob, Entry entry, org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
+        super.extendConnectorObject(cob, entry, ldapObjectClass);
+
+
         if (!getConfiguration().isRawUserAccountControlAttribute()) {
             Integer userAccountControl = LdapUtil.getIntegerAttribute(entry, AdConstants.ATTRIBUTE_USER_ACCOUNT_CONTROL_NAME, null);
             if (userAccountControl == null) {
-                if (isUserObjectClass(objectClassName)) {
+                if (isUserObjectClass(ldapObjectClass)) {
                     cob.addAttribute(OperationalAttributes.ENABLE_NAME, Boolean.FALSE);
                 }
             } else {
@@ -304,7 +306,7 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
                 }
             }
         }
-        if (!getConfiguration().isRawUserParametersAttribute() && isUserObjectClass(objectClassName)) {
+        if (!getConfiguration().isRawUserParametersAttribute() && isUserObjectClass(ldapObjectClass)) {
             Attribute userParametersAttr = entry.get(AdUserParametersHandler.USER_PARAMETERS_LDAP_ATTR_NAME);
             if (userParametersAttr != null) {
                 AdUserParametersHandler handler = new AdUserParametersHandler();
@@ -337,8 +339,14 @@ public class AdSchemaTranslator extends AbstractSchemaTranslator<AdLdapConfigura
         }
     }
 
-    public boolean isUserObjectClass(String ldapObjectClass) {
-        return getConfiguration().getUserObjectClass().equals(ldapObjectClass);
+    public boolean isUserObjectClass(org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
+        if (ldapObjectClass == null) return false;
+
+        if (getConfiguration().getUserObjectClass().equals(ldapObjectClass.getName())) {
+            return true;
+        }
+
+        return ldapObjectClass.getSuperiors().stream().anyMatch(this::isUserObjectClass);
     }
 
     public boolean isGroupObjectClass(String ldapObjectClass) {
