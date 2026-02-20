@@ -144,6 +144,16 @@ public class LdapFilterTranslator<C extends AbstractLdapConfiguration> {
         }
 
         Filter connIdSubfilter = connIdFilter.getFilter();
+        if(connIdSubfilter instanceof EqualsFilter){
+            Attribute connIdAttribute = ((EqualsFilter) connIdSubfilter).getAttribute();
+            List<Object> connIdAttributeValue = connIdAttribute.getValue();
+
+            if(connIdAttributeValue == null){
+                String connIdAttributeName = connIdAttribute.getName();
+                AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, connIdAttributeName);
+                return new ScopedFilter(new PresenceNode(ldapAttributeType));
+            }
+        }
         ScopedFilter subNode = translate(connIdSubfilter);
 
         if (subNode.getBaseDn() != null) {
@@ -421,6 +431,11 @@ public class LdapFilterTranslator<C extends AbstractLdapConfiguration> {
             }
             ldapValue = schemaTranslator.toLdapIdentifierValue(ldapAttributeType, (String)connIdAttributeValue.get(0));
         } else {
+
+            if(connIdAttributeValue == null){
+
+                return new ScopedFilter(new NotNode(new PresenceNode(ldapAttributeType)));
+            }
             ldapValue = schemaTranslator.toLdapValue(ldapAttributeType, connIdAttributeValue);
         }
         return new ScopedFilter(new EqualityNode<Object>(ldapAttributeType, ldapValue));
