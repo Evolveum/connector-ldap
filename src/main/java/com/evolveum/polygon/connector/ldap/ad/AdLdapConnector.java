@@ -184,7 +184,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
             org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass,
             Set<Attribute> createAttributes) {
         if ((getConfiguration().isRawUserParametersAttribute() && getConfiguration().isRawUserAccountControlAttribute())
-                || !getSchemaTranslator().isUserObjectClass(ldapStructuralObjectClass.getName())) {
+                || !getSchemaTranslator().isUserObjectClass(ldapStructuralObjectClass)) {
             return super.prepareCreateConnIdAttributes(connIdObjectClass, ldapStructuralObjectClass, createAttributes);
         }
 
@@ -345,7 +345,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
     public Set<AttributeDelta> updateDelta(org.identityconnectors.framework.common.objects.ObjectClass connIdObjectClass, Uid uid, Set<AttributeDelta> deltas,
             OperationOptions options) {
         org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass = getSchemaTranslator().toLdapObjectClass(connIdObjectClass);
-        boolean isUserObjectClass = getSchemaTranslator().isUserObjectClass(ldapObjectClass.getName());
+        boolean isUserObjectClass = getSchemaTranslator().isUserObjectClass(ldapObjectClass);
 
         boolean hasUacPatch = !getConfiguration().isRawUserAccountControlAttribute() && isUserObjectClass && hasUacDelta(deltas);
         boolean hasUpPatch = !getConfiguration().isRawUserParametersAttribute() && isUserObjectClass && hasUpDelta(deltas);
@@ -844,7 +844,7 @@ public class AdLdapConnector extends AbstractLdapConnector<AdLdapConfiguration> 
 
     private boolean isUserPasswordChanged(Set<AttributeDelta> deltas, org.apache.directory.api.ldap.model.schema.ObjectClass ldapStructuralObjectClass) {
         //if password is in modifications set pwdLastSet=0 ("must change password at next logon")
-        if (getSchemaTranslator().isUserObjectClass(ldapStructuralObjectClass.getName())) {
+        if (getSchemaTranslator().isUserObjectClass(ldapStructuralObjectClass)) {
             for (AttributeDelta delta: deltas) {
                 // coming from midpoint password is __PASSWORD__
                 // TODO: should we additionally ask for  icfAttr.getName().equals(getConfiguration().getPasswordAttribute()?
