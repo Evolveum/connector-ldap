@@ -132,7 +132,8 @@ public class GenericChangeLogSyncStrategy<C extends AbstractLdapConfiguration> e
 
                         return true;
                      })
-                     .collect(Collectors.joining("\n"));
+                     .collect(Collectors.joining("\n"))
+                     .trim();
     }
     
     @Override
