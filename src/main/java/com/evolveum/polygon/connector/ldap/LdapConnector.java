@@ -76,7 +76,8 @@ public class LdapConnector extends AbstractLdapConnector<LdapConfiguration> {
                 SuggestedValuesBuilder.buildOpen(AbstractLdapConfiguration.PASSWORD_HASH_ALGORITHM_SSHA));
 
         suggestions.put(AbstractLdapConfiguration.CONF_PROP_NAME_VLV_SORT_ATTRIBUTE,
-                SuggestedValuesBuilder.buildOpen(SchemaConstants.UID_AT));
+                SuggestedValuesBuilder.buildOpen(
+                        SchemaConstants.UID_AT + "," + SchemaConstants.CN_AT + "," + SchemaConstants.OU_AT));
         suggestions.put(AbstractLdapConfiguration.CONF_PROP_NAME_VLV_SORT_ORDERING_RULE,
                 SuggestedValuesBuilder.buildOpen(SchemaConstants.CASE_IGNORE_ORDERING_MATCH_MR_OID));
 
@@ -85,7 +86,9 @@ public class LdapConnector extends AbstractLdapConnector<LdapConfiguration> {
                         SchemaConstants.CREATE_TIMESTAMP_AT, SchemaConstants.MODIFY_TIMESTAMP_AT));
 
         suggestions.put(LdapConfiguration.CONF_PROP_NAME_LOCKOUT_STRATEGY,
-                SuggestedValuesBuilder.build(LdapConfiguration.LOCKOUT_STRATEGY_OPENLDAP));
+                SuggestedValuesBuilder.build(
+                        LdapConfiguration.LOCKOUT_STRATEGY_NONE, // note that openldap strategy is experimental
+                        LdapConfiguration.LOCKOUT_STRATEGY_OPENLDAP));
 
         analyzeReferenceSuggestions(getSchemaManager(), getConfiguration(), suggestions);
     }

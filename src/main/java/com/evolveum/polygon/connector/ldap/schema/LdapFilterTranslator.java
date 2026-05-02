@@ -149,23 +149,16 @@ public class LdapFilterTranslator<C extends AbstractLdapConfiguration> {
         }
 
         Filter connIdSubfilter = connIdFilter.getFilter();
-
-        // If the filter is 'attribute is not equal to null', that is the same as a presence filter for that attribute
-        // We have to intercept within the 'NotFilter' translation level, as we need to omit the 'Not' as the filter
-        // received from midpoint is the inverse.
-        if (connIdSubfilter instanceof EqualsFilter) {
+        if(connIdSubfilter instanceof EqualsFilter){
             Attribute connIdAttribute = ((EqualsFilter) connIdSubfilter).getAttribute();
-            String connIdAttributeName = connIdAttribute.getName();
-            
-            AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, connIdAttributeName);
-            
-            List<Value> ldapValues = getLdapValues(connIdAttribute, ldapAttributeType);
+            List<Object> connIdAttributeValue = connIdAttribute.getValue();
 
-            if (ldapValues == null || ldapValues.isEmpty()) {
+            if(connIdAttributeValue == null){
+                String connIdAttributeName = connIdAttribute.getName();
+                AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, connIdAttributeName);
                 return new ScopedFilter(new PresenceNode(ldapAttributeType));
             }
         }
-
         ScopedFilter subNode = translate(connIdSubfilter);
 
         if (subNode.getBaseDn() != null) {
@@ -456,6 +449,11 @@ public class LdapFilterTranslator<C extends AbstractLdapConfiguration> {
             }
             ldapValue = schemaTranslator.toLdapIdentifierValue(ldapAttributeType, (String)connIdAttributeValue.get(0));
         } else {
+
+            if(connIdAttributeValue == null){
+
+                return new ScopedFilter(new NotNode(new PresenceNode(ldapAttributeType)));
+            }
             ldapValue = schemaTranslator.toLdapValue(ldapAttributeType, connIdAttributeValue);
         }
         return new ScopedFilter(new EqualityNode<Object>(ldapAttributeType, ldapValue));
