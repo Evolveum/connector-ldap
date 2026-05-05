@@ -296,18 +296,38 @@ public class GenericChangeLogSyncStrategy<C extends AbstractLdapConfiguration> e
                         } catch (IOException e) {
                             throw new ConnectorIOException(e);
                         }
+
+                        boolean readFullEntry = false;
+
                         if (!LdapUtil.isObjectClass(targetEntry, ldapObjectClass)) {
-                            LOG.ok("Changelog entry {0} does not match object class, skipping", targetEntry.getDn());
-                            continue;
+                            // No objectClass attribute in the changelog entry. We need to re-read it explicitly.
+                            LOG.ok("Changes attribute on changelog entry {0} does not contain object class attribute. Attempting to obtain from {1}.",
+                                    entry.getDn(), targetEntry.getDn());
+                            readFullEntry = true;
                         }
                         if (!getSchemaTranslator().hasUidAttribute(targetEntry)) {
                             // No UID attribute in the changelog entry. We need to re-read it explicitly.
+                            LOG.ok("Changes attribute on changelog entry {0} does not contain uid attribute. Attempting to obtain from {1}.",
+                                    entry.getDn(), targetEntry.getDn());
+                            readFullEntry = true;
+                        }
+                        
+                        if (readFullEntry)
+                        {
                             targetEntry = fetchEntry(connection, targetDn, ldapObjectClass, options);
                             if (targetEntry == null) {
-                                LOG.warn("Changelog entry {0} refers to an entry {1} that no longer exists, ignoring", entry.getDn(), targetDn);
+                                LOG.warn("Changelog entry {0} refers to an entry {1} that no longer exists, ignoring",
+                                        entry.getDn(), targetDn);
+                                continue;
+                            }
+
+                            if (!LdapUtil.isObjectClass(targetEntry, ldapObjectClass)) {
+                                LOG.ok("Changelog entry {0} does not match object class, skipping",
+                                        targetEntry.getDn());
                                 continue;
                             }
                         }
+
                         // Best effort reference handling in case of subject side of association
                         ConnectorObject targetObject = getSchemaTranslator().toConnIdObject(connection,
                                 icfObjectClassInfo, targetEntry, targetDn, options);
