@@ -53,7 +53,7 @@ podTemplate(
                             ln -s ../jenkins-nexus/settings.xml /root/.m2/settings.xml
 
                             # Import internal CA into Java truststore for DependencyTrack HTTPS
-                            keytool -importcert -noprompt -cacerts -storepass changeit -alias evolveum-root-ca -file \\\\$EVOLVEUM_ROOT_CA
+                            keytool -importcert -noprompt -cacerts -storepass changeit -alias evolveum-root-ca -file \$EVOLVEUM_ROOT_CA
 
                             if [ "${verbose}" -ge 1 ]; then
                                 env | sort
