@@ -61,7 +61,6 @@ import org.identityconnectors.framework.common.exceptions.UnknownUidException;
 import org.identityconnectors.framework.common.objects.*;
 import org.identityconnectors.framework.common.objects.ObjectClass;
 import org.identityconnectors.framework.common.objects.filter.ContainsAllValuesFilter;
-import org.identityconnectors.framework.common.objects.OperationalAttributes;
 import org.identityconnectors.framework.common.objects.filter.EqualsFilter;
 import org.identityconnectors.framework.common.objects.filter.Filter;
 import org.identityconnectors.framework.common.objects.filter.FilterTranslator;
@@ -77,8 +76,8 @@ import com.evolveum.polygon.connector.ldap.search.SimplePagedResultsSearchStrate
 import com.evolveum.polygon.connector.ldap.search.VlvSearchStrategy;
 import com.evolveum.polygon.connector.ldap.sync.OpenLdapAccessLogSyncStrategy;
 import com.evolveum.polygon.connector.ldap.sync.AdDirSyncStrategy;
+import com.evolveum.polygon.connector.ldap.sync.GenericChangeLogSyncStrategy;
 import com.evolveum.polygon.connector.ldap.sync.ModifyTimestampSyncStrategy;
-import com.evolveum.polygon.connector.ldap.sync.SunChangelogSyncStrategy;
 import com.evolveum.polygon.connector.ldap.sync.SyncStrategy;
 import org.identityconnectors.framework.spi.operations.CreateOp;
 import org.identityconnectors.framework.spi.operations.DeleteOp;
@@ -1862,7 +1861,16 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
     @Override
     public SyncToken getLatestSyncToken(ObjectClass objectClass) {
         SyncStrategy<C> strategy = chooseSyncStrategy();
-        return strategy.getLatestSyncToken(objectClass);
+        SyncToken syncToken = strategy.getLatestSyncToken(objectClass);
+
+        if (syncToken == null) {
+            LOG.warn("Unable to identify latest sync token using '{0}' sync strategy.", strategy.getClass().getSimpleName());
+        }
+        else {
+            LOG.info("Latest sync token identified with '{0}' sync strategy is: {1}", strategy.getClass().getSimpleName(), syncToken.toString());
+        }
+
+        return syncToken;
     }
 
     private SyncStrategy<C> chooseSyncStrategy() {
@@ -1870,8 +1878,8 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
             switch (configuration.getSynchronizationStrategy()) {
                 case LdapConfiguration.SYNCHRONIZATION_STRATEGY_NONE:
                     throw new UnsupportedOperationException("Synchronization disabled (synchronizationStrategy=none)");
-                case LdapConfiguration.SYNCHRONIZATION_STRATEGY_SUN_CHANGE_LOG:
-                    syncStrategy = new SunChangelogSyncStrategy<>(configuration, connectionManager, getSchemaManager(), getSchemaTranslator(), getErrorHandler());
+                case LdapConfiguration.SYNCHRONIZATION_STRATEGY_SUN_CHANGE_LOG, LdapConfiguration.SYNCHRONIZATION_STRATEGY_GENERIC_CHANGE_LOG:
+                    syncStrategy = new GenericChangeLogSyncStrategy<>(configuration, connectionManager, getSchemaManager(), getSchemaTranslator(), getErrorHandler());
                     break;
                 case LdapConfiguration.SYNCHRONIZATION_STRATEGY_MODIFY_TIMESTAMP:
                     syncStrategy = createModifyTimestampSyncStrategy();
@@ -1889,6 +1897,9 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
                     throw new IllegalArgumentException("Unknown synchronization strategy '"+configuration.getSynchronizationStrategy()+"'");
             }
         }
+        
+        LOG.ok("'{0}' chose as sync strategy.", syncStrategy.getClass().getSimpleName());
+
         return syncStrategy;
     }
 
@@ -1898,12 +1909,29 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
 
     private SyncStrategy<C> chooseSyncStrategyAuto() {
         Entry rootDse = connectionManager.getRootDse();
-        org.apache.directory.api.ldap.model.entry.Attribute changelogAttribute = rootDse.get(SunChangelogSyncStrategy.ROOT_DSE_ATTRIBUTE_CHANGELOG_NAME);
+        String changeLogAttributeName = getConfiguration().getChangeLogRootDSEAttribute();
+        org.apache.directory.api.ldap.model.entry.Attribute changelogAttribute = rootDse.get(changeLogAttributeName);
         if (changelogAttribute != null) {
-            LOG.ok("Choosing Sun ChangeLog sync strategy (found {0} attribute in root DSE)", SunChangelogSyncStrategy.ROOT_DSE_ATTRIBUTE_CHANGELOG_NAME);
-            return new SunChangelogSyncStrategy<>(configuration, connectionManager, getSchemaManager(), getSchemaTranslator(), getErrorHandler());
+            LOG.ok("Automatic sync strategy chose generic change log sync strategy (found {0} attribute in root DSE)", changeLogAttributeName);
+            return new GenericChangeLogSyncStrategy<>(configuration, connectionManager, getSchemaManager(), getSchemaTranslator(), getErrorHandler());
         }
-        LOG.ok("Choosing modifyTimestamp sync strategy (fallback)");
+        
+        String changeLogDN = getConfiguration().getChangeLogDN();
+        
+        LdapNetworkConnection connection = connectionManager.getConnection(null, null);
+
+        try {
+        	Entry changeLogEntry = connection.lookup(changeLogDN, ATTRIBUTE_OBJECTCLASS_NAME);
+        	if (changeLogEntry != null) {
+        		LOG.ok("Automatic sync strategy chose generic change log sync strategy (top-level changelog entry found at {0})", changeLogDN);
+        		return new GenericChangeLogSyncStrategy<>(configuration, connectionManager, getSchemaManager(), getSchemaTranslator(), getErrorHandler());
+        	}
+        }
+        catch (LdapException e) {
+        	LOG.warn("Attempt to read top-level changelog entry failed: {0}", e.getMessage(), e);
+        }
+        
+        LOG.ok("Automatic sync strategy chose modifyTimestamp sync strategy (fallback)");
         return createModifyTimestampSyncStrategy();
     }
 
