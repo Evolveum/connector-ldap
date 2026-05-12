@@ -29,6 +29,7 @@ import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.entry.Value;
 import org.apache.directory.api.ldap.model.schema.AttributeType;
 import org.apache.directory.api.ldap.model.schema.LdapSyntax;
+import org.apache.directory.api.ldap.model.schema.ObjectClass;
 import org.apache.directory.api.ldap.model.schema.SchemaManager;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
 import org.identityconnectors.common.logging.Log;
@@ -261,8 +262,8 @@ public class LdapSchemaTranslator extends AbstractSchemaTranslator<LdapConfigura
     }
 
     @Override
-    protected void extendConnectorObject(ConnectorObjectBuilder cob, Entry entry, String objectClassName) {
-        super.extendConnectorObject(cob, entry, objectClassName);
+    protected void extendConnectorObject(ConnectorObjectBuilder cob, Entry entry, ObjectClass ldapObjectClass) {
+        super.extendConnectorObject(cob, entry, ldapObjectClass);
 
         if (getConfiguration().isOpenLdapLockoutStrategy()) {
             String pwdAccountLockedTime = LdapUtil.getStringAttribute(entry, SchemaConstants.PWD_ACCOUNT_LOCKED_TIME_AT);
