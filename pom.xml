@@ -244,6 +244,7 @@
                         <configuration>
                             <dependencyTrackBaseUrl>${env.DTRACK_URL}</dependencyTrackBaseUrl>
                             <apiKey>${env.DTRACK_TOKEN}</apiKey>
+                            <parentName>connector-ldap</parentName>
                         </configuration>
                         <executions>
                             <execution>
