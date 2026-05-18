@@ -40,12 +40,18 @@
         <repository>
             <id>evolveum-releases</id>
             <name>Evolveum Public Releases</name>
-            <url>https://nexus.evolveum.com/nexus/content/groups/public/</url>
+            <url>https://nexus.evolveum.com/nexus/repository/public/</url>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
         </repository>
         <repository>
             <id>evolveum-snapshots</id>
             <name>Internal Releases</name>
-            <url>https://nexus.evolveum.com/nexus/content/repositories/snapshots/</url>
+            <url>https://nexus.evolveum.com/nexus/repository/snapshots/</url>
+            <releases>
+                <enabled>false</enabled>
+            </releases>
         </repository>
         <repository>
             <id>apache-snapshots</id>
@@ -101,23 +107,6 @@
                         <version>3.5.1</version>
                     </dependency>
                 </dependencies>
-            </plugin>
-            <plugin>
-                <groupId>org.cyclonedx</groupId>
-                <artifactId>cyclonedx-maven-plugin</artifactId>
-                <configuration>
-                    <projectType>library</projectType>
-                </configuration>
-            </plugin>
-            <plugin>
-                <groupId>io.github.pmckeown</groupId>
-                <artifactId>dependency-track-maven-plugin</artifactId>
-                <version>1.10.2</version>
-                <configuration>
-                    <dependencyTrackBaseUrl>${env.DTRACK_URL}</dependencyTrackBaseUrl>
-                    <apiKey>${env.DTRACK_TOKEN}</apiKey>
-                    <parentName>connector-ldap</parentName>
-                </configuration>
             </plugin>
         </plugins>
     </build>
@@ -220,6 +209,9 @@
                     <plugin>
                         <groupId>org.cyclonedx</groupId>
                         <artifactId>cyclonedx-maven-plugin</artifactId>
+                        <configuration>
+                            <projectType>library</projectType>
+                        </configuration>
                         <executions>
                             <execution>
                                 <id>sbom-package</id>
