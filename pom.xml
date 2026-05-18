@@ -108,23 +108,6 @@
                     </dependency>
                 </dependencies>
             </plugin>
-            <plugin>
-                <groupId>org.cyclonedx</groupId>
-                <artifactId>cyclonedx-maven-plugin</artifactId>
-                <configuration>
-                    <projectType>library</projectType>
-                </configuration>
-            </plugin>
-            <plugin>
-                <groupId>io.github.pmckeown</groupId>
-                <artifactId>dependency-track-maven-plugin</artifactId>
-                <version>1.10.2</version>
-                <configuration>
-                    <dependencyTrackBaseUrl>${env.DTRACK_URL}</dependencyTrackBaseUrl>
-                    <apiKey>${env.DTRACK_TOKEN}</apiKey>
-                    <parentName>connector-ldap</parentName>
-                </configuration>
-            </plugin>
         </plugins>
     </build>
 
@@ -227,6 +210,9 @@
                     <plugin>
                         <groupId>org.cyclonedx</groupId>
                         <artifactId>cyclonedx-maven-plugin</artifactId>
+                        <configuration>
+                            <projectType>library</projectType>
+                        </configuration>
                         <executions>
                             <execution>
                                 <id>sbom-package</id>
@@ -251,6 +237,7 @@
                         <configuration>
                             <dependencyTrackBaseUrl>${env.DTRACK_URL}</dependencyTrackBaseUrl>
                             <apiKey>${env.DTRACK_TOKEN}</apiKey>
+                            <parentName>connector-ldap</parentName>
                         </configuration>
                         <executions>
                             <execution>
