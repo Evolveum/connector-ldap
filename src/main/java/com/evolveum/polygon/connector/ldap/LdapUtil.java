@@ -349,6 +349,12 @@ public class LdapUtil {
         // It may be less efficient, but it looks like it is more reliable.
         Attribute objectClassAttribute = entry.get(SchemaConstants.OBJECT_CLASS_AT);
 
+        // If the entry doesn't have an object class attribute, then it cannnot have
+        // the specified object class set
+        if (objectClassAttribute == null) {
+            return false;
+        }
+
         for (Value objectClassVal: objectClassAttribute) {
             if (ldapObjectClass.getName().equalsIgnoreCase(objectClassVal.getString())) {
                 return true;

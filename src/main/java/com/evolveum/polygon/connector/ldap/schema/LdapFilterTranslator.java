@@ -87,6 +87,11 @@ public class LdapFilterTranslator<C extends AbstractLdapConfiguration> {
         return LdapUtil.createObjectClassFilter(ldapObjectClass);
     }
 
+    protected List<Value> getLdapValues(Attribute attribute, AttributeType attributeType) {
+        List<Object> connIdAttributeValue = attribute.getValue();
+        return (connIdAttributeValue == null) ? null : schemaTranslator.toLdapValues(attributeType, connIdAttributeValue);
+    }
+
     public ScopedFilter translate(AndFilter connIdFilter) {
         if (connIdFilter == null) {
             return null;
@@ -171,7 +176,6 @@ public class LdapFilterTranslator<C extends AbstractLdapConfiguration> {
 
         Attribute connIdAttribute = connIdFilter.getAttribute();
         String connIdAttributeName = connIdAttribute.getName();
-        List<Object> connIdAttributeValue = connIdAttribute.getValue();
 
         if (Name.NAME.equals(connIdAttributeName)) {
             Dn dn = schemaTranslator.toDn(connIdAttribute);
@@ -179,15 +183,23 @@ public class LdapFilterTranslator<C extends AbstractLdapConfiguration> {
         }
 
         AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, connIdAttributeName);
-        List<Value> ldapValues = schemaTranslator.toLdapValues(ldapAttributeType, connIdAttributeValue);
+        List<Value> ldapValues = getLdapValues(connIdAttribute, ldapAttributeType);
 
         if (ldapValues == null || ldapValues.isEmpty()) {
             throw new IllegalArgumentException("Does it make sense to have empty ContainsAllValuesFilter?");
         }
 
+        // Essentialy same as EqualsFilter, so let's optimize this
         if (ldapValues.size() == 1) {
-            // Essentialy same as EqualsFilter, so let's optimize this
-            return new ScopedFilter(new EqualityNode<Object>(ldapAttributeType, ldapValues.get(0)));
+            Value val = ldapValues.get(0);
+
+            // Attribute equal to '*' is an LDAP presence filter
+            // (Not intercepting here causes a conversion to '\2A')
+            if (val.equals("*")) {
+                return new ScopedFilter(new PresenceNode(ldapAttributeType));
+            }
+            
+            return new ScopedFilter(new EqualityNode<Object>(ldapAttributeType, val));
         }
 
         List<ExprNode> subNodes = new ArrayList<>(ldapValues.size());
@@ -424,6 +436,12 @@ public class LdapFilterTranslator<C extends AbstractLdapConfiguration> {
             return new ScopedFilter(null, dn);
         }
         AttributeType ldapAttributeType = schemaTranslator.toLdapAttribute(ldapObjectClass, connIdAttributeName);
+
+        // If the filter from midpoint is 'attribute is equal to null', that is an LDAP not-present filter for that attribute
+        if (connIdAttributeValue == null) {
+            return new ScopedFilter(new NotNode(new PresenceNode(ldapAttributeType)));
+        }
+
         Value ldapValue;
         if (Uid.NAME.equals(connIdAttributeName)) {
             if (connIdAttributeValue.size() != 1) {
