@@ -57,6 +57,7 @@ public class AdConstants {
     public static final String ATTRIBUTE_SUB_CLASS_OF_NAME = "subClassOf";
     public static final String ATTRIBUTE_AUXILIARY_CLASS_NAME = "auxiliaryClass";
     public static final String ATTRIBUTE_DEFAULT_OBJECT_CATEGORY_NAME = "defaultObjectCategory";
+    public static final String ATTRIBUTE_OBJECT_CLASS_CATEGORY_NAME = "objectClassCategory";
 
 
     public static final String ATTRIBUTE_MS_DS_MEMBER_TRANSITIVE= "msds-memberTransitive";
