@@ -600,7 +600,7 @@ public abstract class AbstractLdapConfiguration extends AbstractConfiguration {
         this.host = host;
     }
 
-    @ConfigurationProperty(order = 2, allowedValues = { "389", "636" }, allowedValuesOpenness = ValueListOpenness.OPEN)
+    @ConfigurationProperty(required = true, order = 2, allowedValues = { "389", "636" }, allowedValuesOpenness = ValueListOpenness.OPEN)
     public int getPort() {
         return port;
     }
