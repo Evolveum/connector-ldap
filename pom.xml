@@ -34,6 +34,10 @@
         <connectorPackage>com.evolveum.polygon.connector.ldap</connectorPackage>
         <connectorClass>LdapConnector</connectorClass>
         <surefire.args>-Xms1024m -Xmx4096m --add-exports java.management/sun.management=ALL-UNNAMED</surefire.args>
+
+        <mina.version>2.2.8</mina.version>
+        <commons-io.version>2.22.0</commons-io.version>
+        <commons-lang3.version>3.20.0</commons-lang3.version>
     </properties>
 
     <repositories>
@@ -152,13 +156,13 @@
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-lang3</artifactId>
-            <version>3.18.0</version>
+            <version>${commons-lang3.version}</version>
         </dependency>
 
         <dependency>
             <groupId>org.apache.mina</groupId>
             <artifactId>mina-core</artifactId>
-            <version>2.2.7</version>
+            <version>${mina.version}</version>
         </dependency>
 
         <dependency>
@@ -173,7 +177,7 @@
         <dependency>
             <groupId>commons-io</groupId>
             <artifactId>commons-io</artifactId>
-            <version>2.15.1</version>
+            <version>${commons-io.version}</version>
             <scope>test</scope>
         </dependency>
 
