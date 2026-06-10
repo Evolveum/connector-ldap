@@ -44,6 +44,7 @@ import org.apache.directory.api.ldap.model.message.controls.PagedResults;
 import org.apache.directory.api.ldap.model.message.controls.PagedResultsImpl;
 import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.ldap.model.schema.LdapSyntax;
+import org.apache.directory.api.ldap.model.schema.ObjectClassTypeEnum;
 import org.apache.directory.ldap.client.api.DefaultSchemaLoader;
 import org.apache.directory.ldap.client.api.LdapConnection;
 import org.apache.directory.ldap.client.api.exception.InvalidConnectionException;
@@ -287,6 +288,22 @@ public class AdSchemaLoader extends DefaultSchemaLoader {
                 // Name of this method says "oid" but what it really mean is "name"
                 objectClass.setSuperiorOids(Arrays.asList(superClassName));
             }
+        }
+
+        Integer objectClassCategory = LdapUtil.getIntegerAttribute(schemaEntry, AdConstants.ATTRIBUTE_OBJECT_CLASS_CATEGORY_NAME, -1);
+        switch (objectClassCategory) {
+            case 0: // 88 object class, which the Apache API doesn't accommodate
+            case 1:
+                objectClass.setType(ObjectClassTypeEnum.STRUCTURAL);
+                break;
+            case 2:
+                objectClass.setType(ObjectClassTypeEnum.ABSTRACT);
+                break;
+            case 3:
+                objectClass.setType(ObjectClassTypeEnum.AUXILIARY);
+                break;
+            default:
+                throw new LdapSchemaException("Class "+className+" has invalid/missing value for "+AdConstants.ATTRIBUTE_OBJECT_CLASS_CATEGORY_NAME+" attribute");
         }
 
         List<String> mustAttributeNames = new ArrayList();
