@@ -90,6 +90,9 @@ public class LdapConnector extends AbstractLdapConnector<LdapConfiguration> {
                         LdapConfiguration.LOCKOUT_STRATEGY_NONE, // note that openldap strategy is experimental
                         LdapConfiguration.LOCKOUT_STRATEGY_OPENLDAP));
 
+        suggestions.put(LdapConfiguration.CONF_PROP_NAME_PLACEHOLDER_MEMBER,
+                SuggestedValuesBuilder.buildOpen("cn=dummy,o=whatever"));
+
         analyzeReferenceSuggestions(getSchemaManager(), getConfiguration(), suggestions);
     }
 
