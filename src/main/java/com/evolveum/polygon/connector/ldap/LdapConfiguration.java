@@ -21,6 +21,7 @@ import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.framework.spi.ConfigurationProperty;
 
 import static com.evolveum.polygon.connector.ldap.LdapConstants.OBJECT_CLASS_GROUP_OF_NAMES;
+import static com.evolveum.polygon.connector.ldap.LdapConstants.OBJECT_CLASS_GROUP_OF_UNIQ_NAMES;
 
 /**
  * LDAP Connector configuration.
@@ -93,7 +94,7 @@ public class LdapConfiguration extends AbstractLdapConfiguration {
 
     public LdapConfiguration(){
 
-        groupObjectClasses = new String[]{OBJECT_CLASS_GROUP_OF_NAMES};
+        groupObjectClasses = new String[]{OBJECT_CLASS_GROUP_OF_NAMES, OBJECT_CLASS_GROUP_OF_UNIQ_NAMES};
     }
 
     @ConfigurationProperty(order = 100, allowedValues = { LOCKOUT_STRATEGY_NONE , LOCKOUT_STRATEGY_OPENLDAP })
