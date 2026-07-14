@@ -35,7 +35,7 @@
         <connectorClass>LdapConnector</connectorClass>
         <surefire.args>-Xms1024m -Xmx4096m --add-exports java.management/sun.management=ALL-UNNAMED</surefire.args>
 
-        <mina.version>2.2.8</mina.version>
+        <mina.version>2.2.9</mina.version>
         <commons-io.version>2.22.0</commons-io.version>
         <commons-lang3.version>3.20.0</commons-lang3.version>
     </properties>
