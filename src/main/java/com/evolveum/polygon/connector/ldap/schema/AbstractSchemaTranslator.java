@@ -111,6 +111,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
                 LOG.ok("Found LDAP schema object class {0}, translating", ldapObjectClass.getName());
                 ObjectClassInfoBuilder ocib = new ObjectClassInfoBuilder();
                 ocib.setType(toIcfObjectClassType(ldapObjectClass));
+                ocib.setDescription(ldapObjectClass.getDescription());
                 Map<String, AttributeInfo> attrInfoList = new HashMap<>();
                 addAttributeTypes(attrInfoList, ldapObjectClass);
                 ocib.addAllAttributeInfo(attrInfoList.values());
