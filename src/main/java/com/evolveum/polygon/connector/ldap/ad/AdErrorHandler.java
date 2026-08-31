@@ -17,6 +17,7 @@ package com.evolveum.polygon.connector.ldap.ad;
 
 import com.evolveum.polygon.connector.ldap.ErrorHandler;
 import com.evolveum.polygon.connector.ldap.LdapUtil;
+import com.evolveum.polygon.connector.ldap.ReconnectException;
 import org.apache.directory.api.ldap.model.exception.LdapException;
 import org.apache.directory.api.ldap.model.exception.LdapOperationException;
 import org.apache.directory.api.ldap.model.exception.LdapOtherException;
@@ -45,7 +46,7 @@ public class AdErrorHandler extends ErrorHandler {
                 if (exception instanceof InvalidAttributeValueException) {
                     ((InvalidAttributeValueException)exception).setAffectedAttributeNames(adErrorSubcode.getAffectedAttributes());
                 }
-                throw exception;
+                return exception;
             }
 
         }
@@ -58,7 +59,7 @@ public class AdErrorHandler extends ErrorHandler {
         DsidError dsidError = DsidError.parseDiagnosticMessage(ldapResult.getDiagnosticMessage());
         if (dsidError != null) {
             LdapUtil.logOperationError(connectorMessage, ldapResult, dsidError.getMessage());
-            throw instantiateException(dsidError.getExceptionClass(), dsidError.getMessage());
+            return instantiateException(dsidError.getExceptionClass(), dsidError.getMessage());
         }
         return super.processLdapResult(connectorMessage, ldapResult);
     }
@@ -76,10 +77,16 @@ public class AdErrorHandler extends ErrorHandler {
     @Override
     public RuntimeException processLdapException(String connectorMessage, LdapException ldapException) {
 
+        if (AdErrorSubcode.parseDiagnosticMessage(ldapException.getMessage()) == AdErrorSubcode.X_BIND_REQUIRED) {
+            String message = LdapUtil.sanitizeString(ldapException.getMessage()) + ": X_BIND_REQUIRED";
+            LdapUtil.logOperationError(connectorMessage, ldapException, message);
+            return new ReconnectException(message);
+        }
+
         DsidError dsidError = DsidError.parseDiagnosticMessage(ldapException.getMessage());
         if (dsidError != null) {
             LdapUtil.logOperationError(connectorMessage, ldapException, dsidError.getMessage());
-            throw instantiateException(dsidError.getExceptionClass(), dsidError.getMessage());
+            return instantiateException(dsidError.getExceptionClass(), dsidError.getMessage());
         }
 
         if (ldapException instanceof LdapOtherException) {

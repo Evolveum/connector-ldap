@@ -36,7 +36,7 @@ public class DsidError {
 
     static public final String CODE_UNAVAILABLE_CRITICAL_EXTENSION =  "0C090850";
 
-    private static final Pattern DSID_PATTERN = Pattern.compile("LdapErr: DSID-([0-0a-fA-F]+)");
+    private static final Pattern DSID_PATTERN = Pattern.compile("LdapErr: DSID-([0-9a-fA-F]+)");
 
     private final String code;
     private final String message;
