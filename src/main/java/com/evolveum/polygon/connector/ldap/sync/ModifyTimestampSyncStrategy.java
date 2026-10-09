@@ -105,6 +105,12 @@ public class ModifyTimestampSyncStrategy<C extends AbstractLdapConfiguration> ex
             LOG.ok("Searching DN {0} with {1}, attrs: {2}", baseContext, searchFilter, Arrays.toString(attributesToGet));
         }
 
+        // Convert from string to int, then int to SearchScope
+        // Annoying we have to do this, but the apache directory LDAP API does not have a 
+        // static method for conversion in a single operation
+        SearchScope syncSearchScope = SearchScope.getSearchScope(
+                                            SearchScope.getSearchScope(getConfiguration().getDefaultSearchScope()));
+
         // Remember final token before we start searching. This will avoid missing
         // the changes that come when the search is already running and do not make
         // it into the search.
@@ -116,11 +122,11 @@ public class ModifyTimestampSyncStrategy<C extends AbstractLdapConfiguration> ex
         LdapNetworkConnection connection = getConnectionManager().getConnection(getSchemaTranslator().toDn(baseContext), options);
         if (LOG.isOk()) {
             OperationLog.logOperationReq(connection, "Search(sync) REQ base={0}, filter={1}, scope={2}, attributes={3}, controls={4}",
-                    baseContext, searchFilter, SearchScope.SUBTREE, attributesToGet, null);
+                    baseContext, searchFilter, syncSearchScope, attributesToGet, null);
         }
         try {
 
-            EntryCursor searchCursor = connection.search(baseContext, searchFilter, SearchScope.SUBTREE, attributesToGet);
+            EntryCursor searchCursor = connection.search(baseContext, searchFilter, syncSearchScope, attributesToGet);
 
             while (true) {
                 Entry entry;
