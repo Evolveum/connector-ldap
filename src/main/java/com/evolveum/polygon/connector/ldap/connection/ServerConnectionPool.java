@@ -44,6 +44,7 @@ import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -315,6 +316,7 @@ public class ServerConnectionPool<C extends AbstractLdapConfiguration> {
 
     private void closeServerConnection(ServerDefinition serverDef, String closeReason, Exception reconnectReasonException) {
         if (serverDef.getConnection() != null) {
+            connectionLog.debugState(serverDef.getConnection(), "close-start");
             try {
                 unbindIfNeeded(serverDef, serverDef.getConnection(), reconnectReasonException);
                 // Checking for isConnected() is not enough here.
@@ -462,7 +464,7 @@ public class ServerConnectionPool<C extends AbstractLdapConfiguration> {
     }
 
     private LdapNetworkConnection connectConnection(ServerDefinition serverDef, LdapConnectionConfig connectionConfig, String userDn) {
-        LdapNetworkConnection connection = new LdapNetworkConnection(connectionConfig);
+        LdapNetworkConnection connection = new LoggingLdapNetworkConnection(connectionConfig, connectionLog);
         if (configuration.isTcpKeepAlive()) {
             SocketSessionConfig socketSessionConfig = new DefaultSocketSessionConfig();
             socketSessionConfig.setKeepAlive(configuration.isTcpKeepAlive());
@@ -480,7 +482,9 @@ public class ServerConnectionPool<C extends AbstractLdapConfiguration> {
                 LOG.ok("Connection security: {0} (sslProtocol={1}, enabledSecurityProtocols={2}, enabledCipherSuites={3}", connectionSecurity, connectionConfig.getSslProtocol(), connectionConfig.getEnabledProtocols(), connectionConfig.getEnabledCipherSuites());
                 LOG.ok("Connection networking parameters: timeout={0}, keepalive={1}", configuration.getConnectTimeout(), configuration.isTcpKeepAlive());
             }
+            connectionLog.debugState(connection, "connect-start");
             boolean connected = connection.connect();
+            connectionLog.debugState(connection, "connect-returned");
             LOG.ok("Connected ({0})", connected);
             if (connectionLog.isSuccess()) {
                 connectionLog.success(connection, "connect", connectionConfig.getLdapHost() + ":" + connectionConfig.getLdapPort());
@@ -534,7 +538,9 @@ public class ServerConnectionPool<C extends AbstractLdapConfiguration> {
 
         BindResponse bindResponse;
         try {
+            connectionLog.debugState(connection, "bind-start");
             bindResponse = connection.bind(bindRequest);
+            connectionLog.debugState(connection, "bind-returned resultCode=" + bindResponse.getLdapResult().getResultCode());
         } catch (LdapException e) {
             RuntimeException processedException = errorHandler.processLdapException("Unable to bind to LDAP server "
                     + connection.getConfig().getLdapHost() + ":" + connection.getConfig().getLdapPort()
@@ -671,15 +677,22 @@ public class ServerConnectionPool<C extends AbstractLdapConfiguration> {
      * Fresh connection to the same server will be established.
      */
     public LdapNetworkConnection reconnect(LdapNetworkConnection connection, Exception reconnectReasonException) {
-        LOG.warn("Reconnecting connection {0}, reason: {1}", LdapUtil.formatConnectionInfo(connection), reconnectReasonException);
         ServerDefinition serverDefinition = findServerDefinition(connection);
         String closeReason = "unspecified reconnect";
         if (reconnectReasonException != null) {
             closeReason = "reconnect due to " + reconnectReasonException.getClass().getSimpleName();
         }
-        closeServerConnection(serverDefinition, closeReason, reconnectReasonException);
-        connectServer(serverDefinition);
-        return serverDefinition.getConnection();
+        String oldConnection = connectionLog.reconnectStarted(connection, reconnectReasonException);
+        long started = System.nanoTime();
+        try {
+            closeServerConnection(serverDefinition, closeReason, reconnectReasonException);
+            LdapNetworkConnection newConnection = connectServer(serverDefinition);
+            connectionLog.reconnectSucceeded(oldConnection, newConnection, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started));
+            return newConnection;
+        } catch (RuntimeException e) {
+            connectionLog.reconnectFailed(oldConnection, e, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started));
+            throw e;
+        }
     }
 
     public <T> T brutalSearch(Function<LdapNetworkConnection, T> searcher) {

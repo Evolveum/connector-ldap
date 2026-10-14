@@ -2122,6 +2122,10 @@ public abstract class AbstractLdapConnector<C extends AbstractLdapConfiguration>
                 connectionLog.searchError(connection, e, searchReq, null, null);
                 RuntimeException connidException = processLdapException("Error reading " + descMessage, e);
                 if (connidException instanceof ReconnectException) {
+                    if (connectionLog.isDebug()) {
+                        connectionLog.debugState(connection, "read-reconnect failedOperationAttempt=" + referralAttempts
+                                + " maximumNumberOfAttempts=" + configuration.getMaximumNumberOfAttempts());
+                    }
                     connection = connectionManager.reconnect(connection, connidException);
                     // Next iteration of the loop will re-try the operation with the same parameter, but different connection
                 } else {

@@ -278,7 +278,6 @@ public class ConnectionManager<C extends AbstractLdapConfiguration> {
      * Used in case that the current connection went into a weird state, e.g. the strange "bind required" AD errors.
      */
     public LdapNetworkConnection reconnect(LdapNetworkConnection connection, Exception reconnectReasonException) {
-        LOG.warn("Reconnecting connection {0}, reason: {1}", LdapUtil.formatConnectionInfo(connection), reconnectReasonException);
         ServerConnectionPool<C> pool = findPool(connection);
 
         if (pool == null) {

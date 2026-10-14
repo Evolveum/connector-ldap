@@ -288,6 +288,11 @@ public abstract class SearchStrategy<C extends AbstractLdapConfiguration> {
      * This method is used if there is a problem with the connection and the operation has to be re-tried on the same server.
      */
     protected void reconnectSameServer(Exception reason) {
+        if (connectionLog.isDebug()) {
+            connectionLog.debugState(connection, "search-reconnect strategy=" + getClass().getSimpleName()
+                    + " retryCounterBeforeReconnect=" + retryAttempts
+                    + " maximumNumberOfAttempts=" + configuration.getMaximumNumberOfAttempts());
+        }
         connection = connectionManager.reconnect(connection, reason);
     }
 
