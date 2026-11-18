@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Security
+
+- Validate the configured per-server DNS name or IP address after normal certificate-chain validation for LDAPS and StartTLS. Reverse DNS no longer supplies the authenticated server identity.
+- Update Apache Directory LDAP API to 2.1.9 and Apache MINA to 2.2.10, and use built-in JSSE endpoint identification. Preserve the existing explicit `allowUntrustedSsl` opt-out; secure resources must keep it disabled.
+
 ## [3.10]
 
 ### Added
