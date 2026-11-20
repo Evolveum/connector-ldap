@@ -27,7 +27,6 @@ import org.apache.directory.api.ldap.model.schema.registries.Schema;
 import org.apache.directory.api.ldap.schema.manager.impl.DefaultSchemaManager;
 import org.apache.directory.ldap.client.api.LdapConnectionConfig;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
-import org.apache.directory.ldap.client.api.NoVerificationTrustManager;
 import org.apache.directory.ldap.client.api.exception.LdapConnectionTimeOutException;
 import org.apache.mina.transport.socket.DefaultSocketSessionConfig;
 import org.apache.mina.transport.socket.SocketSessionConfig;
@@ -37,12 +36,9 @@ import org.identityconnectors.framework.common.exceptions.ConfigurationException
 import org.identityconnectors.framework.common.exceptions.ConnectionFailedException;
 import org.identityconnectors.framework.common.objects.OperationOptions;
 
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.TrustManagerFactory;
+import javax.net.ssl.X509TrustManager;
 import java.io.IOException;
-import java.security.KeyStore;
-import java.security.KeyStoreException;
-import java.security.NoSuchAlgorithmException;
+import java.security.cert.X509Certificate;
 import java.util.*;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -395,10 +391,10 @@ public class ServerConnectionPool<C extends AbstractLdapConfiguration> {
             // Nothing to do
         } else if (LdapConfiguration.CONNECTION_SECURITY_SSL.equals(connectionSecurity)) {
             connectionConfig.setUseSsl(true);
-            connectionConfig.setTrustManagers(createTrustManager());
+            configureTls(connectionConfig);
         } else if (LdapConfiguration.CONNECTION_SECURITY_STARTTLS.equals(connectionSecurity)) {
             connectionConfig.setUseTls(true);
-            connectionConfig.setTrustManagers(createTrustManager());
+            configureTls(connectionConfig);
         } else {
             throw new ConfigurationException("Unknown value for connectionSecurity: "+connectionSecurity);
         }
@@ -445,20 +441,27 @@ public class ServerConnectionPool<C extends AbstractLdapConfiguration> {
         return connection;
     }
 
-    private TrustManager[] createTrustManager() {
-        if (configuration.isAllowUntrustedSsl()) {
-            return new TrustManager[]{new NoVerificationTrustManager()}; // this is apache ldap default
+    private void configureTls(LdapConnectionConfig connectionConfig) {
+        if (!configuration.isAllowUntrustedSsl()) {
+            return;
         }
 
-        String defaultAlgorithm = TrustManagerFactory.getDefaultAlgorithm();
-        try {
-            TrustManagerFactory tmf = TrustManagerFactory.getInstance(defaultAlgorithm);
-            tmf.init((KeyStore) null); // load system default keystore (e.g. JDK cacerts)
-            return tmf.getTrustManagers();
-        } catch (NoSuchAlgorithmException | KeyStoreException e) {
-            LOG.error("Error creating trust manager: {0}", e);
-        }
-        throw new ConnectionFailedException("Unable to create trust manager.");
+        // Preserve the explicit opt-out after LDAP API removed NoVerificationTrustManager.
+        connectionConfig.setSslEndpointIdentificationAlgorithm(null);
+        connectionConfig.setTrustManagers(new X509TrustManager() {
+            @Override
+            public void checkClientTrusted(X509Certificate[] chain, String authType) {
+            }
+
+            @Override
+            public void checkServerTrusted(X509Certificate[] chain, String authType) {
+            }
+
+            @Override
+            public X509Certificate[] getAcceptedIssuers() {
+                return new X509Certificate[0];
+            }
+        });
     }
 
     private LdapNetworkConnection connectConnection(ServerDefinition serverDef, LdapConnectionConfig connectionConfig, String userDn) {

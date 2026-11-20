@@ -35,7 +35,7 @@
         <connectorClass>LdapConnector</connectorClass>
         <surefire.args>-Xms1024m -Xmx4096m --add-exports java.management/sun.management=ALL-UNNAMED</surefire.args>
 
-        <mina.version>2.2.9</mina.version>
+        <mina.version>2.2.10</mina.version>
         <commons-io.version>2.22.0</commons-io.version>
         <commons-lang3.version>3.20.0</commons-lang3.version>
     </properties>
@@ -120,7 +120,7 @@
         <dependency>
             <groupId>org.apache.directory.api</groupId>
             <artifactId>api-all</artifactId>
-            <version>2.1.6</version>
+            <version>2.1.9</version>
             <exclusions>
                 <!-- Exclude SLF4J API from the lib to avoid bundling it with the
                      connector. The SLF4J is already part of midPoint.
