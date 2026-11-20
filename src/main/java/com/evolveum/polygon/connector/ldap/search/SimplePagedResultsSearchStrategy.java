@@ -42,6 +42,7 @@ import org.apache.directory.ldap.client.api.exception.InvalidConnectionException
 import org.apache.directory.ldap.client.api.exception.LdapConnectionTimeOutException;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
+import org.identityconnectors.framework.common.exceptions.RetryableException;
 import org.identityconnectors.framework.common.objects.ObjectClass;
 import org.identityconnectors.framework.common.objects.OperationOptions;
 import org.identityconnectors.framework.common.objects.ResultsHandler;
@@ -95,7 +96,7 @@ public class SimplePagedResultsSearchStrategy<C extends AbstractLdapConfiguratio
 
         connect(baseDn);
 
-        OUTER: do {
+        OUTER: while (true) {
             if (getOptions() != null && getOptions().getPageSize() != null &&
                     ((numberOfResutlsHandled + numberOfResultsSkipped + pageSize) > offset + getOptions().getPageSize())) {
                 pageSize = offset + getOptions().getPageSize() - (numberOfResutlsHandled + numberOfResultsSkipped);
@@ -118,6 +119,7 @@ public class SimplePagedResultsSearchStrategy<C extends AbstractLdapConfiguratio
                         LOG.ok("Connection error ({0}), reconnecting", e.getMessage(), e);
                         // No need to close the cursor here. It is already closed as part of error handling in next() method.
                         connectionReconnect(baseDn, e);
+                        ensureSearchCanBeRetried(req, numberOfResutlsHandled + numberOfResultsSkipped, e);
                         incrementRetryAttempts();
                         continue OUTER;
                     }
@@ -192,11 +194,9 @@ public class SimplePagedResultsSearchStrategy<C extends AbstractLdapConfiguratio
                             RuntimeException connidException = processLdapResult("LDAP error during search in " + baseDn, ldapResult);
                             if (connidException instanceof ReconnectException) {
                                 reconnectSameServer(connidException);
+                                ensureSearchCanBeRetried(req, numberOfResutlsHandled + numberOfResultsSkipped, connidException);
                                 incrementRetryAttempts();
-                                // Next iteration of the loop will re-try the operation with the same parameter, but different connection
-                                // TODO: Handling of cookie and lastListSize is questionable here.
-                                // Will the cookie be useful in a new connection? We have to experiment with this to see.
-                                // However, these errors are rare, and almost impossible to reproduce in controlled environment.
+                                // Only the first page, before any entries were consumed, can be restarted safely.
                                 continue;
                             } else {
                                 LOG.error("{0}", msg);
@@ -227,11 +227,32 @@ public class SimplePagedResultsSearchStrategy<C extends AbstractLdapConfiguratio
                     ((numberOfResutlsHandled + numberOfResultsSkipped) >= offset + getOptions().getPageSize())) {
                 break;
             }
-        } while (cookie != null);
+            // Only a normally completed page with no cookie ends the search. A reconnect must retry even
+            // when the failed response had no paging control (and therefore cleared the cookie).
+            if (cookie == null) {
+                break;
+            }
+        }
 
         finishSearch(baseDn, filterNode, scope, attributes, sortReqControl);
 
         returnConnection();
+    }
+
+    private void ensureSearchCanBeRetried(SearchRequest request, int consumedResults, Exception cause) {
+        PagedResults paging = (PagedResults) request.getControl(PagedResults.OID);
+        byte[] requestCookie = paging.getCookie();
+        if (consumedResults > 0 || (requestCookie != null && requestCookie.length > 0)) {
+            // A paging cookie is opaque and cannot be assumed valid after reconnect (RFC 2696, section 3).
+            // Starting over would replay already handled entries or lose the caller's paging position.
+            cookie = null;
+            lastListSize = -1;
+            returnConnection();
+            throw RetryableException.wrap(
+                    "LDAP paged search was interrupted; restart the search without a paging cookie", cause);
+        }
+        cookie = null;
+        lastListSize = -1;
     }
 
     private String compileExtraMessage(PagedResults pagedResultsResponseControl) {

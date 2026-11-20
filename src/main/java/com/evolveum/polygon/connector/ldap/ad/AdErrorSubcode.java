@@ -18,6 +18,7 @@ package com.evolveum.polygon.connector.ldap.ad;
 import java.util.Arrays;
 import java.util.Collection;
 
+import com.evolveum.polygon.connector.ldap.ReconnectException;
 import org.identityconnectors.framework.common.exceptions.AlreadyExistsException;
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
 import org.identityconnectors.framework.common.exceptions.ConnectorSecurityException;
@@ -36,7 +37,8 @@ import org.identityconnectors.framework.common.objects.OperationalAttributes;
 public enum AdErrorSubcode {
 
     // See with operationsError(1) LDAP result code, as a result of search operation. MID-6439
-    X_BIND_REQUIRED(0x4dc, "In order to perform this operation a successful bind must be completed on the connection", ConnectorSecurityException.class),
+    // Recover using the AD error code, independently of the server-build-specific DSID (MID-11136).
+    X_BIND_REQUIRED(0x4dc, "In order to perform this operation a successful bind must be completed on the connection", ReconnectException.class),
 
     INVALID_PRIMARY_GROUP(0x51c, "This security ID may not be assigned as the primary groupof an object", InvalidAttributeValueException.class),
     NO_IMPERSONATION_TOKEN(0x51d, "An attempt has been made to operate on an impersonation token by a thread that is not currently impersonating a client", ConnectorSecurityException.class),
