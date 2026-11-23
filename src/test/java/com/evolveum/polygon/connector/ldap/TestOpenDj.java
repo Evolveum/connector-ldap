@@ -104,7 +104,13 @@ public class TestOpenDj extends AbstractOpenDjTest {
     public void testOpSchema() throws Exception {
         ConnectorFacade connector = createConnectorInstance();
         Schema schema = connector.schema();
-        // TODO: asserts
+        ObjectClassInfo posixAccount = schema.getObjectClassInfo().stream()
+                .filter(objectClassInfo -> "posixAccount".equalsIgnoreCase(objectClassInfo.getType()))
+                .findFirst()
+                .orElse(null);
+        assertNotNull("posixAccount object class is missing from the schema", posixAccount);
+        assertEquals("Unexpected posixAccount description",
+                "Abstraction of an account with POSIX attributes", posixAccount.getDescription());
     }
 
     // Try partial configuration with a wrong password

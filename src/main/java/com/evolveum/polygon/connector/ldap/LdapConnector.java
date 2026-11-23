@@ -17,7 +17,6 @@
 package com.evolveum.polygon.connector.ldap;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 import com.evolveum.polygon.connector.ldap.schema.AssociationHolder;
 import com.evolveum.polygon.connector.ldap.search.SearchStrategy;
@@ -76,7 +75,8 @@ public class LdapConnector extends AbstractLdapConnector<LdapConfiguration> {
                 SuggestedValuesBuilder.buildOpen(AbstractLdapConfiguration.PASSWORD_HASH_ALGORITHM_SSHA));
 
         suggestions.put(AbstractLdapConfiguration.CONF_PROP_NAME_VLV_SORT_ATTRIBUTE,
-                SuggestedValuesBuilder.buildOpen(SchemaConstants.UID_AT));
+                SuggestedValuesBuilder.buildOpen(
+                        SchemaConstants.UID_AT + "," + SchemaConstants.CN_AT + "," + SchemaConstants.OU_AT));
         suggestions.put(AbstractLdapConfiguration.CONF_PROP_NAME_VLV_SORT_ORDERING_RULE,
                 SuggestedValuesBuilder.buildOpen(SchemaConstants.CASE_IGNORE_ORDERING_MATCH_MR_OID));
 
@@ -85,7 +85,12 @@ public class LdapConnector extends AbstractLdapConnector<LdapConfiguration> {
                         SchemaConstants.CREATE_TIMESTAMP_AT, SchemaConstants.MODIFY_TIMESTAMP_AT));
 
         suggestions.put(LdapConfiguration.CONF_PROP_NAME_LOCKOUT_STRATEGY,
-                SuggestedValuesBuilder.build(LdapConfiguration.LOCKOUT_STRATEGY_OPENLDAP));
+                SuggestedValuesBuilder.build(
+                        LdapConfiguration.LOCKOUT_STRATEGY_NONE, // note that openldap strategy is experimental
+                        LdapConfiguration.LOCKOUT_STRATEGY_OPENLDAP));
+
+        suggestions.put(LdapConfiguration.CONF_PROP_NAME_PLACEHOLDER_MEMBER,
+                SuggestedValuesBuilder.buildOpen("cn=dummy,o=whatever"));
 
         analyzeReferenceSuggestions(getSchemaManager(), getConfiguration(), suggestions);
     }
@@ -94,27 +99,58 @@ public class LdapConnector extends AbstractLdapConnector<LdapConfiguration> {
                                              Map<String, SuggestedValues> suggestions) {
 
         String[] groupObjectClasses = configuration.getGroupObjectClasses();
+        Set<String> referenceSuggestions = new LinkedHashSet<>();
+        String suggestedMemberOfName = isServerOpenDj() ?   ATTRIBUTE_IS_MEMBER_OF_NAME : ATTRIBUTE_MEMBER_OF_NAME;
+        var objectClassReg = schemaManager.getObjectClassRegistry();
 
-        List<String> referenceSuggestions = new ArrayList<String>();
-
-        String sugestedMemberOfName = isServerOpenDj() ?   ATTRIBUTE_IS_MEMBER_OF_NAME : ATTRIBUTE_MEMBER_OF_NAME;
-
-        for (String objectObjectClassName : groupObjectClasses) {
-
-            if (schemaManager.getObjectClassRegistry().contains(objectObjectClassName)) {
-                for (org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass : schemaManager.getObjectClassRegistry()) {
-
-
-                    String subjectClassName = ldapObjectClass.getName();
-
-                    referenceSuggestions.add("\""+subjectClassName +"\"+"+sugestedMemberOfName +
-                            " "+CONF_ASSOC_DELIMITER+" " + "\""+ objectObjectClassName +"\"+"+ MEMBERSHIP_ATTRIBUTES.get(objectObjectClassName));
-
-                }
+        for (Map.Entry<String, List<String>> entry : LdapConstants.COMMON_ASSOCIATION_PAIRS.entrySet()) {
+            var objectObjectClassName = entry.getKey();
+            if (!objectClassReg.contains(objectObjectClassName)) {
+                continue;
+            }
+            String membershipAttribute = MEMBERSHIP_ATTRIBUTES.get(objectObjectClassName);
+            if (membershipAttribute == null) {
+                continue;
+            }
+            for (String subjectClassName : entry.getValue()) {
+                referenceSuggestions.add(buildSuggestion(
+                        subjectClassName, suggestedMemberOfName,
+                        objectObjectClassName, membershipAttribute));
             }
         }
+
+        List<org.apache.directory.api.ldap.model.schema.ObjectClass> sortedObjectClassRegistry = new ArrayList<>();
+        for (var ldapObjectClass : objectClassReg){
+            sortedObjectClassRegistry.add(ldapObjectClass);
+        }
+        sortedObjectClassRegistry.sort(Comparator.comparing(org.apache.directory.api.ldap.model.schema.ObjectClass::getName,
+                String.CASE_INSENSITIVE_ORDER));
+
+        for (String objectObjectClassName : groupObjectClasses) {
+            if (!objectClassReg.contains(objectObjectClassName)) {
+                continue;
+            }
+
+            String membershipAttribute = MEMBERSHIP_ATTRIBUTES.get(objectObjectClassName);
+            if (membershipAttribute == null) {
+                continue;
+            }
+                for (var ldapObjectClass : sortedObjectClassRegistry) {
+
+                    referenceSuggestions.add(buildSuggestion(
+                            ldapObjectClass.getName(), suggestedMemberOfName,
+                            objectObjectClassName, membershipAttribute));
+                }
+        }
+
         suggestions.put(AbstractLdapConfiguration.CONF_PROP_MNGD_ASSOC_PAIRS,
                 SuggestedValuesBuilder.buildOpen(referenceSuggestions.toArray(new String[referenceSuggestions.size()])));
+    }
+
+    private String buildSuggestion(String subjectClassName, String suggestedMemberOfName, String objectObjectClassName,
+            String membershipAttribute) {
+        return "\"" + subjectClassName + "\"+" + suggestedMemberOfName + " " + CONF_ASSOC_DELIMITER + " "
+                + "\"" + objectObjectClassName + "\"+" + membershipAttribute;
     }
 
     private boolean isServerOpenDj() {

@@ -273,8 +273,7 @@ public class AdSchemaLoader extends DefaultSchemaLoader {
         String oid = LdapUtil.getStringAttribute(schemaEntry, AdConstants.ATTRIBUTE_GOVERNS_ID_NAME);
         AdObjectClass objectClass = new AdObjectClass(oid);
         objectClass.setNames(className);
-        // TODO
-        objectClass.setDescription(LdapUtil.getStringAttribute(schemaEntry, SchemaConstants.CN_AT));
+        objectClass.setDescription(determineObjectClassDescription(schemaEntry));
         objectClass.setEnabled(true);
 
         if (!className.equals(SchemaConstants.TOP_OC)) {
@@ -306,6 +305,15 @@ public class AdSchemaLoader extends DefaultSchemaLoader {
         objectClass.setSchemaName(AdConstants.AD_SCHEMA_NAME);
 //        LOG.ok("Registering object class {0} ({1}):\n{2}", className, oid, objectClass);
         updateSchemas(objectClass);
+    }
+
+    static String determineObjectClassDescription(Entry schemaEntry) {
+        String adminDescription = LdapUtil.getStringAttribute(
+                schemaEntry, AdConstants.ATTRIBUTE_ADMIN_DESCRIPTION_NAME);
+        if (adminDescription != null && !adminDescription.isBlank()) {
+            return adminDescription;
+        }
+        return LdapUtil.getStringAttribute(schemaEntry, AdConstants.ATTRIBUTE_DESCRIPTION_NAME);
     }
 
     private void addToAttributesList(List<String> attributeNames, Entry schemaEntry, String attributeName) throws LdapSchemaException {

@@ -45,6 +45,8 @@ public class AdConstants {
     public static final String ATTRIBUTE_GOVERNS_ID_NAME = "governsID";
     public static final String ATTRIBUTE_ATTRIBUTE_ID_NAME = "attributeID";
     public static final String ATTRIBUTE_LDAP_DISPLAY_NAME_NAME = "lDAPDisplayName";
+    public static final String ATTRIBUTE_ADMIN_DESCRIPTION_NAME = "adminDescription";
+    public static final String ATTRIBUTE_DESCRIPTION_NAME = "description";
     public static final String ATTRIBUTE_IS_SINGLE_VALUED_NAME = "isSingleValued";
     public static final String ATTRIBUTE_ATTRIBUTE_SYNTAX_NAME = "attributeSyntax";
     public static final String ATTRIBUTE_MUST_CONTAIN_NAME = "mustContain";

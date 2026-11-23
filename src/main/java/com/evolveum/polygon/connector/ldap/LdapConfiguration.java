@@ -21,6 +21,7 @@ import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.framework.spi.ConfigurationProperty;
 
 import static com.evolveum.polygon.connector.ldap.LdapConstants.OBJECT_CLASS_GROUP_OF_NAMES;
+import static com.evolveum.polygon.connector.ldap.LdapConstants.OBJECT_CLASS_GROUP_OF_UNIQ_NAMES;
 
 /**
  * LDAP Connector configuration.
@@ -41,6 +42,7 @@ public class LdapConfiguration extends AbstractLdapConfiguration {
     private String lockoutStrategy = LOCKOUT_STRATEGY_NONE;
 
     public static final String CONF_PROP_NAME_LOCKOUT_STRATEGY = "lockoutStrategy";
+    public static final String CONF_PROP_NAME_PLACEHOLDER_MEMBER = "placeholderMember";
 
     public static final String LOCKOUT_STRATEGY_NONE = "none";
     public static final String LOCKOUT_STRATEGY_OPENLDAP = "openldap";
@@ -92,7 +94,7 @@ public class LdapConfiguration extends AbstractLdapConfiguration {
 
     public LdapConfiguration(){
 
-        groupObjectClasses = new String[]{OBJECT_CLASS_GROUP_OF_NAMES};
+        groupObjectClasses = new String[]{OBJECT_CLASS_GROUP_OF_NAMES, OBJECT_CLASS_GROUP_OF_UNIQ_NAMES};
     }
 
     @ConfigurationProperty(order = 100, allowedValues = { LOCKOUT_STRATEGY_NONE , LOCKOUT_STRATEGY_OPENLDAP })

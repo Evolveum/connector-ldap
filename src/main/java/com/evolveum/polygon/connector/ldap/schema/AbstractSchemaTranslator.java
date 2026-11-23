@@ -111,6 +111,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
                 LOG.ok("Found LDAP schema object class {0}, translating", ldapObjectClass.getName());
                 ObjectClassInfoBuilder ocib = new ObjectClassInfoBuilder();
                 ocib.setType(toIcfObjectClassType(ldapObjectClass));
+                ocib.setDescription(ldapObjectClass.getDescription());
                 Map<String, AttributeInfo> attrInfoList = new HashMap<>();
                 addAttributeTypes(attrInfoList, ldapObjectClass);
                 ocib.addAllAttributeInfo(attrInfoList.values());
@@ -1509,7 +1510,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
 
         }
 
-        extendConnectorObject(cob, entry, connIdStructuralObjectClassInfo.getType());
+        extendConnectorObject(cob, entry, ldapObjectClasses.getLdapLowestStructuralObjectClass());
         
         return cob.build();
     }
@@ -1872,7 +1873,7 @@ public abstract class AbstractSchemaTranslator<C extends AbstractLdapConfigurati
         return true;
     }
 
-    protected void extendConnectorObject(ConnectorObjectBuilder cob, Entry entry, String objectClassName) {
+    protected void extendConnectorObject(ConnectorObjectBuilder cob, Entry entry, org.apache.directory.api.ldap.model.schema.ObjectClass ldapObjectClass) {
         // Nothing to do here. This is supposed to be overriden by subclasses.
     }
 
