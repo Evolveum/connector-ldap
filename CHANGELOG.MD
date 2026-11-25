@@ -11,6 +11,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Validate the configured per-server DNS name or IP address after normal certificate-chain validation for LDAPS and StartTLS. Reverse DNS no longer supplies the authenticated server identity.
 - Update Apache Directory LDAP API to 2.1.9 and Apache MINA to 2.2.10, and use built-in JSSE endpoint identification. Preserve the existing explicit `allowUntrustedSsl` opt-out; secure resources must keep it disabled.
 
+**Upgrade note:** Existing LDAPS and StartTLS connections may fail after upgrading if the server certificate does not match the configured DNS name or IP address.
+Before upgrading, check the configured address for each server.
+If it does not match, configure the connector to use a DNS name that resolves to the intended server and matches a DNS Subject Alternative Name (SAN) in its certificate, or reissue the certificate with a SAN for the configured address.
+If the connector is configured with an IP address, use an IP address SAN, not a DNS SAN.
+
 ## [3.10]
 
 ### Added
