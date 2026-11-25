@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [4.0.0]
+
 ### Security
 
 - Validate the configured per-server DNS name or IP address after normal certificate-chain validation for LDAPS and StartTLS. Reverse DNS no longer supplies the authenticated server identity.
